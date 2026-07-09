@@ -1,0 +1,12 @@
+# JetBrains IDE munkafájlok (gépspecifikus, nem a projekt része)
+.idea/
+
+# Gépspecifikus Claude Code kontextus (IP, user, útvonalak — publikus repóba nem való)
+CLAUDE.local.md
+
+# Titkok: env fájlok soha nem kerülhetnek verziókezelésbe
+.env
+.env.*
+
+# OS által generált fájlok
+.DS_Store
