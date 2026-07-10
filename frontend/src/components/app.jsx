@@ -60,9 +60,11 @@ export default function App() {
 
     const handleCategoryChange = useCallback(() =>
         handleAxios("/categories", {user: cookies.user}, (response) => setCategories(response.data),
-            (error) => console.log(error.response.data)), [cookies.user, handleAxios]);
+            (error) => console.log(error.response?.data ?? error.message)), [cookies.user, handleAxios]);
 
-    useEffect(() => handleCategoryChange(), [handleCategoryChange]);
+    useEffect(() => {
+        handleCategoryChange();
+    }, [handleCategoryChange]);
 
     useEffect(() => {
         if (backgroundColor && color && colorHex && isLoggedIn !== null)
