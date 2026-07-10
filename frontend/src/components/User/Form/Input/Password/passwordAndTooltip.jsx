@@ -14,7 +14,7 @@ export default function PasswordAndTooltip(props) {
             <RoundedPillInput type={props.isVisible ? "text" : "password"} id="inputPassword" value={props.value}
                               onChange={props.handleChange} autoFocus={false}
                               class={props.isChecked ? "bg-secondary bg-opacity-10" : "warning-focus"}/>
-            <NoFocusButton onClick={props.handleClick} class="position-absolute z-index-3 pt-0 pe-0"
+            <NoFocusButton onClick={props.handleClick} class="position-absolute z-index-6 pt-0 pe-0"
                            text={<img src={eye} width="42" height="45" alt=""/>}/>
         </div>
     </>);

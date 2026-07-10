@@ -12,7 +12,7 @@ export default function Tooltip(props) {
         </svg>
         <ReactTooltip id="tooltip" place="bottom" clickable={true}
                       border={"1px solid " + props.colorHex}
-                      style={{backgroundColor: props.backgroundColor, color: props.colorHex}}>
+                      style={{backgroundColor: props.backgroundColor, color: props.colorHex, zIndex: 10}}>
             A jelszó legalább <br/>8 karakter legyen.<br/>Kis-, nagybetűkből <br/>és számokból álljon.
         </ReactTooltip>
     </>);

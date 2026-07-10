@@ -50,8 +50,10 @@ body {
     box-shadow: none !important;
 }
 
-.z-index-3 {
-    z-index: 3 !important;
+/* A Bootstrap 5.3 a fókuszált .input-group-inputot z-index: 5-re emeli —
+   a jelszó-mező szem-gombjának e fölött kell maradnia. */
+.z-index-6 {
+    z-index: 6 !important;
 }
 
 .w-90 {
