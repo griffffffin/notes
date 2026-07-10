@@ -9,6 +9,8 @@ CLAUDE.local.md
 # Titkok: env fájlok soha nem kerülhetnek verziókezelésbe
 .env
 .env.*
+# ...kivéve a placeholder-értékes mintafájlt, az dokumentáció
+!.env.example
 
 # OS által generált fájlok
 .DS_Store
