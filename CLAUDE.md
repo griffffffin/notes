@@ -95,3 +95,7 @@ későbbi, külön beszélgetés témája.
 - Commit-üzenetek angolul, Conventional Commits stílusban (`feat:`, `fix:`,
   `chore:`, `docs:` …). **NE** kerüljön beléjük `Co-Authored-By` vagy más
   AI-társszerző trailer — az AI-közreműködést ez a fájl dokumentálja.
+- Karbantarthatóság a puszta "működik" felett: ha valami rejtett feltételre
+  épül (betöltési sorrend, verziófüggő viselkedés, DOM-sorrend), tedd
+  explicitté — konkrét érték + rövid komment a kényszerről. (Tanulság: a régi
+  kód CSS-sorrend- és z-index-döntetlenekre épített, amik némán elromlottak.)
