@@ -92,3 +92,6 @@ későbbi, külön beszélgetés témája.
   rendben van, sőt elvárt
 - Tiszta, portfólió-minőségű git history az elejétől - ne legyen egy nagy
   "initial commit", hanem lépésenkénti, értelmes commit-üzenetek
+- Commit-üzenetek angolul, Conventional Commits stílusban (`feat:`, `fix:`,
+  `chore:`, `docs:` …). **NE** kerüljön beléjük `Co-Authored-By` vagy más
+  AI-társszerző trailer — az AI-közreműködést ez a fájl dokumentálja.

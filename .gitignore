@@ -3,6 +3,8 @@
 
 # Gépspecifikus Claude Code kontextus (IP, user, útvonalak — publikus repóba nem való)
 CLAUDE.local.md
+# Claude Code helyi jogosultság-beállítások (session-specifikus, nem a projekt része)
+.claude/settings.local.json
 
 # Titkok: env fájlok soha nem kerülhetnek verziókezelésbe
 .env
