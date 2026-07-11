@@ -55,8 +55,17 @@ export default function App() {
         setIsCategoryAngleClicked(false);
     }, []);
 
+    /* A user-cookie értéke a bejelentkezéskor kapott JWT; minden kérés
+       Authorization fejlécben viszi. 401-nél (lejárt/érvénytelen token)
+       a cookie törlődik, így az app visszavált a login képernyőre. */
     const handleAxios = useCallback((url, data, then, catchError) =>
-        axios.post(import.meta.env.VITE_BACKEND + url, data).then(then).catch(catchError), []);
+        axios.post(import.meta.env.VITE_BACKEND + url, data,
+            cookies.user ? {headers: {Authorization: "Bearer " + cookies.user}} : undefined)
+            .then(then)
+            .catch((error) => {
+                if (error.response?.status === 401) removeCookie("user");
+                catchError(error);
+            }), [cookies.user, removeCookie]);
 
     const handleCategoryChange = useCallback(() =>
         handleAxios("/categories", {user: cookies.user}, (response) => setCategories(response.data),
