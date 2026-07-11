@@ -66,6 +66,11 @@ komponensek nagy része átkerül, csak az új backend és kategóriák köré b
 - Ismert kategóriák eddig: movies (cím, évszám, genre), quotes (szerző, idézet
   szövege) - a többi (jegyzetek, sorozatok, könyvek, egyéb könyvjelzők) mezői
   menet közben tisztázandók.
+- A legtöbb kategória-oldalra NEM kell kategória-/színválasztó és percentage
+  (ezek a to-do sajátjai) — még nem implementálandó, csak tervezési tény.
+- Skálakövetelmény: egyes kategóriákban (pl. könyvjelzők) akár ~10 000 elem —
+  a kategória-nézetekhez szerveroldali lapozás/keresés és indexek kellenek,
+  a "mindent letölt és egyben renderel" minta ott nem játszik.
 
 ## Migrációs buktatók
 
