@@ -1,5 +1,6 @@
 const router = require("express").Router();
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 const SALT_WORK_FACTOR = 10;
 const User = require("../../models/user");
 
@@ -14,7 +15,8 @@ module.exports = router.post("/", ((request, response) => {
                     (error) ? response.status(400).json("Error: " + error) :
                         new User({name: name, password: hashedPassword})
                             .save()
-                            .then((user) => response.json(user._id))
+                            .then((user) => response.json(jwt.sign({id: user._id},
+                                process.env.JWT_SECRET, {expiresIn: "7d"})))
                             .catch((error) => {
                                 if (error.code === 11000) response.status(400)
                                     .json("MongoServerError: " + name + " felhasznalonev mar foglalt.");

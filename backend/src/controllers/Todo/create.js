@@ -6,7 +6,7 @@ const calculatePercentage = require("./functions/calculatePercentage");
 module.exports = router.post("/", ((request, response) => {
     const order = request.body.order;
     updateMany(
-        {user: request.body.user, order: {$gte: order}},
+        {user: request.userId, order: {$gte: order}},
         {$inc: {order: 1}, $set: {updatedAt: new Date()}},
         response,
         () => {
@@ -14,7 +14,7 @@ module.exports = router.post("/", ((request, response) => {
             const tasks = request.body.tasks;
             const percentage = calculatePercentage(request);
             new Todo({
-                user: request.body.user,
+                user: request.userId,
                 title: title,
                 tasks: tasks,
                 taskOrder: request.body.taskOrder,

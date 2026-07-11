@@ -1,4 +1,5 @@
 const router = require("express").Router();
+const auth = require("./middleware/auth");
 
 const userCreate = require("./controllers/User/create");
 const userLogin = require("./controllers/User/login");
@@ -18,6 +19,9 @@ const todoDelete = require("./controllers/Todo/delete");
 
 router.use("/user/create", userCreate);
 router.use("/login", userLogin);
+
+// Innentől minden végpont csak érvényes tokennel érhető el.
+router.use(auth);
 
 router.use("/todo/create", todoCreate);
 

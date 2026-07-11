@@ -6,10 +6,12 @@ const Todo = require("../../models/todo");
 module.exports = router.post("/", ((request, response) => {
     const id = request.body.id;
     findById(id, response, (todo) => {
+        if (todo === null || todo.user !== request.userId)
+            return response.status(403).json("Error: Nincs jogosultsag ehhez a listahoz.");
         const order = todo.order;
         const title = todo.title;
         updateMany(
-            {user: request.body.user, order: {$gt: order}},
+            {user: request.userId, order: {$gt: order}},
             {$inc: {order: -1}, $set: {updatedAt: new Date()}},
             response,
             () => Todo.findByIdAndDelete(id)
