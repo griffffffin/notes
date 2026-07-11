@@ -1,3 +1,6 @@
+# Függőségek — az npm a package-lock.json alapján bármikor újraépíti
+node_modules/
+
 # JetBrains IDE munkafájlok (gépspecifikus, nem a projekt része)
 .idea/
 
