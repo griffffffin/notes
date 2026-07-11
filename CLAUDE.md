@@ -79,15 +79,24 @@ komponensek nagy része átkerül, csak az új backend és kategóriák köré b
 - Vite csak `.jsx` kiterjesztésű fájlban fordít JSX-et — a régi `.js`
   komponensfájlokat portoláskor át kell nevezni `.jsx`-re.
 
-## Biztonsági mentés
+## Biztonsági mentés (KÉSZ, 2026-07-11)
 
-- Napi export CSV-be, DE csak ha aznap tényleg történt módosítás
-- Heti teljes biztonsági mentés, külön réteg a napi exporttól
+- Napi CSV-export 23:30-kor (`todo-export.timer` → `backend/scripts/daily-export.js`),
+  csak ha aznap volt módosítás; 30 napi retenció; cél: `/opt/backups/to-do/daily/`
+- Heti teljes mentés vasárnap 03:00 (`todo-backup.timer` → `deploy/weekly-backup.sh`,
+  pg_dump gzippel); 12 heti retenció; cél: `/opt/backups/to-do/weekly/`
+- Mindkét timer `Persistent=true`: kimaradt futást bepótol.
 
 ## Terítés (deployment)
 
-Egyelőre csak helyi (Pi-n futó) verzió a cél. Online elérhetőség részletei egy
-későbbi, külön beszélgetés témája.
+- ÉLES: az app systemd service-ként fut (`todo.service`, a `deploy/` mappából
+  telepítve) — az Express a 3001-es porton az API-t ÉS a buildelt frontendet is
+  kiszolgálja (SPA-fallbackkel); bootkor indul, hibánál újraindul.
+- Éles buildnél a frontend relatív URL-lel hívja az API-t (`.env.production`),
+  CORS-ra csak a dev-felállásnak van szüksége (Vite dev szerver külön porton).
+- FEJLESZTÉS: Vite dev szerver (5173) + `npm run dev` a backendben; a dev
+  szerverek NEM futnak állandóan, kézzel indítandók.
+- Online (interneten át) elérhetőség részletei egy későbbi, külön téma.
 
 ## Stílus / munkamódszer
 
