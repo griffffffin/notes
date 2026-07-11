@@ -1,0 +1,7 @@
+[Unit]
+Description=To-do weekly full database backup (pg_dump)
+
+[Service]
+Type=oneshot
+ExecStart=/opt/to-do/deploy/weekly-backup.sh
+User=postgres

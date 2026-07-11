@@ -1,0 +1,8 @@
+[Unit]
+Description=To-do daily JSON export
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/to-do/backend
+ExecStart=/usr/bin/node scripts/daily-export.js
+User=ubuntu
