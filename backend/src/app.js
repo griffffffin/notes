@@ -4,6 +4,7 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 require("dotenv").config();
 const env = process.env;
+const routes = require("./routes");
 
 app.use(cors());
 app.use(express.json());
@@ -20,5 +21,7 @@ app.get("/health", async (request, response) => {
         response.status(503).json({status: "ok", database: "unreachable", error: error.message});
     }
 });
+
+app.use(routes);
 
 app.listen(env.PORT, env.HOST, () => console.log("A szerver fut."));
