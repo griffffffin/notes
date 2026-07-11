@@ -25,8 +25,10 @@ komponensek nagy része átkerül, csak az új backend és kategóriák köré b
 
 - Raspberry Pi 4B, 4 mag, 7.6GB RAM, Ubuntu (kernel 6.8), `/opt/to-do` alatt fut a projekt
 - Node.js v22.22.1
-- FerretDB (v1.24.0) systemd service-ként fut (`ferretdb.service`), a
-  `127.0.0.1:27017` címen figyel, Postgres a háttértára
+- FerretDB **v2.7.0** systemd service-ként fut (`ferretdb.service`,
+  `/usr/bin/ferretdb`), a `127.0.0.1:27017` címen figyel. Háttértár:
+  PostgreSQL 16 a DocumentDB extensionnel (`postgres` adatbázis). A MongoDB-
+  kliensek (backend) hitelesítéssel kapcsolódnak, a Postgres-user adataival.
 - A FerretDB Postgres-jelszava a `/etc/ferretdb.env`-ben él (root:root, 600),
   a unit `EnvironmentFile=`-lal tölti be — parancssorban/`ps`-ben nem látszik.
   (A korábbi plaintext-jelszavas állapot 2026-07-11-én javítva, jelszó cserélve.)
