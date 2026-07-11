@@ -8,7 +8,7 @@ module.exports = router.post("/", ((request, response) => {
     const id = request.body.id;
     findById(id, response, (todo) => {
         if (todo === null || todo.user !== request.userId)
-            return response.status(403).json("Error: Nincs jogosultsag ehhez a listahoz.");
+            return response.status(403).json("Nincs jogosultságod.");
         const oldOrder = todo.order;
         const title = request.body.title;
         const tasks = request.body.tasks;

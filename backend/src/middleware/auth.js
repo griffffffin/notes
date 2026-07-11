@@ -7,9 +7,9 @@ const jwt = require("jsonwebtoken");
 module.exports = (request, response, next) => {
     const header = request.headers.authorization;
     const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-    if (!token) return response.status(401).json("Error: Hianyzo token.");
+    if (!token) return response.status(401).json("Hiányzó token.");
     jwt.verify(token, process.env.JWT_SECRET, (error, payload) => {
-        if (error) return response.status(401).json("Error: Ervenytelen vagy lejart token.");
+        if (error) return response.status(401).json("Érvénytelen token.");
         request.userId = payload.id;
         next();
     });
