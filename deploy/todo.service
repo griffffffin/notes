@@ -1,0 +1,15 @@
+# Telepítés: sudo cp deploy/todo.service /etc/systemd/system/ &&
+#            sudo systemctl daemon-reload && sudo systemctl enable --now todo
+[Unit]
+Description=To-do app (Express API + static frontend)
+After=network.target ferretdb.service
+Wants=ferretdb.service
+
+[Service]
+WorkingDirectory=/opt/to-do/backend
+ExecStart=/usr/bin/node src/app.js
+Restart=always
+User=ubuntu
+
+[Install]
+WantedBy=multi-user.target

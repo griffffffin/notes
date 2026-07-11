@@ -14,6 +14,8 @@ CLAUDE.local.md
 .env.*
 # ...kivéve a placeholder-értékes mintafájlt, az dokumentáció
 !.env.example
+# ...és az éles build környezet-semleges beállítását (nincs benne titok)
+!.env.production
 
 # OS által generált fájlok
 .DS_Store
