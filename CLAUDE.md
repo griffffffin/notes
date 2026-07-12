@@ -36,6 +36,20 @@ komponensek nagy része átkerül, csak az új backend és kategóriák köré b
   backend titkai a `backend/.env`-be (600, gitignore-olva), NEM más projektek
   közös titokfájljába.
 
+## Lemeztitkosítás (KÉSZ, 2026-07-12)
+
+- A teljes `/opt` egy **LUKS2-titkosított köteten** él (fájl-alapú konténer a
+  rendszerlemezen; a Postgres adatkönyvtára is ide költözött: `a titkosított köteten`).
+  Fenyegetésmodell: ellopott, **kikapcsolt** gép — a lemezről az adat nem
+  olvasható ki. Az OS maga titkosítatlan (nincs benne személyes adat).
+- **A kulcs SEHOL nincs a gépen** — ezért a `/opt` bootkor NEM csatolódik, és a
+  rá épülő szolgáltatások (postgres, ferretdb, todo) auto-indítása
+  le van tiltva. Reboot után kézzel kell feloldani:
+  `sudo unlock-opt` (a szkript a `a gépen élő telepített szkript` verziózott mása;
+  bekéri a LUKS-jelszót, csatol, majd elindítja a szolgáltatásokat).
+- **Fejlesztéskor figyelj**: feloldás nélkül a `/opt` üres könyvtárnak látszik —
+  az sshfs-mount is üreset csatolna.
+
 ## Munkakörnyezet / elérés
 
 - A helyi (fejlesztői) gépen **nincs Node/npm** — minden parancsot (npm, git,
