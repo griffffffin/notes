@@ -19,24 +19,23 @@ export default function Navbar(props) {
         <nav className="navbar navbar-black bg-transparent pb-0">
             <div className="container-fluid ms-2 me-1">
                 <LogoAndCreate handleLinkClicked={props.handleLinkClicked} isVisible={props.isVisible}
-                               color={props.color} isCreateVisible={props.isVisible}/>
+                               isCreateVisible={props.isVisible}/>
                 <div className="d-grid">
                     <div className="input-group align-items-center">
                         {props.isVisible &&
                             <ColorCategoryAndSignOut handleLinkClicked={props.handleLinkClicked}
                                                      removeCookie={props.removeCookie}
                                                      handleColorClick={handleColorClick}
-                                                     isColorClicked={props.isColorClicked} color={props.color}
+                                                     isColorClicked={props.isColorClicked}
                                                      handleCategoryClick={handleCategoryClick}
                                                      isCategoryClicked={props.isCategoryClicked}/>}
-                        <Switch isChecked={props.isChecked} onChange={props.handleCheckedChange}
-                                color={props.colorHex}/>
+                        <Switch/>
                     </div>
                 </div>
             </div>
             {props.isVisible &&
                 <CategoryAndColorGroup isCategoryClicked={props.isCategoryClicked}
-                                       categories={props.categories} color={props.color} cookies={props.cookies}
+                                       categories={props.categories} cookies={props.cookies}
                                        handleCategoryClick={handleCategoryClick}
                                        isColorClicked={props.isColorClicked}
                                        handleColorClick={handleColorClick}/>}

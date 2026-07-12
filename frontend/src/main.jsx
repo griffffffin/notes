@@ -13,13 +13,17 @@ import '@fortawesome/fontawesome-svg-core/styles.css'
 import './index.css'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import App from './components/app.jsx'
+import { ThemeProvider } from './contexts/theme.jsx'
 
 config.autoAddCss = false
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <CookiesProvider>
-      <App />
+      {/* A ThemeProvider sütiből olvas, ezért a CookiesProvider ALATT kell lennie. */}
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
     </CookiesProvider>
   </StrictMode>,
 )

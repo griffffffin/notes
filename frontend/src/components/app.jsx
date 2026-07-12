@@ -5,47 +5,18 @@ import {fas} from "@fortawesome/free-solid-svg-icons";
 import axios from "axios";
 import Spinner from "./spinner";
 import Routes from "./routes";
+import {useTheme} from "../contexts/theme";
 
 library.add(fas);
 
 export default function App() {
     const [isLoading, setIsLoading] = useState(true);
-    const [isChecked, setIsChecked] = useState(false);
-    const [cookies, setCookie, removeCookie] = useCookies(["user", "backgroundColor"]);
-    const [backgroundColor, setBackgroundColor] = useState("");
-    const [color, setColor] = useState("");
-    const [colorHex, setColorHex] = useState("");
+    const [cookies, setCookie, removeCookie] = useCookies(["user"]);
     const [isLoggedIn, setIsLoggedIn] = useState(null);
     const [isColorAngleClicked, setIsColorAngleClicked] = useState(false);
     const [isCategoryAngleClicked, setIsCategoryAngleClicked] = useState(false);
     const [categories, setCategories] = useState([]);
-
-    const handleCheckedChange = useCallback(() => setIsChecked(!isChecked), [isChecked]);
-
-    useEffect(() => {
-        if (cookies.backgroundColor === "white") setIsChecked(true);
-    }, [cookies.backgroundColor]);
-
-    useEffect(() => {
-        const html = document.documentElement;
-        if (isChecked) {
-            html.classList.remove("bg-black");
-            // A html inline háttere az index.html boot-szkriptjéből jön; témaváltáskor
-            // itt kell szinkronban tartani, különben a régi szín ragadna be.
-            html.style.background = "#fff";
-            setBackgroundColor("white");
-            setColor("primary");
-            setColorHex("#0d6efd");
-            setCookie("backgroundColor", "white");
-        } else {
-            html.classList.add("bg-black");
-            html.style.background = "#000";
-            setBackgroundColor("black");
-            setColor("warning");
-            setColorHex("#ffc107");
-            setCookie("backgroundColor", "black");
-        }
-    }, [isChecked, setCookie]);
+    const {backgroundColor} = useTheme();
 
     useEffect(() => {
         if (cookies.user) setIsLoggedIn(true);
@@ -81,9 +52,8 @@ export default function App() {
     }, [handleCategoryChange]);
 
     useEffect(() => {
-        if (backgroundColor && color && colorHex && isLoggedIn !== null)
-            setIsLoading(false);
-    }, [backgroundColor, color, colorHex, isLoggedIn]);
+        if (isLoggedIn !== null) setIsLoading(false);
+    }, [isLoggedIn]);
 
     return (
         isLoading ? <Spinner class="min-vh-75"/> :
@@ -94,11 +64,8 @@ export default function App() {
                         isCategoryAngleClicked={isCategoryAngleClicked}
                         cookies={cookies} setCookie={setCookie} removeCookie={removeCookie}
                         isLoggedIn={isLoggedIn}
-                        color={color} colorHex={colorHex}
-                        handleCheckedChange={handleCheckedChange} isChecked={isChecked}
                         categories={categories} handleCategoryChange={handleCategoryChange}
-                        handleAxios={handleAxios}
-                        backgroundColor={backgroundColor}/>
+                        handleAxios={handleAxios}/>
             </div>
     );
 }

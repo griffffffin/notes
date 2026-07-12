@@ -4,6 +4,8 @@ import Entry from "./User/entry";
 import Save from "./Todo/save";
 import Read from "./Todo/read";
 
+/* A téma (szín, háttér, kapcsoló) NEM propként utazik: a komponensek a
+   useTheme() hookkal veszik ki a ThemeContextből, ahol szükségük van rá. */
 export default function Routes(props) {
     return (props.isLoggedIn ?
             <Router>
@@ -12,14 +14,12 @@ export default function Routes(props) {
                     setIsCategoryClicked={props.setIsCategoryAngleClicked}
                     isCategoryClicked={props.isCategoryAngleClicked}
                     handleLinkClicked={props.handleLinkClicked} isVisible={props.isLoggedIn}
-                    color={props.color} colorHex={props.colorHex}
                     removeCookie={props.removeCookie} cookies={props.cookies}
-                    isChecked={props.isChecked} handleCheckedChange={props.handleCheckedChange}
                     categories={props.categories}/>
                 <ReactRoutes>
                     <Route path="/create" element={
                         <Save cookies={props.cookies} handleAxios={props.handleAxios}
-                              handleLinkClicked={props.handleLinkClicked} backgroundColor={props.backgroundColor}
+                              handleLinkClicked={props.handleLinkClicked}
                               categories={props.categories} handleCategoryChange={props.handleCategoryChange}/>}/>
                     <Route path="*" element={
                         <Read cookies={props.cookies} url="/" handleAxios={props.handleAxios}
@@ -32,24 +32,20 @@ export default function Routes(props) {
                               handleLinkClicked={props.handleLinkClicked}/>}/>
                     <Route path="/update" element={
                         <Save isUpdate={true} cookies={props.cookies} handleAxios={props.handleAxios}
-                              handleLinkClicked={props.handleLinkClicked} backgroundColor={props.backgroundColor}
+                              handleLinkClicked={props.handleLinkClicked}
                               categories={props.categories} handleCategoryChange={props.handleCategoryChange}/>}/>
                 </ReactRoutes>
             </Router>
             :
             <Router>
-                <Navbar isVisible={props.isLoggedIn} color={props.color} colorHex={props.colorHex}
-                        isChecked={props.isChecked} handleCheckedChange={props.handleCheckedChange}/>
+                <Navbar isVisible={props.isLoggedIn}/>
                 <ReactRoutes>
                     <Route path="/signup"
-                           element={<Entry isLogin={false} handleAxios={props.handleAxios} setCookie={props.setCookie}
-                                           isChecked={props.isChecked}
-                                           color={props.color} colorHex={props.colorHex}
-                                           backgroundColor={props.backgroundColor}/>}/>
+                           element={<Entry isLogin={false} handleAxios={props.handleAxios}
+                                           setCookie={props.setCookie}/>}/>
                     <Route path="*"
-                           element={<Entry isLogin={true} handleAxios={props.handleAxios} setCookie={props.setCookie}
-                                           isChecked={props.isChecked}
-                                           color={props.color} backgroundColor={props.backgroundColor}/>}/>
+                           element={<Entry isLogin={true} handleAxios={props.handleAxios}
+                                           setCookie={props.setCookie}/>}/>
                 </ReactRoutes>
             </Router>
     );

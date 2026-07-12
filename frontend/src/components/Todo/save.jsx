@@ -11,6 +11,7 @@ import Category from "./category";
 import SubmitButton from "../Button/submitButton";
 import DeleteAndModal from "./deleteAndModal";
 import ColorButtonGroup from "../Button/colorButtonGroup";
+import {useTheme} from "../../contexts/theme";
 
 export default function Save(props) {
     const [isLoading, setIsLoading] = useState(true);
@@ -34,6 +35,9 @@ export default function Save(props) {
     const [lastOrder, setLastOrder] = useState(null);
     const [isCategoryAngleClicked, setIsCategoryAngleClicked] = useState(false);
     const navigate = useNavigate();
+    /* A to-do SAJÁT színe (a felhasználó választja kártyánként) — nem a témáé.
+       Csak a kezdőértékét vesszük a témából. */
+    const theme = useTheme();
 
     useEffect(() => {
         if (props.isUpdate) {
@@ -71,14 +75,9 @@ export default function Save(props) {
     }, []);
 
     useEffect(() => {
-        if (props.cookies.backgroundColor === "white") {
-            setColor("primary");
-            handleColorHexChange("primary");
-        } else {
-            setColor("warning");
-            handleColorHexChange("warning");
-        }
-    }, [props.cookies.backgroundColor, handleColorHexChange]);
+        setColor(theme.color);
+        handleColorHexChange(theme.color);
+    }, [theme.color, handleColorHexChange]);
 
     const handleColorChange = useCallback((event) => {
         setColor(event.target.value);
@@ -207,7 +206,7 @@ export default function Save(props) {
                             <DeleteAndModal handleLinkClicked={props.handleLinkClicked} handleAxios={props.handleAxios}
                                             setIsColorClicked={setIsColorAngleClicked} color={color} location={location}
                                             setIsCategoryClicked={setIsCategoryAngleClicked}
-                                            backgroundColor={props.backgroundColor} cookies={props.cookies}
+                                            backgroundColor={theme.backgroundColor} cookies={props.cookies}
                                             handleCategoryChange={props.handleCategoryChange}/>}
 
                         <NoFocusButton onClick={handleColorAngleClick} class="pb-0" color={color}

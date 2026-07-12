@@ -2,6 +2,7 @@ import {useCallback, useEffect, useState} from "react";
 import Spinner from "../spinner";
 import InputGroup from "./Form/Input/inputGroup";
 import SubmitButtonGroup from "../Button/submitButtonGroup";
+import {useTheme} from "../../contexts/theme";
 
 export default function Entry(props) {
     const [isLoading, setIsLoading] = useState(true);
@@ -9,7 +10,6 @@ export default function Entry(props) {
     const [isSignUpError, setIsSignUpError] = useState(false);
     const [mb, setMb] = useState("");
     const [url, setUrl] = useState("");
-    const [inverseBackgroundColor, setInverseBackgroundColor] = useState("");
     const [name, setName] = useState("");
     const [isNameValid, setIsNameValid] = useState(false);
     const [password, setPassword] = useState("");
@@ -18,6 +18,10 @@ export default function Entry(props) {
     const [passwordConfirm, setPasswordConfirm] = useState("");
     const [isPasswordConfirmValid, setIsPasswordConfirmValid] = useState(false);
     const [isDisabled, setIsDisabled] = useState(true);
+    const {backgroundColor} = useTheme();
+    // A háttér ellentéte: fekete témán fehér szöveg és fordítva. Renderben
+    // számolható a témából — nem kell hozzá state + effect.
+    const inverseBackgroundColor = backgroundColor === "black" ? "white" : "black";
 
     const clearError = useCallback((mb) => {
         setIsLoginError(false);
@@ -34,11 +38,6 @@ export default function Entry(props) {
             clearError(3);
         }
     }, [props.isLogin, clearError]);
-
-    useEffect(() => {
-        if (props.backgroundColor === "black") setInverseBackgroundColor("white");
-        else setInverseBackgroundColor("black");
-    }, [props.backgroundColor]);
 
     const handleNameChange = useCallback((event) => {
         if (isLoginError || isSignUpError) clearError(5);
@@ -97,24 +96,22 @@ export default function Entry(props) {
     }, []);
 
     useEffect(() => {
-        if (props && mb && url && inverseBackgroundColor) setIsLoading(false);
-    }, [props, mb, url, inverseBackgroundColor]);
+        if (props && mb && url) setIsLoading(false);
+    }, [props, mb, url]);
 
     return (
         isLoading ? <Spinner class="min-vh-75"/> :
             <div className="container-fluid d-flex justify-content-center align-items-center mt-4 pt-2 px-0">
                 <form className={"col-10 col-sm-6 col-md-5 col-xl-3 text-" + inverseBackgroundColor}
                       onSubmit={handleSubmit}>
-                    <InputGroup isLogin={props.isLogin} isChecked={props.isChecked} mb={mb} handleClick={handleEyeClick}
+                    <InputGroup isLogin={props.isLogin} mb={mb} handleClick={handleEyeClick}
                                 name={name} handleNameChange={handleNameChange}
-                                color={props.color} colorHex={props.colorHex}
-                                backgroundColor={props.backgroundColor}
                                 isPasswordVisible={isPasswordVisible}
                                 password={password} handlePasswordChange={handlePasswordChange}
                                 passwordConfirm={passwordConfirm}
                                 handlePasswordConfirmChange={handlePasswordConfirmChange}
                                 isSignUpError={isSignUpError} isLoginError={isLoginError}/>
-                    <SubmitButtonGroup onClick={clearPassword} isDisabled={isDisabled} color={props.color}
+                    <SubmitButtonGroup onClick={clearPassword} isDisabled={isDisabled}
                                        isLogin={props.isLogin}/>
                 </form>
             </div>
