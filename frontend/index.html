@@ -22,9 +22,15 @@
     <link rel="preload" href="/fonts/Caveat-VariableFont_wght.ttf" as="font" type="font/ttf" crossorigin />
     <link rel="preload" href="/fonts/EncodeSansSemiExpanded-Regular.ttf" as="font" type="font/ttf" crossorigin />
 
-    <!-- A téma-kapcsoló nap/hold ikonjai: ugyanezért töltjük őket előre. -->
+    <!--
+      A téma-kapcsoló nap/hold ikonjai és a nyitott szem (jelszó-megjelenítés):
+      ugyanezért töltjük őket előre. Mindhárom a Vite 4 KB-os beágyazási küszöbe
+      fölött van, tehát külön fájlként töltődnének le — a kirajzolás után, késve.
+      (A csukott szem 3,4 KB, az beágyazódik a bundle-be, neki nem kell preload.)
+    -->
     <link rel="preload" href="/icons/sun.png" as="image" type="image/png" />
     <link rel="preload" href="/icons/moon.png" as="image" type="image/png" />
+    <link rel="preload" href="/icons/eye_of_providence.svg" as="image" type="image/svg+xml" />
 
     <style>
       html { background: #000; }
