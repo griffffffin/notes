@@ -1,12 +1,15 @@
 import {useCallback} from "react";
+import {useNavigate} from "react-router-dom";
 import LinkLogo from "../Link/logo";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 
 export default function LogoAndCreate(props) {
+    const navigate = useNavigate();
+
     const handleCreateClick = useCallback(() => {
         props.handleLinkClicked();
-        window.location = "/create";
-    }, [props]);
+        navigate("/create");
+    }, [props, navigate]);
 
     return (
         <div className="d-grid pb-1">
