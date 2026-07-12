@@ -26,7 +26,9 @@ const RETENTION_DAYS = 30;
         const todos = await Todo.find({}).sort("user order").lean();
         const file = path.join(EXPORT_DIR,
             "todos-" + startOfWindow.toISOString().slice(0, 10) + ".json");
-        fs.writeFileSync(file, JSON.stringify(todos, null, 2) + "\n");
+        // 0600: az export a felhasználó adatait tartalmazza — csak a tulajdonos olvashassa
+        fs.writeFileSync(file, JSON.stringify(todos, null, 2) + "\n", {mode: 0o600});
+        fs.chmodSync(file, 0o600);   // ha a fájl már létezett, a writeFileSync mode-ja nem érvényesül
         console.log(todos.length + " dokumentum exportálva: " + file);
     }
 

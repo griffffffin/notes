@@ -8,7 +8,11 @@ BACKUP_DIR=/opt/backups/to-do/weekly
 RETENTION_DAYS=84
 FILE="$BACKUP_DIR/postgres-$(date +%F).sql.gz"
 
+# 0600: a dump a teljes adatbázist tartalmazza — csak a tulajdonos olvashassa
+umask 077
+
 pg_dump -d postgres | gzip > "$FILE"
+chmod 600 "$FILE"
 
 # Ép a mentés? (gzip-integritás + nem gyanúsan apró)
 if gzip -t "$FILE" && [ "$(stat -c%s "$FILE")" -gt 1024 ]; then
