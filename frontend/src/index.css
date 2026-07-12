@@ -18,6 +18,15 @@ body {
     font-family: "EncodeSansSemiExpanded", sans-serif !important;
 }
 
+/* A body legyen átlátszó, hogy az index.html-ben MÉG a stíluslapok előtt
+   beállított téma-háttér látszódjon át rajta. Enélkül a Bootstrap fehér
+   body-háttere rátelepszik a feketére (villanás). A "html body" szelektor
+   szándékos: erősebb, mint a Bootstrap "body" szabálya, így !important nélkül
+   is nyer. A tényleges témát az app.jsx tartja szinkronban a html-en. */
+html body {
+    background: transparent;
+}
+
 /* A Bootstrap 5.3 a placeholder színét a --bs-secondary-color-ra (majdnem
    fekete) cserélte — a fekete témán olvashatatlan. Az 5.1-es fix szürke
    mindkét témán működik, ezért azt rögzítjük. */

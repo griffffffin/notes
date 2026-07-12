@@ -27,14 +27,19 @@ export default function App() {
     }, [cookies.backgroundColor]);
 
     useEffect(() => {
+        const html = document.documentElement;
         if (isChecked) {
-            document.getElementsByTagName("html")[0].classList.remove("bg-black");
+            html.classList.remove("bg-black");
+            // A html inline háttere az index.html boot-szkriptjéből jön; témaváltáskor
+            // itt kell szinkronban tartani, különben a régi szín ragadna be.
+            html.style.background = "#fff";
             setBackgroundColor("white");
             setColor("primary");
             setColorHex("#0d6efd");
             setCookie("backgroundColor", "white");
         } else {
-            document.getElementsByTagName("html")[0].classList.add("bg-black");
+            html.classList.add("bg-black");
+            html.style.background = "#000";
             setBackgroundColor("black");
             setColor("warning");
             setColorHex("#ffc107");
