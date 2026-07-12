@@ -5,6 +5,20 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>To-do</title>
+
+    <!--
+      A háttérszínt MÉG a stíluslapok és a React betöltése előtt beállítjuk.
+      A .bg-black osztály önmagában kevés: az csak akkor hat, amikor a Bootstrap
+      CSS már betöltött — addig a böngésző fehéret fest (látható villanás).
+      A téma a cookie-ból jön, hogy a világos témát se villantsuk feketére.
+    -->
+    <style>
+      html { background: #000; }
+    </style>
+    <script>
+      if (document.cookie.split("; ").indexOf("backgroundColor=white") !== -1)
+        document.documentElement.style.background = "#fff";
+    </script>
   </head>
   <body>
     <div id="root"></div>
