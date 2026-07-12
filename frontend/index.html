@@ -36,7 +36,10 @@
       html { background: #000; }
     </style>
     <script>
-      if (document.cookie.split("; ").indexOf("backgroundColor=white") !== -1)
+      // Reguláris kifejezéssel keresünk, nem pontos szövegegyezéssel: így akkor is
+      // megtalálja, ha a süti értéke idézőjelbe kerül, vagy más sorrendben/térközzel
+      // szerepel a cookie-sztringben.
+      if (/(^|;\s*)backgroundColor="?white"?\s*(;|$)/.test(document.cookie))
         document.documentElement.style.background = "#fff";
     </script>
   </head>
