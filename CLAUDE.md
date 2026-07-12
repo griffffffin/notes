@@ -31,7 +31,11 @@ komponensek nagy része átkerül, csak az új backend és kategóriák köré b
   kliensek (backend) hitelesítéssel kapcsolódnak, a Postgres-user adataival.
 - A FerretDB Postgres-jelszava a `/etc/ferretdb.env`-ben él (root:root, 600),
   a unit `EnvironmentFile=`-lal tölti be — parancssorban/`ps`-ben nem látszik.
-  (A korábbi plaintext-jelszavas állapot 2026-07-11-én javítva, jelszó cserélve.)
+  (Erős, generált jelszó; 2026-07-12-én cserélve.)
+- A Postgres hitelesítése `scram-sha-256` (nincs `trust` kiskapu) — a DocumentDB
+  belső kapcsolatai a `postgres` user `~/.pgpass` fájljából veszik a jelszót.
+  A jelszó három helyen él, együtt kell cserélni: Postgres-user +
+  `/etc/ferretdb.env` + `backend/.env` (DATABASE).
 - Titokkezelési elv: projektenként külön env-fájl (least privilege) — a to-do
   backend titkai a `backend/.env`-be (600, gitignore-olva), NEM más projektek
   közös titokfájljába.
