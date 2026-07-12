@@ -95,15 +95,17 @@ komponensek nagy része átkerül, csak az új backend és kategóriák köré b
 
 ## Biztonsági mentés (KÉSZ, 2026-07-11)
 
-- Napi CSV-export 23:30-kor (`todo-export.timer` → `backend/scripts/daily-export.js`),
-  csak ha aznap volt módosítás; 30 napi retenció; cél: `/opt/backups/to-do/daily/`
-- Heti teljes mentés vasárnap 03:00 (`todo-backup.timer` → `deploy/weekly-backup.sh`,
+- Napi **JSON**-export éjfélkor (`to-do-export.timer` → `backend/scripts/daily-export.js`);
+  az ELŐZŐ napot vizsgálja, csak ha volt módosítás; 30 napi retenció;
+  cél: `/opt/backups/to-do/daily/`
+- Heti teljes mentés vasárnap 01:00 (`to-do-backup.timer` → `deploy/weekly-backup.sh`,
   pg_dump gzippel); 12 heti retenció; cél: `/opt/backups/to-do/weekly/`
-- Mindkét timer `Persistent=true`: kimaradt futást bepótol.
+- Mindkét timer `Persistent=true`: kimaradt futást bepótol. A retenció csak akkor
+  töröl régit, ha a legfrissebb mentés bizonyítottan ép/nem üres.
 
 ## Terítés (deployment)
 
-- ÉLES: az app systemd service-ként fut (`todo.service`, a `deploy/` mappából
+- ÉLES: az app systemd service-ként fut (`to-do.service`, a `deploy/` mappából
   telepítve) — az Express a 3001-es porton az API-t ÉS a buildelt frontendet is
   kiszolgálja (SPA-fallbackkel); bootkor indul, hibánál újraindul.
 - Éles buildnél a frontend relatív URL-lel hívja az API-t (`.env.production`),
