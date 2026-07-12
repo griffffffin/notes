@@ -2,7 +2,8 @@ import NoFocusButton from "../Button/noFocusButton";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 
 export default function Category(props) {
-    return (<>
+    return (
+        <>
         <div role="button" className={"pb-1 user-select-none caveat text-" + props.color}
              onClick={props.onClick}>
             Kategória

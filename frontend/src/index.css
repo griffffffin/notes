@@ -1,16 +1,21 @@
+/* A fontok a public/ mappából jönnek, stabil (nem hash-elt) útvonalon — így az
+   index.html előre be tudja tölteni őket (<link rel="preload">). Enélkül a
+   böngésző csak a CSS feldolgozása után kezdi letölteni őket: a szöveg előbb
+   tartalék betűvel jelenik meg, majd a valódi font érkezésekor átméreteződik —
+   ettől "ugrálnak" a navbar feliratai és a mellettük lévő ikonok. */
 @font-face {
     font-family: "EncodeSansSemiExpanded";
-    src: url("assets/fonts/EncodeSansSemiExpanded-Regular.ttf") format("truetype");
+    src: url("/fonts/EncodeSansSemiExpanded-Regular.ttf") format("truetype");
 }
 
 @font-face {
     font-family: "CaveatSemiBold";
-    src: url("assets/fonts/Caveat-SemiBold.ttf") format("truetype");
+    src: url("/fonts/Caveat-SemiBold.ttf") format("truetype");
 }
 
 @font-face {
     font-family: "Caveat";
-    src: url("assets/fonts/Caveat-VariableFont_wght.ttf") format("truetype");
+    src: url("/fonts/Caveat-VariableFont_wght.ttf") format("truetype");
 }
 
 
@@ -29,8 +34,12 @@ html body {
 
 /* A Bootstrap 5.3 a placeholder színét a --bs-secondary-color-ra (majdnem
    fekete) cserélte — a fekete témán olvashatatlan. Az 5.1-es fix szürke
-   mindkét témán működik, ezért azt rögzítjük. */
-.form-control::placeholder {
+   mindkét témán működik, ezért azt rögzítjük.
+   A szelektor szándékosan "input.form-control" (nem sima ".form-control"):
+   azonos szelektor esetén a CSS-minifier összevonja a Bootstrap szabályával
+   és kidobja a miénket — így viszont nem tudja. */
+input.form-control::placeholder,
+textarea.form-control::placeholder {
     color: #6c757d !important;
     opacity: 1 !important;
 }

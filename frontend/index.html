@@ -12,6 +12,16 @@
       CSS már betöltött — addig a böngésző fehéret fest (látható villanás).
       A téma a cookie-ból jön, hogy a világos témát se villantsuk feketére.
     -->
+    <!--
+      A fontokat előre betöltetjük: a böngésző már a HTML olvasásakor elindítja
+      a letöltésüket, így készen vannak az első kirajzoláskor. Enélkül a szöveg
+      tartalék betűvel jelenik meg, majd a valódi font érkezésekor
+      átméreteződik — ettől ugrálnak a navbar feliratai és az ikonok.
+    -->
+    <link rel="preload" href="/fonts/Caveat-SemiBold.ttf" as="font" type="font/ttf" crossorigin />
+    <link rel="preload" href="/fonts/Caveat-VariableFont_wght.ttf" as="font" type="font/ttf" crossorigin />
+    <link rel="preload" href="/fonts/EncodeSansSemiExpanded-Regular.ttf" as="font" type="font/ttf" crossorigin />
+
     <style>
       html { background: #000; }
     </style>
