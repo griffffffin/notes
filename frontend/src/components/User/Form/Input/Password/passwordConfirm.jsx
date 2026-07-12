@@ -1,6 +1,7 @@
 import RoundedPillInput from "../../../../Input/roundedPillInput";
 import NoFocusButton from "../../../../Button/noFocusButton";
-import eye from "../../../../../assets/icons/password/eye_of_providence.svg";
+import openEye from "../../../../../assets/icons/password/eye_of_providence.svg";
+import closedEye from "../../../../../assets/icons/password/closed_eye.svg";
 
 export default function PasswordConfirm(props) {
     return (<>
@@ -10,7 +11,8 @@ export default function PasswordConfirm(props) {
                               onChange={props.onChange} autoFocus={false}
                               class={props.isChecked ? "bg-secondary bg-opacity-10" : "warning-focus"}/>
             <NoFocusButton onClick={props.onClick} class="position-absolute z-index-6 pt-0 pe-0"
-                           text={<img src={eye} width="42" height="45" alt=""/>}/>
+                           text={<img src={props.isVisible ? openEye : closedEye} width="42" height="45"
+                                      alt={props.isVisible ? "Jelszó elrejtése" : "Jelszó megjelenítése"}/>}/>
         </div>
     </>);
 }
