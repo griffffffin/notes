@@ -74,11 +74,18 @@ textarea.form-control::placeholder {
    táblából (src/contexts/theme.jsx) — itt csak hivatkozunk rájuk. A .btn
    alaposztály (méret, lekerekítés, disabled-átlátszóság) a Bootstrapé marad,
    ezek az osztályok csak a színeket adják. --- */
-.text-theme {
+/* A szelektor SZÁNDÉKOSAN kétszer szerepel (.text-theme.text-theme): ettől
+   erősebb (két osztálynyi specificitás), mint a lentebbi ".no-focus", ami
+   "color: transparent !important"-ot állít. Azonos erősségnél a később jövő
+   nyerne, és a .no-focus-os elemek (pl. a jelszó-tooltip (i) ikonja)
+   láthatatlanná válnának. Régen ezt a Bootstrap .text-warning oldotta meg, mert
+   az az egész index.css UTÁN töltődik — a saját osztályunknál ez nem áll fenn,
+   ezért a specificitással tesszük sorrend-függetlenné. */
+.text-theme.text-theme {
     color: var(--theme-accent) !important;
 }
 
-.text-theme-text {
+.text-theme-text.text-theme-text {
     color: var(--theme-text) !important;
 }
 
