@@ -27,9 +27,16 @@ body {
    beállított téma-háttér látszódjon át rajta. Enélkül a Bootstrap fehér
    body-háttere rátelepszik a feketére (villanás). A "html body" szelektor
    szándékos: erősebb, mint a Bootstrap "body" szabálya, így !important nélkül
-   is nyer. A tényleges témát az app.jsx tartja szinkronban a html-en. */
+   is nyer. A tényleges témát a ThemeProvider tartja szinkronban a html-en. */
 html body {
     background: transparent;
+}
+
+/* A tartalom töltse ki a képernyőt: rövid oldalnál (bejelentkezés, egy-két
+   to-do) egyébként a tartalom alatt a html háttere látszana — témaváltáskor ez
+   egy fekete/fehér sávként maradt ott a lap alján. */
+html, body, #root {
+    min-height: 100vh;
 }
 
 /* A Bootstrap 5.3 a placeholder színét a --bs-secondary-color-ra (majdnem
@@ -81,14 +88,20 @@ textarea.form-control::placeholder {
 
 .bg-theme-page {
     background-color: var(--theme-page-bg) !important;
+    /* A lap alján ne maradjon csík a html hátteréből, ha rövid a tartalom */
+    min-height: 100vh;
 }
 
-/* A gombok NEM közvetlen tulajdonságokat kapnak, hanem a Bootstrap .btn
-   alaposztályának --bs-btn-* változóit állítják át — a .btn ezekből olvas,
-   így nincs cascade-verseny vele (az index.css a Bootstrap ELŐTT töltődik,
-   közvetlen tulajdonság-írásnál a Bootstrap nyerne). A hover-árnyalatot a
-   color-mix() számolja a kiemelőszínből. */
-.btn-theme {
+/* A gombok a Bootstrap .btn alaposztályának --bs-btn-* változóit állítják át
+   (a .btn ezekből olvassa a színeit), a hover-árnyalatot a color-mix() számolja.
+
+   A szelektor SZÁNDÉKOSAN ".btn.btn-theme" (két osztály), nem sima
+   ".btn-theme": a Bootstrap .btn maga is definiálja ezeket a változókat
+   (--bs-btn-bg:transparent, --bs-btn-color:var(--bs-body-color)), és mivel az
+   index.css a Bootstrap ELŐTT töltődik, azonos erősségnél a Bootstrap nyerne —
+   a gomb elveszítené a keretét és a betűszínét. A két osztályos szelektor
+   erősebb, így a betöltési sorrendtől függetlenül a miénk érvényesül. */
+.btn.btn-theme {
     --bs-btn-bg: var(--theme-accent);
     --bs-btn-border-color: var(--theme-accent);
     --bs-btn-color: var(--theme-accent-contrast);
@@ -103,7 +116,7 @@ textarea.form-control::placeholder {
     --bs-btn-disabled-color: var(--theme-accent-contrast);
 }
 
-.btn-outline-theme {
+.btn.btn-outline-theme {
     --bs-btn-color: var(--theme-accent);
     --bs-btn-border-color: var(--theme-accent);
     --bs-btn-hover-bg: var(--theme-accent);
