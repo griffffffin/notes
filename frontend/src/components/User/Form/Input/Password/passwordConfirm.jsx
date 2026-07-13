@@ -16,7 +16,7 @@ export default function PasswordConfirm(props) {
         <div className="input-group justify-content-end">
             <RoundedPillInput type={props.isVisible ? "text" : "password"} id="inputPasswordConfirm" value={props.value}
                               onChange={props.onChange} autoFocus={false}
-                              class={isChecked ? "bg-secondary bg-opacity-10" : "warning-focus"}/>
+                              class={isChecked ? "bg-secondary bg-opacity-10" : "theme-focus"}/>
             <NoFocusButton onClick={props.onClick} class="position-absolute z-index-6 pt-0 pe-0"
                            text={<img src={props.isVisible ? OPEN_EYE : closedEye} width="42" height="45"
                                       alt={props.isVisible ? "Jelszó elrejtése" : "Jelszó megjelenítése"}/>}/>

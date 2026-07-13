@@ -2,7 +2,6 @@ import {useCallback, useEffect, useState} from "react";
 import Spinner from "../spinner";
 import InputGroup from "./Form/Input/inputGroup";
 import SubmitButtonGroup from "../Button/submitButtonGroup";
-import {useTheme} from "../../contexts/theme";
 
 export default function Entry(props) {
     const [isLoading, setIsLoading] = useState(true);
@@ -18,10 +17,6 @@ export default function Entry(props) {
     const [passwordConfirm, setPasswordConfirm] = useState("");
     const [isPasswordConfirmValid, setIsPasswordConfirmValid] = useState(false);
     const [isDisabled, setIsDisabled] = useState(true);
-    const {backgroundColor} = useTheme();
-    // A háttér ellentéte: fekete témán fehér szöveg és fordítva. Renderben
-    // számolható a témából — nem kell hozzá state + effect.
-    const inverseBackgroundColor = backgroundColor === "black" ? "white" : "black";
 
     const clearError = useCallback((mb) => {
         setIsLoginError(false);
@@ -102,7 +97,7 @@ export default function Entry(props) {
     return (
         isLoading ? <Spinner class="min-vh-75"/> :
             <div className="container-fluid d-flex justify-content-center align-items-center mt-4 pt-2 px-0">
-                <form className={"col-10 col-sm-6 col-md-5 col-xl-3 text-" + inverseBackgroundColor}
+                <form className={"col-10 col-sm-6 col-md-5 col-xl-3 text-theme-text"}
                       onSubmit={handleSubmit}>
                     <InputGroup isLogin={props.isLogin} mb={mb} handleClick={handleEyeClick}
                                 name={name} handleNameChange={handleNameChange}

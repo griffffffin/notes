@@ -75,9 +75,9 @@ export default function Save(props) {
     }, []);
 
     useEffect(() => {
-        setColor(theme.color);
-        handleColorHexChange(theme.color);
-    }, [theme.color, handleColorHexChange]);
+        setColor(theme.todoDefaultColor);
+        handleColorHexChange(theme.todoDefaultColor);
+    }, [theme.todoDefaultColor, handleColorHexChange]);
 
     const handleColorChange = useCallback((event) => {
         setColor(event.target.value);
@@ -206,7 +206,7 @@ export default function Save(props) {
                             <DeleteAndModal handleLinkClicked={props.handleLinkClicked} handleAxios={props.handleAxios}
                                             setIsColorClicked={setIsColorAngleClicked} color={color} location={location}
                                             setIsCategoryClicked={setIsCategoryAngleClicked}
-                                            backgroundColor={theme.backgroundColor} cookies={props.cookies}
+                                            cookies={props.cookies}
                                             handleCategoryChange={props.handleCategoryChange}/>}
 
                         <NoFocusButton onClick={handleColorAngleClick} class="pb-0" color={color}

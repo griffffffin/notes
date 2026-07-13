@@ -35,6 +35,6 @@ export default function DeleteAndModal(props) {
             Törlés
         </button>
         <Modal isShow={isModalShow} handleClose={handleModalClose} color={props.color}
-               backgroundColor={props.backgroundColor} handleDelete={handleDelete}/>
+               handleDelete={handleDelete}/>
     </>);
 }

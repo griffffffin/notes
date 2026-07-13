@@ -5,7 +5,6 @@ import {fas} from "@fortawesome/free-solid-svg-icons";
 import axios from "axios";
 import Spinner from "./spinner";
 import Routes from "./routes";
-import {useTheme} from "../contexts/theme";
 
 library.add(fas);
 
@@ -16,7 +15,6 @@ export default function App() {
     const [isColorAngleClicked, setIsColorAngleClicked] = useState(false);
     const [isCategoryAngleClicked, setIsCategoryAngleClicked] = useState(false);
     const [categories, setCategories] = useState([]);
-    const {backgroundColor} = useTheme();
 
     useEffect(() => {
         if (cookies.user) setIsLoggedIn(true);
@@ -57,7 +55,7 @@ export default function App() {
 
     return (
         isLoading ? <Spinner class="min-vh-75"/> :
-            <div className={"container-fluid px-0 bg-" + backgroundColor}>
+            <div className="container-fluid px-0 bg-theme-page">
                 <Routes handleLinkClicked={handleLinkClicked}
                         setIsColorAngleClicked={setIsColorAngleClicked} isColorAngleClicked={isColorAngleClicked}
                         setIsCategoryAngleClicked={setIsCategoryAngleClicked}

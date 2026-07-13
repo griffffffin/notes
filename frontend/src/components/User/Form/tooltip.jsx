@@ -2,7 +2,7 @@ import {Tooltip as ReactTooltip} from "react-tooltip";
 import {useTheme} from "../../../contexts/theme";
 
 export default function Tooltip() {
-    const {color, colorHex, backgroundColor} = useTheme();
+    const {color, colorHex, pageBackground} = useTheme();
 
     return (<>
         <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="currentColor" tabIndex="-1"
@@ -15,7 +15,7 @@ export default function Tooltip() {
         </svg>
         <ReactTooltip id="tooltip" place="bottom" clickable={true}
                       border={"1px solid " + colorHex}
-                      style={{backgroundColor: backgroundColor, color: colorHex, zIndex: 10}}>
+                      style={{backgroundColor: pageBackground, color: colorHex, zIndex: 10}}>
             A jelszó legalább <br/>8 karakter legyen.<br/>Kis-, nagybetűkből <br/>és számokból álljon.
         </ReactTooltip>
     </>);

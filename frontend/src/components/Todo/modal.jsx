@@ -4,7 +4,7 @@ import SubmitButton from "../Button/submitButton";
 export default function Modal(props) {
     return (
         <ReactModal show={props.isShow} onHide={props.handleClose} contentClassName={"mt-5 text-" + props.color +
-            " border-3 border-" + props.color + " bg-" + props.backgroundColor}>
+            " border-3 border-" + props.color + " bg-theme-page"}>
             <ReactModal.Header closeButton className="text-center ms-1 py-2 border-0">
                 <ReactModal.Title className="text-center">Törlés</ReactModal.Title>
             </ReactModal.Header>

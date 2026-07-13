@@ -20,7 +20,7 @@ export default function PasswordAndTooltip(props) {
         <div className="input-group justify-content-end">
             <RoundedPillInput type={props.isVisible ? "text" : "password"} id="inputPassword" value={props.value}
                               onChange={props.handleChange} autoFocus={false}
-                              class={isChecked ? "bg-secondary bg-opacity-10" : "warning-focus"}/>
+                              class={isChecked ? "bg-secondary bg-opacity-10" : "theme-focus"}/>
             {/* Rejtett jelszónál csukott szem, láthatónál a nyitott — az ikon azt
                 mutatja, mi az AKTUÁLIS állapot, nem azt, mi történik kattintásra. */}
             <NoFocusButton onClick={props.handleClick} class="position-absolute z-index-6 pt-0 pe-0"

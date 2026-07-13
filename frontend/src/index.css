@@ -63,10 +63,64 @@ textarea.form-control::placeholder {
 
 
 /*entry.jsx*/
-.warning-focus:focus {
-    border-color: #ffd6a6 !important;
+/* --- Téma-színek: az értékeket a ThemeProvider tölti CSS-változókba a THEMES
+   táblából (src/contexts/theme.jsx) — itt csak hivatkozunk rájuk. A .btn
+   alaposztály (méret, lekerekítés, disabled-átlátszóság) a Bootstrapé marad,
+   ezek az osztályok csak a színeket adják. --- */
+.text-theme {
+    color: var(--theme-accent) !important;
+}
+
+.text-theme-text {
+    color: var(--theme-text) !important;
+}
+
+.border-theme {
+    border-color: var(--theme-accent) !important;
+}
+
+.bg-theme-page {
+    background-color: var(--theme-page-bg) !important;
+}
+
+/* A gombok NEM közvetlen tulajdonságokat kapnak, hanem a Bootstrap .btn
+   alaposztályának --bs-btn-* változóit állítják át — a .btn ezekből olvas,
+   így nincs cascade-verseny vele (az index.css a Bootstrap ELŐTT töltődik,
+   közvetlen tulajdonság-írásnál a Bootstrap nyerne). A hover-árnyalatot a
+   color-mix() számolja a kiemelőszínből. */
+.btn-theme {
+    --bs-btn-bg: var(--theme-accent);
+    --bs-btn-border-color: var(--theme-accent);
+    --bs-btn-color: var(--theme-accent-contrast);
+    --bs-btn-hover-bg: color-mix(in srgb, var(--theme-accent) 85%, black);
+    --bs-btn-hover-border-color: color-mix(in srgb, var(--theme-accent) 85%, black);
+    --bs-btn-hover-color: var(--theme-accent-contrast);
+    --bs-btn-active-bg: color-mix(in srgb, var(--theme-accent) 80%, black);
+    --bs-btn-active-border-color: color-mix(in srgb, var(--theme-accent) 80%, black);
+    --bs-btn-active-color: var(--theme-accent-contrast);
+    --bs-btn-disabled-bg: var(--theme-accent);
+    --bs-btn-disabled-border-color: var(--theme-accent);
+    --bs-btn-disabled-color: var(--theme-accent-contrast);
+}
+
+.btn-outline-theme {
+    --bs-btn-color: var(--theme-accent);
+    --bs-btn-border-color: var(--theme-accent);
+    --bs-btn-hover-bg: var(--theme-accent);
+    --bs-btn-hover-border-color: var(--theme-accent);
+    --bs-btn-hover-color: var(--theme-accent-contrast);
+    --bs-btn-active-bg: var(--theme-accent);
+    --bs-btn-active-border-color: var(--theme-accent);
+    --bs-btn-active-color: var(--theme-accent-contrast);
+    --bs-btn-disabled-color: var(--theme-accent);
+    --bs-btn-disabled-border-color: var(--theme-accent);
+}
+
+/* Input-fókusz a sötét témán (a világos a Bootstrap alapértelmezését használja) */
+.theme-focus:focus {
+    border-color: var(--theme-focus-border) !important;
     outline: 0 !important;
-    box-shadow: 0 0 0 0.25rem rgba(255, 193, 7, 0.45) !important;
+    box-shadow: 0 0 0 0.25rem var(--theme-focus-ring) !important;
 }
 
 .no-focus, .btn-close {

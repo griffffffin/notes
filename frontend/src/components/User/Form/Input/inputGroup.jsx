@@ -13,7 +13,7 @@ export default function InputGroup(props) {
         <div className={isChecked ? "mb-3 text-black-50" : "mb-3"}>
             <label htmlFor="inputName" className="form-label ps-3">Felhasználónév</label>
             <RoundedPillInput id="inputName" value={props.name} onChange={props.handleNameChange} autoFocus={true}
-                              class={isChecked ? "bg-secondary bg-opacity-10" : "warning-focus"}/>
+                              class={isChecked ? "bg-secondary bg-opacity-10" : "theme-focus"}/>
         </div>
 
         <PasswordGroup mb={props.mb} isLogin={props.isLogin} handleClick={props.handleClick}
