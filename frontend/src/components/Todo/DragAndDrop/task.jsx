@@ -1,11 +1,13 @@
-import {useCallback} from "react";
 import {Draggable} from "@hello-pangea/dnd";
 import NoFocusInput from "../../Input/noFocusInput";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 
 export default function Task(props) {
 
-    const handleCheckChange = useCallback((event) => {
+    /* Nincs useCallback: ezek a saját inputjaira mennek (onChange), nincs
+       memózott fogyasztójuk — a memózás itt csak zaj lenne. A memózásnak a
+       fa FELJEBBI szintjén van értelme (dragAndDrop.jsx), ahol PureComponent áll. */
+    const handleCheckChange = (event) => {
         const taskId = parseInt((event.target.id).replace("checkbox", ""));
         if (event.target.checked) {
             const taskOrder = props.todo.columns["createColumn"].taskOrder;
@@ -17,9 +19,9 @@ export default function Task(props) {
             props.setTodo(props.setTaskOrder(taskOrder));
             props.setTodo(props.setTask(taskId, props.task.content, true));
         } else props.setTodo(props.setTask(taskId, props.task.content, false));
-    }, [props]);
+    };
 
-    const handleTaskChange = useCallback((event) => {
+    const handleTaskChange = (event) => {
         const value = event.target.value;
         const id = parseInt((event.target.id));
         const done = props.todo.tasks[id].done;
@@ -33,7 +35,7 @@ export default function Task(props) {
             return;
         }
         props.setTodo(props.setTask(id, value, done));
-    }, [props]);
+    };
 
     return (
         <Draggable draggableId={props.task.id} index={props.index}>

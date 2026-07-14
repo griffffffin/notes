@@ -1,19 +1,21 @@
-import {useCallback} from "react";
 import LogoAndCreate from "./logoAndCreate";
 import ColorCategoryAndSignOut from "./colorCategoryAndSignOut";
 import Switch from "./switch";
 import CategoryAndColorGroup from "../Link/categoryAndColorGroup";
 
 export default function Navbar(props) {
-    const handleColorClick = useCallback(() => {
+    /* Nincs useCallback: ezek sima onClick-ekre mennek, memózatlan komponensekre —
+       a memózásnak nem lenne fogyasztója. (Ráadásul a régi [props] függőség
+       hatástalan volt: a props objektum minden rendernél új.) */
+    const handleColorClick = () => {
         props.setIsColorClicked(!props.isColorClicked);
         props.setIsCategoryClicked(false);
-    }, [props]);
+    };
 
-    const handleCategoryClick = useCallback(() => {
+    const handleCategoryClick = () => {
         props.setIsCategoryClicked(!props.isCategoryClicked);
         props.setIsColorClicked(false);
-    }, [props]);
+    };
 
     return (
         <nav className="navbar navbar-black bg-transparent pb-0">

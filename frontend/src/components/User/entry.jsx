@@ -19,6 +19,10 @@ export default function Entry(props) {
     const [isPasswordConfirmValid, setIsPasswordConfirmValid] = useState(false);
     const [isDisabled, setIsDisabled] = useState(true);
     const {login, handleAxios} = useAuth();
+    // A props-ból csak az isLogin kell — a hookok függőségeiben ezt adjuk meg,
+    // ne a teljes props objektumot (az minden rendernél új, a memózás így
+    // hatástalan lenne).
+    const {isLogin} = props;
 
     const clearError = useCallback((mb) => {
         setIsLoginError(false);
@@ -75,7 +79,7 @@ export default function Entry(props) {
                 login(response.data);
             }, (error) => {
                 console.log(error.response?.data ?? error.message);
-                if (props.isLogin) {
+                if (isLogin) {
                     setIsLoginError(true);
                     setMb("mb-4");
                 } else if (error.response?.data?.includes("foglalt")) {
@@ -84,7 +88,7 @@ export default function Entry(props) {
                 }
             }
         );
-    }, [props, url, name, password, login, handleAxios]);
+    }, [isLogin, url, name, password, login, handleAxios]);
 
     const clearPassword = useCallback(() => {
         setPassword("");
@@ -94,8 +98,8 @@ export default function Entry(props) {
     }, []);
 
     useEffect(() => {
-        if (props && mb && url) setIsLoading(false);
-    }, [props, mb, url]);
+        if (mb && url) setIsLoading(false);
+    }, [mb, url]);
 
     return (
         isLoading ? <Spinner class="min-vh-75"/> :

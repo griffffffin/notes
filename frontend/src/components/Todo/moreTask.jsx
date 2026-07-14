@@ -1,11 +1,12 @@
-import {useCallback, useState} from "react";
+import {useState} from "react";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import NoFocusInput from "../Input/noFocusInput";
 
 export default function MoreTask(props) {
     const [moreTask] = useState("");
 
-    const handleMoreTaskChange = useCallback((event) => {
+    // Nincs useCallback: sima onChange, nincs memózott fogyasztó.
+    const handleMoreTaskChange = (event) => {
         let taskKey = 0;
         const keys = Object.keys(props.todo.tasks);
         if (keys.length) {
@@ -16,7 +17,7 @@ export default function MoreTask(props) {
         }
         props.setTodo(props.setTask(taskKey, event.target.value, false));
         props.todo.columns["createColumn"].taskOrder.push(taskKey);
-    }, [props]);
+    };
 
     return (
         <div className="input-group">

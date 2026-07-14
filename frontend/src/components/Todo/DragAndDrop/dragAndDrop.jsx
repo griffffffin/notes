@@ -12,26 +12,30 @@ class InnerList extends PureComponent {
 }
 
 export default function DragAndDrop(props) {
+    /* Itt a useCallback-nek VAN értelme: a DnD-fában PureComponent és
+       shouldComponentUpdate is van, azoknak stabil függvény kell.
+       A függőség ezért a konkrét értékekre hivatkozik — a régi [props] hatástalan
+       volt, mert a props objektum minden rendernél új. */
+    const {todo, setTodo} = props;
 
     const handleDragEnd = useCallback((result) => {
         const {destination, source, draggableId} = result;
         if (!destination) return;
         else if (destination.droppableId === source.droppableId && destination.index === source.index) return;
-        const sourceColumn = props.todo.columns["createColumn"];
+        const sourceColumn = todo.columns["createColumn"];
         const taskOrder = sourceColumn.taskOrder;
 
         taskOrder.splice(parseInt(source.index), 1);
         taskOrder.splice(parseInt(destination.index), 0, parseInt(draggableId));
 
         const column = {...sourceColumn, taskOrder: taskOrder};
-        const todo = {
-            ...props.todo, columns: {
-                ...props.todo.columns,
+        setTodo({
+            ...todo, columns: {
+                ...todo.columns,
                 [column.id]: column
             }
-        };
-        props.setTodo(todo);
-    }, [props]);
+        });
+    }, [todo, setTodo]);
 
     return (
         <DragDropContext onDragEnd={handleDragEnd}>

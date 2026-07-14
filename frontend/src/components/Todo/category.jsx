@@ -1,14 +1,14 @@
-import {useCallback} from "react";
 import NoFocusInput from "../Input/noFocusInput";
 import NoFocusButton from "../Button/noFocusButton";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 
 export default function Category(props) {
-    const handleChange = useCallback((event) => {
+    // Nincs useCallback: sima onChange/onClick, nincs memózott fogyasztó.
+    const handleChange = (event) => {
         props.setCategory(event.target.value);
         event.target.value.length ? props.setIsValid(true) : props.setIsValid(false);
         props.setIsAngleClicked(false);
-    }, [props]);
+    };
 
     return (<>
         <div className="input-group">
