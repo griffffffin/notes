@@ -161,7 +161,6 @@ export default function Save(props) {
         if (isUpdate) data["id"] = location.state.id;
         handleAxios(url, data, (response) => {
             if (response.status === 200) {
-                console.log(response.data);
                 props.handleLinkClicked();
                 props.handleCategoryChange();
                 navigate("/");

@@ -10,6 +10,13 @@ export default defineConfig({
     host: true,
   },
   build: {
+    /* Az alap 4 kB-os küszöb fölötti assetek külön fájlba kerülnének, amit a
+       böngésző csak a komponens kirajzolásakor tölt le — az ikonok későn,
+       "bevillanva" jelennének meg. A mi legnagyobb ikonunk az optimalizált
+       szem-SVG (6,4 kB), ezért a küszöb 8 kB: így minden ikon a bundle része
+       lesz (data URI), nincs értük külön kérés, és nem kell <link rel="preload">
+       kerülőút sem. A bundle ~9 kB-tal nő — elhanyagolható. */
+    assetsInlineLimit: 8192,
     // Source map az éles buildhez: enélkül a böngészőkonzol hibái a minifikált
     // kódra mutatnak (index-B7v.js:1:48211), ami használhatatlan. Ezzel a
     // valódi forrásfájlra és sorszámra vezet vissza.

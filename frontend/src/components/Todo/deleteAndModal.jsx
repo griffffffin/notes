@@ -26,7 +26,6 @@ export default function DeleteAndModal(props) {
         handleModalClose();
         handleAxios("/delete", {id: props.location.state.id}, (response) => {
             if (response.status === 200) {
-                console.log(response.data);
                 props.handleCategoryChange();
                 navigate("/");
             }
