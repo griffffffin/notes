@@ -11,10 +11,14 @@
     <title>To-do</title>
 
     <!--
-      A háttérszínt MÉG a stíluslapok és a React betöltése előtt beállítjuk.
-      A .bg-black osztály önmagában kevés: az csak akkor hat, amikor a Bootstrap
-      CSS már betöltött — addig a böngésző fehéret fest (látható villanás).
-      A téma a cookie-ból jön, hogy a világos témát se villantsuk feketére.
+      A háttérszínt MÉG a stíluslapok és a React betöltése előtt beállítjuk,
+      különben a böngésző az első képkockát fehérrel festi (látható villanás).
+
+      A színt NEM hardkódoljuk: a ThemeProvider a "themeBackground" sütibe írja a
+      téma tényleges hátterét, mi pedig innen olvassuk. Így bármilyen új téma
+      (kategóriánkénti színek) automatikusan működik — nem kell két helyen
+      karbantartani. A lenti #000 csak a legelső látogatás alapértéke (amikor
+      még nincs süti).
     -->
     <!--
       A fontokat előre betöltetjük: a böngésző már a HTML olvasásakor elindítja
@@ -38,11 +42,14 @@
       html { background: #000; }
     </style>
     <script>
-      // Reguláris kifejezéssel keresünk, nem pontos szövegegyezéssel: így akkor is
-      // megtalálja, ha a süti értéke idézőjelbe kerül, vagy más sorrendben/térközzel
-      // szerepel a cookie-sztringben.
-      if (/(^|;\s*)backgroundColor="?white"?\s*(;|$)/.test(document.cookie))
-        document.documentElement.style.background = "#fff";
+      // A sütiből kiolvassuk a téma hátterét, és azzal festünk. Csak érvényes
+      // színt fogadunk el (# + hex), hogy egy sérült süti ne törhesse el a lapot.
+      var talalat = document.cookie.match(/(?:^|;\s*)themeBackground=([^;]*)/);
+      if (talalat) {
+        var szin = decodeURIComponent(talalat[1]).replace(/^"|"$/g, "");
+        if (/^#[0-9a-fA-F]{3,8}$/.test(szin))
+          document.documentElement.style.background = szin;
+      }
     </script>
   </head>
   <body>

@@ -14,11 +14,14 @@ export default function Tooltip() {
             6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
         </svg>
         {/* A CSS-t a main.jsx importálja statikusan, ezért itt kikapcsoljuk a
-            futásidejű injektálást. A z-index szándékosan magas: a buborékot a
-            fókuszált input (Bootstrap: 5) és a szem-gomb (6) sem takarhatja el. */}
+            futásidejű injektálást — abból a stíluslapból jön a position:absolute
+            is, ami nélkül a z-index hatástalan lenne (z-index csak pozicionált
+            elemen működik).
+            z-index 10: a react-tooltip alapértéke 1, ami a fókuszált input
+            (Bootstrap: 5) és a szem-gomb (6) alá esne. */}
         <ReactTooltip id="tooltip" place="bottom" clickable={true} disableStyleInjection={true}
                       border={"1px solid " + colorHex}
-                      style={{backgroundColor: pageBackground, color: colorHex, zIndex: 1080}}>
+                      style={{backgroundColor: pageBackground, color: colorHex, zIndex: 10}}>
             A jelszó legalább <br/>8 karakter legyen.<br/>Kis-, nagybetűkből <br/>és számokból álljon.
         </ReactTooltip>
     </>);

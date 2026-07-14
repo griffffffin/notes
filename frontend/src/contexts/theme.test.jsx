@@ -1,0 +1,81 @@
+import {render, screen} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import {CookiesProvider} from "react-cookie";
+import {beforeEach, describe, expect, it} from "vitest";
+import {THEMES, ThemeProvider, useTheme} from "./theme";
+
+/* Kis próbakomponens, ami kiírja, amit a Contextből kap — így a hookot
+   önmagában, komponensfa nélkül tudjuk vizsgálni. */
+function TemaKiiro() {
+    const {color, colorHex, pageBackground, isChecked, handleCheckedChange} = useTheme();
+    return (
+        <div>
+            <span data-testid="color">{color}</span>
+            <span data-testid="hex">{colorHex}</span>
+            <span data-testid="bg">{pageBackground}</span>
+            <span data-testid="checked">{String(isChecked)}</span>
+            <button onClick={handleCheckedChange}>váltás</button>
+        </div>
+    );
+}
+
+const renderTemaval = () => render(
+    <CookiesProvider>
+        <ThemeProvider><TemaKiiro/></ThemeProvider>
+    </CookiesProvider>
+);
+
+/* A böngésző (és a jsdom) a színeket normalizálja: a "#fff"-ből "rgb(255,255,255)"
+   lesz. Ezért nem a hex-szöveget hasonlítjuk, hanem ugyanazon az úton normalizált
+   értékeket. */
+function normalizaltSzin(szin) {
+    const elem = document.createElement("div");
+    elem.style.background = szin;
+    return elem.style.background;
+}
+
+describe("ThemeProvider", () => {
+    beforeEach(() => {
+        document.cookie = "backgroundColor=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+    });
+
+    it("süti nélkül a sötét témával indul", () => {
+        renderTemaval();
+        expect(screen.getByTestId("bg")).toHaveTextContent(THEMES.dark.pageBackground);
+        expect(screen.getByTestId("hex")).toHaveTextContent(THEMES.dark.accent);
+        expect(screen.getByTestId("checked")).toHaveTextContent("false");
+    });
+
+    it("kapcsolásra világos témára vált, és a html hátterét is átfesti", async () => {
+        renderTemaval();
+        await userEvent.click(screen.getByRole("button", {name: "váltás"}));
+
+        expect(screen.getByTestId("bg")).toHaveTextContent(THEMES.light.pageBackground);
+        expect(screen.getByTestId("hex")).toHaveTextContent(THEMES.light.accent);
+        // A fekete sáv-hiba ellen: a <html> háttere is kövesse a témát.
+        expect(document.documentElement.style.background)
+            .toBe(normalizaltSzin(THEMES.light.pageBackground));
+    });
+
+    it("a témát sütibe menti, hogy újratöltés után is megmaradjon", async () => {
+        renderTemaval();
+        await userEvent.click(screen.getByRole("button", {name: "váltás"}));
+        expect(document.cookie).toContain("backgroundColor=white");
+    });
+
+    it("a háttérszínt is sütibe írja — ebből fest az index.html boot-szkriptje", () => {
+        // Enélkül a lap fehéret villanna a stíluslapok betöltéséig. A színt
+        // szándékosan NEM hardkódoljuk a HTML-be: onnan csak olvassuk.
+        renderTemaval();
+        expect(document.cookie).toContain("themeBackground=" + encodeURIComponent(THEMES.dark.pageBackground));
+    });
+
+    it("a színek osztálynév-utótagja 'theme' (a saját CSS-változós osztályainkhoz)", () => {
+        renderTemaval();
+        expect(screen.getByTestId("color")).toHaveTextContent("theme");
+    });
+
+    it("ThemeProvider nélkül érthető hibát dob, nem rejtélyeset", () => {
+        expect(() => render(<TemaKiiro/>)).toThrow(/ThemeProvider/);
+    });
+});

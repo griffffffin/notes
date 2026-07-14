@@ -9,4 +9,20 @@ export default defineConfig({
     // a böngésző egy másik gépen), ne csak localhost-on
     host: true,
   },
+  build: {
+    // Source map az éles buildhez: enélkül a böngészőkonzol hibái a minifikált
+    // kódra mutatnak (index-B7v.js:1:48211), ami használhatatlan. Ezzel a
+    // valódi forrásfájlra és sorszámra vezet vissza.
+    // Ára: a forráskód böngészőből visszafejthető — nálunk ez nem gond, a repo
+    // publikus lesz. (Zárt forrású projektnél ez tudatos döntést igényelne.)
+    sourcemap: true,
+  },
+  test: {
+    // A tesztek böngésző nélkül futnak: a jsdom egy JavaScriptben megírt,
+    // "papírmasé" DOM — van benne document, elemek, események, de nincs
+    // tényleges megjelenítés. Gyors, és a logika teszteléséhez elég.
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: './src/test/setup.js',
+  },
 })

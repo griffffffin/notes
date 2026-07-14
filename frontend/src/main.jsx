@@ -17,17 +17,22 @@ import 'react-tooltip/dist/react-tooltip.css'
 import './index.css'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import App from './components/app.jsx'
+import ErrorBoundary from './components/errorBoundary.jsx'
 import { ThemeProvider } from './contexts/theme.jsx'
 
 config.autoAddCss = false
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <CookiesProvider>
-      {/* A ThemeProvider sütiből olvas, ezért a CookiesProvider ALATT kell lennie. */}
-      <ThemeProvider>
-        <App />
-      </ThemeProvider>
-    </CookiesProvider>
+    {/* A hibahatár legkívül: így a Providerek hibáit is elkapja (pl. a hiányzó
+        CookiesProvider annak idején néma, üres képernyőt adott). */}
+    <ErrorBoundary>
+      <CookiesProvider>
+        {/* A ThemeProvider sütiből olvas, ezért a CookiesProvider ALATT kell lennie. */}
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
+      </CookiesProvider>
+    </ErrorBoundary>
   </StrictMode>,
 )

@@ -5,9 +5,9 @@ import {useCookies} from "react-cookie";
    A Provider CSS-változókként (--theme-*) teszi ki őket a <html>-re, a
    stílusokat az index.css .text-theme / .btn-theme / ... osztályai olvassák
    belőlük. Új téma (pl. kategóriánként) = új bejegyzés ebben a táblában.
-   FIGYELEM: a pageBackground-ot az index.html boot-szkriptje is festi
-   (#000/#fff, a cookie alapján, még a CSS előtt) — ha itt megváltozik,
-   ott is át kell vezetni. */
+   A pageBackground-ot a "themeBackground" sütibe is kiírjuk: az index.html
+   boot-szkriptje ezt olvassa, és még a stíluslapok előtt kifesti vele a lapot
+   (fehér villanás ellen) — így nem kell a színt két helyen karbantartani. */
 export const THEMES = {
     dark: {
         cookieValue: "black",                   // a meglévő süti-értékek maradnak
@@ -40,7 +40,7 @@ export function useTheme() {
 }
 
 export function ThemeProvider({children}) {
-    const [cookies, setCookie] = useCookies(["backgroundColor"]);
+    const [cookies, setCookie] = useCookies(["backgroundColor", "themeBackground"]);
     // A kapcsoló bekapcsolva = világos téma. A kezdőérték a sütiből jön, hogy
     // ne kelljen egy fölösleges rendert várni rá.
     const [isLight, setIsLight] = useState(cookies.backgroundColor === "white");
@@ -61,6 +61,8 @@ export function ThemeProvider({children}) {
         html.style.setProperty("--theme-focus-border", theme.focusBorder);
         html.style.setProperty("--theme-focus-ring", theme.focusRing);
         setCookie("backgroundColor", theme.cookieValue, {path: "/"});
+        // Ebből festi az index.html boot-szkriptje a lapot, még a CSS előtt.
+        setCookie("themeBackground", theme.pageBackground, {path: "/"});
     }, [theme, setCookie]);
 
     const value = useMemo(() => ({
