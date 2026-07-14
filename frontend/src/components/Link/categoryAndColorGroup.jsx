@@ -5,10 +5,9 @@ export default function CategoryAndColorGroup(props) {
     return (
         <div className="row w-100">
             {props.isCategoryClicked &&
-                <LinkCategoryGroup categories={props.categories} cookies={props.cookies}
-                                   onClick={props.handleCategoryClick}/>}
+                <LinkCategoryGroup categories={props.categories} onClick={props.handleCategoryClick}/>}
             {props.isColorClicked &&
-                <LinkColorButtonGroup cookies={props.cookies} onClick={props.handleColorClick}/>}
+                <LinkColorButtonGroup onClick={props.handleColorClick}/>}
         </div>
     );
 }

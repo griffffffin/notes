@@ -1,69 +1,43 @@
 import {useCallback, useEffect, useState} from "react";
-import {useCookies} from "react-cookie";
 import {library} from "@fortawesome/fontawesome-svg-core";
 import {fas} from "@fortawesome/free-solid-svg-icons";
-import axios from "axios";
-import Spinner from "./spinner";
 import Routes from "./routes";
+import {useAuth} from "../contexts/auth";
 
 library.add(fas);
 
 export default function App() {
-    const [isLoading, setIsLoading] = useState(true);
-    const [cookies, setCookie, removeCookie] = useCookies(["user"]);
-    const [isLoggedIn, setIsLoggedIn] = useState(null);
     const [isColorAngleClicked, setIsColorAngleClicked] = useState(false);
     const [isCategoryAngleClicked, setIsCategoryAngleClicked] = useState(false);
     const [categories, setCategories] = useState([]);
-
-    useEffect(() => {
-        if (cookies.user) setIsLoggedIn(true);
-        else {
-            setIsLoggedIn(false);
-            removeCookie("user");
-        }
-    }, [cookies.user, removeCookie]);
+    const {isLoggedIn, handleAxios} = useAuth();
 
     const handleLinkClicked = useCallback(() => {
         setIsColorAngleClicked(false);
         setIsCategoryAngleClicked(false);
     }, []);
 
-    /* A user-cookie értéke a bejelentkezéskor kapott JWT; minden kérés
-       Authorization fejlécben viszi. 401-nél (lejárt/érvénytelen token)
-       a cookie törlődik, így az app visszavált a login képernyőre. */
-    const handleAxios = useCallback((url, data, then, catchError) =>
-        axios.post(import.meta.env.VITE_BACKEND + url, data,
-            cookies.user ? {headers: {Authorization: "Bearer " + cookies.user}} : undefined)
-            .then(then)
-            .catch((error) => {
-                if (error.response?.status === 401) removeCookie("user");
-                catchError(error);
-            }), [cookies.user, removeCookie]);
-
-    const handleCategoryChange = useCallback(() =>
-        handleAxios("/categories", {user: cookies.user}, (response) => setCategories(response.data),
-            (error) => console.log(error.response?.data ?? error.message)), [cookies.user, handleAxios]);
+    const handleCategoryChange = useCallback(() => {
+        // Kijelentkezve nincs mit lekérni — enélkül a bejelentkező képernyőn is
+        // elindulna egy kérés, ami 401-gyel bukna.
+        if (!isLoggedIn) return;
+        handleAxios("/categories", {}, (response) => setCategories(response.data),
+            (error) => console.log(error.response?.data ?? error.message));
+    }, [isLoggedIn, handleAxios]);
 
     useEffect(() => {
         handleCategoryChange();
     }, [handleCategoryChange]);
 
-    useEffect(() => {
-        if (isLoggedIn !== null) setIsLoading(false);
-    }, [isLoggedIn]);
-
+    /* Nincs betöltő-állapot: a bejelentkezés a sütiből azonnal tudható, a téma
+       pedig a ThemeProviderből jön — nincs mire várni. */
     return (
-        isLoading ? <Spinner class="min-vh-75"/> :
-            <div className="container-fluid px-0 bg-theme-page">
-                <Routes handleLinkClicked={handleLinkClicked}
-                        setIsColorAngleClicked={setIsColorAngleClicked} isColorAngleClicked={isColorAngleClicked}
-                        setIsCategoryAngleClicked={setIsCategoryAngleClicked}
-                        isCategoryAngleClicked={isCategoryAngleClicked}
-                        cookies={cookies} setCookie={setCookie} removeCookie={removeCookie}
-                        isLoggedIn={isLoggedIn}
-                        categories={categories} handleCategoryChange={handleCategoryChange}
-                        handleAxios={handleAxios}/>
-            </div>
+        <div className="container-fluid px-0 bg-theme-page">
+            <Routes handleLinkClicked={handleLinkClicked}
+                    setIsColorAngleClicked={setIsColorAngleClicked} isColorAngleClicked={isColorAngleClicked}
+                    setIsCategoryAngleClicked={setIsCategoryAngleClicked}
+                    isCategoryAngleClicked={isCategoryAngleClicked}
+                    categories={categories} handleCategoryChange={handleCategoryChange}/>
+        </div>
     );
 }

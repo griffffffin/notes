@@ -3,49 +3,42 @@ import Navbar from "./Navbar/navbar";
 import Entry from "./User/entry";
 import Save from "./Todo/save";
 import Read from "./Todo/read";
+import {useAuth} from "../contexts/auth";
 
-/* A téma (szín, háttér, kapcsoló) NEM propként utazik: a komponensek a
-   useTheme() hookkal veszik ki a ThemeContextből, ahol szükségük van rá. */
+/* Sem a téma, sem a bejelentkezés nem propként utazik: a komponensek a
+   useTheme() és a useAuth() hookkal veszik ki őket, ahol szükségük van rájuk. */
 export default function Routes(props) {
-    return (props.isLoggedIn ?
+    const {isLoggedIn} = useAuth();
+
+    return (isLoggedIn ?
             <Router>
                 <Navbar
                     setIsColorClicked={props.setIsColorAngleClicked} isColorClicked={props.isColorAngleClicked}
                     setIsCategoryClicked={props.setIsCategoryAngleClicked}
                     isCategoryClicked={props.isCategoryAngleClicked}
-                    handleLinkClicked={props.handleLinkClicked} isVisible={props.isLoggedIn}
-                    removeCookie={props.removeCookie} cookies={props.cookies}
+                    handleLinkClicked={props.handleLinkClicked} isVisible={true}
                     categories={props.categories}/>
                 <ReactRoutes>
                     <Route path="/create" element={
-                        <Save cookies={props.cookies} handleAxios={props.handleAxios}
-                              handleLinkClicked={props.handleLinkClicked}
+                        <Save handleLinkClicked={props.handleLinkClicked}
                               categories={props.categories} handleCategoryChange={props.handleCategoryChange}/>}/>
                     <Route path="*" element={
-                        <Read cookies={props.cookies} url="/" handleAxios={props.handleAxios}
-                              handleLinkClicked={props.handleLinkClicked}/>}/>
+                        <Read url="/" handleLinkClicked={props.handleLinkClicked}/>}/>
                     <Route path="/category" element={
-                        <Read cookies={props.cookies} url="/category" handleAxios={props.handleAxios}
-                              handleLinkClicked={props.handleLinkClicked}/>}/>
+                        <Read url="/category" handleLinkClicked={props.handleLinkClicked}/>}/>
                     <Route path="/color" element={
-                        <Read cookies={props.cookies} url="/color" handleAxios={props.handleAxios}
-                              handleLinkClicked={props.handleLinkClicked}/>}/>
+                        <Read url="/color" handleLinkClicked={props.handleLinkClicked}/>}/>
                     <Route path="/update" element={
-                        <Save isUpdate={true} cookies={props.cookies} handleAxios={props.handleAxios}
-                              handleLinkClicked={props.handleLinkClicked}
+                        <Save isUpdate={true} handleLinkClicked={props.handleLinkClicked}
                               categories={props.categories} handleCategoryChange={props.handleCategoryChange}/>}/>
                 </ReactRoutes>
             </Router>
             :
             <Router>
-                <Navbar isVisible={props.isLoggedIn}/>
+                <Navbar isVisible={false}/>
                 <ReactRoutes>
-                    <Route path="/signup"
-                           element={<Entry isLogin={false} handleAxios={props.handleAxios}
-                                           setCookie={props.setCookie}/>}/>
-                    <Route path="*"
-                           element={<Entry isLogin={true} handleAxios={props.handleAxios}
-                                           setCookie={props.setCookie}/>}/>
+                    <Route path="/signup" element={<Entry isLogin={false}/>}/>
+                    <Route path="*" element={<Entry isLogin={true}/>}/>
                 </ReactRoutes>
             </Router>
     );

@@ -24,7 +24,6 @@ export default function Navbar(props) {
                     <div className="input-group align-items-center">
                         {props.isVisible &&
                             <ColorCategoryAndSignOut handleLinkClicked={props.handleLinkClicked}
-                                                     removeCookie={props.removeCookie}
                                                      handleColorClick={handleColorClick}
                                                      isColorClicked={props.isColorClicked}
                                                      handleCategoryClick={handleCategoryClick}
@@ -35,7 +34,7 @@ export default function Navbar(props) {
             </div>
             {props.isVisible &&
                 <CategoryAndColorGroup isCategoryClicked={props.isCategoryClicked}
-                                       categories={props.categories} cookies={props.cookies}
+                                       categories={props.categories}
                                        handleCategoryClick={handleCategoryClick}
                                        isColorClicked={props.isColorClicked}
                                        handleColorClick={handleColorClick}/>}

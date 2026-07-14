@@ -2,6 +2,7 @@ import {useCallback, useEffect, useState} from "react";
 import Spinner from "../spinner";
 import InputGroup from "./Form/Input/inputGroup";
 import SubmitButtonGroup from "../Button/submitButtonGroup";
+import {useAuth} from "../../contexts/auth";
 
 export default function Entry(props) {
     const [isLoading, setIsLoading] = useState(true);
@@ -17,6 +18,7 @@ export default function Entry(props) {
     const [passwordConfirm, setPasswordConfirm] = useState("");
     const [isPasswordConfirmValid, setIsPasswordConfirmValid] = useState(false);
     const [isDisabled, setIsDisabled] = useState(true);
+    const {login, handleAxios} = useAuth();
 
     const clearError = useCallback((mb) => {
         setIsLoginError(false);
@@ -67,9 +69,10 @@ export default function Entry(props) {
 
     const handleSubmit = useCallback((event) => {
         event.preventDefault();
-        props.handleAxios(url, {name: name, password: password}, (response) => {
-                props.setCookie("user", response.data);
-                window.location = "/";
+        handleAxios(url, {name: name, password: password}, (response) => {
+                // A süti beállítása átbillenti az isLoggedIn-t, és a router magától
+                // a to-do listára vált — nem kell teljes oldal-újratöltés.
+                login(response.data);
             }, (error) => {
                 console.log(error.response?.data ?? error.message);
                 if (props.isLogin) {
@@ -81,7 +84,7 @@ export default function Entry(props) {
                 }
             }
         );
-    }, [props, url, name, password]);
+    }, [props, url, name, password, login, handleAxios]);
 
     const clearPassword = useCallback(() => {
         setPassword("");

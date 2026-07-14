@@ -3,14 +3,16 @@ import NoFocusButton from "../Button/noFocusButton";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import Category from "./category";
 import {useTheme} from "../../contexts/theme";
+import {useAuth} from "../../contexts/auth";
 
 export default function ColorCategoryAndSignOut(props) {
     const {color} = useTheme();
+    const {logout} = useAuth();
 
     const handleSignOut = useCallback(() => {
         props.handleLinkClicked();
-        props.removeCookie("user");
-    }, [props]);
+        logout();
+    }, [props, logout]);
 
     return (<>
         <NoFocusButton onClick={props.handleColorClick} class="pe-2"

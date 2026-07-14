@@ -1,10 +1,12 @@
 import {useCallback, useEffect, useState} from "react";
 import {useNavigate} from "react-router-dom";
 import Modal from "./modal";
+import {useAuth} from "../../contexts/auth";
 
 export default function DeleteAndModal(props) {
     const [isModalShow, setIsModalShow] = useState(false);
     const navigate = useNavigate();
+    const {handleAxios} = useAuth();
 
     const handleModalShow = useCallback(() => {
         props.handleLinkClicked();
@@ -21,14 +23,14 @@ export default function DeleteAndModal(props) {
 
     const handleDelete = useCallback(() => {
         handleModalClose();
-        props.handleAxios("/delete", {id: props.location.state.id, user: props.cookies.user}, (response) => {
+        handleAxios("/delete", {id: props.location.state.id}, (response) => {
             if (response.status === 200) {
                 console.log(response.data);
                 props.handleCategoryChange();
                 navigate("/");
             }
         }, (error) => console.log(error.response?.data ?? error.message));
-    }, [handleModalClose, props, navigate]);
+    }, [handleModalClose, props, navigate, handleAxios]);
 
     return (<>
         <button type="button" className="btn rounded-pill mt-1 mb-1 btn-danger" onClick={handleModalShow}>

@@ -18,6 +18,7 @@ import './index.css'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import App from './components/app.jsx'
 import ErrorBoundary from './components/errorBoundary.jsx'
+import { AuthProvider } from './contexts/auth.jsx'
 import { ThemeProvider } from './contexts/theme.jsx'
 
 config.autoAddCss = false
@@ -28,9 +29,12 @@ createRoot(document.getElementById('root')).render(
         CookiesProvider annak idején néma, üres képernyőt adott). */}
     <ErrorBoundary>
       <CookiesProvider>
-        {/* A ThemeProvider sütiből olvas, ezért a CookiesProvider ALATT kell lennie. */}
+        {/* A Theme- és az AuthProvider is sütiből olvas, ezért a CookiesProvider
+            ALATT kell lenniük. */}
         <ThemeProvider>
-          <App />
+          <AuthProvider>
+            <App />
+          </AuthProvider>
         </ThemeProvider>
       </CookiesProvider>
     </ErrorBoundary>

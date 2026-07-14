@@ -12,6 +12,7 @@ import SubmitButton from "../Button/submitButton";
 import DeleteAndModal from "./deleteAndModal";
 import ColorButtonGroup from "../Button/colorButtonGroup";
 import {useTheme} from "../../contexts/theme";
+import {useAuth} from "../../contexts/auth";
 
 export default function Save(props) {
     const [isLoading, setIsLoading] = useState(true);
@@ -38,6 +39,7 @@ export default function Save(props) {
     /* A to-do SAJÁT színe (a felhasználó választja kártyánként) — nem a témáé.
        Csak a kezdőértékét vesszük a témából. */
     const theme = useTheme();
+    const {handleAxios} = useAuth();
 
     useEffect(() => {
         if (props.isUpdate) {
@@ -93,7 +95,7 @@ export default function Save(props) {
     useEffect(() => {
         if (isUpdate !== null) {
             if (isUpdate) {
-                props.handleAxios("/id", {id: location.state.id}, (response) => {
+                handleAxios("/id", {id: location.state.id}, (response) => {
                     setColor(response.data.color);
                     handleColorHexChange(response.data.color);
                     setTitle(response.data.title);
@@ -109,7 +111,7 @@ export default function Save(props) {
                     setIsDisabled(false);
                 }, (error) => console.log(error.response?.data ?? error.message));
             }
-            props.handleAxios("/last/order", {user: props.cookies.user},
+            handleAxios("/last/order", {},
                 (response) => {
                     const lastOrder = response.data;
                     lastOrder === 0 ? setLastOrder(0) : setLastOrder(isUpdate ? lastOrder - 1 : lastOrder);
@@ -146,8 +148,9 @@ export default function Save(props) {
 
     const handleSubmit = useCallback((event) => {
         event.preventDefault();
+        // A user-azonosítót NEM küldjük: a szerver a tokenből veszi (a régi app
+        // itt hitt a kliensnek — ez volt a fő biztonsági gyengesége).
         let data = {
-            user: props.cookies.user,
             title: title,
             tasks: todo.tasks,
             taskOrder: todo.columns["createColumn"].taskOrder,
@@ -156,7 +159,7 @@ export default function Save(props) {
             order: order,
         }
         if (isUpdate) data["id"] = location.state.id;
-        props.handleAxios(url, data, (response) => {
+        handleAxios(url, data, (response) => {
             if (response.status === 200) {
                 console.log(response.data);
                 props.handleLinkClicked();
@@ -203,10 +206,9 @@ export default function Save(props) {
                         <SubmitButton isDisabled={isDisabled} isOutline={false} color={color} text="Tovább"/>
 
                         {isUpdate &&
-                            <DeleteAndModal handleLinkClicked={props.handleLinkClicked} handleAxios={props.handleAxios}
+                            <DeleteAndModal handleLinkClicked={props.handleLinkClicked}
                                             setIsColorClicked={setIsColorAngleClicked} color={color} location={location}
                                             setIsCategoryClicked={setIsCategoryAngleClicked}
-                                            cookies={props.cookies}
                                             handleCategoryChange={props.handleCategoryChange}/>}
 
                         <NoFocusButton onClick={handleColorAngleClick} class="pb-0" color={color}
