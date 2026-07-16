@@ -7,7 +7,9 @@ const express = require("express");
 const mongoose = require("mongoose");
 const request = require("supertest");
 
-const {validateTodoBody, validateTodoId} = require("./validateTodo");
+const {
+    validateTodoBody, validateTodoId, validateCategoryFilter, validateColorFilter,
+} = require("./validateTodo");
 
 const app = express();
 app.use(express.json());
@@ -15,71 +17,91 @@ app.post("/todo", validateTodoBody, (request_, response) => response.json(reques
 app.post("/id", validateTodoId, (request_, response) => response.json({ok: true}));
 
 // Érvényes alap, amiből a tesztek egy-egy mezőt rontanak el.
-const JO = {title: "Bevásárlás", category: "otthon", color: "warning", order: 1, tasks: {}, taskOrder: []};
-const kuld = (body) => request(app).post("/todo").send(body);
+const VALID = {title: "Bevásárlás", category: "otthon", color: "warning", order: 1, tasks: {}, taskOrder: []};
+const post = (body) => request(app).post("/todo").send(body);
 
 test("érvényes to-dót átenged", async () => {
-    const valasz = await kuld(JO);
-    assert.strictEqual(valasz.status, 200);
+    const response = await post(VALID);
+    assert.strictEqual(response.status, 200);
 });
 
 test("üres címet elutasít (400)", async () => {
-    assert.strictEqual((await kuld({...JO, title: "   "})).status, 400);
+    assert.strictEqual((await post({...VALID, title: "   "})).status, 400);
 });
 
 test("hiányzó kategóriát elutasít (400)", async () => {
-    assert.strictEqual((await kuld({...JO, category: undefined})).status, 400);
+    assert.strictEqual((await post({...VALID, category: undefined})).status, 400);
 });
 
 test("ismeretlen színt elutasít (400)", async () => {
     // A szín Bootstrap-osztálynévbe kerül — nem vehetünk át bármit.
-    assert.strictEqual((await kuld({...JO, color: "kek"})).status, 400);
+    assert.strictEqual((await post({...VALID, color: "kek"})).status, 400);
 });
 
 test("nulla és negatív sorszámot elutasít (400)", async () => {
-    assert.strictEqual((await kuld({...JO, order: 0})).status, 400);
-    assert.strictEqual((await kuld({...JO, order: -5})).status, 400);
+    assert.strictEqual((await post({...VALID, order: 0})).status, 400);
+    assert.strictEqual((await post({...VALID, order: -5})).status, 400);
 });
 
 test("tört sorszámot elutasít (400)", async () => {
-    assert.strictEqual((await kuld({...JO, order: 1.5})).status, 400);
+    assert.strictEqual((await post({...VALID, order: 1.5})).status, 400);
 });
 
 test("túl hosszú címet elutasít (400)", async () => {
-    assert.strictEqual((await kuld({...JO, title: "a".repeat(201)})).status, 400);
+    assert.strictEqual((await post({...VALID, title: "a".repeat(201)})).status, 400);
 });
 
 test("objektumot string helyett elutasít — NoSQL-injekció ellen (400)", async () => {
     /* Ha ez átmenne, a {$ne: null} nem ÉRTÉKKÉNT, hanem lekérdezés-
        OPERÁTORKÉNT kerülne a szűrőbe, és megváltoztatná a jelentését. */
-    assert.strictEqual((await kuld({...JO, title: {$ne: null}})).status, 400);
-    assert.strictEqual((await kuld({...JO, category: {$ne: null}})).status, 400);
+    assert.strictEqual((await post({...VALID, title: {$ne: null}})).status, 400);
+    assert.strictEqual((await post({...VALID, category: {$ne: null}})).status, 400);
 });
 
 test("hiányzó tasks esetén üres objektumra egészíti ki", async () => {
     // A százalékszámítás Object.keys(tasks)-ot hív: undefined-on elhasalna.
-    const valasz = await kuld({...JO, tasks: undefined, taskOrder: undefined});
-    assert.strictEqual(valasz.status, 200);
-    assert.deepStrictEqual(valasz.body.tasks, {});
-    assert.deepStrictEqual(valasz.body.taskOrder, []);
+    const response = await post({...VALID, tasks: undefined, taskOrder: undefined});
+    assert.strictEqual(response.status, 200);
+    assert.deepStrictEqual(response.body.tasks, {});
+    assert.deepStrictEqual(response.body.taskOrder, []);
 });
 
 test("tasks helyett tömböt elutasít (400)", async () => {
-    assert.strictEqual((await kuld({...JO, tasks: ["a"]})).status, 400);
+    assert.strictEqual((await post({...VALID, tasks: ["a"]})).status, 400);
 });
 
 test("hibás alakú listaelemet elutasít (400)", async () => {
-    assert.strictEqual((await kuld({...JO, tasks: {0: {content: "x", done: "igen"}}})).status, 400);
-    assert.strictEqual((await kuld({...JO, tasks: {0: {content: 5, done: true}}})).status, 400);
+    assert.strictEqual((await post({...VALID, tasks: {0: {content: "x", done: "igen"}}})).status, 400);
+    assert.strictEqual((await post({...VALID, tasks: {0: {content: 5, done: true}}})).status, 400);
 });
 
 test("nem szám taskOrder-t elutasít (400)", async () => {
-    assert.strictEqual((await kuld({...JO, taskOrder: ["elso"]})).status, 400);
+    assert.strictEqual((await post({...VALID, taskOrder: ["elso"]})).status, 400);
 });
 
 test("érvényes ObjectId-t átenged, mást elutasít (400)", async () => {
-    const jo = new mongoose.Types.ObjectId().toString();
-    assert.strictEqual((await request(app).post("/id").send({id: jo})).status, 200);
+    const valid = new mongoose.Types.ObjectId().toString();
+    assert.strictEqual((await request(app).post("/id").send({id: valid})).status, 200);
     assert.strictEqual((await request(app).post("/id").send({id: "nem-id"})).status, 400);
     assert.strictEqual((await request(app).post("/id").send({})).status, 400);
+});
+
+/* A szűrő-végpontok mezői EGYENESEN a lekérdezésbe kerülnek. Az idegen adat a
+   user-szűkítés miatt így sem szivárogna ki, de egy operátor a SAJÁT szűrésünk
+   jelentését változtatná meg — a kategória-nézet mindent visszaadna. */
+const filterApp = express();
+filterApp.use(express.json());
+filterApp.post("/category", validateCategoryFilter, (request_, response) => response.json({ok: true}));
+filterApp.post("/color", validateColorFilter, (request_, response) => response.json({ok: true}));
+
+test("kategória-szűrő: stringet átenged, operátort elutasít (400)", async () => {
+    assert.strictEqual((await request(filterApp).post("/category").send({category: "otthon"})).status, 200);
+    assert.strictEqual((await request(filterApp).post("/category").send({category: {$ne: null}})).status, 400);
+    assert.strictEqual((await request(filterApp).post("/category").send({})).status, 400);
+});
+
+test("szín-szűrő: csak paletta-színt enged át (400)", async () => {
+    assert.strictEqual((await request(filterApp).post("/color").send({color: "warning"})).status, 200);
+    assert.strictEqual((await request(filterApp).post("/color").send({color: {$ne: null}})).status, 400);
+    assert.strictEqual((await request(filterApp).post("/color").send({color: "kek"})).status, 400);
 });

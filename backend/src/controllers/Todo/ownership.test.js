@@ -19,29 +19,29 @@ process.env.JWT_SECRET = "teszt-titok-csak-a-teszthez";
    Az azonosítók VALÓDI ObjectId-k: az őr és az id-ellenőrzés a formájukat is
    nézi, tehát kitalált szöveggel ("anna-id") a kérés már ott elbukna, és nem a
    tulajdonlást vizsgálnánk. */
-const modellUt = require.resolve("../../models/todo");
-const userModellUt = require.resolve("../../models/user");
-const azonosito = () => new mongoose.Types.ObjectId().toString();
-const ANNA = azonosito();
-const BELA = azonosito();
-const NINCS_ILYEN = azonosito();
-const ANNA_LISTAJA = {_id: azonosito(), user: ANNA, title: "Anna listája", order: 1};
+const modelPath = require.resolve("../../models/todo");
+const userModelPath = require.resolve("../../models/user");
+const newId = () => new mongoose.Types.ObjectId().toString();
+const OWNER = newId();
+const STRANGER = newId();
+const MISSING_ID = newId();
+const OWNER_LIST = {_id: newId(), user: OWNER, title: "Anna listája", order: 1};
 
-require.cache[modellUt] = {
-    id: modellUt, filename: modellUt, loaded: true,
+require.cache[modelPath] = {
+    id: modelPath, filename: modelPath, loaded: true,
     exports: {
-        findById: (id) => Promise.resolve(String(id) === ANNA_LISTAJA._id ? ANNA_LISTAJA : null),
-        findByIdAndDelete: () => Promise.resolve(ANNA_LISTAJA),
+        findById: (id) => Promise.resolve(String(id) === OWNER_LIST._id ? OWNER_LIST : null),
+        findByIdAndDelete: () => Promise.resolve(OWNER_LIST),
         updateMany: () => Promise.resolve({}),
-        findByIdAndUpdate: () => Promise.resolve(ANNA_LISTAJA),
+        findByIdAndUpdate: () => Promise.resolve(OWNER_LIST),
     },
 };
 
 // Az őr azóta a user létezését is ellenőrzi — Anna és Béla is valódi fiók.
-require.cache[userModellUt] = {
-    id: userModellUt, filename: userModellUt, loaded: true,
+require.cache[userModelPath] = {
+    id: userModelPath, filename: userModelPath, loaded: true,
     exports: {
-        findById: async (id) => [ANNA, BELA].includes(String(id)) ? {_id: id, name: "teszt"} : null,
+        findById: async (id) => [OWNER, STRANGER].includes(String(id)) ? {_id: id, name: "teszt"} : null,
     },
 };
 
@@ -55,41 +55,41 @@ app.use(auth);
 app.use("/id", readById);
 app.use("/delete", deleteTodo);
 
-const tokent = (id) => jwt.sign({id}, process.env.JWT_SECRET, {expiresIn: "7d"});
+const tokenFor = (id) => jwt.sign({id}, process.env.JWT_SECRET, {expiresIn: "7d"});
 
 test("a tulajdonos elolvashatja a saját listáját", async () => {
-    const valasz = await request(app).post("/id")
-        .set("Authorization", "Bearer " + tokent(ANNA))
-        .send({id: ANNA_LISTAJA._id});
-    assert.strictEqual(valasz.status, 200);
-    assert.strictEqual(valasz.body.title, "Anna listája");
+    const response = await request(app).post("/id")
+        .set("Authorization", "Bearer " + tokenFor(OWNER))
+        .send({id: OWNER_LIST._id});
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.title, "Anna listája");
 });
 
 test("IDEGEN nem olvashatja el más listáját (403)", async () => {
-    const valasz = await request(app).post("/id")
-        .set("Authorization", "Bearer " + tokent(BELA))
-        .send({id: ANNA_LISTAJA._id});
-    assert.strictEqual(valasz.status, 403);
+    const response = await request(app).post("/id")
+        .set("Authorization", "Bearer " + tokenFor(STRANGER))
+        .send({id: OWNER_LIST._id});
+    assert.strictEqual(response.status, 403);
 });
 
 test("IDEGEN nem törölheti más listáját (403)", async () => {
-    const valasz = await request(app).post("/delete")
-        .set("Authorization", "Bearer " + tokent(BELA))
-        .send({id: ANNA_LISTAJA._id});
-    assert.strictEqual(valasz.status, 403);
+    const response = await request(app).post("/delete")
+        .set("Authorization", "Bearer " + tokenFor(STRANGER))
+        .send({id: OWNER_LIST._id});
+    assert.strictEqual(response.status, 403);
 });
 
 test("a tulajdonos törölheti a sajátját", async () => {
-    const valasz = await request(app).post("/delete")
-        .set("Authorization", "Bearer " + tokent(ANNA))
-        .send({id: ANNA_LISTAJA._id});
-    assert.strictEqual(valasz.status, 200);
+    const response = await request(app).post("/delete")
+        .set("Authorization", "Bearer " + tokenFor(OWNER))
+        .send({id: OWNER_LIST._id});
+    assert.strictEqual(response.status, 200);
 });
 
 test("nem létező listánál sem szivárog ki információ (403, nem 404)", async () => {
     // Szándékos: a 404 elárulná, hogy létezik-e az adott azonosító.
-    const valasz = await request(app).post("/id")
-        .set("Authorization", "Bearer " + tokent(ANNA))
-        .send({id: NINCS_ILYEN});
-    assert.strictEqual(valasz.status, 403);
+    const response = await request(app).post("/id")
+        .set("Authorization", "Bearer " + tokenFor(OWNER))
+        .send({id: MISSING_ID});
+    assert.strictEqual(response.status, 403);
 });

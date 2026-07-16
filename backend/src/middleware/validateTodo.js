@@ -9,54 +9,58 @@ const mongoose = require("mongoose");
        sorszám-tartomány nélkül egy saját kliens tetszőleges méretű és értékű
        adatot tölthetett volna be.
 
-   A típus-szigor egyben NoSQL-injekció ellen is véd: ha a "title" helyére
-   valaki egy {"$ne": null}-szerű objektumot küld, azt itt elutasítjuk, mert
-   nem string — így operátor sosem jut le a lekérdezésbe. */
+   A típus-szigor egyben NoSQL-injekció ellen is véd: ha egy string helyére
+   valaki {"$ne": null}-t küld, azt a Mongoose lekérdezés-OPERÁTORKÉNT olvasná,
+   nem értékként — itt elutasítjuk, így operátor sosem jut le a szűrőbe.
 
-const SZINEK = ["primary", "info", "secondary", "danger", "warning", "success"];
-const MAX_CIM = 200;
-const MAX_KATEGORIA = 100;
-const MAX_TASK_SZOVEG = 1000;
-const MAX_TASK_DARAB = 500;
-const MAX_SORSZAM = 100000;
+   A hosszkorlátok CSAK a bejövő kérést utasítják el; a tárolt adatot nem
+   csonkítják és a séma sem rögzíti őket. Emelni tehát bármikor lehet: a
+   konstans átírása visszamenőleg is ártalmatlan. */
 
-const szoveg = (ertek) => typeof ertek === "string";
-const egesz = (ertek) => typeof ertek === "number" && Number.isInteger(ertek);
+const COLORS = ["primary", "info", "secondary", "danger", "warning", "success"];
+const MAX_TITLE = 200;
+const MAX_CATEGORY = 100;
+const MAX_TASK_TEXT = 1000;
+const MAX_TASK_COUNT = 500;
+const MAX_ORDER = 100000;
 
-function todoHibak(body) {
-    const hibak = [];
+const isText = (value) => typeof value === "string";
+const isInteger = (value) => typeof value === "number" && Number.isInteger(value);
 
-    if (!szoveg(body.title) || !body.title.trim()) hibak.push("A cím megadása kötelező.");
-    else if (body.title.length > MAX_CIM) hibak.push(`A cím legfeljebb ${MAX_CIM} karakter lehet.`);
+function todoErrors(body) {
+    const errors = [];
 
-    if (!szoveg(body.category) || !body.category.trim()) hibak.push("A kategória megadása kötelező.");
-    else if (body.category.length > MAX_KATEGORIA)
-        hibak.push(`A kategória legfeljebb ${MAX_KATEGORIA} karakter lehet.`);
+    if (!isText(body.title) || !body.title.trim()) errors.push("A cím megadása kötelező.");
+    else if (body.title.length > MAX_TITLE) errors.push(`A cím legfeljebb ${MAX_TITLE} karakter lehet.`);
 
-    if (!SZINEK.includes(body.color)) hibak.push("Ismeretlen szín.");
+    if (!isText(body.category) || !body.category.trim()) errors.push("A kategória megadása kötelező.");
+    else if (body.category.length > MAX_CATEGORY)
+        errors.push(`A kategória legfeljebb ${MAX_CATEGORY} karakter lehet.`);
 
-    if (!egesz(body.order) || body.order < 1 || body.order > MAX_SORSZAM) hibak.push("Érvénytelen sorszám.");
+    if (!COLORS.includes(body.color)) errors.push("Ismeretlen szín.");
+
+    if (!isInteger(body.order) || body.order < 1 || body.order > MAX_ORDER) errors.push("Érvénytelen sorszám.");
 
     // A tasks elhagyható (üres to-do), de ha van, valódi objektum legyen —
     // tömb és null nem: azokon a lenti bejárás csendben rosszat csinálna.
     const tasks = body.tasks;
     if (tasks !== undefined && tasks !== null) {
-        if (typeof tasks !== "object" || Array.isArray(tasks)) hibak.push("A listaelemek formátuma hibás.");
+        if (typeof tasks !== "object" || Array.isArray(tasks)) errors.push("A listaelemek formátuma hibás.");
         else {
-            const kulcsok = Object.keys(tasks);
-            if (kulcsok.length > MAX_TASK_DARAB) hibak.push(`Legfeljebb ${MAX_TASK_DARAB} listaelem lehet.`);
-            for (const kulcs of kulcsok) {
-                const task = tasks[kulcs];
+            const keys = Object.keys(tasks);
+            if (keys.length > MAX_TASK_COUNT) errors.push(`Legfeljebb ${MAX_TASK_COUNT} listaelem lehet.`);
+            for (const key of keys) {
+                const task = tasks[key];
                 if (!task || typeof task !== "object" || Array.isArray(task)) {
-                    hibak.push("A listaelemek formátuma hibás.");
+                    errors.push("A listaelemek formátuma hibás.");
                     break;
                 }
-                if (!szoveg(task.content) || task.content.length > MAX_TASK_SZOVEG) {
-                    hibak.push(`A listaelem szövege legfeljebb ${MAX_TASK_SZOVEG} karakter lehet.`);
+                if (!isText(task.content) || task.content.length > MAX_TASK_TEXT) {
+                    errors.push(`A listaelem szövege legfeljebb ${MAX_TASK_TEXT} karakter lehet.`);
                     break;
                 }
                 if (typeof task.done !== "boolean") {
-                    hibak.push("A listaelemek formátuma hibás.");
+                    errors.push("A listaelemek formátuma hibás.");
                     break;
                 }
             }
@@ -65,17 +69,17 @@ function todoHibak(body) {
 
     const taskOrder = body.taskOrder;
     if (taskOrder !== undefined && taskOrder !== null) {
-        if (!Array.isArray(taskOrder) || !taskOrder.every(egesz)) hibak.push("A listaelemek sorrendje hibás.");
+        if (!Array.isArray(taskOrder) || !taskOrder.every(isInteger)) errors.push("A listaelemek sorrendje hibás.");
     }
 
-    return hibak;
+    return errors;
 }
 
 // Létrehozáshoz és módosításhoz: a törzs ellenőrzése, majd a hiányzó tasks
 // egységesítése {}-re, hogy a százalékszámítás ne undefined-on hasaljon el.
 const validateTodoBody = (request, response, next) => {
-    const hibak = todoHibak(request.body ?? {});
-    if (hibak.length) return response.status(400).json(hibak.join(" "));
+    const errors = todoErrors(request.body ?? {});
+    if (errors.length) return response.status(400).json(errors.join(" "));
     request.body.tasks = request.body.tasks ?? {};
     request.body.taskOrder = request.body.taskOrder ?? [];
     next();
@@ -88,4 +92,20 @@ const validateTodoId = (request, response, next) => {
     next();
 };
 
-module.exports = {validateTodoBody, validateTodoId, todoHibak, SZINEK};
+/* A szűrő-végpontok (/category, /color) a body mezőit EGYENESEN a lekérdezésbe
+   teszik. A user: request.userId miatt idegen adat így sem szivároghatna ki, de
+   egy {"$ne": null} a saját szűrésünk jelentését változtatná meg — a kategória-
+   nézet az összes elemet adná vissza. Operátor ne juthasson a szűrőbe. */
+const validateCategoryFilter = (request, response, next) => {
+    if (!isText(request.body?.category)) return response.status(400).json("Érvénytelen kategória.");
+    next();
+};
+
+const validateColorFilter = (request, response, next) => {
+    if (!COLORS.includes(request.body?.color)) return response.status(400).json("Ismeretlen szín.");
+    next();
+};
+
+module.exports = {
+    validateTodoBody, validateTodoId, validateCategoryFilter, validateColorFilter, todoErrors, COLORS,
+};

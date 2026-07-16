@@ -11,20 +11,20 @@
    A jelszó erősségét NEM itt nézzük: az a regisztráció saját szabálya, és a
    User/create controllerben él (ott a hibaüzenete is). */
 
-const MAX_NEV = 50;
-const MAX_JELSZO = 200;   // a bcrypt 72 bájt fölött csonkol; a korlát a DoS ellen van
+const MAX_NAME = 50;
+const MAX_PASSWORD = 200;   // a bcrypt 72 bájt fölött csonkol; a korlát a DoS ellen van
 
 module.exports = (request, response, next) => {
     const {name, password} = request.body ?? {};
 
     if (typeof name !== "string" || !name.trim())
         return response.status(400).json("A felhasznalonev megadasa kotelezo.");
-    if (name.length > MAX_NEV)
-        return response.status(400).json(`A felhasznalonev legfeljebb ${MAX_NEV} karakter lehet.`);
+    if (name.length > MAX_NAME)
+        return response.status(400).json(`A felhasznalonev legfeljebb ${MAX_NAME} karakter lehet.`);
     if (typeof password !== "string" || !password)
         return response.status(400).json("A jelszo megadasa kotelezo.");
-    if (password.length > MAX_JELSZO)
-        return response.status(400).json(`A jelszo legfeljebb ${MAX_JELSZO} karakter lehet.`);
+    if (password.length > MAX_PASSWORD)
+        return response.status(400).json(`A jelszo legfeljebb ${MAX_PASSWORD} karakter lehet.`);
 
     next();
 };

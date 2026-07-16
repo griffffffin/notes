@@ -1,6 +1,8 @@
 const router = require("express").Router();
 const auth = require("./middleware/auth");
-const {validateTodoBody, validateTodoId} = require("./middleware/validateTodo");
+const {
+    validateTodoBody, validateTodoId, validateCategoryFilter, validateColorFilter,
+} = require("./middleware/validateTodo");
 const validateCredentials = require("./middleware/validateCredentials");
 
 const userCreate = require("./controllers/User/create");
@@ -30,8 +32,8 @@ router.use("/todo/create", validateTodoBody, todoCreate);
 router.use("/last/order", readLastOrder);
 router.use("/categories", todoReadCategory);
 router.use("/id", validateTodoId, todoReadById);
-router.use("/category", todoReadByCategory);
-router.use("/color", todoReadByColor);
+router.use("/category", validateCategoryFilter, todoReadByCategory);
+router.use("/color", validateColorFilter, todoReadByColor);
 
 // A módosításnak az id-ja ÉS a törzse is ellenőrzendő, a törlésnek csak az id-ja.
 router.use("/update", validateTodoId, validateTodoBody, todoUpdate);
