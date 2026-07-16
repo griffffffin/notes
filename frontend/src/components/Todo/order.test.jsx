@@ -1,7 +1,7 @@
 import {act, fireEvent, render, screen} from "@testing-library/react";
 import {useState} from "react";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
-import Order from "./order";
+import Order, {STEP_DELAY_MS} from "./order";
 
 // A tooltip nem tartozik a léptetéshez, a saját stílusaival csak zajt vinne.
 vi.mock("react-tooltip", () => ({Tooltip: () => null}));
@@ -28,7 +28,7 @@ describe("Order", () => {
         const {container} = render(<Parent/>);
 
         fireEvent.mouseDown(minus(container));
-        act(() => vi.advanceTimersByTime(50));    // 200 ms-nál rövidebb: még nem lépett
+        act(() => vi.advanceTimersByTime(STEP_DELAY_MS / 2));   // a késleltetésnél rövidebb: még nem lépett
         fireEvent.mouseUp(minus(container));
         act(() => vi.advanceTimersByTime(2000));
 
@@ -39,7 +39,7 @@ describe("Order", () => {
         const {container} = render(<Parent/>);
 
         fireEvent.mouseDown(plus(container));
-        act(() => vi.advanceTimersByTime(50));
+        act(() => vi.advanceTimersByTime(STEP_DELAY_MS / 2));
         fireEvent.mouseUp(plus(container));
         act(() => vi.advanceTimersByTime(2000));
 
@@ -50,9 +50,9 @@ describe("Order", () => {
         const {container} = render(<Parent/>);
 
         fireEvent.mouseDown(minus(container));
-        act(() => vi.advanceTimersByTime(200));
+        act(() => vi.advanceTimersByTime(STEP_DELAY_MS));
         expect(screen.getByText("7")).toBeInTheDocument();
-        act(() => vi.advanceTimersByTime(200));
+        act(() => vi.advanceTimersByTime(STEP_DELAY_MS));
         expect(screen.getByText("6")).toBeInTheDocument();
     });
 
@@ -60,7 +60,7 @@ describe("Order", () => {
         const {container} = render(<Parent/>);
 
         fireEvent.mouseDown(minus(container));
-        act(() => vi.advanceTimersByTime(200));
+        act(() => vi.advanceTimersByTime(STEP_DELAY_MS));
         expect(screen.getByText("7")).toBeInTheDocument();
 
         fireEvent.mouseUp(minus(container));
@@ -74,7 +74,7 @@ describe("Order", () => {
         const {container} = render(<Parent/>);
 
         fireEvent.mouseDown(plus(container));
-        act(() => vi.advanceTimersByTime(200));
+        act(() => vi.advanceTimersByTime(STEP_DELAY_MS));
         expect(screen.getByText("9")).toBeInTheDocument();
 
         fireEvent.mouseUp(plus(container));

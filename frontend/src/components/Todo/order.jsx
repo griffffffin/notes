@@ -1,6 +1,14 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {Tooltip as ReactTooltip} from "react-tooltip";
 
+/* Ennyit vár a léptető két lépés között. EGY helyen áll, mert a lenti két
+   effekt (le és fel) ugyanezt az ütemet használja — külön számokként némán
+   elcsúszhatnának egymástól.
+
+   Ez egyben a KATTINTÁS késleltetése is: a kattintásra a szám ennyivel később
+   mozdul, mert a lépést mindkét esetben ugyanaz az időzítő adja. */
+export const STEP_DELAY_MS = 100;
+
 export default function Order(props) {
     const [plusDown, setPlusDown] = useState(false);
     const [minusDown, setMinusDown] = useState(false);
@@ -22,12 +30,12 @@ export default function Order(props) {
 
     /* Az időzítő takarítása FELTÉTELES, és ez szándékos.
 
-       A léptetés úgy működik, hogy a lenyomás 200 ms-mal későbbre ütemez egy
-       lépést; a lépés után a szülő új props-t ad, amitől az effekt újraindul és
-       ütemezi a következőt — ez adja az ismétlést.
+       A léptetés úgy működik, hogy a lenyomás STEP_DELAY_MS-mal későbbre
+       ütemez egy lépést; a lépés után a szülő új props-t ad, amitől az effekt
+       újraindul és ütemezi a következőt — ez adja az ismétlést.
 
-       KATTINTÁSNÁL (200 ms-nál rövidebb nyomás) az elengedés még az első lépés
-       ELŐTT jön, tehát a függőben lévő időzítő adja az EGYETLEN lépést. Ha azt
+       KATTINTÁSNÁL (a késleltetésnél rövidebb nyomás) az elengedés még az első
+       lépés ELŐTT jön, tehát a függőben lévő időzítő adja az EGYETLEN lépést. Ha azt
        feltétel nélkül eldobnánk, a kattintás nem csinálna semmit — a léptető
        megszűnne működni. A feltétel nélküli takarítás kézenfekvőbbnek látszik,
        és pont ezért veszélyes: némán megölné a kattintást, miközben a nyomva
@@ -44,7 +52,7 @@ export default function Order(props) {
         const timer = setTimeout(() => {
             hasStepped.current = true;
             props.setOrder(props.current - 1);
-        }, 200);
+        }, STEP_DELAY_MS);
         return () => {
             if (hasStepped.current) clearTimeout(timer);
         };
@@ -55,7 +63,7 @@ export default function Order(props) {
         const timer = setTimeout(() => {
             hasStepped.current = true;
             props.setOrder(props.current + 1);
-        }, 200);
+        }, STEP_DELAY_MS);
         return () => {
             if (hasStepped.current) clearTimeout(timer);
         };
