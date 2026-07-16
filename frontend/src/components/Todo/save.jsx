@@ -13,11 +13,16 @@ import DeleteAndModal from "./deleteAndModal";
 import ColorButtonGroup from "../Button/colorButtonGroup";
 import {useTheme} from "../../contexts/theme";
 import {useAuth} from "../../contexts/auth";
+import {TODO_COLORS} from "../../todoColors";
 
 export default function Save(props) {
+    /* A to-do SAJÁT színe (a felhasználó választja kártyánként) — nem a témáé.
+       A téma csak a KEZDŐÉRTÉKET adja, ezért useState-kezdőérték, nem effekt:
+       effektként minden témaváltáskor újra lefutott, és szerkesztés közben
+       felülírta a to-do mentett színét a téma alapértékére. */
+    const theme = useTheme();
     const [isLoading, setIsLoading] = useState(true);
-    const [colorHex, setColorHex] = useState("");
-    const [color, setColor] = useState("");
+    const [color, setColor] = useState(theme.todoDefaultColor);
     const [isColorAngleClicked, setIsColorAngleClicked] = useState(false);
     const [title, setTitle] = useState("");
     const [isTitleValid, setIsTitleValid] = useState(false);
@@ -34,10 +39,12 @@ export default function Save(props) {
     const [lastOrder, setLastOrder] = useState(null);
     const [isCategoryAngleClicked, setIsCategoryAngleClicked] = useState(false);
     const navigate = useNavigate();
-    /* A to-do SAJÁT színe (a felhasználó választja kártyánként) — nem a témáé.
-       Csak a kezdőértékét vesszük a témából. */
-    const theme = useTheme();
     const {handleAxios} = useAuth();
+
+    /* A hex a színnévből egyértelműen adódik, tehát nem state: kiszámoljuk.
+       Korábban külön state volt, amit egy switch-es setter tartott szinkronban
+       — két forrás ugyanarra az egy adatra, ami el tud csúszni egymástól. */
+    const colorHex = TODO_COLORS[color] ?? "";
 
     /* isUpdate és url NEM state: a propból egyértelműen adódnak, tehát minden
        renderben kiszámolhatók. Korábban useEffect másolta őket state-be — így
@@ -53,41 +60,10 @@ export default function Save(props) {
        átirányítással kezeljük. */
     const todoId = isUpdate ? (location.state?.id ?? null) : null;
 
-    const handleColorHexChange = useCallback((color) => {
-        switch (color) {
-            case "primary":
-                setColorHex("#0d6efd");
-                break;
-            case "info":
-                setColorHex("#0dcaf0");
-                break;
-            case "secondary":
-                setColorHex("#6c757d");
-                break;
-            case "danger":
-                setColorHex("#dc3545");
-                break;
-            case "warning":
-                setColorHex("#ffc107");
-                break;
-            case "success":
-                setColorHex("#198754");
-                break;
-            default:
-                console.log("Helytelen szin ertek: " + color + ".");
-        }
-    }, []);
-
-    useEffect(() => {
-        setColor(theme.todoDefaultColor);
-        handleColorHexChange(theme.todoDefaultColor);
-    }, [theme.todoDefaultColor, handleColorHexChange]);
-
     const handleColorChange = useCallback((event) => {
         setColor(event.target.value);
-        handleColorHexChange(event.target.value);
         setIsColorAngleClicked(false);
-    }, [handleColorHexChange]);
+    }, []);
 
     const handleTitleChange = useCallback((event) => {
         setTitle(event.target.value);
@@ -101,7 +77,6 @@ export default function Save(props) {
         if (todoId) {
             handleAxios("/id", {id: todoId}, (response) => {
                 setColor(response.data.color);
-                handleColorHexChange(response.data.color);
                 setTitle(response.data.title);
                 setIsTitleValid(true);
                 setOrder(response.data.order);
@@ -121,7 +96,7 @@ export default function Save(props) {
                 lastOrder === 0 ? setLastOrder(0) : setLastOrder(isUpdate ? lastOrder - 1 : lastOrder);
             },
             (error) => console.log(error.response?.data ?? error.message));
-    }, [isUpdate, todoId, handleAxios, handleColorHexChange]);
+    }, [isUpdate, todoId, handleAxios]);
 
     const setTask = useCallback((key, content, isDone) => {
         return {
@@ -171,13 +146,14 @@ export default function Save(props) {
         }, (error) => console.log(error.response?.data ?? error.message));
     }, [props, title, todo.tasks, todo.columns, category, color, order, isUpdate, todoId, url, navigate, handleAxios]);
 
+    /* A színre már nem kell várni (a témából indul, nem egy kérés hozza), csak
+       a sorszám-korlátra — szerkesztéskor ráadásul a betöltött to-do mezőire. */
     useEffect(() => {
-        if (colorHex && color && lastOrder !== null)
-            if (isUpdate) {
-                if (title && isTitleValid && category && isCategoryValid)
-                    setIsLoading(false);
-            } else setIsLoading(false);
-    }, [isUpdate, colorHex, color, lastOrder, title, isTitleValid, category, isCategoryValid]);
+        if (lastOrder === null) return;
+        if (isUpdate) {
+            if (title && isTitleValid && category && isCategoryValid) setIsLoading(false);
+        } else setIsLoading(false);
+    }, [isUpdate, lastOrder, title, isTitleValid, category, isCategoryValid]);
 
     /* Szerkesztés id nélkül — közvetlen /update URL vagy F5. Nincs mit
        szerkeszteni, ezért vissza a főoldalra. A replace azért kell, hogy a

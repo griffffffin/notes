@@ -1,11 +1,14 @@
 import {render, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {beforeEach, describe, expect, it, vi} from "vitest";
+import {CookiesProvider} from "react-cookie";
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import Routes from "../routes";
+import {ThemeProvider} from "../../contexts/theme";
 
-/* A szerverhívást, a témát és az ikonokat kicseréljük, hogy a routingra tudjunk
-   fókuszálni. A Routes-t VALÓDIKÉNT rendereljük (nem másoljuk le a route-táblát),
-   mert a /update → /create váltás viselkedése épp a route-tábla felelőssége.
+/* A szerverhívást és az ikonokat kicseréljük, a témát viszont VALÓDIKÉNT
+   használjuk: a téma és a to-do színének viszonya épp az egyik vizsgált kérdés.
+   A Routes is valódi (nem másoljuk le a route-táblát), mert a /update → /create
+   váltás viselkedése épp a route-tábla felelőssége.
 
    Az ikon-mock nem kényelmi kérdés: a library.add(fas) mind az ~1600 ikont
    behúzná, amit a Pi percekig transzformál — a teszt időtúllépéssel elszállt. */
@@ -14,30 +17,33 @@ vi.mock("@fortawesome/react-fontawesome", () => ({
 }));
 
 const TODO = {
-    _id: "todo-1", title: "Bevásárlás", color: "warning", category: "otthon", order: 1,
+    _id: "todo-1", title: "Bevásárlás", color: "danger", category: "otthon", order: 1,
     percentage: 0, tasks: {}, taskOrder: [],
 };
 
-/* A Context-mockok ÁLLANDÓ objektumot adjanak vissza: a komponensek effektjei
-   a handleAxios azonosságára vannak felfüggesztve, így egy rendernként újra
+/* A Context-mock ÁLLANDÓ objektumot adjon vissza: a komponensek effektjei a
+   handleAxios azonosságára vannak felfüggesztve, így egy rendernként újra
    gyártott függvény végtelen újratöltő ciklust okozna a tesztben. */
-const {handleAxios, auth, theme} = vi.hoisted(() => {
+const {handleAxios, auth} = vi.hoisted(() => {
     const fn = vi.fn();
-    return {
-        handleAxios: fn,
-        auth: {isLoggedIn: true, handleAxios: fn},
-        theme: {todoDefaultColor: "warning", color: "theme"},
-    };
+    return {handleAxios: fn, auth: {isLoggedIn: true, handleAxios: fn}};
 });
 
 vi.mock("../../contexts/auth", () => ({useAuth: () => auth}));
-vi.mock("../../contexts/theme", () => ({useTheme: () => theme}));
 
 const renderRoutes = () => render(
-    <Routes categories={["otthon"]} handleLinkClicked={vi.fn()} handleCategoryChange={vi.fn()}
-            setIsColorAngleClicked={vi.fn()} isColorAngleClicked={false}
-            setIsCategoryAngleClicked={vi.fn()} isCategoryAngleClicked={false}/>
+    <CookiesProvider>
+        <ThemeProvider>
+            <Routes categories={["otthon"]} handleLinkClicked={vi.fn()} handleCategoryChange={vi.fn()}
+                    setIsColorAngleClicked={vi.fn()} isColorAngleClicked={false}
+                    setIsCategoryAngleClicked={vi.fn()} isCategoryAngleClicked={false}/>
+        </ThemeProvider>
+    </CookiesProvider>
 );
+
+// A kártya színe a szegély-osztályból olvasható ki ("border-danger").
+const kartyaSzine = () => [...document.querySelector("form").classList]
+    .find((c) => c.startsWith("border-") && c !== "border-2");
 
 beforeEach(() => {
     window.history.pushState({}, "", "/");
@@ -49,6 +55,10 @@ beforeEach(() => {
         else then({status: 200, data: {}});
         return Promise.resolve();
     });
+});
+
+afterEach(() => {
+    document.cookie = "backgroundColor=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
 });
 
 describe("Save útvonalai", () => {
@@ -76,5 +86,38 @@ describe("Save útvonalai", () => {
         await waitFor(() => expect(window.location.pathname).toBe("/create"));
         expect(screen.getByPlaceholderText("Cím")).toHaveValue("");
         expect(screen.getByPlaceholderText("Kategória")).toHaveValue("");
+    });
+});
+
+describe("Save színe", () => {
+    it("szerkesztéskor a to-do mentett színét mutatja, nem a témáét", async () => {
+        renderRoutes();
+
+        await userEvent.click(await screen.findByText("Bevásárlás"));
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
+
+        expect(kartyaSzine()).toBe("border-danger");
+    });
+
+    it("témaváltás szerkesztés közben NEM írja felül a to-do színét", async () => {
+        renderRoutes();
+
+        await userEvent.click(await screen.findByText("Bevásárlás"));
+        await waitFor(() => expect(kartyaSzine()).toBe("border-danger"));
+
+        // A navbar nap/hold kapcsolója: sötét -> világos téma.
+        await userEvent.click(screen.getByRole("switch"));
+
+        // A téma alapszíne most "primary" lenne — a to-do sajátja marad.
+        expect(kartyaSzine()).toBe("border-danger");
+    });
+
+    it("új to-do a téma alapszínével indul", async () => {
+        window.history.pushState({}, "", "/create");
+
+        renderRoutes();
+
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toBeInTheDocument());
+        expect(kartyaSzine()).toBe("border-warning");   // sötét téma alapértéke
     });
 });

@@ -19,8 +19,8 @@ export default function Read(props) {
     }, [props.url, location.state, handleAxios]);
 
     useEffect(() => {
-        if (props && todos) setIsLoading(false);
-    }, [props, todos]);
+        if (todos) setIsLoading(false);
+    }, [todos]);
 
     return (
         isLoading ? <Spinner class="min-vh-75"/> :
