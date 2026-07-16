@@ -9,7 +9,7 @@ vi.mock("axios");
 
 /* Próbakomponens: kiírja, amit a Contextből kap, és gombokkal hívja a
    műveleteit — így a hookot komponensfa nélkül vizsgálhatjuk. */
-function AuthKiiro() {
+function AuthProbe() {
     const {token, isLoggedIn, login, logout, handleAxios} = useAuth();
     return (
         <div>
@@ -24,7 +24,7 @@ function AuthKiiro() {
 
 const renderAuth = () => render(
     <CookiesProvider>
-        <AuthProvider><AuthKiiro/></AuthProvider>
+        <AuthProvider><AuthProbe/></AuthProvider>
     </CookiesProvider>
 );
 
@@ -90,6 +90,6 @@ describe("AuthProvider", () => {
     });
 
     it("AuthProvider nélkül érthető hibát dob", () => {
-        expect(() => render(<AuthKiiro/>)).toThrow(/AuthProvider/);
+        expect(() => render(<AuthProbe/>)).toThrow(/AuthProvider/);
     });
 });

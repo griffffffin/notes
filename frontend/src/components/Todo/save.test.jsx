@@ -42,7 +42,7 @@ const renderRoutes = () => render(
 );
 
 // A kártya színe a szegély-osztályból olvasható ki ("border-danger").
-const kartyaSzine = () => [...document.querySelector("form").classList]
+const cardColor = () => [...document.querySelector("form").classList]
     .find((c) => c.startsWith("border-") && c !== "border-2");
 
 beforeEach(() => {
@@ -96,20 +96,20 @@ describe("Save színe", () => {
         await userEvent.click(await screen.findByText("Bevásárlás"));
         await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
 
-        expect(kartyaSzine()).toBe("border-danger");
+        expect(cardColor()).toBe("border-danger");
     });
 
     it("témaváltás szerkesztés közben NEM írja felül a to-do színét", async () => {
         renderRoutes();
 
         await userEvent.click(await screen.findByText("Bevásárlás"));
-        await waitFor(() => expect(kartyaSzine()).toBe("border-danger"));
+        await waitFor(() => expect(cardColor()).toBe("border-danger"));
 
         // A navbar nap/hold kapcsolója: sötét -> világos téma.
         await userEvent.click(screen.getByRole("switch"));
 
         // A téma alapszíne most "primary" lenne — a to-do sajátja marad.
-        expect(kartyaSzine()).toBe("border-danger");
+        expect(cardColor()).toBe("border-danger");
     });
 
     it("új to-do a téma alapszínével indul", async () => {
@@ -118,6 +118,6 @@ describe("Save színe", () => {
         renderRoutes();
 
         await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toBeInTheDocument());
-        expect(kartyaSzine()).toBe("border-warning");   // sötét téma alapértéke
+        expect(cardColor()).toBe("border-warning");   // sötét téma alapértéke
     });
 });

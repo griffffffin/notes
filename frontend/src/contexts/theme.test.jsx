@@ -6,7 +6,7 @@ import {THEMES, ThemeProvider, useTheme} from "./theme";
 
 /* Kis próbakomponens, ami kiírja, amit a Contextből kap — így a hookot
    önmagában, komponensfa nélkül tudjuk vizsgálni. */
-function TemaKiiro() {
+function ThemeProbe() {
     const {color, colorHex, pageBackground, isChecked, handleCheckedChange} = useTheme();
     return (
         <div>
@@ -19,9 +19,9 @@ function TemaKiiro() {
     );
 }
 
-const renderTemaval = () => render(
+const renderWithTheme = () => render(
     <CookiesProvider>
-        <ThemeProvider><TemaKiiro/></ThemeProvider>
+        <ThemeProvider><ThemeProbe/></ThemeProvider>
     </CookiesProvider>
 );
 
@@ -40,14 +40,14 @@ describe("ThemeProvider", () => {
     });
 
     it("süti nélkül a sötét témával indul", () => {
-        renderTemaval();
+        renderWithTheme();
         expect(screen.getByTestId("bg")).toHaveTextContent(THEMES.dark.pageBackground);
         expect(screen.getByTestId("hex")).toHaveTextContent(THEMES.dark.accent);
         expect(screen.getByTestId("checked")).toHaveTextContent("false");
     });
 
     it("kapcsolásra világos témára vált, és a html hátterét is átfesti", async () => {
-        renderTemaval();
+        renderWithTheme();
         await userEvent.click(screen.getByRole("button", {name: "váltás"}));
 
         expect(screen.getByTestId("bg")).toHaveTextContent(THEMES.light.pageBackground);
@@ -58,7 +58,7 @@ describe("ThemeProvider", () => {
     });
 
     it("a témát sütibe menti, hogy újratöltés után is megmaradjon", async () => {
-        renderTemaval();
+        renderWithTheme();
         await userEvent.click(screen.getByRole("button", {name: "váltás"}));
         expect(document.cookie).toContain("backgroundColor=white");
     });
@@ -66,16 +66,16 @@ describe("ThemeProvider", () => {
     it("a háttérszínt is sütibe írja — ebből fest az index.html boot-szkriptje", () => {
         // Enélkül a lap fehéret villanna a stíluslapok betöltéséig. A színt
         // szándékosan NEM hardkódoljuk a HTML-be: onnan csak olvassuk.
-        renderTemaval();
+        renderWithTheme();
         expect(document.cookie).toContain("themeBackground=" + encodeURIComponent(THEMES.dark.pageBackground));
     });
 
     it("a színek osztálynév-utótagja 'theme' (a saját CSS-változós osztályainkhoz)", () => {
-        renderTemaval();
+        renderWithTheme();
         expect(screen.getByTestId("color")).toHaveTextContent("theme");
     });
 
     it("ThemeProvider nélkül érthető hibát dob, nem rejtélyeset", () => {
-        expect(() => render(<TemaKiiro/>)).toThrow(/ThemeProvider/);
+        expect(() => render(<ThemeProbe/>)).toThrow(/ThemeProvider/);
     });
 });

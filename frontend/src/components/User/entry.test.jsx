@@ -1,4 +1,4 @@
-import {render, screen} from "@testing-library/react";
+import {render, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axios from "axios";
 import {CookiesProvider} from "react-cookie";
@@ -32,7 +32,7 @@ function renderEntry({isLogin = true} = {}) {
     );
 }
 
-const tovabbGomb = () => screen.getByRole("button", {name: "Tovább"});
+const submitButton = () => screen.getByRole("button", {name: "Tovább"});
 
 beforeEach(() => {
     axios.post = vi.fn(() => Promise.resolve({data: "teszt-token"}));
@@ -45,28 +45,28 @@ afterEach(() => {
 describe("Entry — bejelentkezés", () => {
     it("a Tovább gomb üres űrlapon tiltott", () => {
         renderEntry({isLogin: true});
-        expect(tovabbGomb()).toBeDisabled();
+        expect(submitButton()).toBeDisabled();
     });
 
     it("kitöltött névvel és legalább 8 karakteres jelszóval engedélyeződik", async () => {
         renderEntry({isLogin: true});
         await userEvent.type(screen.getByLabelText("Felhasználónév"), "anna");
         await userEvent.type(screen.getByLabelText("Jelszó"), "Teszt1234");
-        expect(tovabbGomb()).toBeEnabled();
+        expect(submitButton()).toBeEnabled();
     });
 
     it("8 karakternél rövidebb jelszónál tiltott marad", async () => {
         renderEntry({isLogin: true});
         await userEvent.type(screen.getByLabelText("Felhasználónév"), "anna");
         await userEvent.type(screen.getByLabelText("Jelszó"), "rovid");
-        expect(tovabbGomb()).toBeDisabled();
+        expect(submitButton()).toBeDisabled();
     });
 
     it("beküldéskor a /login végpontot hívja a beírt adatokkal", async () => {
         renderEntry({isLogin: true});
         await userEvent.type(screen.getByLabelText("Felhasználónév"), "anna");
         await userEvent.type(screen.getByLabelText("Jelszó"), "Teszt1234");
-        await userEvent.click(tovabbGomb());
+        await userEvent.click(submitButton());
 
         expect(axios.post).toHaveBeenCalledWith(
             expect.stringContaining("/login"),
@@ -83,7 +83,7 @@ describe("Entry — regisztráció", () => {
         // Csak kisbetű + szám → nincs nagybetű, nem elég erős
         await userEvent.type(screen.getByLabelText("Jelszó"), "gyenge12");
         await userEvent.type(screen.getByLabelText("Jelszó megerősítése"), "gyenge12");
-        expect(tovabbGomb()).toBeDisabled();
+        expect(submitButton()).toBeDisabled();
     });
 
     it("erős jelszóval és egyező megerősítéssel engedélyeződik", async () => {
@@ -91,7 +91,7 @@ describe("Entry — regisztráció", () => {
         await userEvent.type(screen.getByLabelText("Felhasználónév"), "anna");
         await userEvent.type(screen.getByLabelText("Jelszó"), "Teszt1234");
         await userEvent.type(screen.getByLabelText("Jelszó megerősítése"), "Teszt1234");
-        expect(tovabbGomb()).toBeEnabled();
+        expect(submitButton()).toBeEnabled();
     });
 
     it("eltérő megerősítésnél tiltott marad", async () => {
@@ -99,7 +99,7 @@ describe("Entry — regisztráció", () => {
         await userEvent.type(screen.getByLabelText("Felhasználónév"), "anna");
         await userEvent.type(screen.getByLabelText("Jelszó"), "Teszt1234");
         await userEvent.type(screen.getByLabelText("Jelszó megerősítése"), "Masik5678");
-        expect(tovabbGomb()).toBeDisabled();
+        expect(submitButton()).toBeDisabled();
     });
 
     it("a jelszó alapból rejtett, a szem-ikonnal megjeleníthető", async () => {
@@ -145,12 +145,37 @@ describe("Bejelentkezés és regisztráció közti váltás", () => {
 
         await userEvent.type(screen.getByLabelText("Felhasználónév"), "anna");
         await userEvent.type(screen.getByLabelText("Jelszó"), "Teszt1234");
-        await userEvent.click(tovabbGomb());
+        await userEvent.click(submitButton());
         expect(await screen.findByText(/hibás/i)).toBeVisible();
 
         await userEvent.click(screen.getByRole("button", {name: "Fiók létrehozása"}));
 
         expect(await screen.findByLabelText("Jelszó megerősítése")).toBeInTheDocument();
         expect(screen.queryByText(/hibás/i)).not.toBeInTheDocument();
+    });
+});
+
+describe("Sikeres belépés utáni cím", () => {
+    it("regisztráció után a főoldalra visz, nem marad a /signup címen", async () => {
+        axios.post = vi.fn(() => Promise.resolve({data: "teszt-token"}));
+        window.history.pushState({}, "", "/signup");
+        render(
+            <CookiesProvider>
+                <ThemeProvider>
+                    <AuthProvider>
+                        <Routes/>
+                    </AuthProvider>
+                </ThemeProvider>
+            </CookiesProvider>
+        );
+
+        await userEvent.type(screen.getByLabelText("Felhasználónév"), "anna");
+        await userEvent.type(screen.getByLabelText("Jelszó"), "Teszt1234");
+        await userEvent.type(screen.getByLabelText("Jelszó megerősítése"), "Teszt1234");
+        await userEvent.click(submitButton());
+
+        /* A tartalom a süti miatt magától cserélődne, de a cím nem: a belépett
+           route-tábla "*" ága a /signup-ra is illeszkedik. */
+        await waitFor(() => expect(window.location.pathname).toBe("/"));
     });
 });

@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useState} from "react";
+import {useNavigate} from "react-router-dom";
 import InputGroup from "./Form/Input/inputGroup";
 import SubmitButtonGroup from "../Button/submitButtonGroup";
 import {useAuth} from "../../contexts/auth";
@@ -15,6 +16,7 @@ export default function Entry(props) {
     const [isPasswordConfirmValid, setIsPasswordConfirmValid] = useState(false);
     const [isDisabled, setIsDisabled] = useState(true);
     const {login, handleAxios} = useAuth();
+    const navigate = useNavigate();
     // A props-ból csak az isLogin kell — a hookok függőségeiben ezt adjuk meg,
     // ne a teljes props objektumot (az minden rendernél új, a memózás így
     // hatástalan lenne).
@@ -76,6 +78,11 @@ export default function Entry(props) {
                 // A süti beállítása átbillenti az isLoggedIn-t, és a router magától
                 // a to-do listára vált — nem kell teljes oldal-újratöltés.
                 login(response.data);
+                /* A tartalom magától cserélődik, de a CÍMSOR nem: a belépett
+                   route-tábla "*" ága a /signup-ra is illeszkedik, így a lista a
+                   /signup címen jelenne meg. A replace azért kell, hogy a Vissza
+                   gomb ne a belépőre dobjon vissza egy már belépett usert. */
+                navigate("/", {replace: true});
             }, (error) => {
                 console.log(error.response?.data ?? error.message);
                 if (isLogin) {
@@ -85,7 +92,7 @@ export default function Entry(props) {
                 }
             }
         );
-    }, [isLogin, url, name, password, login, handleAxios]);
+    }, [isLogin, url, name, password, login, handleAxios, navigate]);
 
     return (
         <div className="container-fluid d-flex justify-content-center align-items-center mt-4 pt-2 px-0">
