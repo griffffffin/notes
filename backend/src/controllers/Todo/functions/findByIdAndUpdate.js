@@ -17,5 +17,5 @@ module.exports = (id, title, tasks, order, percentage, request, response) =>
            enélkül a módosítás megkerülte volna a required-eket, amiket a
            létrehozás betart. A middleware már ellenőrzött, ez a második háló. */
         runValidators: true,
-    }).then(() => response.json(title + " frissitve."))
+    }).then(() => response.json(title + " frissítve."))
         .catch((error) => serverError(response, error, "Todo.findByIdAndUpdate"));

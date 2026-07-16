@@ -50,7 +50,7 @@ app.use(express.json({limit: "1mb"}));   // a törzs mérete se legyen korlátla
 if (hasDist) app.use(express.static(dist));
 
 mongoose.connect(env.DATABASE)
-    .then(() => console.log("Adatbázis-kapcsolat él."))
+    .then(() => console.log("Az adatbázis-kapcsolat él."))
     .catch((error) => console.log("Error: " + error));
 
 /* Életjel a monitorozásnak. SZÁNDÉKOSAN hitelesítés nélküli: épp akkor kell

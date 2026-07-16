@@ -24,7 +24,7 @@ module.exports = router.post("/", ((request, response) => {
                 order: order,
                 percentage: percentage
             }).save()
-                .then(() => response.json(title + " letrehozva."))
+                .then(() => response.json(title + " létrehozva."))
                 .catch((error) => serverError(response, error, "Todo.save"))
         }
     );

@@ -16,7 +16,7 @@ module.exports = router.post("/", ((request, response) => {
             {$inc: {order: -1}, $set: {updatedAt: new Date()}},
             response,
             () => Todo.findByIdAndDelete(id)
-                .then(() => response.json(title + " torolve."))
+                .then(() => response.json(title + " törölve."))
                 .catch((error) => serverError(response, error, "Todo.findByIdAndDelete"))
         );
     });

@@ -18,13 +18,13 @@ module.exports = (request, response, next) => {
     const {name, password} = request.body ?? {};
 
     if (typeof name !== "string" || !name.trim())
-        return response.status(400).json("A felhasznalonev megadasa kotelezo.");
+        return response.status(400).json("A felhasználónév megadása kötelező.");
     if (name.length > MAX_NAME)
-        return response.status(400).json(`A felhasznalonev legfeljebb ${MAX_NAME} karakter lehet.`);
+        return response.status(400).json(`A felhasználónév legfeljebb ${MAX_NAME} karakter lehet.`);
     if (typeof password !== "string" || !password)
-        return response.status(400).json("A jelszo megadasa kotelezo.");
+        return response.status(400).json("A jelszó megadása kötelező.");
     if (password.length > MAX_PASSWORD)
-        return response.status(400).json(`A jelszo legfeljebb ${MAX_PASSWORD} karakter lehet.`);
+        return response.status(400).json(`A jelszó legfeljebb ${MAX_PASSWORD} karakter lehet.`);
 
     next();
 };
