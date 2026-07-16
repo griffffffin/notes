@@ -121,3 +121,35 @@ describe("Save színe", () => {
         expect(cardColor()).toBe("border-warning");   // sötét téma alapértéke
     });
 });
+
+describe("Változatlan mentés", () => {
+    it("ha semmit nem módosítok, a Tovább NEM megy a szerverhez", async () => {
+        renderRoutes();
+
+        await userEvent.click(await screen.findByText("Bevásárlás"));
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
+
+        handleAxios.mockClear();
+        await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
+
+        /* Egyetlen /update kérés sem mehet ki: a mentés updatedAt-et is írna,
+           tehát egy üres "Tovább" hazudná, hogy hozzányúltunk. */
+        const calls = handleAxios.mock.calls.map((call) => call[0]);
+        expect(calls).not.toContain("/update");
+        // ...de a főoldalra azért visszavisz.
+        await waitFor(() => expect(window.location.pathname).toBe("/"));
+    });
+
+    it("ha módosítok, a Tovább elküldi a szervernek", async () => {
+        renderRoutes();
+
+        await userEvent.click(await screen.findByText("Bevásárlás"));
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
+
+        await userEvent.type(screen.getByPlaceholderText("Cím"), " ma");
+        handleAxios.mockClear();
+        await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
+
+        await waitFor(() => expect(handleAxios.mock.calls.map((c) => c[0])).toContain("/update"));
+    });
+});

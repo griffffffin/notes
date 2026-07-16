@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from "react";
+import {useCallback, useEffect, useRef, useState} from "react";
 import {Navigate, useLocation, useNavigate} from "react-router-dom";
 import Spinner from "../spinner";
 import NoFocusInput from "../Input/noFocusInput";
@@ -14,6 +14,15 @@ import ColorButtonGroup from "../Button/colorButtonGroup";
 import {useTheme} from "../../contexts/theme";
 import {useAuth} from "../../contexts/auth";
 import {TODO_COLORS} from "../../todoColors";
+
+/* Változatlan-e az űrlap ahhoz képest, amit a szerver adott? */
+const isUnchanged = (current, loaded) =>
+    current.title === loaded.title &&
+    current.category === loaded.category &&
+    current.color === loaded.color &&
+    current.order === loaded.order &&
+    JSON.stringify(current.taskOrder) === JSON.stringify(loaded.taskOrder) &&
+    JSON.stringify(current.tasks) === JSON.stringify(loaded.tasks);
 
 export default function Save(props) {
     /* A to-do SAJÁT színe (a felhasználó választja kártyánként) — nem a témáé.
@@ -60,6 +69,11 @@ export default function Save(props) {
        átirányítással kezeljük. */
     const todoId = isUpdate ? (location.state?.id ?? null) : null;
 
+    /* A szerverről betöltött állapot — a beküldéskor ehhez mérjük, változott-e
+       bármi. Ref és nem state: senki nem jeleníti meg, és a változása nem
+       járhat újrarajzolással. */
+    const loadedTodo = useRef(null);
+
     const handleColorChange = useCallback((event) => {
         setColor(event.target.value);
         setIsColorAngleClicked(false);
@@ -76,6 +90,16 @@ export default function Save(props) {
 
         if (todoId) {
             handleAxios("/id", {id: todoId}, (response) => {
+                // Pillanatkép arról, AMIT a szerver adott — a beküldéskor ehhez
+                // hasonlítunk, hogy egy változatlan űrlap ne írjon feleslegesen.
+                loadedTodo.current = {
+                    title: response.data.title,
+                    category: response.data.category,
+                    color: response.data.color,
+                    order: response.data.order,
+                    tasks: response.data.tasks ?? {},
+                    taskOrder: response.data.taskOrder ?? [],
+                };
                 setColor(response.data.color);
                 setTitle(response.data.title);
                 setIsTitleValid(true);
@@ -136,6 +160,21 @@ export default function Save(props) {
             color: color,
             order: order,
         }
+        /* Ha semmi nem változott, NEM megyünk a szerverhez. Nem csak a
+           fölösleges kérés miatt: a mentés updatedAt-et is ír, tehát egy üres
+           "Tovább" módosítottnak jelölné a to-dót — hazudna a "mikor nyúltál
+           hozzá utoljára" adat, és a napi export is fölöslegesen lefutna.
+
+           A tasks/taskOrder összehasonlítása JSON-on át megy: a tasks kulcsai
+           számok, azokat a JS mindig növekvő sorrendben járja be, tehát a
+           szöveges alak stabil — nem fordulhat elő, hogy azonos tartalom
+           különbözőnek látsszon. */
+        if (isUpdate && loadedTodo.current && isUnchanged(data, loadedTodo.current)) {
+            props.handleLinkClicked();
+            navigate("/");
+            return;
+        }
+
         if (isUpdate) data["id"] = todoId;
         handleAxios(url, data, (response) => {
             if (response.status === 200) {
