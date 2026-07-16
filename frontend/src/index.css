@@ -93,6 +93,24 @@ textarea.form-control::placeholder {
     border-color: var(--theme-accent) !important;
 }
 
+/* Amíg a téma változói nincsenek a helyükön, TILOS bármilyen átmenet.
+
+   Miért: a "Fiók létrehozása" gomb egy <Link>-en (<a>) belül van. Ha a
+   --theme-accent még hiányzik, a rá épülő --bs-btn-color érvénytelen, és a
+   böngésző az ÖRÖKÖLT színre esik vissza — az <a>-tól a Bootstrap link-kékjére
+   (#0d6efd). Ez önmagában egy képkocka lenne, észrevehetetlen. Csakhogy a
+   Bootstrap .btn-jén 150 ms-os szín-ÁTMENET van, ezért a javítás nem pattan a
+   helyére, hanem LÁTHATÓAN átúszik kékből a téma színébe — ez volt a villanás.
+
+   A .theme-ready osztályt a ThemeProvider teszi ki, a változók beállítása UTÁN
+   egy renderrel (contexts/theme.jsx). Így a változók érvényesülése biztosan
+   átmenet nélkül történik, a téma későbbi kézi váltása viszont már átúszhat. */
+html:not(.theme-ready) *,
+html:not(.theme-ready) *::before,
+html:not(.theme-ready) *::after {
+    transition: none !important;
+}
+
 /* CSAK a háttérszín — magasság szándékosan nincs benne. A teljes képernyőt a
    lapváz külön kéri (app.jsx: min-vh-100), mert ennek az osztálynak van egy
    másik fogyasztója is: a törlés-modal ebből veszi a hátterét. Amikor a

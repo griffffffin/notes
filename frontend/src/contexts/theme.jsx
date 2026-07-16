@@ -1,4 +1,4 @@
-import {createContext, useCallback, useContext, useEffect, useMemo, useState} from "react";
+import {createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState} from "react";
 import {useCookies} from "react-cookie";
 
 /* A témák ADATKÉNT, saját (hex) színekkel — nem a Bootstrap-paletta nevei.
@@ -49,7 +49,20 @@ export function ThemeProvider({children}) {
 
     const handleCheckedChange = useCallback(() => setIsLight((light) => !light), []);
 
-    useEffect(() => {
+    /* useLayoutEffect és NEM useEffect: ez a különbség itt látható a képernyőn.
+
+       A useEffect a FESTÉS UTÁN fut, tehát az első képkockán a --theme-* még
+       nem létezne. Ilyenkor a rá hivatkozó szabályok érvénytelenek, és a
+       böngésző az öröklött értékre esik vissza — a "Fiók létrehozása" gomb egy
+       <Link>-en belül van, így a Bootstrap link-kékjét (#0d6efd) örökölte. A
+       Bootstrap .btn-jén ráadásul szín-ÁTMENET van, ezért a kék nem eltűnt,
+       hanem ~150 ms alatt átúszott a téma színébe: ez volt a látható villanás.
+
+       A useLayoutEffect a DOM-módosítás után, de a festés ELŐTT fut — a
+       változók így már az első képkockán megvannak, nincs mihez képest
+       átmenetet játszani. Ára: blokkolja a festést, ezért CSAK az kerül ide,
+       ami tényleg az első képkockához kell (hét stílus-beállítás, ennyi). */
+    useLayoutEffect(() => {
         const html = document.documentElement;
         // A html inline háttere az index.html boot-szkriptjéből jön; témaváltáskor
         // itt kell szinkronban tartani, különben a régi szín ragadna be.
@@ -60,6 +73,21 @@ export function ThemeProvider({children}) {
         html.style.setProperty("--theme-accent-contrast", theme.accentContrast);
         html.style.setProperty("--theme-focus-border", theme.focusBorder);
         html.style.setProperty("--theme-focus-ring", theme.focusRing);
+    }, [theme]);
+
+    /* Sima useEffect (a festés UTÁN fut) — SZÁNDÉKOSAN, két okból is.
+
+       A .theme-ready osztály engedi fel az átmeneteket (lásd index.css). Csak
+       most tesszük ki, egy renderrel a változók beállítása után: így a fenti
+       useLayoutEffect változásai biztosan átmenet NÉLKÜL érvényesülnek — ha
+       ugyanabban a lépésben adnánk hozzá, a böngésző már engedélyezett
+       átmenettel látná a színváltozást, és újra átúsztatná. A téma későbbi
+       kézi váltása viszont már szépen átúszhat, mert az osztály addigra ott van.
+
+       A sütiírás a KÖVETKEZŐ oldalbetöltéshez kell, nem ehhez a képkockához —
+       a festést blokkoló useLayoutEffectbe csak az való, ami nélkül a kép hibás. */
+    useEffect(() => {
+        document.documentElement.classList.add("theme-ready");
         setCookie("backgroundColor", theme.cookieValue, {path: "/"});
         // Ebből festi az index.html boot-szkriptje a lapot, még a CSS előtt.
         setCookie("themeBackground", theme.pageBackground, {path: "/"});
