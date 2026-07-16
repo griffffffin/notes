@@ -1,0 +1,18 @@
+# Telepítés: sudo cp deploy/to-do-health.* deploy/health-check.sh /etc/systemd/system/ &&
+#            sudo systemctl daemon-reload && sudo systemctl enable --now to-do-health.timer
+[Unit]
+Description=Check the to-do app's health every minute
+
+[Timer]
+# Boot után adunk időt az appnak és az adatbázisnak elindulni, különben az első
+# ellenőrzés még a normális indulás közben riasztana.
+OnBootSec=2min
+OnUnitActiveSec=1min
+
+# SZÁNDÉKOSAN nincs Persistent=true — szemben az export/backup timerekkel.
+# Azoknál a kimaradt futást be KELL pótolni (egy elmaradt mentés hiányzó adat).
+# Az életjel viszont a JELENRŐL szól: hogy tíz perce épp nem válaszolt az app,
+# azt utólag megkérdezni értelmetlen.
+
+[Install]
+WantedBy=timers.target
