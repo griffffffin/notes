@@ -13,5 +13,5 @@
    értelmes válasz. */
 module.exports = function serverError(response, error, context) {
     console.error(`[${new Date().toISOString()}] ${context}:`, error);
-    return response.status(500).json("Error: A muvelet most nem sikerult.");
+    return response.status(500).json("Error: Sikertelen művelet.");
 };

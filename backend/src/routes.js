@@ -7,6 +7,7 @@ const validateCredentials = require("./middleware/validateCredentials");
 
 const userCreate = require("./controllers/User/create");
 const userLogin = require("./controllers/User/login");
+const userRefresh = require("./controllers/User/refresh");
 
 const todoCreate = require("./controllers/Todo/create");
 
@@ -26,6 +27,11 @@ router.use("/login", validateCredentials, userLogin);
 
 // Innentől minden végpont csak érvényes tokennel érhető el.
 router.use(auth);
+
+/* Token-megújítás. Az auth MÖGÖTT: csak érvényes tokenért jár friss —
+   lejárt tokennel már nem lehet visszakapaszkodni, ez a tétlenségi
+   kijelentkezés lényege. */
+router.use("/refresh", userRefresh);
 
 router.use("/todo/create", validateTodoBody, todoCreate);
 

@@ -1,5 +1,5 @@
 import axios from "axios";
-import {createContext, useCallback, useContext, useMemo} from "react";
+import {createContext, useCallback, useContext, useEffect, useMemo, useRef} from "react";
 import {useCookies} from "react-cookie";
 
 /* Bejelentkezés és szerverhívás egy helyen.
@@ -12,6 +12,29 @@ import {useCookies} from "react-cookie";
    401-nél (lejárt vagy érvénytelen token) a süti törlődik, így az app
    automatikusan visszavált a bejelentkező képernyőre. */
 
+/* Negyed óra tétlenség után kijelentkeztetünk. A határ SZÁNDÉKOSAN egyezik a
+   token szerveroldali élettartamával (backend/src/token.js: 15m) — a kettőt
+   EGYÜTT kell módosítani. Így a felület és a token egyszerre jár le: nem
+   fordulhat elő, hogy a képernyő kijelentkezettnek látszik, miközben a lemásolt
+   süti a szerveren még működik. */
+const IDLE_LIMIT_MS = 15 * 60 * 1000;
+
+/* A megújítást AKTIVITÁS váltja ki, nem az óra — így a token lejárata mindig a
+   legutóbbi tevékenységhez igazodik, és tétlen munkamenetet soha nem
+   hosszabbít meg. Az egérmozgás másodpercenként sokszor tüzel, ezért fékezzük:
+   legfeljebb ennyinként fordulunk a szerverhez. Bőven a 15 perces lejárat
+   alatt van, tehát aktív használat közben a token nem tud lejárni. */
+const REFRESH_EVERY_MS = 5 * 60 * 1000;
+
+// Ilyen sűrűn nézzük, tétlen vagy-e. Fél perc pontosság bőven elég egy negyed
+// órás határhoz, és észrevehetetlen terhelés.
+const IDLE_CHECK_MS = 30 * 1000;
+
+/* Ezek jelzik, hogy a gép előtt vagy. A passive: true azt ígéri a böngészőnek,
+   hogy nem akadályozzuk meg az alapértelmezett viselkedést — enélkül minden
+   görgetésnél meg kellene várnia a kódunkat, ami akadozást okozna. */
+const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "wheel"];
+
 const AuthContext = createContext(null);
 
 export function useAuth() {
@@ -23,8 +46,13 @@ export function useAuth() {
 export function AuthProvider({children}) {
     const [cookies, setCookie, removeCookie] = useCookies(["user"]);
     const token = cookies.user ?? null;
+    /* Refek és nem state-ek: másodpercenként sokszor frissülnek, és senki nem
+       jeleníti meg őket — state-ként minden egérmozdulat újrarajzolná az egész
+       appot. */
+    const lastActivity = useRef(Date.now());
+    const lastRefresh = useRef(Date.now());
 
-    const login = useCallback((ujToken) => setCookie("user", ujToken, {path: "/"}), [setCookie]);
+    const login = useCallback((newToken) => setCookie("user", newToken, {path: "/"}), [setCookie]);
     const logout = useCallback(() => removeCookie("user", {path: "/"}), [removeCookie]);
 
     const handleAxios = useCallback((url, data, then, catchError) =>
@@ -35,6 +63,37 @@ export function AuthProvider({children}) {
                 if (error.response?.status === 401) removeCookie("user", {path: "/"});
                 catchError(error);
             }), [token, removeCookie]);
+
+    useEffect(() => {
+        // Kijelentkezve nincs mit lejáratni és nincs mit figyelni.
+        if (!token) return;
+        lastActivity.current = Date.now();
+        lastRefresh.current = Date.now();
+
+        const markActivity = () => {
+            lastActivity.current = Date.now();
+            if (Date.now() - lastRefresh.current < REFRESH_EVERY_MS) return;
+            lastRefresh.current = Date.now();
+            axios.post(import.meta.env.VITE_BACKEND + "/refresh", {},
+                {headers: {Authorization: "Bearer " + token}})
+                .then((response) => setCookie("user", response.data, {path: "/"}))
+                /* A néma bukás szándékos: ez háttérmunka, amiről a felhasználó
+                   nem tud. Ha a token időközben mégis lejárt, a következő valódi
+                   kérés 401-et kap, és az jelentkeztet ki — nem kell két helyen
+                   ugyanazt csinálni. */
+                .catch(() => {});
+        };
+
+        ACTIVITY_EVENTS.forEach((name) => window.addEventListener(name, markActivity, {passive: true}));
+        const idleCheck = setInterval(() => {
+            if (Date.now() - lastActivity.current >= IDLE_LIMIT_MS) logout();
+        }, IDLE_CHECK_MS);
+
+        return () => {
+            ACTIVITY_EVENTS.forEach((name) => window.removeEventListener(name, markActivity));
+            clearInterval(idleCheck);
+        };
+    }, [token, setCookie, logout]);
 
     const value = useMemo(() => ({
         token,

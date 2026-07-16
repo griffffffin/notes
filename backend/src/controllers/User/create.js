@@ -1,8 +1,8 @@
 const router = require("express").Router();
 const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
 const User = require("../../models/user");
 const serverError = require("../../serverError");
+const {signToken} = require("../../token");
 
 const SALT_WORK_FACTOR = 10;
 const PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/;
@@ -17,16 +17,16 @@ module.exports = router.post("/", async (request, response) => {
 
     if (!PASSWORD_RULE.test(password))
         return response.status(400).json(
-            "ValidationError:  A jelszo legalabb 8 karakter legyen. Kis-, nagybetukbol es szamokbol alljon.");
+            "ValidationError:  A jelszó legalább 8 karakter legyen. Kis-, nagybetűkből és számokból álljon.");
 
     try {
         const hashedPassword = await bcrypt.hash(password, SALT_WORK_FACTOR);
         const user = await new User({name: name, password: hashedPassword}).save();
-        return response.json(jwt.sign({id: user._id}, process.env.JWT_SECRET, {expiresIn: "7d"}));
+        return response.json(signToken(user._id));
     } catch (error) {
         // 11000: a Mongo egyedi indexének ütközés-kódja — a név már foglalt.
         if (error.code === 11000)
-            return response.status(400).json("MongoServerError: " + name + " felhasznalonev mar foglalt.");
+            return response.status(400).json("MongoServerError: " + name + " felhasználónév már foglalt.");
         return serverError(response, error, "User.create");
     }
 });

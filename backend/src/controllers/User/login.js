@@ -1,7 +1,7 @@
 const router = require("express").Router();
 const User = require("../../models/user");
 const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
+const {signToken} = require("../../token");
 
 /* A hibaüzenet SZÁNDÉKOSAN ugyanaz ismeretlen névre és rossz jelszóra.
    Korábban a kettő elkülönült ("Hibas felhasznalonev." / "Hibas jelszo."), ami
@@ -25,10 +25,10 @@ module.exports = router.post("/", async (request, response) => {
         const user = await User.findOne({name: request.body.name});
         const isMatch = await bcrypt.compare(request.body.password, user?.password ?? DUMMY_HASH);
         if (!user || !isMatch) return response.status(400).json(BAD_LOGIN);
-        return response.json(jwt.sign({id: user._id}, process.env.JWT_SECRET, {expiresIn: "7d"}));
+        return response.json(signToken(user._id));
     } catch (error) {
         // A részletek a szerver naplójába valók, nem a válaszba.
         console.error("Bejelentkezési hiba:", error);
-        return response.status(500).json("Error: A bejelentkezes most nem sikerult.");
+        return response.status(500).json("Error: Sikertelen bejelentkezés.");
     }
 });
