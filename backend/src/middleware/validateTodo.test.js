@@ -105,3 +105,16 @@ test("szín-szűrő: csak paletta-színt enged át (400)", async () => {
     assert.strictEqual((await request(filterApp).post("/color").send({color: {$ne: null}})).status, 400);
     assert.strictEqual((await request(filterApp).post("/color").send({color: "kek"})).status, 400);
 });
+
+test("ismeretlen mezőt tartalmazó listaelemet elutasít (400)", async () => {
+    /* A séma "tasks: {type: Object}"-ot mond, tehát bármit eltárolna — ismeretlen
+       kulcsok tiltása nélkül egy saját kliens tetszőleges adatot rejthetne el a
+       listaelemekben, ami onnan az exportokba és a mentésekbe is átfolyna. */
+    const task = {id: "0", content: "a", done: false, smuggled: "tetszőleges adat"};
+    assert.strictEqual((await post({...VALID, tasks: {0: task}})).status, 400);
+});
+
+test("a szabályos három mezős listaelemet átengedi", async () => {
+    const task = {id: "0", content: "a", done: false};
+    assert.strictEqual((await post({...VALID, tasks: {0: task}, taskOrder: [0]})).status, 200);
+});

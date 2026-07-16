@@ -8,7 +8,7 @@ const jwt = require("jsonwebtoken");
    fióklista-felderítést engedett: elég volt neveket próbálgatni. A frontend
    eddig is egyetlen közös üzenetet írt ki, tehát a megkülönböztetés csak a
    támadónak volt hasznos. */
-const BAD_LOGIN = "Error: Hibas felhasznalonev vagy jelszo.";
+const BAD_LOGIN = "Error: Hibás felhasznalónév vagy jelszó.";
 
 /* Álca-hash. Az azonos hibaüzenet önmagában kevés: a VÁLASZIDŐ is árulkodik.
    Ismeretlen névnél nem lenne mit ellenőrizni, tehát azonnal válaszolnánk;

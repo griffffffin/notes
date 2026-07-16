@@ -18,6 +18,8 @@ const mongoose = require("mongoose");
    konstans átírása visszamenőleg is ártalmatlan. */
 
 const COLORS = ["primary", "info", "secondary", "danger", "warning", "success"];
+// A listaelem engedélyezett mezői — a frontend pontosan ezt a hármat küldi.
+const TASK_FIELDS = ["id", "content", "done"];
 const MAX_TITLE = 200;
 const MAX_CATEGORY = 100;
 const MAX_TASK_TEXT = 1000;
@@ -53,6 +55,14 @@ function todoErrors(body) {
                 const task = tasks[key];
                 if (!task || typeof task !== "object" || Array.isArray(task)) {
                     errors.push("A listaelemek formátuma hibás.");
+                    break;
+                }
+                /* Csak az ismert mezők. A Mongoose-séma "tasks: {type: Object}"-ot
+                   mond, tehát bármit eltárolna: ismeretlen kulcsok tiltása nélkül
+                   egy saját kliens tetszőleges adatot rejthetne a listaelemekbe,
+                   ami onnan az exportokba és a mentésekbe is átfolyna. */
+                if (Object.keys(task).some((field) => !TASK_FIELDS.includes(field))) {
+                    errors.push("A listaelem ismeretlen mezőt tartalmaz.");
                     break;
                 }
                 if (!isText(task.content) || task.content.length > MAX_TASK_TEXT) {

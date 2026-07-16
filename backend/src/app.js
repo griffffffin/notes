@@ -53,12 +53,19 @@ mongoose.connect(env.DATABASE)
     .then(() => console.log("Adatbázis-kapcsolat él."))
     .catch((error) => console.log("Error: " + error));
 
+/* Életjel a monitorozásnak. SZÁNDÉKOSAN hitelesítés nélküli: épp akkor kell
+   válaszolnia, amikor baj van, és egy figyelő eszköznek nincs tokenje.
+   Cserébe semmi olyat nem árul el, amit egy kívülálló ne tudna kikövetkeztetni
+   abból, hogy az app válaszol-e. A hiba RÉSZLETE korábban benne volt a
+   válaszban (error.message) — az már a belső működésről beszélt, ezért csak a
+   naplóba megy. */
 app.get("/health", async (request, response) => {
     try {
         await mongoose.connection.db.admin().ping();
         response.json({status: "ok", database: "ok"});
     } catch (error) {
-        response.status(503).json({status: "ok", database: "unreachable", error: error.message});
+        console.error("Health: az adatbázis nem válaszol:", error);
+        response.status(503).json({status: "ok", database: "unreachable"});
     }
 });
 
