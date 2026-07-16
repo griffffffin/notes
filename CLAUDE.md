@@ -134,6 +134,10 @@ komponensek nagy része átkerül, csak az új backend és kategóriák köré b
 - Commit-üzenetek angolul, Conventional Commits stílusban (`feat:`, `fix:`,
   `chore:`, `docs:` …). **NE** kerüljön beléjük `Co-Authored-By` vagy más
   AI-társszerző trailer — az AI-közreműködést ez a fájl dokumentálja.
+- **A kódban minden azonosító (változó, függvény, konstans, teszt-segéd) ANGOL**
+  — a tesztfájlokban is. A kommentek és a teszt-leírások (`test("…")`) maradnak
+  magyarul: azok magyarázatok, nem kód. (Vegyes nyelvű kód olvashatatlan, és a
+  portfólió-szemlélőnek is angolul kell értenie.)
 - Karbantarthatóság a puszta "működik" felett: ha valami rejtett feltételre
   épül (betöltési sorrend, verziófüggő viselkedés, DOM-sorrend), tedd
   explicitté — konkrét érték + rövid komment a kényszerről. (Tanulság: a régi

@@ -36,11 +36,11 @@
     <script>
       // A sütiből kiolvassuk a téma hátterét, és azzal festünk. Csak érvényes
       // színt fogadunk el (# + hex), hogy egy sérült süti ne törhesse el a lapot.
-      var talalat = document.cookie.match(/(?:^|;\s*)themeBackground=([^;]*)/);
-      if (talalat) {
-        var szin = decodeURIComponent(talalat[1]).replace(/^"|"$/g, "");
-        if (/^#[0-9a-fA-F]{3,8}$/.test(szin))
-          document.documentElement.style.background = szin;
+      var match = document.cookie.match(/(?:^|;\s*)themeBackground=([^;]*)/);
+      if (match) {
+        var color = decodeURIComponent(match[1]).replace(/^"|"$/g, "");
+        if (/^#[0-9a-fA-F]{3,8}$/.test(color))
+          document.documentElement.style.background = color;
       }
     </script>
   </head>
