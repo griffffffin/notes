@@ -30,9 +30,14 @@ export default function App() {
     }, [handleCategoryChange]);
 
     /* Nincs betöltő-állapot: a bejelentkezés a sütiből azonnal tudható, a téma
-       pedig a ThemeProviderből jön — nincs mire várni. */
+       pedig a ThemeProviderből jön — nincs mire várni.
+
+       min-vh-100: a lapváz töltse ki a képernyőt, különben rövid tartalomnál a
+       háttere alatt kilátszana a html háttere (témaváltáskor csíkként). Ez
+       SZÁNDÉKOSAN külön osztály a bg-theme-page mellett: azt a törlés-modal is
+       használja a hátteréért, és annak nem kell képernyőnyi magasság. */
     return (
-        <div className="container-fluid px-0 bg-theme-page">
+        <div className="container-fluid px-0 bg-theme-page min-vh-100">
             <Routes handleLinkClicked={handleLinkClicked}
                     setIsColorAngleClicked={setIsColorAngleClicked} isColorAngleClicked={isColorAngleClicked}
                     setIsCategoryAngleClicked={setIsCategoryAngleClicked}

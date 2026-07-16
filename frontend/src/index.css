@@ -93,10 +93,13 @@ textarea.form-control::placeholder {
     border-color: var(--theme-accent) !important;
 }
 
+/* CSAK a háttérszín — magasság szándékosan nincs benne. A teljes képernyőt a
+   lapváz külön kéri (app.jsx: min-vh-100), mert ennek az osztálynak van egy
+   másik fogyasztója is: a törlés-modal ebből veszi a hátterét. Amikor a
+   min-height itt volt, a modal is 100vh magas lett, és a gombok alatt hatalmas
+   üres tér tátongott. */
 .bg-theme-page {
     background-color: var(--theme-page-bg) !important;
-    /* A lap alján ne maradjon csík a html hátteréből, ha rövid a tartalom */
-    min-height: 100vh;
 }
 
 /* A gombok a Bootstrap .btn alaposztályának --bs-btn-* változóit állítják át
