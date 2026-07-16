@@ -12,6 +12,8 @@ CLAUDE.local.md
 # Titkok: env fájlok soha nem kerülhetnek verziókezelésbe
 .env
 .env.*
+# Az életjel-timer levélküldéséhez tartozó SMTP-adatok (600, csak a szerveren)
+deploy/health.env
 # ...kivéve a placeholder-értékes mintafájlt, az dokumentáció
 !.env.example
 # ...és az éles build környezet-semleges beállítását (nincs benne titok)

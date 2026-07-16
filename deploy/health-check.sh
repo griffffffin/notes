@@ -1,6 +1,6 @@
 #!/bin/bash
 # Az app életjelének ellenőrzése: percenként megkérdezi a /health végpontot,
-# baj esetén naplóz, és (ritkítva) újraindítja a service-t.
+# baj esetén naplóz, e-mailt küld, és (ritkítva) újraindítja a service-t.
 #
 # MIÉRT KELL, ha a to-do.service-ben ott a Restart=always?
 # Mert a systemd csak azt látja, FUT-e a folyamat. Azt nem, hogy "fut, de nem
@@ -29,9 +29,61 @@ CURL_TIMEOUT=10
 RESTART_COOLDOWN=600
 
 # A /run tmpfs: rebootkor ürül, tehát újraindulás után az első hiba azonnal
-# kaphat újraindítást. Ez szándékos — a hűtés a ciklus ellen van, nem a
-# beavatkozás ellen.
-STATE_FILE="/run/to-do-health.last-restart"
+# kaphat újraindítást, és az értesítés is újraindul tiszta lappal.
+STATE_DIR="/run"
+LAST_RESTART_FILE="$STATE_DIR/to-do-health.last-restart"
+# Ennek a LÉTEZÉSE jelzi, hogy a mostani hibáról MÁR küldtünk levelet. Enélkül
+# percenként érkezne ugyanaz az üzenet, amíg a baj tart — egy éjszaka alatt
+# több száz levél, amitől a következő valódi riasztás elveszne a zajban.
+NOTIFIED_FILE="$STATE_DIR/to-do-health.notified"
+
+# Az SMTP-adatok egy gitignore-olt env-fájlból jönnek (600-as jogok, a
+# titkosított köteten) — verziókezelésbe soha nem kerülnek. A fájl a szkript
+# mellett keresendő; ha hiányzik, a szkript a levélküldésen kívül mindent
+# ugyanúgy elvégez (naplóz, újraindít), csak szól, hogy nem tud értesíteni.
+ENV_FILE="$(dirname "$(readlink -f "$0")")/health.env"
+if [ -r "$ENV_FILE" ]; then
+    # shellcheck disable=SC1090
+    set -a; . "$ENV_FILE"; set +a
+fi
+
+log() { echo "$@"; }
+
+# Egy levél. A hívó dolga eldönteni, KELL-e — ez a függvény csak küld.
+send_mail() {
+    local subject="$1" body="$2"
+
+    if [ -z "${SMTP_SERVER:-}" ] || [ -z "${SENDER_EMAIL:-}" ] || \
+       [ -z "${SENDER_PASSWORD:-}" ] || [ -z "${RECIPIENT_EMAIL:-}" ]; then
+        log "Nem tudok levelet küldeni: hiányoznak az SMTP-adatok ($ENV_FILE)."
+        return 1
+    fi
+
+    # A 465 implicit TLS-t jelent (smtps://), a 587 STARTTLS-t (smtp:// + --ssl-reqd).
+    local url
+    if [ "${SMTP_PORT:-587}" = "465" ]; then
+        url="smtps://${SMTP_SERVER}:${SMTP_PORT}"
+    else
+        url="smtp://${SMTP_SERVER}:${SMTP_PORT:-587}"
+    fi
+
+    # A Subject fejléc csak ASCII-t vihet nyersen, ezért az ékezetes tárgyat
+    # RFC 2047 szerint base64-be csomagoljuk — enélkül a levelezők összetörnék.
+    local encoded_subject
+    encoded_subject="=?UTF-8?B?$(printf '%s' "$subject" | base64 -w0)?="
+
+    {
+        printf 'From: %s\r\n' "$SENDER_EMAIL"
+        printf 'To: %s\r\n' "$RECIPIENT_EMAIL"
+        printf 'Subject: %s\r\n' "$encoded_subject"
+        printf 'Date: %s\r\n' "$(date -R)"
+        printf 'Content-Type: text/plain; charset=UTF-8\r\n'
+        printf '\r\n'
+        printf '%s\r\n' "$body"
+    } | curl -s --max-time 30 --url "$url" --ssl-reqd \
+            --mail-from "$SENDER_EMAIL" --mail-rcpt "$RECIPIENT_EMAIL" \
+            --user "${SENDER_EMAIL}:${SENDER_PASSWORD}" --upload-file - 2>/dev/null
+}
 
 # Ha a service szándékosan áll (tipikusan reboot után, feloldatlan /opt
 # mellett), nincs mit ellenőrizni: nem a mi dolgunk elindítani, amit valaki
@@ -42,26 +94,75 @@ fi
 
 code=$(curl -s -m "$CURL_TIMEOUT" -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null)
 
+# ---------------------------------------------------------------- egészséges
 if [ "$code" = "200" ]; then
+    # Ha az előző körben riasztottunk, most jelezzük, hogy rendbe jött.
+    # Enélkül sosem tudnád meg, hogy vége a bajnak — csak azt, hogy volt.
+    if [ -e "$NOTIFIED_FILE" ]; then
+        log "Az app újra válaszol."
+        if send_mail "To-do: az app újra rendben van" \
+"$(date '+%Y-%m-%d %H:%M:%S') — a to-do app újra válaszol az életjelre.
+
+Gép: $(hostname)
+Végpont: $HEALTH_URL"; then
+            rm -f "$NOTIFIED_FILE"
+        else
+            log "A helyreállás-értesítő nem ment el; a jelzőt meghagyom, később újrapróbálom."
+        fi
+    fi
     exit 0
 fi
 
+# ------------------------------------------------------------------- baj van
 if [ "$code" = "000" ] || [ -z "$code" ]; then
-    echo "BAJ: az életjel ${CURL_TIMEOUT}s alatt NEM válaszolt — a folyamat fut, de nem felel."
+    reason="az életjel ${CURL_TIMEOUT}s alatt NEM válaszolt — a folyamat fut, de nem felel"
 else
-    echo "BAJ: az életjel HTTP ${code}-t adott 200 helyett (az app fut, de valami nem stimmel)."
+    reason="az életjel HTTP ${code}-t adott 200 helyett (az app fut, de valami nem stimmel)"
 fi
+log "BAJ: ${reason}."
 
 now=$(date +%s)
-last=$(cat "$STATE_FILE" 2>/dev/null || echo 0)
+last=$(cat "$LAST_RESTART_FILE" 2>/dev/null || echo 0)
 elapsed=$((now - last))
 
 if [ "$elapsed" -lt "$RESTART_COOLDOWN" ]; then
-    echo "NEM indítom újra: az előző újraindítás ${elapsed}s-e volt (hűtési idő: ${RESTART_COOLDOWN}s)."
-    echo "Ha ez ismétlődik, a hiba NEM az appban van — nézd meg: systemctl status ferretdb.service, és hogy a /opt fel van-e oldva."
+    restart_note="NEM indítottam újra: az előző újraindítás ${elapsed}s-e volt (hűtési idő: ${RESTART_COOLDOWN}s).
+Ha ez ismétlődik, a hiba NEM az appban van."
+    log "NEM indítom újra: az előző újraindítás ${elapsed}s-e volt (hűtési idő: ${RESTART_COOLDOWN}s)."
+    log "Ha ez ismétlődik, a hiba NEM az appban van — nézd meg: systemctl status ferretdb.service, és hogy a /opt fel van-e oldva."
+else
+    echo "$now" > "$LAST_RESTART_FILE"
+    log "Újraindítom a(z) ${SERVICE}-t."
+    systemctl restart "$SERVICE"
+    restart_note="Újraindítottam a(z) ${SERVICE}-t."
+fi
+
+# EGYETLEN levél hibánként: a jelzőfájl megléte jelenti, hogy már szóltunk.
+if [ -e "$NOTIFIED_FILE" ]; then
     exit 0
 fi
 
-echo "$now" > "$STATE_FILE"
-echo "Újraindítom a(z) ${SERVICE}-t."
-systemctl restart "$SERVICE"
+if send_mail "To-do: az app nem válaszol" \
+"$(date '+%Y-%m-%d %H:%M:%S') — ${reason}.
+
+${restart_note}
+
+Gép: $(hostname)
+Végpont: $HEALTH_URL
+
+Amit érdemes megnézni:
+  systemctl status to-do.service
+  systemctl status ferretdb.service
+  journalctl -u to-do-health.service -n 50
+  mount | grep /opt        (fel van-e oldva a titkosított kötet)
+
+Erről a hibáról ez az EGYETLEN levél; a következőt akkor kapod, ha az app
+újra válaszol."; then
+    # A jelzőt CSAK sikeres küldés után tesszük ki: ha a levél most nem ment
+    # el (pl. nincs net), a következő perc újrapróbálja — különben némán
+    # elveszne a riasztás.
+    touch "$NOTIFIED_FILE"
+    log "Értesítő levél elküldve."
+else
+    log "Az értesítő levél NEM ment el; a következő körben újrapróbálom."
+fi
