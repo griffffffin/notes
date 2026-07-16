@@ -2,6 +2,7 @@ const router = require("express").Router();
 const findById = require("./functions/findById");
 const updateMany = require("./functions/updateMany");
 const Todo = require("../../models/todo");
+const serverError = require("../../serverError");
 
 module.exports = router.post("/", ((request, response) => {
     const id = request.body.id;
@@ -16,7 +17,7 @@ module.exports = router.post("/", ((request, response) => {
             response,
             () => Todo.findByIdAndDelete(id)
                 .then(() => response.json(title + " torolve."))
-                .catch((error) => response.status(400).json("Error: " + error))
+                .catch((error) => serverError(response, error, "Todo.findByIdAndDelete"))
         );
     });
 }));

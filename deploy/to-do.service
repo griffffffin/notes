@@ -10,6 +10,10 @@ WorkingDirectory=/opt/to-do/backend
 ExecStart=/usr/bin/node src/app.js
 Restart=always
 User=ubuntu
+# Ebből tudja az app, hogy élesben fut: ilyenkor a frontendet ugyanerről az
+# origin-ról szolgálja ki, tehát CORS-t NEM engedélyez (a dev szerver 5173-as
+# portjának viszont kell). Lásd backend/src/app.js.
+Environment=NODE_ENV=production
 
 [Install]
 WantedBy=multi-user.target

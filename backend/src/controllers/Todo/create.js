@@ -1,6 +1,7 @@
 const router = require("express").Router();
 const updateMany = require("./functions/updateMany");
 const Todo = require("../../models/todo");
+const serverError = require("../../serverError");
 const calculatePercentage = require("./functions/calculatePercentage");
 
 module.exports = router.post("/", ((request, response) => {
@@ -24,7 +25,7 @@ module.exports = router.post("/", ((request, response) => {
                 percentage: percentage
             }).save()
                 .then(() => response.json(title + " letrehozva."))
-                .catch((error) => response.status(400).json("Error: " + error))
+                .catch((error) => serverError(response, error, "Todo.save"))
         }
     );
 }));

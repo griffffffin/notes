@@ -1,4 +1,5 @@
 const Todo = require("../../../models/todo");
+const serverError = require("../../../serverError");
 
 module.exports = (id, title, tasks, order, percentage, request, response) =>
     Todo.findByIdAndUpdate(id, {
@@ -17,4 +18,4 @@ module.exports = (id, title, tasks, order, percentage, request, response) =>
            létrehozás betart. A middleware már ellenőrzött, ez a második háló. */
         runValidators: true,
     }).then(() => response.json(title + " frissitve."))
-        .catch((error) => response.status(400).json("Error: " + error));
+        .catch((error) => serverError(response, error, "Todo.findByIdAndUpdate"));

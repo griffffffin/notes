@@ -1,34 +1,32 @@
 const router = require("express").Router();
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const SALT_WORK_FACTOR = 10;
 const User = require("../../models/user");
+const serverError = require("../../serverError");
 
-module.exports = router.post("/", ((request, response) => {
+const SALT_WORK_FACTOR = 10;
+const PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/;
+
+/* A név megléte és típusa a validateCredentials middleware dolga; itt már csak
+   a jelszó-szabály és a névütközés maradt — ezek VÁRT hibák, a felhasználónak
+   szólnak, ezért konkrét üzenetet kapnak. A többi (bcrypt- vagy adatbázis-hiba)
+   váratlan: a részletei a naplóba valók, nem a válaszba. */
+module.exports = router.post("/", async (request, response) => {
     const name = request.body.name;
     const password = request.body.password;
 
-    if (/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/.test(password))
-        bcrypt.genSalt(SALT_WORK_FACTOR, (error, salt) =>
-            (error) ? response.status(400).json("Error: " + error) :
-                bcrypt.hash(password, salt, (error, hashedPassword) =>
-                    (error) ? response.status(400).json("Error: " + error) :
-                        new User({name: name, password: hashedPassword})
-                            .save()
-                            .then((user) => response.json(jwt.sign({id: user._id},
-                                process.env.JWT_SECRET, {expiresIn: "7d"})))
-                            .catch((error) => {
-                                if (error.code === 11000) response.status(400)
-                                    .json("MongoServerError: " + name + " felhasznalonev mar foglalt.");
-                                else if (error.errors?.name?.properties?.type === "required" &&
-                                    error.errors?.name?.properties?.path === "name") response.status(400)
-                                    .json("ValidatorError: A felhasznalonev megadasa kotelezo.");
-                                else response.status(400).json("Error: " + error);
-                            })
-                )
-        );
-    else response.status(400).json(
-        "ValidationError: " + " A jelszo legalabb 8 karakter legyen. Kis-, nagybetukbol es szamokbol alljon."
-    );
+    if (!PASSWORD_RULE.test(password))
+        return response.status(400).json(
+            "ValidationError:  A jelszo legalabb 8 karakter legyen. Kis-, nagybetukbol es szamokbol alljon.");
 
-}));
+    try {
+        const hashedPassword = await bcrypt.hash(password, SALT_WORK_FACTOR);
+        const user = await new User({name: name, password: hashedPassword}).save();
+        return response.json(jwt.sign({id: user._id}, process.env.JWT_SECRET, {expiresIn: "7d"}));
+    } catch (error) {
+        // 11000: a Mongo egyedi indexének ütközés-kódja — a név már foglalt.
+        if (error.code === 11000)
+            return response.status(400).json("MongoServerError: " + name + " felhasznalonev mar foglalt.");
+        return serverError(response, error, "User.create");
+    }
+});
