@@ -8,7 +8,7 @@ const {signToken} = require("../../token");
    fióklista-felderítést engedett: elég volt neveket próbálgatni. A frontend
    eddig is egyetlen közös üzenetet írt ki, tehát a megkülönböztetés csak a
    támadónak volt hasznos. */
-const BAD_LOGIN = "Error: Hibás felhasznalónév vagy jelszó.";
+const BAD_LOGIN = "Hibás felhasználónév vagy jelszó.";
 
 /* Álca-hash. Az azonos hibaüzenet önmagában kevés: a VÁLASZIDŐ is árulkodik.
    Ismeretlen névnél nem lenne mit ellenőrizni, tehát azonnal válaszolnánk;
@@ -29,6 +29,6 @@ module.exports = router.post("/", async (request, response) => {
     } catch (error) {
         // A részletek a szerver naplójába valók, nem a válaszba.
         console.error("Bejelentkezési hiba:", error);
-        return response.status(500).json("Error: Sikertelen bejelentkezés.");
+        return response.status(500).json("Sikertelen bejelentkezés.");
     }
 });

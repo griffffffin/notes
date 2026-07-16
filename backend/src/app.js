@@ -8,6 +8,7 @@ const fs = require("fs");
 require("dotenv").config();
 const env = process.env;
 const routes = require("./routes");
+const serverError = require("./serverError");
 
 /* Élesben a backend szolgálja ki a frontend buildjét is (dist) — fejlesztésnél
    a dist hiányozhat (akkor a Vite dev szerver a frontend), ezért feltételes. */
@@ -78,5 +79,21 @@ if (hasDist) app.get("/*splat", (request, response) =>
     response.sendFile(path.join(dist, "index.html")));
 
 app.use(routes);
+
+/* Végső háló minden VÁRATLAN hibára: ha egy útvonalon kicsúszik valami (dobott
+   kivétel vagy elutasított promise — az Express 5 mindkettőt ide irányítja),
+   ez válaszol.
+
+   Enélkül az Express beépített kezelője felelne, az pedig a TELJES stack
+   trace-t visszaküldi a kliensnek, és csak a NODE_ENV=production némítja el.
+   Vagyis a titoktartás egy környezeti változó meglétén múlna: ha a unit egyszer
+   elveszti az Environment sorát, csendben elkezdene belső részleteket
+   szivárogtatni, és semmi nem jelezné. Legyen inkább explicit.
+
+   A négy paraméter kötelező (a next akkor is, ha nem hívjuk): az Express EBBŐL
+   ismeri fel, hogy ez hibakezelő és nem sima middleware. */
+// eslint-disable-next-line no-unused-vars
+app.use((error, request, response, next) =>
+    serverError(response, error, `${request.method} ${request.path}`));
 
 app.listen(env.PORT, env.HOST, () => console.log("A szerver fut."));

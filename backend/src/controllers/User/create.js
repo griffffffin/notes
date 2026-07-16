@@ -10,14 +10,19 @@ const PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/;
 /* A név megléte és típusa a validateCredentials middleware dolga; itt már csak
    a jelszó-szabály és a névütközés maradt — ezek VÁRT hibák, a felhasználónak
    szólnak, ezért konkrét üzenetet kapnak. A többi (bcrypt- vagy adatbázis-hiba)
-   váratlan: a részletei a naplóba valók, nem a válaszba. */
+   váratlan: a részletei a naplóba valók, nem a válaszba.
+
+   A régi "ValidationError:" / "MongoServerError:" előtagok szándékosan tűntek
+   el az üzenetekből: megnevezték a Mongoose hibaosztályát és az adatbázis
+   fajtáját. A felhasználónak semmit nem mondtak, egy támadónak viszont ingyen
+   elárulták, mi fut alattunk. */
 module.exports = router.post("/", async (request, response) => {
     const name = request.body.name;
     const password = request.body.password;
 
     if (!PASSWORD_RULE.test(password))
         return response.status(400).json(
-            "ValidationError:  A jelszó legalább 8 karakter legyen. Kis-, nagybetűkből és számokból álljon.");
+            "A jelszó legalább 8 karakter legyen. Kis-, nagybetűkből és számokból álljon.");
 
     try {
         const hashedPassword = await bcrypt.hash(password, SALT_WORK_FACTOR);
@@ -26,7 +31,7 @@ module.exports = router.post("/", async (request, response) => {
     } catch (error) {
         // 11000: a Mongo egyedi indexének ütközés-kódja — a név már foglalt.
         if (error.code === 11000)
-            return response.status(400).json("MongoServerError: " + name + " felhasználónév már foglalt.");
+            return response.status(400).json(name + " felhasználónév már foglalt.");
         return serverError(response, error, "User.create");
     }
 });
