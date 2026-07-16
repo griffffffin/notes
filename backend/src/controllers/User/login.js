@@ -17,7 +17,17 @@ const BAD_LOGIN = "Hibás felhasználónév vagy jelszó.";
    lefuttatunk egy összehasonlítást — ez ellen. Indításkor egyszer számoljuk ki.
 
    A bcrypt lassúsága itt SZÁNDÉKOS (nem hiba): a jelszó-visszafejtést teszi
-   drágává. Ezért kell hozzá igazítani az ismeretlen ág idejét, nem fordítva. */
+   drágává. Ezért kell hozzá igazítani az ismeretlen ág idejét, nem fordítva.
+
+   KRITIKUS, hogy az álca-hash ugyanazzal a KÖLTSÉGTÉNYEZŐVEL készüljön, mint a
+   valódi jelszavaké (SALT_WORK_FACTOR a User/create.js-ben) — a bcrypt ideje
+   ebből adódik. Eltérő tényezővel a két ág mérhetően más ideig futna, és épp
+   azt árulná el, amit el akarunk rejteni. Ha a SALT_WORK_FACTOR változik, EZT
+   is át kell írni.
+
+   Mérés a Pi-n, 40-40 kérés (2026-07-16): ismeretlen név átlag 134 ms
+   (min 130 / max 139), létező név átlag 134 ms (min 130 / max 146) — az
+   eloszlások fedik egymást, nincs kinyerhető jel. */
 const DUMMY_HASH = bcrypt.hashSync("nincs-ilyen-jelszo", 10);
 
 module.exports = router.post("/", async (request, response) => {

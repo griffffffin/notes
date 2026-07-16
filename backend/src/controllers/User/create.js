@@ -29,9 +29,15 @@ module.exports = router.post("/", async (request, response) => {
         const user = await new User({name: name, password: hashedPassword}).save();
         return response.json(signToken(user._id));
     } catch (error) {
-        // 11000: a Mongo egyedi indexének ütközés-kódja — a név már foglalt.
+        /* 11000: a Mongo egyedi indexének ütközés-kódja — a név már foglalt.
+
+           A válasz 409 (Conflict), nem 400: a kérés önmagában rendben van, csak
+           a szerver JELENLEGI állapotával ütközik. A frontend EBBŐL ismeri fel a
+           névütközést — korábban a hibaüzenet szövegében keresett rá a "foglalt"
+           szóra, ami törékeny volt: az üzenet átfogalmazása vagy fordítása némán
+           elrontotta volna a regisztrációs űrlapot, és semmi nem jelezte volna. */
         if (error.code === 11000)
-            return response.status(400).json(name + " felhasználónév már foglalt.");
+            return response.status(409).json(name + " felhasználónév már foglalt.");
         return serverError(response, error, "User.create");
     }
 });

@@ -85,9 +85,14 @@ export default function Entry(props) {
                 navigate("/", {replace: true});
             }, (error) => {
                 console.log(error.response?.data ?? error.message);
+                /* A döntés STÁTUSZKÓDON áll, nem a hibaüzenet szövegén: a 409
+                   (Conflict) a szerver szerződéses válasza a névütközésre.
+                   Korábban a "foglalt" szóra kerestünk rá az üzenetben — az
+                   üzenet átfogalmazása vagy fordítása némán elrontotta volna ezt
+                   az ágat, és semmi nem jelezte volna. */
                 if (isLogin) {
                     setIsLoginError(true);
-                } else if (error.response?.data?.includes("foglalt")) {
+                } else if (error.response?.status === 409) {
                     setIsSignUpError(true);
                 }
             }

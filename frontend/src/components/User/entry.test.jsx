@@ -139,6 +139,32 @@ describe("Bejelentkezés és regisztráció közti váltás", () => {
         expect(screen.getByLabelText("Felhasználónév")).toHaveValue("");
     });
 
+    it("foglalt névnél a 409 STÁTUSZKÓDRA ír ki hibát, nem a szövegre", async () => {
+        /* A szerver szerződése a státuszkód, nem a mondat. Ha a szöveget
+           átfogalmazzuk vagy lefordítjuk, ennek a tesztnek zöldnek kell
+           maradnia — épp ezért nem a szövegre asszertálunk. */
+        axios.post = vi.fn(() => Promise.reject({
+            response: {status: 409, data: "bármilyen üzenet, akár angolul"},
+        }));
+        window.history.pushState({}, "", "/signup");
+        render(
+            <CookiesProvider>
+                <ThemeProvider>
+                    <AuthProvider>
+                        <Routes/>
+                    </AuthProvider>
+                </ThemeProvider>
+            </CookiesProvider>
+        );
+
+        await userEvent.type(screen.getByLabelText("Felhasználónév"), "anna");
+        await userEvent.type(screen.getByLabelText("Jelszó"), "Teszt1234");
+        await userEvent.type(screen.getByLabelText("Jelszó megerősítése"), "Teszt1234");
+        await userEvent.click(submitButton());
+
+        expect(await screen.findByText(/már foglalt/i)).toBeVisible();
+    });
+
     it("a bejelentkezési hiba nem jön át a regisztrációs űrlapra", async () => {
         axios.post = vi.fn(() => Promise.reject({response: {status: 401, data: "Hibás jelszó"}}));
         renderRoutes();

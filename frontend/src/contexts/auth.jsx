@@ -26,9 +26,9 @@ const IDLE_LIMIT_MS = 15 * 60 * 1000;
    alatt van, tehát aktív használat közben a token nem tud lejárni. */
 const REFRESH_EVERY_MS = 5 * 60 * 1000;
 
-// Ilyen sűrűn nézzük, tétlen vagy-e. Fél perc pontosság bőven elég egy negyed
+// Ilyen sűrűn nézzük, tétlen vagy-e. Egy perc pontosság bőven elég egy negyed
 // órás határhoz, és észrevehetetlen terhelés.
-const IDLE_CHECK_MS = 30 * 1000;
+const IDLE_CHECK_MS = 60 * 1000;
 
 /* Ezek jelzik, hogy a gép előtt vagy. A passive: true azt ígéri a böngészőnek,
    hogy nem akadályozzuk meg az alapértelmezett viselkedést — enélkül minden

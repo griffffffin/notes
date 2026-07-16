@@ -10,9 +10,11 @@ WorkingDirectory=/opt/to-do/backend
 ExecStart=/usr/bin/node src/app.js
 Restart=always
 User=ubuntu
-# Ebből tudja az app, hogy élesben fut: ilyenkor a frontendet ugyanerről az
-# origin-ról szolgálja ki, tehát CORS-t NEM engedélyez (a dev szerver 5173-as
-# portjának viszont kell). Lásd backend/src/app.js.
+# Szabvány jelzés a Node-világ könyvtárainak, hogy éles futásról van szó (az
+# Express például ilyenkor gyorsítótáraz és nem részletez hibákat).
+# FONTOS: az app SEMMILYEN biztonsági döntést nem köt ehhez — a CORS névszerinti
+# listából jön (CORS_ORIGINS), a hibaüzenetek titkolását pedig saját hibakezelő
+# végzi (backend/src/app.js). Ha ez a sor egyszer elvész, semmi nem nyílik ki.
 Environment=NODE_ENV=production
 
 [Install]
