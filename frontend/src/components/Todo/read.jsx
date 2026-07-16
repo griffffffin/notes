@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from "react";
-import {useLocation} from "react-router-dom";
+import {Navigate, useLocation} from "react-router-dom";
 import {
     AutoScrollActivator, closestCenter, DndContext, MouseSensor, TouchSensor, useSensor, useSensors,
 } from "@dnd-kit/core";
@@ -103,11 +103,34 @@ export default function Read(props) {
     const {handleAxios} = useAuth();
 
     /* A szűrő (kategória vagy szín) a navigációs állapotból jön. A felhasználó
-       azonosítója NEM: azt a szerver a tokenből tudja. */
+       azonosítója NEM: azt a szerver a tokenből tudja.
+
+       A szűrt nézetek NEM állnak meg a szűrő nélkül: a /category-nek tudnia
+       kell, MELYIK kategóriát kérdezze. A navigációs state viszont csak
+       navigációval együtt érkezik — közvetlen URL-beírásnál vagy F5-nél üres.
+       Ilyenkor üres szűrőt küldenénk, amit a szerver joggal utasít el, a lista
+       sosem érkezne meg, és a betöltő-jelző ÖRÖKRE bent ragadna — a felhasználó
+       egy pörgő karikát bámulna, amiből nincs kiút. Ezért lentebb inkább
+       visszavisszük a főoldalra, ahogy a /update is teszi id nélkül.
+
+       (Ez a rés a navigációs state-re épülő tervezésből fakad. A gyökeres
+       megoldás az URL-alapú útvonal — /category/:name —, ami a kategória-
+       bővítéssel jön; addig ez az őr fedez.) */
+    const needsFilter = props.url === "/category" || props.url === "/color";
+    const filter = location.state ?? null;
+    const missingFilter = needsFilter && !filter;
+
     useEffect(() => {
-        handleAxios(props.url, location.state ?? {}, (response) => setTodos(response.data),
-            (error) => console.log(error.response?.data ?? error.message));
-    }, [props.url, location.state, handleAxios]);
+        if (missingFilter) return;
+        handleAxios(props.url, filter ?? {}, (response) => setTodos(response.data),
+            (error) => {
+                console.log(error.response?.data ?? error.message);
+                /* A pörgő karika azt ígéri, hogy MINDJÁRT jön az adat. Ha a
+                   kérés elbukott, ez hazugság: inkább üres listát mutatunk,
+                   mint egy örökké tartó várakozást. */
+                setTodos([]);
+            });
+    }, [props.url, filter, missingFilter, handleAxios]);
 
     useEffect(() => {
         if (todos) setIsLoading(false);
@@ -207,6 +230,10 @@ export default function Read(props) {
                 setTodos(previous);
             });
     }, [todos, handleAxios]);
+
+    // Szűrő nélküli szűrt nézet: nincs mit listázni, vissza a főoldalra. A
+    // replace azért kell, hogy a zsákutca ne kerüljön az előzményekbe.
+    if (missingFilter) return <Navigate to="/" replace/>;
 
     return (
         isLoading ? <Spinner class="min-vh-75"/> :
