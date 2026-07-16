@@ -7,6 +7,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import {AuthProvider} from "../../contexts/auth";
 import {ThemeProvider} from "../../contexts/theme";
 import Entry from "./entry";
+import Routes from "../routes";
 
 /* A login/regisztrációs űrlap viselkedése. A jelszó-szabály és a "Tovább" gomb
    tiltása a felhasználó első találkozása az appal — ha ez elromlik, senki nem
@@ -108,5 +109,48 @@ describe("Entry — regisztráció", () => {
 
         await userEvent.click(screen.getAllByRole("button", {name: /jelszó megjelenítése/i})[0]);
         expect(mezo).toHaveAttribute("type", "text");
+    });
+});
+
+/* A bejelentkezés és a regisztráció UGYANAZT az Entry komponenst rendereli,
+   csak más proppal — ezért a React alapból megtartaná a példányt a váltáskor.
+   Itt a valódi route-táblát rendereljük, mert a key épp abban él. */
+describe("Bejelentkezés és regisztráció közti váltás", () => {
+    function renderRoutes() {
+        window.history.pushState({}, "", "/");
+        render(
+            <CookiesProvider>
+                <ThemeProvider>
+                    <AuthProvider>
+                        <Routes/>
+                    </AuthProvider>
+                </ThemeProvider>
+            </CookiesProvider>
+        );
+    }
+
+    it("a beírt adatok nem jönnek át a másik űrlapra", async () => {
+        renderRoutes();
+        await userEvent.type(screen.getByLabelText("Felhasználónév"), "anna");
+
+        await userEvent.click(screen.getByRole("button", {name: "Fiók létrehozása"}));
+
+        expect(await screen.findByLabelText("Jelszó megerősítése")).toBeInTheDocument();
+        expect(screen.getByLabelText("Felhasználónév")).toHaveValue("");
+    });
+
+    it("a bejelentkezési hiba nem jön át a regisztrációs űrlapra", async () => {
+        axios.post = vi.fn(() => Promise.reject({response: {status: 401, data: "Hibás jelszó"}}));
+        renderRoutes();
+
+        await userEvent.type(screen.getByLabelText("Felhasználónév"), "anna");
+        await userEvent.type(screen.getByLabelText("Jelszó"), "Teszt1234");
+        await userEvent.click(tovabbGomb());
+        expect(await screen.findByText(/hibás/i)).toBeVisible();
+
+        await userEvent.click(screen.getByRole("button", {name: "Fiók létrehozása"}));
+
+        expect(await screen.findByLabelText("Jelszó megerősítése")).toBeInTheDocument();
+        expect(screen.queryByText(/hibás/i)).not.toBeInTheDocument();
     });
 });

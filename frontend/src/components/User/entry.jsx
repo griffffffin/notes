@@ -1,15 +1,11 @@
 import {useCallback, useEffect, useState} from "react";
-import Spinner from "../spinner";
 import InputGroup from "./Form/Input/inputGroup";
 import SubmitButtonGroup from "../Button/submitButtonGroup";
 import {useAuth} from "../../contexts/auth";
 
 export default function Entry(props) {
-    const [isLoading, setIsLoading] = useState(true);
     const [isLoginError, setIsLoginError] = useState(false);
     const [isSignUpError, setIsSignUpError] = useState(false);
-    const [mb, setMb] = useState("");
-    const [url, setUrl] = useState("");
     const [name, setName] = useState("");
     const [isNameValid, setIsNameValid] = useState(false);
     const [password, setPassword] = useState("");
@@ -24,42 +20,45 @@ export default function Entry(props) {
     // hatástalan lenne).
     const {isLogin} = props;
 
-    const clearError = useCallback((mb) => {
+    /* url és mb NEM state: a propból, illetve a hiba-állapotból egyértelműen
+       adódnak. Korábban egy useEffect másolta őket state-be — ugyanaz a minta,
+       ami a Save-ben a /update → /create váltást elrontotta: a másolat egy
+       renderrel a prop mögött járt. Itt ráadásul az egész isLoading + Spinner
+       csak azért létezett, hogy ezt az effektet megvárja; származtatva nincs
+       mire várni, tehát az is elhagyható. */
+    const url = isLogin ? "/login" : "/user/create";
+
+    /* A jelszómező alatti térköz: hibaüzenetkor összébb húzódik, hogy a piros
+       felirat elférjen. (A régi kód a beírás-kezelőkből mindig "mb-5"-öt tett
+       ide, a signup induló "mb-3"-a helyett is — az első leütésre megugrott a
+       lap. Származtatva ez a féloldalasság nem tud előfordulni.) */
+    const mb = (isLoginError || isSignUpError) ? "mb-4" : (isLogin ? "mb-5" : "mb-3");
+
+    const clearError = useCallback(() => {
         setIsLoginError(false);
         setIsSignUpError(false);
-        setMb("mb-" + mb);
     }, []);
 
-    useEffect(() => {
-        if (props.isLogin) {
-            setUrl("/login");
-            clearError(5);
-        } else {
-            setUrl("/user/create");
-            clearError(3);
-        }
-    }, [props.isLogin, clearError]);
-
     const handleNameChange = useCallback((event) => {
-        if (isLoginError || isSignUpError) clearError(5);
+        if (isLoginError || isSignUpError) clearError();
         setName(event.target.value);
         event.target.value.length ? setIsNameValid(true) : setIsNameValid(false);
     }, [isLoginError, isSignUpError, clearError]);
 
     const handlePasswordChange = useCallback((event) => {
-        if (isLoginError || isSignUpError) clearError(5);
+        if (isLoginError || isSignUpError) clearError();
         setPassword(event.target.value);
-        if (props.isLogin) event.target.value.length >= 8 ? setIsPasswordValid(true) : setIsPasswordValid(false);
+        if (isLogin) event.target.value.length >= 8 ? setIsPasswordValid(true) : setIsPasswordValid(false);
         else {
             /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/.test(event.target.value) ?
                 setIsPasswordValid(true) : setIsPasswordValid(false);
             (event.target.value === passwordConfirm) ?
                 setIsPasswordConfirmValid(true) : setIsPasswordConfirmValid(false);
         }
-    }, [isLoginError, isSignUpError, clearError, props.isLogin, passwordConfirm]);
+    }, [isLoginError, isSignUpError, clearError, isLogin, passwordConfirm]);
 
     const handlePasswordConfirmChange = useCallback((event) => {
-        if (isLoginError || isSignUpError) clearError(5);
+        if (isLoginError || isSignUpError) clearError();
         setPasswordConfirm(event.target.value);
         (event.target.value === password) ?
             setIsPasswordConfirmValid(true) : setIsPasswordConfirmValid(false);
@@ -67,9 +66,9 @@ export default function Entry(props) {
 
     const handleEyeClick = useCallback(() => setIsPasswordVisible(!isPasswordVisible), [isPasswordVisible]);
 
-    useEffect(() => props.isLogin ? setIsDisabled(!(isNameValid && isPasswordValid)) :
+    useEffect(() => isLogin ? setIsDisabled(!(isNameValid && isPasswordValid)) :
             setIsDisabled(!(isNameValid && isPasswordValid && isPasswordConfirmValid)),
-        [props.isLogin, isNameValid, isPasswordValid, isPasswordConfirmValid]);
+        [isLogin, isNameValid, isPasswordValid, isPasswordConfirmValid]);
 
     const handleSubmit = useCallback((event) => {
         event.preventDefault();
@@ -81,41 +80,28 @@ export default function Entry(props) {
                 console.log(error.response?.data ?? error.message);
                 if (isLogin) {
                     setIsLoginError(true);
-                    setMb("mb-4");
                 } else if (error.response?.data?.includes("foglalt")) {
                     setIsSignUpError(true);
-                    setMb("mb-4");
                 }
             }
         );
     }, [isLogin, url, name, password, login, handleAxios]);
 
-    const clearPassword = useCallback(() => {
-        setPassword("");
-        setIsPasswordValid(false);
-        setPasswordConfirm("");
-        setIsPasswordConfirmValid(false);
-    }, []);
-
-    useEffect(() => {
-        if (mb && url) setIsLoading(false);
-    }, [mb, url]);
-
     return (
-        isLoading ? <Spinner class="min-vh-75"/> :
-            <div className="container-fluid d-flex justify-content-center align-items-center mt-4 pt-2 px-0">
-                <form className={"col-10 col-sm-6 col-md-5 col-xl-3 text-theme-text"}
-                      onSubmit={handleSubmit}>
-                    <InputGroup isLogin={props.isLogin} mb={mb} handleClick={handleEyeClick}
-                                name={name} handleNameChange={handleNameChange}
-                                isPasswordVisible={isPasswordVisible}
-                                password={password} handlePasswordChange={handlePasswordChange}
-                                passwordConfirm={passwordConfirm}
-                                handlePasswordConfirmChange={handlePasswordConfirmChange}
-                                isSignUpError={isSignUpError} isLoginError={isLoginError}/>
-                    <SubmitButtonGroup onClick={clearPassword} isDisabled={isDisabled}
-                                       isLogin={props.isLogin}/>
-                </form>
-            </div>
+        <div className="container-fluid d-flex justify-content-center align-items-center mt-4 pt-2 px-0">
+            <form className={"col-10 col-sm-6 col-md-5 col-xl-3 text-theme-text"}
+                  onSubmit={handleSubmit}>
+                <InputGroup isLogin={isLogin} mb={mb} handleClick={handleEyeClick}
+                            name={name} handleNameChange={handleNameChange}
+                            isPasswordVisible={isPasswordVisible}
+                            password={password} handlePasswordChange={handlePasswordChange}
+                            passwordConfirm={passwordConfirm}
+                            handlePasswordConfirmChange={handlePasswordConfirmChange}
+                            isSignUpError={isSignUpError} isLoginError={isLoginError}/>
+                {/* A jelszó-ürítés a linkről elmaradhat: a routes.jsx külön key-t
+                    ad a két nézetnek, így a váltás új példányt hoz, üres mezőkkel. */}
+                <SubmitButtonGroup isDisabled={isDisabled} isLogin={isLogin}/>
+            </form>
+        </div>
     );
 }

@@ -10,7 +10,7 @@ export default function SubmitButtonGroup(props) {
             <SubmitButton isDisabled={props.isDisabled} isOutline={false} color={color} text="Tovább"/>
             <hr className="w-90 mx-auto"/>
             <Link to={props.isLogin ? "/signup" : "/"} tabIndex="-1">
-                <SubmitButton onClick={props.onClick} isDisabled={false} isOutline={true} color={color}
+                <SubmitButton isDisabled={false} isOutline={true} color={color}
                               text={props.isLogin ? "Fiók létrehozása" : "Bejelentkezés"}/>
             </Link>
         </div>

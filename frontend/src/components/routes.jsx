@@ -43,8 +43,12 @@ export default function Routes(props) {
             <Router>
                 <Navbar isVisible={false}/>
                 <ReactRoutes>
-                    <Route path="/signup" element={<Entry isLogin={false}/>}/>
-                    <Route path="*" element={<Entry isLogin={true}/>}/>
+                    {/* Külön key, ugyanazért, mint a Save-nél: a két nézetet
+                        ugyanaz az Entry rendereli, ezért a React megtartaná a
+                        példányt, és a beírt adatok meg a hibaüzenet átjönnének
+                        a másik űrlapra. */}
+                    <Route path="/signup" element={<Entry key="signup" isLogin={false}/>}/>
+                    <Route path="*" element={<Entry key="login" isLogin={true}/>}/>
                 </ReactRoutes>
             </Router>
     );
