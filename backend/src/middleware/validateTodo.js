@@ -79,7 +79,18 @@ function todoErrors(body) {
 
     const taskOrder = body.taskOrder;
     if (taskOrder !== undefined && taskOrder !== null) {
-        if (!Array.isArray(taskOrder) || !taskOrder.every(isInteger)) errors.push("A listaelemek sorrendje hibás.");
+        if (!Array.isArray(taskOrder) || !taskOrder.every(isInteger)) {
+            errors.push("A listaelemek sorrendje hibás.");
+        } else {
+            /* A taskOrder a tasks KULCSAIRA hivatkozik. Ha olyanra mutat, ami
+               nincs meg, a lista-nézet elhasal rajta (todoUpdate.jsx:
+               tasks[order].done egy undefined-on) — a felhasználó a SAJÁT
+               főoldalán kapna hibaképernyőt, és onnan nem tudná visszacsinálni,
+               mert a hibás elem szerkesztője is elérhetetlenné válna. */
+            const known = (tasks && typeof tasks === "object" && !Array.isArray(tasks)) ? Object.keys(tasks) : [];
+            if (taskOrder.some((id) => !known.includes(String(id))))
+                errors.push("A listaelemek sorrendje nem létező elemre hivatkozik.");
+        }
     }
 
     return errors;

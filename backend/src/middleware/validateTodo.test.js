@@ -118,3 +118,16 @@ test("a szabályos három mezős listaelemet átengedi", async () => {
     const task = {id: "0", content: "a", done: false};
     assert.strictEqual((await post({...VALID, tasks: {0: task}, taskOrder: [0]})).status, 200);
 });
+
+test("nem létező listaelemre hivatkozó sorrendet elutasít (400)", async () => {
+    /* A lista-nézet a taskOrder szerint járja be a tasks-ot (tasks[order].done).
+       Hiányzó elemre ez TypeError, azaz a felhasználó a SAJÁT főoldalán kapna
+       hibaképernyőt — és onnan nem is tudná visszacsinálni. */
+    assert.strictEqual((await post({...VALID, tasks: {}, taskOrder: [99]})).status, 400);
+    assert.strictEqual((await post({...VALID, tasks: undefined, taskOrder: [0]})).status, 400);
+});
+
+test("a tasks kulcsaira hivatkozó sorrendet átengedi", async () => {
+    const tasks = {0: {id: "0", content: "a", done: false}, 1: {id: "1", content: "b", done: true}};
+    assert.strictEqual((await post({...VALID, tasks, taskOrder: [1, 0]})).status, 200);
+});
