@@ -10,5 +10,11 @@ module.exports = (id, title, tasks, order, percentage, request, response) =>
         order: order,
         percentage: percentage,
         updatedAt: new Date()
+    }, {
+        /* A findByIdAndUpdate alapból NEM futtatja a séma validátorait (a
+           Mongoose ilyenkor nem tölti be a dokumentumot, csak parancsot küld) —
+           enélkül a módosítás megkerülte volna a required-eket, amiket a
+           létrehozás betart. A middleware már ellenőrzött, ez a második háló. */
+        runValidators: true,
     }).then(() => response.json(title + " frissitve."))
         .catch((error) => response.status(400).json("Error: " + error));

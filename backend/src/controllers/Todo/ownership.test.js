@@ -8,25 +8,40 @@ const test = require("node:test");
 const assert = require("node:assert");
 const express = require("express");
 const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 const request = require("supertest");
-const path = require("node:path");
 
 process.env.JWT_SECRET = "teszt-titok-csak-a-teszthez";
 
-// A Todo modell helyére saját, memóriabeli változatot teszünk. A require-gyorsítótár
-// kulcsa a feloldott elérési út, ezért azt írjuk felül a controller betöltése ELŐTT.
+/* A Todo modell helyére saját, memóriabeli változatot teszünk. A require-gyorsítótár
+   kulcsa a feloldott elérési út, ezért azt írjuk felül a controller betöltése ELŐTT.
+
+   Az azonosítók VALÓDI ObjectId-k: az őr és az id-ellenőrzés a formájukat is
+   nézi, tehát kitalált szöveggel ("anna-id") a kérés már ott elbukna, és nem a
+   tulajdonlást vizsgálnánk. */
 const modellUt = require.resolve("../../models/todo");
-const ANNA = "anna-id";
-const BELA = "bela-id";
-const ANNA_LISTAJA = {_id: "lista-1", user: ANNA, title: "Anna listája", order: 1};
+const userModellUt = require.resolve("../../models/user");
+const azonosito = () => new mongoose.Types.ObjectId().toString();
+const ANNA = azonosito();
+const BELA = azonosito();
+const NINCS_ILYEN = azonosito();
+const ANNA_LISTAJA = {_id: azonosito(), user: ANNA, title: "Anna listája", order: 1};
 
 require.cache[modellUt] = {
     id: modellUt, filename: modellUt, loaded: true,
     exports: {
-        findById: (id) => Promise.resolve(id === ANNA_LISTAJA._id ? ANNA_LISTAJA : null),
+        findById: (id) => Promise.resolve(String(id) === ANNA_LISTAJA._id ? ANNA_LISTAJA : null),
         findByIdAndDelete: () => Promise.resolve(ANNA_LISTAJA),
         updateMany: () => Promise.resolve({}),
         findByIdAndUpdate: () => Promise.resolve(ANNA_LISTAJA),
+    },
+};
+
+// Az őr azóta a user létezését is ellenőrzi — Anna és Béla is valódi fiók.
+require.cache[userModellUt] = {
+    id: userModellUt, filename: userModellUt, loaded: true,
+    exports: {
+        findById: async (id) => [ANNA, BELA].includes(String(id)) ? {_id: id, name: "teszt"} : null,
     },
 };
 
@@ -75,6 +90,6 @@ test("nem létező listánál sem szivárog ki információ (403, nem 404)", asy
     // Szándékos: a 404 elárulná, hogy létezik-e az adott azonosító.
     const valasz = await request(app).post("/id")
         .set("Authorization", "Bearer " + tokent(ANNA))
-        .send({id: "nincs-ilyen"});
+        .send({id: NINCS_ILYEN});
     assert.strictEqual(valasz.status, 403);
 });

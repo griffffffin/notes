@@ -1,5 +1,7 @@
 const router = require("express").Router();
 const auth = require("./middleware/auth");
+const {validateTodoBody, validateTodoId} = require("./middleware/validateTodo");
+const validateCredentials = require("./middleware/validateCredentials");
 
 const userCreate = require("./controllers/User/create");
 const userLogin = require("./controllers/User/login");
@@ -17,22 +19,23 @@ const todoUpdate = require("./controllers/Todo/update");
 const todoDelete = require("./controllers/Todo/delete");
 
 
-router.use("/user/create", userCreate);
-router.use("/login", userLogin);
+router.use("/user/create", validateCredentials, userCreate);
+router.use("/login", validateCredentials, userLogin);
 
 // Innentől minden végpont csak érvényes tokennel érhető el.
 router.use(auth);
 
-router.use("/todo/create", todoCreate);
+router.use("/todo/create", validateTodoBody, todoCreate);
 
 router.use("/last/order", readLastOrder);
 router.use("/categories", todoReadCategory);
-router.use("/id", todoReadById);
+router.use("/id", validateTodoId, todoReadById);
 router.use("/category", todoReadByCategory);
 router.use("/color", todoReadByColor);
 
-router.use("/update", todoUpdate);
-router.use("/delete", todoDelete);
+// A módosításnak az id-ja ÉS a törzse is ellenőrzendő, a törlésnek csak az id-ja.
+router.use("/update", validateTodoId, validateTodoBody, todoUpdate);
+router.use("/delete", validateTodoId, todoDelete);
 
 router.use(todoRead);
 
