@@ -19,8 +19,14 @@ export default function Routes(props) {
                     handleLinkClicked={props.handleLinkClicked} isVisible={true}
                     categories={props.categories}/>
                 <ReactRoutes>
+                    {/* A key nem dísz: a /create és a /update UGYANAZT a Save
+                        komponenst rendereli, ezért a React alapból megtartaná a
+                        példányt, és csak a propokat cserélné — a szerkesztett
+                        to-do címe/kategóriája/taskjai bennragadnának az "új
+                        to-do" űrlapon. Külön key = a React két külön dolognak
+                        látja őket, és váltáskor tiszta lappal indul. */}
                     <Route path="/create" element={
-                        <Save handleLinkClicked={props.handleLinkClicked}
+                        <Save key="create" handleLinkClicked={props.handleLinkClicked}
                               categories={props.categories} handleCategoryChange={props.handleCategoryChange}/>}/>
                     <Route path="*" element={
                         <Read url="/" handleLinkClicked={props.handleLinkClicked}/>}/>
@@ -29,7 +35,7 @@ export default function Routes(props) {
                     <Route path="/color" element={
                         <Read url="/color" handleLinkClicked={props.handleLinkClicked}/>}/>
                     <Route path="/update" element={
-                        <Save isUpdate={true} handleLinkClicked={props.handleLinkClicked}
+                        <Save key="update" isUpdate={true} handleLinkClicked={props.handleLinkClicked}
                               categories={props.categories} handleCategoryChange={props.handleCategoryChange}/>}/>
                 </ReactRoutes>
             </Router>

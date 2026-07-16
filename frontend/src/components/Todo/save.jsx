@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useState} from "react";
-import {useLocation, useNavigate} from "react-router-dom";
+import {Navigate, useLocation, useNavigate} from "react-router-dom";
 import Spinner from "../spinner";
 import NoFocusInput from "../Input/noFocusInput";
 import Order from "./order";
@@ -16,8 +16,6 @@ import {useAuth} from "../../contexts/auth";
 
 export default function Save(props) {
     const [isLoading, setIsLoading] = useState(true);
-    const [isUpdate, setIsUpdate] = useState(null);
-    const [url, setUrl] = useState("");
     const [colorHex, setColorHex] = useState("");
     const [color, setColor] = useState("");
     const [isColorAngleClicked, setIsColorAngleClicked] = useState(false);
@@ -41,15 +39,19 @@ export default function Save(props) {
     const theme = useTheme();
     const {handleAxios} = useAuth();
 
-    useEffect(() => {
-        if (props.isUpdate) {
-            setIsUpdate(props.isUpdate);
-            setUrl("/update");
-        } else {
-            setIsUpdate(false);
-            setUrl("/todo/create");
-        }
-    }, [props.isUpdate]);
+    /* isUpdate és url NEM state: a propból egyértelműen adódnak, tehát minden
+       renderben kiszámolhatók. Korábban useEffect másolta őket state-be — így
+       egy renderrel LEMARADTAK a prop mögött, és a /update → /create váltáskor
+       a még "true" isUpdate-tel futott le a lenti lekérdezés a már üres
+       navigációs state-en (TypeError: reading 'id' of null). */
+    const isUpdate = Boolean(props.isUpdate);
+    const url = isUpdate ? "/update" : "/todo/create";
+
+    /* Melyik to-do-t szerkesztjük. A <Link state={{id}}> teszi ide, DE ez csak
+       a linken át érkezve van meg: közvetlen URL-beírásnál vagy F5-nél a
+       navigációs state null. Ezért olvassuk óvatosan; a hiányát lentebb
+       átirányítással kezeljük. */
+    const todoId = isUpdate ? (location.state?.id ?? null) : null;
 
     const handleColorHexChange = useCallback((color) => {
         switch (color) {
@@ -93,32 +95,33 @@ export default function Save(props) {
     }, []);
 
     useEffect(() => {
-        if (isUpdate !== null) {
-            if (isUpdate) {
-                handleAxios("/id", {id: location.state.id}, (response) => {
-                    setColor(response.data.color);
-                    handleColorHexChange(response.data.color);
-                    setTitle(response.data.title);
-                    setIsTitleValid(true);
-                    setOrder(response.data.order);
-                    setTodo({
-                        tasks: response.data.tasks ? response.data.tasks : {},
-                        columns: {"createColumn": {id: "createColumn", taskOrder: response.data.taskOrder}},
-                        columnOrder: ["createColumn"]
-                    });
-                    setCategory(response.data.category);
-                    setIsCategoryValid(true);
-                    setIsDisabled(false);
-                }, (error) => console.log(error.response?.data ?? error.message));
-            }
-            handleAxios("/last/order", {},
-                (response) => {
-                    const lastOrder = response.data;
-                    lastOrder === 0 ? setLastOrder(0) : setLastOrder(isUpdate ? lastOrder - 1 : lastOrder);
-                },
-                (error) => console.log(error.response?.data ?? error.message));
+        // Szerkesztés id nélkül: nincs mit betölteni, a render átirányít.
+        if (isUpdate && !todoId) return;
+
+        if (todoId) {
+            handleAxios("/id", {id: todoId}, (response) => {
+                setColor(response.data.color);
+                handleColorHexChange(response.data.color);
+                setTitle(response.data.title);
+                setIsTitleValid(true);
+                setOrder(response.data.order);
+                setTodo({
+                    tasks: response.data.tasks ? response.data.tasks : {},
+                    columns: {"createColumn": {id: "createColumn", taskOrder: response.data.taskOrder}},
+                    columnOrder: ["createColumn"]
+                });
+                setCategory(response.data.category);
+                setIsCategoryValid(true);
+                setIsDisabled(false);
+            }, (error) => console.log(error.response?.data ?? error.message));
         }
-    }, [isUpdate, props, location.state, handleColorHexChange]);
+        handleAxios("/last/order", {},
+            (response) => {
+                const lastOrder = response.data;
+                lastOrder === 0 ? setLastOrder(0) : setLastOrder(isUpdate ? lastOrder - 1 : lastOrder);
+            },
+            (error) => console.log(error.response?.data ?? error.message));
+    }, [isUpdate, todoId, handleAxios, handleColorHexChange]);
 
     const setTask = useCallback((key, content, isDone) => {
         return {
@@ -158,7 +161,7 @@ export default function Save(props) {
             color: color,
             order: order,
         }
-        if (isUpdate) data["id"] = location.state.id;
+        if (isUpdate) data["id"] = todoId;
         handleAxios(url, data, (response) => {
             if (response.status === 200) {
                 props.handleLinkClicked();
@@ -166,15 +169,22 @@ export default function Save(props) {
                 navigate("/");
             }
         }, (error) => console.log(error.response?.data ?? error.message));
-    }, [props, title, todo.tasks, todo.columns, category, color, order, isUpdate, location.state, url, navigate]);
+    }, [props, title, todo.tasks, todo.columns, category, color, order, isUpdate, todoId, url, navigate, handleAxios]);
 
     useEffect(() => {
-        if (props && isUpdate !== null && url && colorHex && color && lastOrder !== null)
+        if (colorHex && color && lastOrder !== null)
             if (isUpdate) {
                 if (title && isTitleValid && category && isCategoryValid)
                     setIsLoading(false);
             } else setIsLoading(false);
-    }, [props, isUpdate, url, colorHex, color, lastOrder, title, isTitleValid, category, isCategoryValid]);
+    }, [isUpdate, colorHex, color, lastOrder, title, isTitleValid, category, isCategoryValid]);
+
+    /* Szerkesztés id nélkül — közvetlen /update URL vagy F5. Nincs mit
+       szerkeszteni, ezért vissza a főoldalra. A replace azért kell, hogy a
+       zsákutca-/update ne kerüljön be az előzményekbe: a Vissza gomb ne ide
+       dobja vissza a felhasználót. (Minden hook FÖLÖTTE fut le — a React
+       szabálya, hogy hookot nem hagyhatunk ki feltételesen.) */
+    if (isUpdate && !todoId) return <Navigate to="/" replace/>;
 
     return (
         isLoading ? <Spinner class="min-vh-75"/> :
@@ -206,7 +216,7 @@ export default function Save(props) {
 
                         {isUpdate &&
                             <DeleteAndModal handleLinkClicked={props.handleLinkClicked}
-                                            setIsColorClicked={setIsColorAngleClicked} color={color} location={location}
+                                            setIsColorClicked={setIsColorAngleClicked} color={color} todoId={todoId}
                                             setIsCategoryClicked={setIsCategoryAngleClicked}
                                             handleCategoryChange={props.handleCategoryChange}/>}
 

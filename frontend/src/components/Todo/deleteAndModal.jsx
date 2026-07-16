@@ -24,7 +24,9 @@ export default function DeleteAndModal(props) {
 
     const handleDelete = () => {
         handleModalClose();
-        handleAxios("/delete", {id: props.location.state.id}, (response) => {
+        // Kész id-t kapunk, nem a nyers location-t: a navigációs state
+        // kicsomagolása a Save dolga, itt már csak "melyik to-do" a kérdés.
+        handleAxios("/delete", {id: props.todoId}, (response) => {
             if (response.status === 200) {
                 props.handleCategoryChange();
                 navigate("/");
