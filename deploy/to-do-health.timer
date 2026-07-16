@@ -1,5 +1,9 @@
-# Telepítés: sudo cp deploy/to-do-health.* deploy/health-check.sh /etc/systemd/system/ &&
+# Telepítés: sudo cp deploy/to-do-health.service deploy/to-do-health.timer /etc/systemd/system/ &&
 #            sudo systemctl daemon-reload && sudo systemctl enable --now to-do-health.timer
+#
+# A health-check.sh-t NEM kell másolni: a service a /opt/to-do/deploy-ból
+# futtatja, ahol a hozzá tartozó health.env (SMTP-adatok) is van. Így a szkript
+# módosítása azonnal érvényes, nem kell újratelepíteni.
 [Unit]
 Description=Check the to-do app's health every minute
 
