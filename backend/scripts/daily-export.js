@@ -12,18 +12,35 @@ const Todo = require("../src/models/todo");
 const EXPORT_DIR = process.env.EXPORT_DIR || "/opt/backups/to-do/daily";
 const RETENTION_DAYS = 30;
 
+/* Kinek az adatait mentjük. Az azonosító a .env-ből jön, NEM a kódból:
+
+   Egy ObjectId nem a program része, hanem EZ a gép EZ a telepítése — ugyanaz a
+   kategória, mint az IP-cím, ami szintén nincs a repóban. A repo publikus lesz:
+   egy odaírt azonosító a szemlélőnek semmit nem mond, és hazudna abban a
+   pillanatban, amikor a fiókot újra kellene hozni.
+
+   Ha nincs megadva, MINDEN to-do exportálódik — ez volt a régi viselkedés, és
+   így a szkript egy másik telepítésen is használható marad, ahol nincs ilyen
+   szűkítés. */
+const EXPORT_USER_ID = process.env.EXPORT_USER_ID || null;
+const scope = EXPORT_USER_ID ? {user: EXPORT_USER_ID} : {};
+
 (async () => {
     await mongoose.connect(process.env.DATABASE);
+    console.log(EXPORT_USER_ID ? "Szűkítve egy felhasználóra." : "Minden felhasználó adata (nincs EXPORT_USER_ID).");
 
     const endOfWindow = new Date();
     endOfWindow.setHours(0, 0, 0, 0);
     const startOfWindow = new Date(endOfWindow.getTime() - 24 * 60 * 60 * 1000);
-    const changed = await Todo.countDocuments({updatedAt: {$gte: startOfWindow, $lt: endOfWindow}});
+    /* A szűkítés ITT is kell, nem csak a lekérdezésben: enélkül egy MÁSIK fiók
+       módosítása indítana exportot a mi változatlan adatunkról — nap mint nap
+       ugyanaz a fájl, más néven. */
+    const changed = await Todo.countDocuments({...scope, updatedAt: {$gte: startOfWindow, $lt: endOfWindow}});
 
     if (changed === 0) {
         console.log("Az előző napon nem volt módosítás — nincs export.");
     } else {
-        const todos = await Todo.find({}).sort("user order").lean();
+        const todos = await Todo.find(scope).sort("user order").lean();
         const file = path.join(EXPORT_DIR,
             "todos-" + startOfWindow.toISOString().slice(0, 10) + ".json");
         // 0600: az export a felhasználó adatait tartalmazza — csak a tulajdonos olvashassa
