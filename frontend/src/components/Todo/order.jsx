@@ -1,22 +1,64 @@
-import {useCallback, useEffect, useState} from "react";
+import {useCallback, useEffect, useRef, useState} from "react";
 import {Tooltip as ReactTooltip} from "react-tooltip";
 
 export default function Order(props) {
     const [plusDown, setPlusDown] = useState(false);
     const [minusDown, setMinusDown] = useState(false);
+    /* Lépett-e már a mostani lenyomás óta — az időzítő takarítása ettől függ
+       (lásd lent). Ref és nem state: a változása NEM járhat újrarajzolással,
+       különben újraindítaná azt az effektet, amit épp szabályoz. */
+    const hasStepped = useRef(false);
 
-    const handleMinusDown = useCallback(() => setMinusDown(true), []);
+    const handleMinusDown = useCallback(() => {
+        hasStepped.current = false;
+        setMinusDown(true);
+    }, []);
     const handleMinusUp = useCallback(() => setMinusDown(false), []);
-    const handlePlusDown = useCallback(() => setPlusDown(true), []);
+    const handlePlusDown = useCallback(() => {
+        hasStepped.current = false;
+        setPlusDown(true);
+    }, []);
     const handlePlusUp = useCallback(() => setPlusDown(false), []);
 
+    /* Az időzítő takarítása FELTÉTELES, és ez szándékos.
+
+       A léptetés úgy működik, hogy a lenyomás 200 ms-mal későbbre ütemez egy
+       lépést; a lépés után a szülő új props-t ad, amitől az effekt újraindul és
+       ütemezi a következőt — ez adja az ismétlést.
+
+       KATTINTÁSNÁL (200 ms-nál rövidebb nyomás) az elengedés még az első lépés
+       ELŐTT jön, tehát a függőben lévő időzítő adja az EGYETLEN lépést. Ha azt
+       feltétel nélkül eldobnánk, a kattintás nem csinálna semmit — a léptető
+       megszűnne működni. A feltétel nélküli takarítás kézenfekvőbbnek látszik,
+       és pont ezért veszélyes: némán megölné a kattintást, miközben a nyomva
+       tartás továbbra is hibátlanul menne.
+
+       NYOMVA TARTÁS után viszont a soron következő időzítőt el KELL dobni,
+       különben elengedés után még egyet lép: 8-ról indulva, 3-nál elengedve
+       2 lett belőle.
+
+       A kettőt a hasStepped választja szét: csak azt az időzítőt állítjuk le,
+       ami egy már megkezdett ismétlés folytatása lenne. */
     useEffect(() => {
-        if (!plusDown && minusDown && props.current > 1) setTimeout(() => props.setOrder(props.current - 1), 200);
+        if (plusDown || !minusDown || props.current <= 1) return;
+        const timer = setTimeout(() => {
+            hasStepped.current = true;
+            props.setOrder(props.current - 1);
+        }, 200);
+        return () => {
+            if (hasStepped.current) clearTimeout(timer);
+        };
     }, [plusDown, minusDown, props]);
 
     useEffect(() => {
-        if (plusDown && !minusDown && props.last >= props.current) setTimeout(() =>
-            props.setOrder(props.current + 1), 200);
+        if (!plusDown || minusDown || props.last < props.current) return;
+        const timer = setTimeout(() => {
+            hasStepped.current = true;
+            props.setOrder(props.current + 1);
+        }, 200);
+        return () => {
+            if (hasStepped.current) clearTimeout(timer);
+        };
     }, [plusDown, minusDown, props]);
 
     return (
