@@ -93,6 +93,58 @@ textarea.form-control::placeholder {
     border-color: var(--theme-accent) !important;
 }
 
+/* A Bootstrap sima (animált) görgetést kapcsol a lapra:
+
+       @media (prefers-reduced-motion: no-preference) { :root { scroll-behavior: smooth } }
+
+   Ez horgony-linkeknél kellemes — nálunk viszont NINCS ilyen link, cserébe
+   megbénítja a kártya-húzás automatikus görgetését.
+
+   Miért: a scroll-behavior: smooth hatására MINDEN scrollBy hívás egy
+   animációt indít. A dnd-kit viszont 5 ezredmásodpercenként hív (másodpercenként
+   kétszázszor), és minden új hívás MEGSZAKÍTJA az előzőt. Így minden animáció
+   csak pár ezredmásodpercnyit halad, mielőtt a következő elölről kezdi.
+
+   Mérés telefonon (2026-07-16): a dnd-kit 3 másodperc alatt 761 hívásban
+   28 210 pixelnyi görgetést kért — a lap ebből ~300-at mozdult. Kétszázszoros
+   veszteség; a görgetés "vánszorgott", pedig a kért sebesség végig helyes volt.
+
+   Az auto: azonnali görgetés, animáció nélkül. A böngésző saját, ujjal húzott
+   görgetését ez NEM érinti — az sosem volt animált. */
+:root {
+    scroll-behavior: auto !important;
+}
+
+/*read.jsx*/
+/* A kártyarács vízszintesen SOHA nem hozhat létre görgetést: a kártyák az ablak
+   szélességéhez igazodnak, oldalra kilógniuk sosem szabad. Ezt itt kimondjuk,
+   mert húzás közben fél pixelen múlott.
+
+   Miért: a rendezési stratégia úgy tolja odébb a kártyákat, hogy a régi és az új
+   helyük bal szélének KÜLÖNBSÉGÉT adja eltolásként. Ezek a szélek törtpixelesek
+   (páratlan ablakszélesség két oszlopra osztva: 985 / 2 = 492,5), így az eltolás
+   is az. A böngésző a rácsot magától pontosan rakja ki, a törtpixeles eltolás
+   viszont fél pixellel arrébb csúsztat egy kártyát — a lap szélességét pedig
+   FELFELÉ kerekíti, és kirakja a vízszintes gördítősávot.
+
+   Mérés (2026-07-16, 1000x600 ablak): húzás közben a 2-es kártya jobb széle
+   985,5 px lett a 985 px-es hasznos szélességnél. Fél pixel — de sáv lett belőle.
+   Nem a húzott kártya volt (azt a restrictToList a rácson belül tartja), hanem a
+   helyet cserélő szomszéd, ezért nem a húzás korlátozása a javítás helye.
+
+   Csak akkor látszik, ha VAN függőleges sáv: az elvesz 15 px-et a hasznos
+   szélességből, és a rács pont annyival lesz keskenyebb, hogy a fél pixel
+   átbillenjen. Rövid, nem görgethető lapon a hiba nem jelentkezik.
+
+   A clip és NEM a hidden: a hidden görgethető dobozt csinálna a rácsból, és a
+   másik tengelyt is auto-ra kényszerítené — a felfelé húzott kártya ettől a
+   rácson BELÜL kapna görgetést, és a húzás automatikus görgetése is ezt a dobozt
+   mozgatná az ablak helyett. A clip csak vág, dobozt nem csinál, és hagyja a
+   függőleges irányt láthatónak. */
+.todo-grid {
+    overflow-x: clip;
+}
+
 /* Amíg a téma változói nincsenek a helyükön, TILOS bármilyen átmenet.
 
    Miért: a "Fiók létrehozása" gomb egy <Link>-en (<a>) belül van. Ha a

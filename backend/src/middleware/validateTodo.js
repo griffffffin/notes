@@ -113,6 +113,15 @@ const validateTodoId = (request, response, next) => {
     next();
 };
 
+/* Az átsoroláshoz (/reorder) csak a sorszám kell, a teljes törzs nem — az id-t
+   a validateTodoId nézi meg mellette. */
+const validateOrderOnly = (request, response, next) => {
+    const order = request.body?.order;
+    if (!isInteger(order) || order < 1 || order > MAX_ORDER)
+        return response.status(400).json("Érvénytelen sorszám.");
+    next();
+};
+
 /* A szűrő-végpontok (/category, /color) a body mezőit EGYENESEN a lekérdezésbe
    teszik. A user: request.userId miatt idegen adat így sem szivároghatna ki, de
    egy {"$ne": null} a saját szűrésünk jelentését változtatná meg — a kategória-
@@ -128,5 +137,6 @@ const validateColorFilter = (request, response, next) => {
 };
 
 module.exports = {
-    validateTodoBody, validateTodoId, validateCategoryFilter, validateColorFilter, todoErrors, COLORS,
+    validateTodoBody, validateTodoId, validateOrderOnly, validateCategoryFilter, validateColorFilter,
+    todoErrors, COLORS,
 };

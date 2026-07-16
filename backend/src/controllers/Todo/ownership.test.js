@@ -48,12 +48,14 @@ require.cache[userModelPath] = {
 const auth = require("../../middleware/auth");
 const readById = require("./readById");
 const deleteTodo = require("./delete");
+const reorder = require("./reorder");
 
 const app = express();
 app.use(express.json());
 app.use(auth);
 app.use("/id", readById);
 app.use("/delete", deleteTodo);
+app.use("/reorder", reorder);
 
 const tokenFor = (id) => jwt.sign({id}, process.env.JWT_SECRET, {expiresIn: "7d"});
 
@@ -92,4 +94,27 @@ test("nem létező listánál sem szivárog ki információ (403, nem 404)", asy
         .set("Authorization", "Bearer " + tokenFor(OWNER))
         .send({id: MISSING_ID});
     assert.strictEqual(response.status, 403);
+});
+
+/* Az átsorolás (főoldali húzás) ugyanúgy más listáját is elérhetné, mint az
+   olvasás vagy a törlés — a tulajdonos-ellenőrzésnek ott is állnia kell. */
+test("IDEGEN nem sorolhatja át más listáját (403)", async () => {
+    const response = await request(app).post("/reorder")
+        .set("Authorization", "Bearer " + tokenFor(STRANGER))
+        .send({id: OWNER_LIST._id, order: 3});
+    assert.strictEqual(response.status, 403);
+});
+
+test("a tulajdonos átsorolhatja a sajátját", async () => {
+    const response = await request(app).post("/reorder")
+        .set("Authorization", "Bearer " + tokenFor(OWNER))
+        .send({id: OWNER_LIST._id, order: 3});
+    assert.strictEqual(response.status, 200);
+});
+
+test("azonos sorszámra húzva nem csinál semmit", async () => {
+    const response = await request(app).post("/reorder")
+        .set("Authorization", "Bearer " + tokenFor(OWNER))
+        .send({id: OWNER_LIST._id, order: OWNER_LIST.order});
+    assert.strictEqual(response.status, 200);
 });

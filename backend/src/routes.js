@@ -1,7 +1,7 @@
 const router = require("express").Router();
 const auth = require("./middleware/auth");
 const {
-    validateTodoBody, validateTodoId, validateCategoryFilter, validateColorFilter,
+    validateTodoBody, validateTodoId, validateOrderOnly, validateCategoryFilter, validateColorFilter,
 } = require("./middleware/validateTodo");
 const validateCredentials = require("./middleware/validateCredentials");
 
@@ -20,6 +20,7 @@ const todoReadByColor = require("./controllers/Todo/readByColor");
 
 const todoUpdate = require("./controllers/Todo/update");
 const todoDelete = require("./controllers/Todo/delete");
+const todoReorder = require("./controllers/Todo/reorder");
 
 
 router.use("/user/create", validateCredentials, userCreate);
@@ -44,6 +45,8 @@ router.use("/color", validateColorFilter, todoReadByColor);
 // A módosításnak az id-ja ÉS a törzse is ellenőrzendő, a törlésnek csak az id-ja.
 router.use("/update", validateTodoId, validateTodoBody, todoUpdate);
 router.use("/delete", validateTodoId, todoDelete);
+// Csak a sorszámot mozgatja (főoldali húzás) — a tartalomhoz nem nyúl.
+router.use("/reorder", validateTodoId, validateOrderOnly, todoReorder);
 
 router.use(todoRead);
 
