@@ -93,6 +93,17 @@ textarea.form-control::placeholder {
     border-color: var(--theme-accent) !important;
 }
 
+/* A szövegkijelölés is a témát viseli, a böngésző kékje helyett.
+
+   A betű a kiemelőszín KONTRASZT-párját kapja (ugyanaz, ami a színes gombokon a
+   feliraté) — enélkül a sötét téma sárga kijelölésén a fehér szöveg
+   olvashatatlan lenne. A két érték együtt jön a THEMES táblából, tehát a
+   kategóriánkénti témák is magukkal hozzák majd. */
+::selection {
+    background-color: var(--theme-accent);
+    color: var(--theme-accent-contrast);
+}
+
 /* A Bootstrap sima (animált) görgetést kapcsol a lapra:
 
        @media (prefers-reduced-motion: no-preference) { :root { scroll-behavior: smooth } }
