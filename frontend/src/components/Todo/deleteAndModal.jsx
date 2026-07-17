@@ -2,6 +2,7 @@ import {useEffect, useState} from "react";
 import {useNavigate} from "react-router-dom";
 import Modal from "./modal";
 import {useAuth} from "../../contexts/auth";
+import {logRequestError} from "../../log";
 
 export default function DeleteAndModal(props) {
     const [isModalShow, setIsModalShow] = useState(false);
@@ -31,7 +32,7 @@ export default function DeleteAndModal(props) {
                 props.handleCategoryChange();
                 navigate("/");
             }
-        }, (error) => console.log(error.response?.data ?? error.message));
+        }, logRequestError);
     };
 
     return (<>

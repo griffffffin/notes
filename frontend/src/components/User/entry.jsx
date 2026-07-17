@@ -3,6 +3,7 @@ import {useNavigate} from "react-router-dom";
 import InputGroup from "./Form/Input/inputGroup";
 import SubmitButtonGroup from "../Button/submitButtonGroup";
 import {useAuth} from "../../contexts/auth";
+import {logRequestError} from "../../log";
 
 export default function Entry(props) {
     const [isLoginError, setIsLoginError] = useState(false);
@@ -84,7 +85,7 @@ export default function Entry(props) {
                    gomb ne a belépőre dobjon vissza egy már belépett usert. */
                 navigate("/", {replace: true});
             }, (error) => {
-                console.log(error.response?.data ?? error.message);
+                logRequestError(error);
                 /* A döntés STÁTUSZKÓDON áll, nem a hibaüzenet szövegén: a 409
                    (Conflict) a szerver szerződéses válasza a névütközésre.
                    Korábban a "foglalt" szóra kerestünk rá az üzenetben — az

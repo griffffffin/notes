@@ -11,6 +11,7 @@ import LinkTodoUpdate from "../Link/todoUpdate";
 import LinkCategory from "../Link/category";
 import SortableCard from "./DragAndDrop/sortableCard";
 import {useAuth} from "../../contexts/auth";
+import {logRequestError} from "../../log";
 
 /* Ujjal ennyit kell a kártyán tartani, mire a húzás elindul.
 
@@ -124,7 +125,7 @@ export default function Read(props) {
         if (missingFilter) return;
         handleAxios(props.url, filter ?? {}, (response) => setTodos(response.data),
             (error) => {
-                console.log(error.response?.data ?? error.message);
+                logRequestError(error);
                 /* A pörgő karika azt ígéri, hogy MINDJÁRT jön az adat. Ha a
                    kérés elbukott, ez hazugság: inkább üres listát mutatunk,
                    mint egy örökké tartó várakozást. */
@@ -226,7 +227,7 @@ export default function Read(props) {
         handleAxios("/reorder", {id: active.id, order: targetOrder},
             () => {},
             (error) => {
-                console.log(error.response?.data ?? error.message);
+                logRequestError(error);
                 setTodos(previous);
             });
     }, [todos, handleAxios]);

@@ -14,6 +14,7 @@ import ColorButtonGroup from "../Button/colorButtonGroup";
 import {useTheme} from "../../contexts/theme";
 import {useAuth} from "../../contexts/auth";
 import {TODO_COLORS} from "../../todoColors";
+import {logRequestError} from "../../log";
 
 /* Változatlan-e az űrlap ahhoz képest, amit a szerver adott? */
 const isUnchanged = (current, loaded) =>
@@ -112,14 +113,14 @@ export default function Save(props) {
                 setCategory(response.data.category);
                 setIsCategoryValid(true);
                 setIsDisabled(false);
-            }, (error) => console.log(error.response?.data ?? error.message));
+            }, logRequestError);
         }
         handleAxios("/last/order", {},
             (response) => {
                 const lastOrder = response.data;
                 lastOrder === 0 ? setLastOrder(0) : setLastOrder(isUpdate ? lastOrder - 1 : lastOrder);
             },
-            (error) => console.log(error.response?.data ?? error.message));
+            logRequestError);
     }, [isUpdate, todoId, handleAxios]);
 
     const setTask = useCallback((key, content, isDone) => {
@@ -182,7 +183,7 @@ export default function Save(props) {
                 props.handleCategoryChange();
                 navigate("/");
             }
-        }, (error) => console.log(error.response?.data ?? error.message));
+        }, logRequestError);
     }, [props, title, todo.tasks, todo.columns, category, color, order, isUpdate, todoId, url, navigate, handleAxios]);
 
     /* A színre már nem kell várni (a témából indul, nem egy kérés hozza), csak

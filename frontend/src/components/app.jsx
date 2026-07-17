@@ -3,6 +3,7 @@ import {library} from "@fortawesome/fontawesome-svg-core";
 import {fas} from "@fortawesome/free-solid-svg-icons";
 import Routes from "./routes";
 import {useAuth} from "../contexts/auth";
+import {logRequestError} from "../log";
 
 library.add(fas);
 
@@ -22,7 +23,7 @@ export default function App() {
         // elindulna egy kérés, ami 401-gyel bukna.
         if (!isLoggedIn) return;
         handleAxios("/categories", {}, (response) => setCategories(response.data),
-            (error) => console.log(error.response?.data ?? error.message));
+            logRequestError);
     }, [isLoggedIn, handleAxios]);
 
     useEffect(() => {

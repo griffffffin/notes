@@ -1,4 +1,5 @@
 import {Component} from "react";
+import {logDev} from "../log";
 
 /* Hibahatár: elkapja a fa alatt keletkező futásidejű hibákat, és a néma
    (üres képernyős) összeomlás helyett kiírja őket.
@@ -42,7 +43,7 @@ export default class ErrorBoundary extends Component {
 
     componentDidCatch(error, info) {
         this.setState({info});
-        console.error("Elkapott hiba:", error, info.componentStack);
+        logDev("Elkapott hiba:", error, info.componentStack);
     }
 
     render() {
