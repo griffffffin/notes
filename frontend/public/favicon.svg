@@ -1,22 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-4 -4 108 108">
     <title>Jin-jang</title>
-    <!-- Az arányok az eredeti 500x500-as képből mérve (a függőleges középvonal
-         mentén nézve, hol vált fekete/fehér):
-           keret:      a kép 1,4%-a
-           szem közép:  26,2% és 73,8%
-           szem sugár:  6,2%
-         A sugár 49,3 (nem 50), hogy a rá rajzolt 1,4 széles keret fele se lógjon
-         ki a viewBoxból. -->
-    <circle cx="50" cy="50" r="49.3" fill="#fff" stroke="#000" stroke-width="1.4"/>
-    <!-- A fekete mező EGYETLEN vonallal, felülről indulva:
-         1. a jobb oldali félkör le,
-         2. vissza fel egy fél akkora íven, ami BALRA hajlik — ettől nyúlik át a
-            fekete a bal alsó részbe,
-         3. tovább fel egy másik fél íven, ami JOBBRA hajlik — ez viszont a fehéret
-            engedi át a jobb felső részbe.
-         A 2. és 3. ellentétes hajlása (sweep 1, majd 0) adja az S-görbét. -->
+    <!-- Ez a BOOT-pillanat tartaléka, az alapértelmezett (sötét) téma színeivel.
+         A klasszikus jin-jang, de a háttérrel kontrasztos fele a kiemelőszínre
+         cserélve (sötét témán a fehér fél sárga lesz), a szemek a klasszikus
+         kontrasztot viszik. A körvonal a kiemelőszín, és SZÁNDÉKOSAN külön, a
+         legfelső réteg: enélkül a sötét felet rajzoló path elfedné a körvonal
+         befelé eső felét azon az oldalon, és az félvastagnak látszana. A
+         ThemeProvider ezt futáskor a tényleges témára cseréli (contexts/theme.jsx);
+         világos témán a FEKETE fél lesz kék. A geometria/méretek ott AZONOSAK.
+         A viewBox tágabb a 100-asnál, hogy a körvonal kifelé eső fele elférjen,
+         a korong mérete maradjon. -->
+    <circle cx="50" cy="50" r="49.3" fill="#ffc107"/>
     <path fill="#000" d="M50 0.7a49.3 49.3 0 0 1 0 98.6a24.65 24.65 0 0 1 0-49.3a24.65 24.65 0 0 0 0-49.3"/>
-    <!-- A két szem: mindegyik a MÁSIK mezőben ül, a fél ívek középpontjában. -->
     <circle cx="50" cy="26.2" r="6.2" fill="#000"/>
-    <circle cx="50" cy="73.8" r="6.2" fill="#fff"/>
+    <circle cx="50" cy="73.8" r="6.2" fill="#ffc107"/>
+    <circle cx="50" cy="50" r="49.3" fill="none" stroke="#ffc107" stroke-width="5.4"/>
 </svg>

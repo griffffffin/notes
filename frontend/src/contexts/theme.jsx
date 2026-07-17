@@ -96,6 +96,51 @@ export function ThemeProvider({children}) {
             ` stroke-linejoin='round'/%3E%3C/svg%3E")`;
         html.style.setProperty("--scrollbar-arrow-up", arrow("M5 2 L8.2 8 L5 6.4 L1.8 8 Z"));
         html.style.setProperty("--scrollbar-arrow-down", arrow("M5 8 L1.8 2 L5 3.6 L8.2 2 Z"));
+
+        /* A böngészőfül jin-jang ikonja a témát viseli: az egyik fele a kiemelő-
+           szín, a másik a lap háttere (sötét témán sárga-fekete, világoson
+           kék-fehér). A geometria a public/favicon.svg-ével AZONOS — csak a két
+           szín cserélődik —, hogy a méret ne változzon.
+
+           Miért itt, JS-ből, és nem a favicon.svg-ben? Mert a fület a böngésző
+           rajzolja, oda a CSS-változóink nem érnek el; a beágyazott SVG pedig
+           szöveg, nem lát változót. A képet tehát itt, a színek ismeretében
+           állítjuk össze, és a <link rel="icon"> href-jét cseréljük. A statikus
+           favicon.svg a boot-pillanat tartaléka marad (az alapértelmezett, sötét
+           téma színeivel), amíg ez a csere le nem fut. */
+        const accent = theme.accent;
+        /* A klasszikus jin-jang, de a HÁTTÉRREL KONTRASZTOS fele a kiemelőszínre
+           cserélve. Sötét témán a lap fekete, tehát a fehér fél lesz accent
+           (sárga), a fekete marad; világoson a lap fehér, tehát a fekete fél lesz
+           accent (kék), a fehér marad. Így az accent mindig azon az oldalon van,
+           amelyik a lap hátterétől elüt — az accent tehát témánként OLDALT VÁLT.
+
+           A szemek a klasszikus kontraszt: mindegyik a MÁSIK fél színét viseli
+           (accent-mezőben a semleges, semleges mezőben az accent) — így egyik sem
+           tűnik el a saját mezőjében.
+
+           A körvonal a kiemelőszín. Elég vastagnak kell lennie, hogy egy 32 px-es
+           fülön is látsszon (mérve: 1,4-es vonal ott eltűnik); a konkrét értéket
+           lásd lentebb. A viewBox tágabb a 100-asnál, hogy a körvonal kifelé eső
+           fele elférjen — a korong geometriája így változatlan.
+
+           A körvonal külön elem, és SZÁNDÉKOSAN a legfelső réteg: ha a fill-lel
+           együtt egy circle-ön ülne, a sötét felet rajzoló path elfedné a befelé
+           eső felét azon az oldalon, és a körvonal csak félvastagnak látszana ott
+           (mérve: a fekete fél oldalán fele annyinak, mint a fehérén). Legfelső
+           rétegként mindenhol a teljes vastagság látszik. */
+        const light = theme.pageBackground !== "#000";
+        const brightHalf = light ? "#fff" : accent;   // az eredeti FEHÉR fél (bal)
+        const darkHalf = light ? accent : "#000";     // az eredeti FEKETE fél (jobb)
+        const favicon = "data:image/svg+xml," + encodeURIComponent(
+            `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-4 -4 108 108">` +
+            `<circle cx="50" cy="50" r="49.3" fill="${brightHalf}"/>` +
+            `<path fill="${darkHalf}" d="M50 0.7a49.3 49.3 0 0 1 0 98.6a24.65 24.65 0 0 1 0-49.3a24.65 24.65 0 0 0 0-49.3"/>` +
+            `<circle cx="50" cy="26.2" r="6.2" fill="${darkHalf}"/>` +
+            `<circle cx="50" cy="73.8" r="6.2" fill="${brightHalf}"/>` +
+            `<circle cx="50" cy="50" r="49.3" fill="none" stroke="${accent}" stroke-width="5.4"/></svg>`);
+        const link = document.querySelector("link[rel=icon]");
+        if (link) link.href = favicon;
     }, [theme]);
 
     /* Sima useEffect (a festés UTÁN fut) — SZÁNDÉKOSAN, két okból is.
