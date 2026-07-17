@@ -124,6 +124,24 @@ textarea.form-control::placeholder {
    görgetését ez NEM érinti — az sosem volt animált. */
 :root {
     scroll-behavior: auto !important;
+
+    /* A két ikon rajza EGYSZER, alakként. Színt nem tartalmaznak: maszkként
+       használjuk őket, a színt a felhasználási hely adja (currentColor). */
+    /* A bejelölt jelölőnégyzet rajza: a KERET és a pipa EGYÜTT. Azért együtt,
+       mert a maszk az egész elemre hat — a saját keretét is levágná —, így azt is
+       nekünk kell megrajzolnunk. Bejelöletlen állapotban marad a rendes border.
+
+       A keret geometriája SZÁNDÉKOSAN a Bootstrapét másolja, hogy bejelölésre ne
+       ugorjon a négyzet: a vonal a doboz SZÉLÉN fut (a 0.5-ös eltolás + az 1-es
+       vastagság együtt a 0..1 sávot festi, ahogy a border is), és ugyanolyan
+       vastag. Korábban 1 egységgel beljebb és 1.6 vastagon volt: attól tűnt a
+       bepipált négyzet kisebbnek és vaskosabbnak. */
+    --icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='0.5' y='0.5' width='15' height='15' rx='3.5' fill='none' stroke='black' stroke-width='1'/%3E%3Cpath d='M12.2 5.6 L6.8 11.2 L4 8.4' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    /* Az X NEM külön rajz: a kártyán lévő + ikon (Bootstrap Icons plus-circle)
+       SAJÁT két path-a, a keresztje 45 fokkal elforgatva a kör közepe körül. Így
+       a kör mérete, a vonalvastagság és az arányok egy az egyben egyeznek a
+       plusszal — nincs mit külön karbantartani, és nem is csúszhat el tőle. */
+    --icon-close: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z'/%3E%3Cpath transform='rotate(45 8 8)' d='M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z'/%3E%3C/svg%3E");
 }
 
 /* A gördítősáv a témához igazítva: keskeny, lekerekített, a téma színével.
@@ -325,7 +343,9 @@ html:not(.theme-ready) *::after {
     box-shadow: 0 0 0 0.25rem var(--theme-focus-ring) !important;
 }
 
-.no-focus, .btn-close {
+/* A .btn-close SZÁNDÉKOSAN kimarad innen: a rajta lévő X-et maszkkal rajzoljuk,
+   és a maszk a currentColorból fest — átlátszó színnel láthatatlan lenne. */
+.no-focus {
     color: transparent !important;
     border-color: transparent !important;
     outline: 0 !important;
@@ -357,54 +377,63 @@ html:not(.theme-ready) *::after {
     box-shadow: none !important;
 }
 
-.form-check-input.border-danger:checked {
-    background-image: url("assets/icons/done/done_danger.png") !important;
-}
+/* A pipa EGY rajzból, a kártya színével — hat kép helyett.
 
-.form-check-input.border-info:checked {
-    background-image: url("assets/icons/done/done_info.png") !important;
-}
+   Eddig hat PNG állt itt, színenként egy (done_danger.png, done_info.png, ...),
+   pedig ugyanaz az alak volt mind. Most a rajz maszk: csak a FORMÁT adja, a
+   színt a background-color, az pedig a currentColor — vagyis az elem color-ja,
+   amit a to-do színe állít be (task.jsx: text-<szín>).
 
-.form-check-input.border-primary:checked {
-    background-image: url("assets/icons/done/done_primary.png") !important;
-}
+   A -webkit- előtagos pár a régebbi Chromiumnak kell; a szabványos alak
+   önmagában csak a 120-as verziótól elég.
 
-.form-check-input.border-secondary:checked {
-    background-image: url("assets/icons/done/done_secondary.png") !important;
-}
-
-.form-check-input.border-success:checked {
-    background-image: url("assets/icons/done/done_success.png") !important;
-}
-
-.form-check-input.border-warning:checked {
-    background-image: url("assets/icons/done/done_warning.png") !important;
+   A mask-clip: content-box NEM elhagyható: enélkül a maszk a KERETET is levágná,
+   márpedig épp az mutatja a to-do színét bejelöletlen állapotban is. Így a maszk
+   csak a doboz belsejére hat, a keret érintetlen marad. */
+.form-check-input:checked {
+    background-image: none !important;
+    background-color: currentColor !important;
+    border-color: transparent !important;
+    -webkit-mask: var(--icon-check) center / contain no-repeat;
+    mask: var(--icon-check) center / contain no-repeat;
 }
 
 .modal-body {
     font-size: 150% !important;
 }
 
-.btn-close.danger {
-    background-image: url("assets/icons/close/close_danger.svg") !important;
+/* Az X ugyanígy: egy rajz, a színt a currentColor adja — a .btn-close a modal
+   megnyitásakor kap text-<szín> osztályt (deleteAndModal.jsx), abból jön a szín.
+   Itt nincs keret, amit a maszk levághatna, tehát nem kell a rajzba tenni. */
+/* Az X mérete és helye a kártyán lévő + ikonhoz igazodik: 28 px (körrel együtt),
+   és a modal két szélétől ugyanannyira áll.
+
+   Három dolgot kell kimondani hozzá. A bal margó AUTO marad — az tolja a jobb
+   szélre —, de a Bootstrap negatív margói mennek: azok húznák be a padding alá,
+   aszimmetrikusan. Az align-self a fejléc függőleges közepéről a TETEJÉRE viszi,
+   mert a fejléc a nála magasabb címhez igazodik, és középen az X lejjebb csúszna,
+   mint amennyire az oldalától áll. A fejléc paddingját pedig duplázott
+   szelektorral kell írni (lásd lent). */
+.btn-close {
+    width: 28px !important;
+    height: 28px !important;
+    padding: 0 !important;
+    align-self: flex-start !important;
+    margin: 0 0 0 auto !important;
+    background-image: none !important;
+    background-color: currentColor !important;
+    -webkit-mask: var(--icon-close) center / 28px no-repeat;
+    mask: var(--icon-close) center / 28px no-repeat;
+    opacity: 1 !important;
 }
 
-.btn-close.info {
-    background-image: url("assets/icons/close/close_info.svg") !important;
-}
+/* Egyenlő távolság a modal tetejétől és jobb szélétől: a Bootstrap 8px 16px-öt
+   ad, amitől az X közelebb ül a tetejéhez, mint az oldalához.
 
-.btn-close.primary {
-    background-image: url("assets/icons/close/close_primary.svg") !important;
-}
-
-.btn-close.secondary {
-    background-image: url("assets/icons/close/close_secondary.svg") !important;
-}
-
-.btn-close.success {
-    background-image: url("assets/icons/close/close_success.svg") !important;
-}
-
-.btn-close.warning {
-    background-image: url("assets/icons/close/close_warning.svg") !important;
+   A szelektor SZÁNDÉKOSAN kétszer szerepel: az index.css a Bootstrap ELŐTT
+   töltődik, tehát azonos erősségnél az ő szabálya nyerne — az !important-unk sem
+   segítene. Két osztálynyi specificitás viszont sorrendtől függetlenül visz.
+   (Mérve: enélkül a padding félig hatott, 8px 12px lett belőle.) */
+.modal-header.modal-header {
+    padding: 12px !important;
 }

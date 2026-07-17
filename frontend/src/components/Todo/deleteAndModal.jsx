@@ -20,7 +20,7 @@ export default function DeleteAndModal(props) {
     const handleModalClose = () => setIsModalShow(false);
 
     useEffect(() => {
-        if (isModalShow) document.getElementsByClassName("btn-close")[0].classList.add(props.color);
+        if (isModalShow) document.getElementsByClassName("btn-close")[0].classList.add("text-" + props.color);
     }, [isModalShow, props.color]);
 
     const handleDelete = () => {

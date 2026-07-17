@@ -42,8 +42,11 @@ export default function Task(props) {
             {(provided) => (
                 <div className="input-group-text bg-transparent border-0" {...provided.draggableProps}
                      ref={provided.innerRef}>
+                    {/* A text-* osztály a PIPÁÉRT van, nem szövegért: a pipát maszkkal
+                        rajzoljuk, és a színét az elem color-jából veszi (index.css). */}
                     <input id={"checkbox" + props.task.id} type="checkbox" defaultChecked={props.task.done}
-                           className={"form-check-input border-" + props.color + " bg-transparent"}
+                           className={"form-check-input border-" + props.color + " text-" + props.color +
+                               " bg-transparent"}
                            onChange={handleCheckChange}/>
                     <NoFocusInput id={props.task.id} value={props.task.content} placeholder="Listaelem" autoFocus={true}
                                   onChange={handleTaskChange} autoComplete="off" required={false} color={props.color}
