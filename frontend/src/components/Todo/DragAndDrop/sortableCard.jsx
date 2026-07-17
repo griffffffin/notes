@@ -6,12 +6,9 @@ import {CSS} from "@dnd-kit/utilities";
    A húzó-fogantyú maga a KÁRTYA: a listeners az egész dobozra kerül, nem egy
    külön markoló ikonra. A kattintás (ami a szerkesztőt nyitja) és a húzás
    szétválasztását két dolog intézi, MINDKETTŐ a read.jsx-ben: az érzékelők
-   aktiválási feltételei, és a húzás utáni kattintás elnyelése.
-
-   A kattintás-elnyelés SZÁNDÉKOSAN nem itt van, hanem a rácson: a felengedéskor
-   érkező kattintás nem feltétlenül azon a kártyán landol, amit húztunk — a
-   szomszédjára is eshet, attól függően, merre mozdult a lista. Kártyánkénti
-   jelzővel a szomszéd átengedte volna, mert ő maga nem volt húzva. */
+   aktiválási feltételei, és a húzás utáni kattintás elnyelése — utóbbi a
+   dokumentumon ül, mert a dnd-kit már a rács fölött megállítja az eseményt (az
+   indoklás ott van, a kezelőnél). */
 export default function SortableCard({id, children}) {
     const {attributes, listeners, setNodeRef, transform, transition, isDragging} = useSortable({id});
 
@@ -35,10 +32,22 @@ export default function SortableCard({id, children}) {
         // A húzott kártya a többi FÖLÉ kerüljön, különben a szomszédok alá bújna.
         zIndex: isDragging ? 20 : undefined,
         opacity: isDragging ? 0.85 : undefined,
-        /* touchAction: none húzás közben — enélkül a böngésző a saját
-           görgetésének tekintené az ujjmozgást, és elvenné az eseményt a húzás
-           elől. Csak amíg húzunk, különben a kártyán soha nem lehetne görgetni. */
-        touchAction: isDragging ? "none" : undefined,
+        /* Itt SZÁNDÉKOSAN nincs touch-action.
+
+           Állt itt egy "touchAction: isDragging ? none : undefined", de az nem
+           tudott dolgozni: a touch-action-t a böngésző a gesztus KEZDETÉN
+           olvassa ki, az isDragging viszont csak közben igaz — mire beállítottuk
+           volna, a böngésző már eldöntötte, görget-e.
+
+           Az ujjal görgetést valójában a dnd-kit TouchSensora tartja vissza:
+           nem-passzív touchmove-figyelőt tesz fel, hogy a preventDefault hasson
+           (a saját kommentjük szerint ez iOS Safarihoz kell). A könyvtár
+           touch-action: none-ja pedig a DragOverlay-hez tartozik, amit mi nem
+           használunk — a kártya a helyén marad, eltolással mozog.
+
+           A sor elhagyása valódi telefonon ellenőrizve (2026-07-17): a kártyán
+           simítva a lap görög és a kártya nem mozdul; kitartás után a kártya jön
+           az ujjal, a lap pedig nem görög közben. */
     };
 
     return (

@@ -1,35 +1,24 @@
-import {useNavigate} from "react-router-dom";
+import {Link} from "react-router-dom";
 
-/* A kártya tartalma. SZÁNDÉKOSAN nincs benne <a> elem — pedig a szerkesztőre
-   visz, tehát kézenfekvő lenne linknek megírni.
+/* A kártya tartalma, ami a szerkesztőre visz — ezért VALÓDI link.
 
-   Az <a href> ugyanis a húzással összeegyeztethetetlen. Egy horgony a
-   böngésző szemében "megfogható és eldobható dolog", és bármelyik úton
-   (beépített link-húzás, alapértelmezett navigáció, egy elszalasztott
-   kattintás) TELJES oldalbetöltést indíthat a /update-re. Az pedig már nem
-   React Router-navigáció: nincs mellette a navigációs state, ami az
-   azonosítót viszi — a Save őre ilyenkor joggal dob vissza a főoldalra. Kívülről
-   ez úgy néz ki, mintha a kártya áthelyezése újratöltené a lapot.
+   Link, és nem kattintás-kezelős doboz: így a böngésző is tudja, hogy ez egy
+   célpont. Látszik a cím az állapotsorban, működik a középső gombos "új lapon
+   megnyitás" és a jobb gombos menü, a képernyőolvasó pedig linkként hirdeti ki.
+   Egy onClick-es <div> ezt mind eldobná.
 
-   Kattintásra tehát magunk navigálunk. Hozzáférhetőségben nem veszítünk: a
-   kártyát a dnd-kit amúgy is role="button"-ként adja ki (read.jsx), nem
-   linkként. Cserébe a középső egérgombos "új lapon megnyitás" elmarad — az az
-   URL-alapú útvonalakkal jön majd vissza (/update/:id), amikor a kategória-
-   bővítéssel átszabjuk a route-táblát. */
+   A húzással a rács kattintás-elnyelője békíti össze (read.jsx): a felengedés
+   után érkező kattintást elnyeli, ha közben húzás történt, így a link
+   navigációja nem indul el. A jelző SZÁNDÉKOSAN a rácson ül és nem itt: az a
+   kattintás nem feltétlenül azon a kártyán landol, amit húztunk — a szomszédra
+   is eshet, ha a lista közben átrendeződött alatta. */
 export default function TodoUpdate(props) {
-    const navigate = useNavigate();
-
-    const handleClick = () => {
-        props.handleLinkClicked();
-        navigate("/update", {state: {id: props.todo._id}});
-    };
-
     return (
-        /* Nincs role: a KÜLSŐ doboz (SortableCard) a dnd-kittől role="button"-t
-           kap, tehát a kártya egésze már gombként van kihirdetve. Egy belső
-           role="presentation" itt kifejezetten rossz lenne: azt jelenti, "engem
-           hagyj figyelmen kívül", miközben az elem kattintható. */
-        <div onClick={handleClick} className="text-decoration-none">
+        /* A state viszi az azonosítót a szerkesztőnek; enélkül a Save őre joggal
+           dob vissza a főoldalra. (Az URL-be az azonosító a kategória-bővítéssel
+           költözik: /update/:id.) */
+        <Link to="/update" state={{id: props.todo._id}} onClick={props.handleLinkClicked}
+              className="text-decoration-none">
             <div className={"card-header caveat bg-transparent no-focus ms-1 text-" + props.todo.color}>
                 <div className="float-end ms-1">{props.todo.percentage}%</div>
                 {props.todo.title}
@@ -44,6 +33,6 @@ export default function TodoUpdate(props) {
                         </div>
                     </div>)}
             </div>
-        </div>
+        </Link>
     );
 }

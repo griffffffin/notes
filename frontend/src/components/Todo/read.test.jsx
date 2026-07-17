@@ -1,4 +1,4 @@
-import {render, screen, waitFor} from "@testing-library/react";
+import {act, render, screen, waitFor} from "@testing-library/react";
 import {CookiesProvider} from "react-cookie";
 import {MemoryRouter} from "react-router-dom";
 import {beforeEach, describe, expect, it, vi} from "vitest";
@@ -9,11 +9,28 @@ import {ThemeProvider} from "../../contexts/theme";
 /* A Context-mock ÁLLANDÓ objektumot adjon vissza: a komponens effektje a
    handleAxios azonosságára van felfüggesztve, így egy rendernként újra gyártott
    függvény végtelen újratöltő ciklust okozna. */
-const {handleAxios, auth} = vi.hoisted(() => {
+const {handleAxios, auth, linkClicked} = vi.hoisted(() => {
     const fn = vi.fn();
-    return {handleAxios: fn, auth: {isLoggedIn: true, handleAxios: fn}};
+    return {handleAxios: fn, auth: {isLoggedIn: true, handleAxios: fn}, linkClicked: vi.fn()};
 });
 vi.mock("../../contexts/auth", () => ({useAuth: () => auth}));
+
+/* Valódi húzást jsdom-ban nem tudunk lejátszani: nincs benne elrendezés, tehát
+   a dnd-kit nem tudja kiszámolni, mi fölött járunk. A húzás VÉGE viszont egy
+   sima függvényhívás (onDragEnd), amit a könyvtár ad át — ezt kapjuk el, és
+   hívjuk közvetlenül. A DndContext többi részét nem bántjuk. */
+const dnd = vi.hoisted(() => ({endDrag: null, startDrag: null}));
+vi.mock("@dnd-kit/core", async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        DndContext: ({children, onDragEnd, onDragStart}) => {
+            dnd.endDrag = onDragEnd;
+            dnd.startDrag = onDragStart;
+            return children;
+        },
+    };
+});
 vi.mock("@fortawesome/react-fontawesome", () => ({
     FontAwesomeIcon: ({icon, ...rest}) => <span data-icon={String(icon)} {...rest}/>,
 }));
@@ -31,12 +48,13 @@ const TODOS = [
 const renderRead = () => render(
     <CookiesProvider>
         <ThemeProvider>
-            <MemoryRouter><Read url="/" handleLinkClicked={vi.fn()}/></MemoryRouter>
+            <MemoryRouter><Read url="/" handleLinkClicked={linkClicked}/></MemoryRouter>
         </ThemeProvider>
     </CookiesProvider>
 );
 
 beforeEach(() => {
+    linkClicked.mockClear();
     handleAxios.mockReset();
     handleAxios.mockImplementation((url, data, then) => {
         if (url === "/") then({data: TODOS});
@@ -57,6 +75,72 @@ describe("Read", () => {
         await screen.findByText("Alma");
         // A dnd-kit a húzható elemekre teszi ki ezt a szerepet.
         expect(document.querySelectorAll("[role='button'][aria-roledescription]").length).toBe(3);
+    });
+
+    /* A húzás vége. A "nem küld" állításokat CSAK a küldő ággal együtt szabad
+       hinni: ha a mentés egyáltalán nem működne, az alábbi két teszt attól is
+       zöld lenne. Ezért a sorrend: előbb a fő út. */
+    const dropOn = async (activeId, overId) => {
+        renderRead();
+        await screen.findByText("Alma");
+        handleAxios.mockClear();   // a lista betöltése is egy hívás volt
+        act(() => dnd.endDrag({active: {id: activeId}, over: overId && {id: overId}}));
+    };
+
+    it("másik kártyára húzva a CÉLKÁRTYA sorszámát küldi, nem az indexét", async () => {
+        await dropOn("a", "c");
+        // A "Cékla" sorszáma 9 (nem 2), mert a szűrt nézetek listája hézagos.
+        expect(handleAxios).toHaveBeenCalledWith("/reorder", {id: "a", order: 9},
+            expect.any(Function), expect.any(Function));
+    });
+
+    it("ugyanoda visszaengedve nem szól a szervernek", async () => {
+        await dropOn("a", "a");
+        expect(handleAxios).not.toHaveBeenCalled();
+    });
+
+    it("a listán kívül elengedve nem szól a szervernek", async () => {
+        await dropOn("a", null);
+        expect(handleAxios).not.toHaveBeenCalled();
+    });
+
+    /* A kártya tartalma LINK, és a húzás végén nem szabad navigálnia.
+
+       A defaultPrevented ÖNMAGÁBAN nem mond semmit: a react-router <Link>-je is
+       preventDefault-ot hív minden kattintáson (hiszen a natív navigáció helyett
+       ő navigál), tehát mindig igaz. Ezért a link KEZELŐJÉT figyeljük: ha az nem
+       fut, a react-router nem navigál. A natív oldalbetöltés elleni védelmet
+       (preventDefault) csak ott állítjuk, ahol már tudjuk, hogy a Link kezelője
+       nem futott — ott a hívás csak a mienk lehetett. */
+    const clickOn = (text) => {
+        const event = new MouseEvent("click", {bubbles: true, cancelable: true});
+        screen.getByText(text).closest("a").dispatchEvent(event);
+        return event;
+    };
+
+    it("húzás nélkül a kattintás átmegy a linkre", async () => {
+        renderRead();
+        await screen.findByText("Alma");
+        clickOn("Alma");
+        expect(linkClicked).toHaveBeenCalled();
+    });
+
+    it("a húzást lezáró kattintás nem navigál el sehova", async () => {
+        renderRead();
+        await screen.findByText("Alma");
+        act(() => dnd.startDrag());
+        const event = clickOn("Alma");
+        expect(linkClicked).not.toHaveBeenCalled();      // a react-router nem visz el
+        expect(event.defaultPrevented).toBe(true);       // és a böngésző sem tölt újra
+    });
+
+    it("a húzás utáni MÁSODIK kattintás már megint átmegy", async () => {
+        renderRead();
+        await screen.findByText("Alma");
+        act(() => dnd.startDrag());
+        clickOn("Alma");                    // ezt nyeli el
+        clickOn("Alma");
+        expect(linkClicked).toHaveBeenCalledTimes(1);
     });
 
     /* Magát a levágást nem tudjuk itt ellenőrizni: a jsdom nem számol

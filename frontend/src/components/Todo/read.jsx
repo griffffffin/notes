@@ -169,19 +169,12 @@ export default function Read(props) {
         useSensor(TouchSensor, {activationConstraint: {delay: TOUCH_HOLD_MS, tolerance: TOUCH_TOLERANCE_PX}}),
     );
 
-    /* Volt-e húzás a mostani lenyomás óta — EGY jelző az egész rácsra.
+    /* Volt-e húzás a mostani lenyomás óta? Enélkül nem tudnánk különbséget tenni
+       a húzást lezáró kattintás (elnyelendő) és a szándékos kattintás (átengedendő)
+       között — a kettő ugyanúgy néz ki.
 
-       A dnd-kit (a react-beautiful-dnd-vel ellentétben) nem nyeli el a húzás
-       utáni kattintást, a böngésző viszont küld egyet a felengedéskor. A kártya
-       kattintásra a szerkesztőt nyitja, tehát enélkül minden áthelyezés
-       megnyitná a szerkesztőt — épp azt, amit nem akartunk.
-
-       Miért a rácson, és nem kártyánként? Mert a kattintás nem feltétlenül azon
-       a kártyán landol, amit húztunk: a lista közben átrendeződik, így a kurzor
-       alá a szomszéd is kerülhet. Kártyánkénti jelzővel a szomszéd átengedte
-       volna a kattintást (ő maga nem volt húzva) — és hogy melyik szomszéd kerül
-       oda, az attól függ, FELFELÉ vagy lefelé húztunk. Innen jött, hogy a
-       sorszám növelése hibátlan volt, a csökkentése viszont elnavigált. */
+       Ref és nem state: a változása NEM járhat újrarajzolással, és úgysem a
+       megjelenítést vezérli. */
     const draggedSincePress = useRef(false);
 
     const handleDragStart = useCallback(() => {
@@ -194,13 +187,34 @@ export default function Read(props) {
         draggedSincePress.current = false;
     }, []);
 
-    // Capture fázis: a kártya saját kattintás-kezelője ELÉ kell kerülnünk —
-    // a capture a gyökértől halad lefelé, tehát mi vagyunk előbb.
-    const handleClickCapture = useCallback((event) => {
-        if (!draggedSincePress.current) return;
-        draggedSincePress.current = false;
-        event.preventDefault();
-        event.stopPropagation();
+    /* A húzást lezáró kattintás elnyelése. A kártya tartalma link, tehát enélkül
+       minden áthelyezés végén megnyílna a szerkesztő vagy a kategória-nézet.
+
+       Miért a DOKUMENTUMON, és miért a felépüléskor felkötve? Mert a dnd-kit is
+       tesz fel egy dokumentum-szintű, capture-fázisú click-kezelőt, és az
+       stopPropagation-t hív — onnantól az esemény EL SEM JUT a rácsig, tehát egy
+       ottani kezelő (React onClickCapture) sosem futna le. Azonos elemen a
+       capture-kezelők a felkötés sorrendjében futnak: a dnd-kit a lenyomáskor
+       köti fel a magáét, mi viszont már a felépüléskor — így mi vagyunk előbb.
+
+       És miért preventDefault, amikor a stopPropagation kézenfekvőbb? Mert a
+       kettő MÁST tilt, és itt a különbség dönt. A dnd-kit stopPropagation-je a
+       React-kezelőket némítja el, vagyis a react-router navigációját — az <a>
+       ALAPÉRTELMEZETT viselkedését viszont nem érinti. A böngésző emiatt teljes
+       oldalbetöltéssel ment el a linkre, navigációs state nélkül, ahonnan a
+       Read őre visszadobott a főoldalra: kívülről ez úgy nézett ki, mintha az
+       áthelyezés újratöltené a lapot. Ezt CSAK a preventDefault állítja meg.
+       (Mérve, 2026-07-17: a kattintáson defaultPrevented=false volt, miközben a
+       terjedést a dnd-kit már megállította.) */
+    useEffect(() => {
+        const swallowClickAfterDrag = (event) => {
+            if (!draggedSincePress.current) return;
+            draggedSincePress.current = false;
+            event.preventDefault();
+            event.stopPropagation();
+        };
+        document.addEventListener("click", swallowClickAfterDrag, true);
+        return () => document.removeEventListener("click", swallowClickAfterDrag, true);
     }, []);
 
     const handleDragEnd = useCallback((event) => {
@@ -253,14 +267,12 @@ export default function Read(props) {
                 <DndContext sensors={sensors} collisionDetection={closestCenter}
                             onDragStart={handleDragStart} onDragEnd={handleDragEnd}
                             modifiers={MODIFIERS}
-                            autoScroll={{activator: AutoScrollActivator.DraggableRect,
-                                         acceleration: AUTO_SCROLL_ACCELERATION,
+                            autoScroll={{acceleration: AUTO_SCROLL_ACCELERATION,
                                          threshold: AUTO_SCROLL_THRESHOLD}}>
                     <SortableContext items={todos.map((todo) => todo._id)}
                                      strategy={isSingleColumn ? verticalListSortingStrategy : rectSortingStrategy}>
                         <div className="row justify-content-center todo-grid"
-                             onPointerDownCapture={handlePointerDownCapture}
-                             onClickCapture={handleClickCapture}>
+                             onPointerDownCapture={handlePointerDownCapture}>
                             {todos.map((todo) =>
                                 <SortableCard key={todo._id} id={todo._id}>
                                     <div className={"card bg-transparent border-2 border-" + todo.color}>
