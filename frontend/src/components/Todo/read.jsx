@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {Navigate, useLocation} from "react-router-dom";
 import {
-    AutoScrollActivator, closestCenter, DndContext, MouseSensor, TouchSensor, useSensor, useSensors,
+    closestCenter, DndContext, MouseSensor, TouchSensor, useSensor, useSensors,
 } from "@dnd-kit/core";
 import {
     arrayMove, rectSortingStrategy, SortableContext, verticalListSortingStrategy,
@@ -36,16 +36,25 @@ const MOUSE_DRAG_START_PX = 8;
    osztályok változnak, ezt is át kell írni. */
 const SINGLE_COLUMN_QUERY = "(max-width: 575.98px)";
 
-/* A vízszintes auto-görgetés KIKAPCSOLVA (x: 0); a függőleges marad az
-   alapértelmezett ötödén (y: 0.2).
+/* A vízszintes auto-görgetés KIKAPCSOLVA (x: 0); a függőleges zóna az
+   alapértelmezettnél (0.2) tágabb.
 
-   Nem ízlés kérdése: a lapunk vízszintesen SOHA nem görgethető — nincs hova. De
-   ha a kártyát jobbra húzod, kilóg, amitől a böngésző túlcsordulást csinál, és
-   HIRTELEN lesz mit görgetni. Az auto-görgetés erre jobbra indul, amitől még
-   több hely lesz, a kártya még kijjebb megy — és elszabadul a semmibe. Balra ez
-   nem fordulhat elő: negatív irányba a böngésző nem hoz létre görgethető
-   területet. (A user vette észre pont ezt az aszimmetriát.) */
-const AUTO_SCROLL_THRESHOLD = {x: 0, y: 0.2};
+   A tágabb zóna azt jelenti, hogy a görgetés HAMARABB indul: az ujjnak nem kell
+   olyan közel vinni a képernyő széléhez. Ez azért kell, mert a görgetés az UJJ
+   helyzetéből számol, a kártyáink viszont magasak és túlnyúlnak az ujjon — mire
+   a kártya látszólag a lap széléhez ér, az ujj még beljebb jár. (A dnd-kit tud
+   a kártya téglalapjához is mérni, de azt kipróbálva ugyanezt kaptuk, csak egy
+   további eltéréssel az alapoktól — ezért a zónát választottuk.) A zóna a
+   KEZDÉST hozza előre; a sebességet külön szám adja (lásd lent).
+
+   A lapunk vízszintesen sosem görgethető, tehát ezen a tengelyen nincs is mit
+   tennie — a nulla ezt mondja ki. Öv ÉS nadrágtartó: a kártyát a restrictToList
+   amúgy is a listán belül tartja (lásd lent), így vízszintes túlcsordulás elő
+   sem áll. Régen viszont pontosan ez a lánc szabadította el a kártyát: kilógott,
+   a böngésző görgethető területet csinált neki, az auto-görgetés követte, attól
+   még több hely lett. A két védelem közül a restrictToList a lényegi; ez itt
+   annyit ér, hogy a tengelyt akkor is némán tartja, ha amaz egyszer elromlana. */
+const AUTO_SCROLL_THRESHOLD = {x: 0, y: 0.35};
 
 /* A görgetés sebesség-szorzója — a lenti érték a felhasználó választása, kézzel
    kipróbálva. (A könyvtár alapértelmezése 10; a számot itt szándékosan nem
@@ -55,9 +64,16 @@ const AUTO_SCROLL_THRESHOLD = {x: 0, y: 0.2};
    emelgetése ugyanis sokáig csak a tünetet kezelte volna: a Bootstrap animált
    görgetése nyelte el a kért görgetés 99,5%-át (lásd index.css:
    scroll-behavior). Amíg ez az ok élt, semmilyen szorzó nem volt igazán
-   "helyes" — utána viszont már az alapértelmezés is bőven elég lett, és innen
-   lehetett érzésre hangolni. */
-const AUTO_SCROLL_ACCELERATION = 15;
+   "helyes"; az ok megszűnte után viszont már érzésre lehetett hangolni, és ez
+   az érték onnan való.
+
+   Ez a szám CSAK a sebességet állítja. Azt, hogy a görgetés mikor INDULJON,
+   szándékosan nem itt hangoljuk, hanem a zónával (AUTO_SCROLL_THRESHOLD) —
+   különben a "későn indul" hibát a "gyorsabban görgessen" válasszal
+   kompenzálnánk, és a szám idővel elszakadna az indokától. Pontosan ez történt
+   egyszer: a szorzó két lépésben is feljebb kúszott, mert valójában az indulás
+   késett — a zóna tágítása után derült ki, hogy nem a sebességgel volt baj. */
+const AUTO_SCROLL_ACCELERATION = 25;
 
 /* A kártya ne hagyhassa el a listát.
 
@@ -253,17 +269,14 @@ export default function Read(props) {
     return (
         isLoading ? <Spinner class="min-vh-75"/> :
             <div className="container-fluid">
-                {/* activator: a görgetés a HÚZOTT KÁRTYA helyzetét nézze, ne az ujjét.
+                {/* Az automatikus görgetés az alapértelmezett activatorral megy: az
+                    ujjat/kurzort figyeli, nem a húzott kártya téglalapját.
 
-                    A dnd-kit alapból az ujjat figyeli (AutoScrollActivator.Pointer), és
-                    abból számol, milyen közel van a képernyő széléhez. A kártya viszont
-                    MAGAS, és fölfelé túlnyúlik az ujjon: mire a kártya látszólag a lap
-                    tetejére ér, az ujj még a képernyő harmadánál jár (mérve: 245 px,
-                    miközben a kártya teteje már −85-nél volt). Az alapértelmezett zóna a
-                    képernyő 20%-a — oda az ujj így EL SEM ÉRNE, tehát a görgetés meg sem
-                    indulna. A kártya téglalapjával azt mérjük, amit a felhasználó LÁT.
-
-                    A sebesség-szorzót lásd az AUTO_SCROLL_ACCELERATION-nél. */}
+                    A kártya-alapú activator kézzel ki lett próbálva, és tényleg
+                    hamarabb indított (a magas kártya széle előbb ér a zónába, mint az
+                    ujj) — de ugyanezt a zóna tágítása adja, a sebesség érintése
+                    nélkül, és úgy egy paraméterrel kevesebb tér el az alapoktól.
+                    A kettő közül a zónát választottuk. */}
                 <DndContext sensors={sensors} collisionDetection={closestCenter}
                             onDragStart={handleDragStart} onDragEnd={handleDragEnd}
                             modifiers={MODIFIERS}
