@@ -1,11 +1,23 @@
 import LinkCategory from "./category";
 
+/* A kattintható terület CSAK a kategória szövege, nem a teljes sor szélessége.
+
+   Ezért nem Bootstrap-sor (.row) tartja őket: a ".row > *" szabály minden
+   közvetlen gyerekre width: 100%-ot tesz, amitől a doboz a jobbra igazított
+   szöveg mellett balra végig kattintható maradt — a felhasználó a névtől
+   méterekre kattintva is kategóriát váltott. A flex-oszlop align-items-end-del
+   ugyanúgy jobbra igazít, de a dobozt a tartalmára zsugorítja.
+
+   A térköz szándékosan MARGÓ (me-5) és nem padding: a padding a dobozon BELÜL
+   van, tehát kattintható felület lenne — pontosan az, amit el akarunk kerülni.
+   A margó kívül esik, így a látvány marad, a találati felület mégis a szövegre
+   szűkül. */
 export default function CategoryGroup(props) {
     return (
-        <div className="row pe-5">
+        <div className="d-flex flex-column align-items-end pe-5">
             {props.categories.map((category) =>
                 <LinkCategory key={category} category={category}
-                              class={"text-end pt-0 pb-2 pe-5"} onClick={props.onClick}/>)
+                              class={"pt-0 pb-2 me-5"} onClick={props.onClick}/>)
             }
         </div>
     );
