@@ -73,6 +73,29 @@ export function ThemeProvider({children}) {
         html.style.setProperty("--theme-accent-contrast", theme.accentContrast);
         html.style.setProperty("--theme-focus-border", theme.focusBorder);
         html.style.setProperty("--theme-focus-ring", theme.focusRing);
+
+        /* A gördítősáv nyilai. Miért ITT áll össze a kép, és nem a CSS-ben?
+
+           A nyíl alakja nem rajzolható meg keretekből (a hátulja bemetszett), tehát
+           kép kell hozzá — a beágyazott SVG viszont egy SZÖVEG: nem lát CSS-változót,
+           így a téma színét sem. Ha beleégetnénk egy színt, a témaváltásnál hazuggá
+           válna: a sötét téma sárgája a világos témán olvashatatlan.
+
+           A kép ezért itt születik, ahol a szín ismert, és változóként megy a
+           CSS-hez (index.css). A # jelet kódolni KELL (%23), különben az URL-ben
+           töredék-jelnek számítana, és a kép némán üres maradna.
+
+           A nyíl a 10-es viewBoxon belül szándékosan kisebb, mint a teljes kép: a
+           kép a CSS-ben pontosan a gomb szélességét kapja, így nem marad fél
+           pixel margó, amit a böngésző hol erre, hol arra kerekítene. (Mérve
+           2026-07-17: 5 px-es kép a 6 px-es gombon 0,45 px-et csúszott a hüvelyk
+           tengelyéhez képest — a felső nyíl jobbra, az alsó balra.) */
+        const arrow = (path) => `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'` +
+            ` viewBox='0 0 10 10'%3E%3Cpath d='${path}' fill='${theme.accent.replace("#", "%23")}'` +
+            ` stroke='${theme.accent.replace("#", "%23")}' stroke-width='1'` +
+            ` stroke-linejoin='round'/%3E%3C/svg%3E")`;
+        html.style.setProperty("--scrollbar-arrow-up", arrow("M5 2 L8.2 8 L5 6.4 L1.8 8 Z"));
+        html.style.setProperty("--scrollbar-arrow-down", arrow("M5 8 L1.8 2 L5 3.6 L8.2 2 Z"));
     }, [theme]);
 
     /* Sima useEffect (a festés UTÁN fut) — SZÁNDÉKOSAN, két okból is.

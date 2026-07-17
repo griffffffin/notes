@@ -115,6 +115,104 @@ textarea.form-control::placeholder {
     scroll-behavior: auto !important;
 }
 
+/* A gördítősáv a témához igazítva: keskeny, lekerekített, a téma színével.
+
+   SZÁNDÉKOSAN nem tüntetjük el: a sáv két dolgot közöl, amit semmi más nem
+   pótol (van még tartalom, és hol tartasz benne), ráadásul fogantyú is, amivel
+   egérrel a lista közepére lehet rántani. Egy 10 000 elemes kategóriában ez
+   nem dekoráció.
+
+   Miért KÉT külön szabály? Mert a kettő kizárja egymást: ha a szabványos
+   scrollbar-width/-color meg van adva, a Chromium FIGYELMEN KÍVÜL hagyja a
+   ::-webkit-scrollbar pszeudoelemeket. A szabványos viszont csak "thin"-t tud,
+   pontos méretet nem — ezért ahol lehet, a pszeudoelemekkel adjuk meg, és a
+   szabványosat csak oda engedjük, ahol azok nem léteznek.
+
+   A feature-lekérdezés ezt választja szét: a Firefox nem ismeri a
+   ::-webkit-scrollbar szelektort, tehát ő kapja a szabványos ágat; a Chromium
+   ismeri, tehát nála a pszeudoelemek maradnak érvényben.
+
+   A színt a téma tölti (--theme-accent); amíg nincs a helyén, az érték
+   érvénytelen, és a böngésző alapértelmezettje marad — ez jó tartalék, nem
+   hiba. A pálya átlátszó, hogy a téma háttere látsszon alatta. */
+/* A sáv 6 px-et foglal, a hüvelyk viszont csak 2-t: a hüvelyk átlátszó KERETET
+   kap, és a festés a kereten belülre szorul (background-clip: content-box) — a
+   keret üres helyet tart mellette, anélkül hogy maga a sáv szélesedne.
+
+   A 6 px a nyilak alsó határa: kirenderelve 5 px-en is látszanak még, de ott a
+   háromszög már alig különbözik a hüvelyktől. */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+/* A hüvelyk HOSSZÁHOZ szándékosan nem nyúlunk. Az a böngészőé: azt mutatja,
+   mekkora része látszik a lapnak — vagyis információ, nem díszítés.
+
+   Kipróbálva és elvetve (2026-07-17): a max-height-et a WebKit itt figyelmen
+   kívül hagyja; a fix levágás (átlátszó keret + background-clip) ma szép lenne,
+   de sok elemnél — ahol a hüvelyk magától rövid — egyszerűen eltüntetné. Csak a
+   szélességet állítjuk, azt a keret adja. */
+::-webkit-scrollbar-thumb {
+    background-color: var(--theme-accent);
+    border: 2px solid transparent;
+    background-clip: content-box;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* A nyilak fent és lent. A ::-webkit-scrollbar-button NEM rajzol nyílformát,
+   csak egy üres dobozt ad — a nyilat nekünk kell megrajzolnunk.
+
+   A forma a felhasználó által adott kép (right-arrow.png) alapján készült: nem
+   sima háromszög, a hátulja bemetszett. Keretekből ez már nem rajzolható meg,
+   kép kell hozzá.
+
+   A képet a ThemeProvider állítja össze és adja át változóban (contexts/theme.jsx):
+   a beágyazott SVG ugyanis szöveg, nem lát CSS-változót, tehát a téma színét
+   magától nem venné fel. Maszkolással a szín megoldható lenne, de azt ez a
+   pszeudoelem NEM fogadja el (kipróbálva: a nyíl helyén tömör négyzet maradt) —
+   háttérképként viszont működik.
+
+   A :decrement/:increment megkötés NEM elhagyható: a WebKit MINDKÉT véghez két
+   gombot ismer (egy felfelé és egy lefelé léptetőt), és a puszta :start
+   mindkettőre illeszkedne — ettől két nyíl került egymás alá a sáv tetején.
+   Ezért nevezzük meg pontosan, melyik kell, a másik kettőt pedig elrejtjük. */
+::-webkit-scrollbar-button:vertical:start:increment,
+::-webkit-scrollbar-button:vertical:end:decrement {
+    display: none;
+}
+
+::-webkit-scrollbar-button:vertical:start:decrement {
+    display: block;
+    height: 6px;
+    background: var(--scrollbar-arrow-up) center / 6px no-repeat;
+}
+
+::-webkit-scrollbar-button:vertical:end:increment {
+    display: block;
+    height: 6px;
+    background: var(--scrollbar-arrow-down) center / 6px no-repeat;
+}
+
+/* A vízszintes sávra és a sarok-négyzetre nem kérünk gombot: ott a rács
+   overflow-x: clip miatt amúgy sem keletkezik görgetés (lásd .todo-grid). */
+::-webkit-scrollbar-button:horizontal,
+::-webkit-scrollbar-corner {
+    display: none;
+}
+
+@supports not selector(::-webkit-scrollbar) {
+    html {
+        scrollbar-width: thin;
+        scrollbar-color: var(--theme-accent) transparent;
+    }
+}
+
+
 /*read.jsx*/
 /* A kártyarács vízszintesen SOHA nem hozhat létre görgetést: a kártyák az ablak
    szélességéhez igazodnak, oldalra kilógniuk sosem szabad. Ezt itt kimondjuk,
