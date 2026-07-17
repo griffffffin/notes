@@ -48,7 +48,7 @@ const SINGLE_COLUMN_QUERY = "(max-width: 575.98px)";
    KEZDÉST hozza előre; a sebességet külön szám adja (lásd lent).
 
    A lapunk vízszintesen sosem görgethető, tehát ezen a tengelyen nincs is mit
-   tennie — a nulla ezt mondja ki. Öv ÉS nadrágtartó: a kártyát a restrictToList
+   tennie — a nulla ezt mondja ki. Kettős biztosíték: a kártyát a restrictToList
    amúgy is a listán belül tartja (lásd lent), így vízszintes túlcsordulás elő
    sem áll. Régen viszont pontosan ez a lánc szabadította el a kártyát: kilógott,
    a böngésző görgethető területet csinált neki, az auto-görgetés követte, attól
