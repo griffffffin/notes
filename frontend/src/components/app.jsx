@@ -1,11 +1,24 @@
 import {useCallback, useEffect, useState} from "react";
 import {library} from "@fortawesome/fontawesome-svg-core";
-import {fas} from "@fortawesome/free-solid-svg-icons";
+import {
+    faAngleDown, faAngleUp, faBars, faFill, faFillDrip,
+    faPaintRoller, faPlus, faRightFromBracket,
+} from "@fortawesome/free-solid-svg-icons";
 import Routes from "./routes";
 import {useAuth} from "../contexts/auth";
 import {logRequestError} from "../log";
 
-library.add(fas);
+/* CSAK a ténylegesen használt ikonokat regisztráljuk, nem a teljes `fas`
+   készletet (~1600 ikon). A régi `library.add(fas)` mindet a bundle-be húzta,
+   mert egy egészben átadott objektumból a tree-shaking nem tudja kiszűrni a
+   használatlant. Nevesített importoknál a Rollup pontosan látja, mi kell.
+
+   FONTOS: ha új ikont kezdesz használni a kódban (icon="fa-solid fa-…"), ide
+   is fel KELL venni, különben némán üresen jelenik meg. A használt ikonok:
+   angle-down/up (nyilak), bars (húzófogantyú), fill + fill-drip (színválasztó
+   zárt/nyitott), paint-roller (téma), plus (hozzáadás), right-from-bracket
+   (kijelentkezés). */
+library.add(faAngleDown, faAngleUp, faBars, faFill, faFillDrip, faPaintRoller, faPlus, faRightFromBracket);
 
 export default function App() {
     const [isColorAngleClicked, setIsColorAngleClicked] = useState(false);
