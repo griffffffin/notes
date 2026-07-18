@@ -30,6 +30,14 @@ const REFRESH_EVERY_MS = 5 * 60 * 1000;
 // órás határhoz, és észrevehetetlen terhelés.
 const IDLE_CHECK_MS = 60 * 1000;
 
+/* Egy szerverhívás legfeljebb ennyi ideig várhat válaszra. Timeout NÉLKÜL egy
+   néma szerver vagy megszakadt hálózat esetén a kérés örökké függne — sem a
+   siker-, sem a hiba-ág nem futna le —, és a betöltő-jelző a végtelenségig
+   pörögne (ez okozta a törlés-modal szellemének "örök töltését" is). 15 s bőven
+   elég a leglassabb valós válasznak is, de véges: utána a kérés ECONNABORTED
+   hibával elszáll, és lefut a hiba-ág. */
+const REQUEST_TIMEOUT_MS = 15 * 1000;
+
 /* Ezek jelzik, hogy a gép előtt vagy. A passive: true azt ígéri a böngészőnek,
    hogy nem akadályozzuk meg az alapértelmezett viselkedést — enélkül minden
    görgetésnél meg kellene várnia a kódunkat, ami akadozást okozna. */
@@ -56,8 +64,10 @@ export function AuthProvider({children}) {
     const logout = useCallback(() => removeCookie("user", {path: "/"}), [removeCookie]);
 
     const handleAxios = useCallback((url, data, then, catchError) =>
-        axios.post(import.meta.env.VITE_BACKEND + url, data,
-            token ? {headers: {Authorization: "Bearer " + token}} : undefined)
+        axios.post(import.meta.env.VITE_BACKEND + url, data, {
+            timeout: REQUEST_TIMEOUT_MS,
+            headers: token ? {Authorization: "Bearer " + token} : undefined,
+        })
             .then(then)
             .catch((error) => {
                 if (error.response?.status === 401) removeCookie("user", {path: "/"});

@@ -68,10 +68,12 @@ describe("Entry — bejelentkezés", () => {
         await userEvent.type(screen.getByLabelText("Jelszó"), "Teszt1234");
         await userEvent.click(submitButton());
 
+        // Bejelentkezés előtt még nincs token, tehát nincs Authorization fejléc.
+        // Az objectContaining a config timeout-mezőjét figyelmen kívül hagyja.
         expect(axios.post).toHaveBeenCalledWith(
             expect.stringContaining("/login"),
             {name: "anna", password: "Teszt1234"},
-            undefined);   // bejelentkezés előtt még nincs token, tehát nincs fejléc
+            expect.objectContaining({headers: undefined}));
     });
 });
 

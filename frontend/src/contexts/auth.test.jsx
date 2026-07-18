@@ -64,17 +64,22 @@ describe("AuthProvider", () => {
         await userEvent.click(screen.getByRole("button", {name: "belépés"}));
         await userEvent.click(screen.getByRole("button", {name: "kérés"}));
 
+        // objectContaining: a fejlécre fókuszálunk, a config többi mezőjét (pl. a
+        // timeout-ot) figyelmen kívül hagyjuk, hogy az ne tegye törékennyé a tesztet.
         expect(axios.post).toHaveBeenCalledWith(
             expect.stringContaining("/valami"), {a: 1},
-            {headers: {Authorization: "Bearer uj-token"}});
+            expect.objectContaining({headers: {Authorization: "Bearer uj-token"}}));
     });
 
     it("kijelentkezve nem küld Authorization fejlécet", async () => {
         renderAuth();
         await userEvent.click(screen.getByRole("button", {name: "kérés"}));
 
+        // Token nélkül a headers undefined — nincs Authorization. (A timeout-ot az
+        // objectContaining itt is figyelmen kívül hagyja.)
         expect(axios.post).toHaveBeenCalledWith(
-            expect.stringContaining("/valami"), {a: 1}, undefined);
+            expect.stringContaining("/valami"), {a: 1},
+            expect.objectContaining({headers: undefined}));
     });
 
     it("401-es válasznál kilépteti a felhasználót (lejárt token)", async () => {
