@@ -418,9 +418,9 @@ html:not(.theme-ready) *::after {
     font-size: 150% !important;
 }
 
-/* Az X ugyanígy: egy rajz, a színt a currentColor adja — a .btn-close a modal
-   megnyitásakor kap text-<szín> osztályt (deleteAndModal.jsx), abból jön a szín.
-   Itt nincs keret, amit a maszk levághatna, tehát nem kell a rajzba tenni. */
+/* Az X ugyanígy: egy rajz, a színt a currentColor adja — a .btn-close a to-do
+   színének text-<szín> osztályát viseli (modal.jsx), abból jön a szín. Itt nincs
+   keret, amit a maszk levághatna, tehát nem kell a rajzba tenni. */
 /* Az X mérete és helye a kártyán lévő + ikonhoz igazodik: 28 px (körrel együtt),
    és a modal két szélétől ugyanannyira áll.
 
@@ -452,4 +452,95 @@ html:not(.theme-ready) *::after {
    (Mérve: enélkül a padding félig hatott, 8px 12px lett belőle.) */
 .modal-header.modal-header {
     padding: 12px !important;
+}
+
+
+/*modal.jsx – a törlés-modal natív <dialog> kerete*/
+/* A <dialog> csak a pozíció és a backdrop hordozója; a látható dobozt a belső
+   .modal-content viseli (a fenti modal-szabályok mind arra hatnak). A natív
+   UA-keretet és -paddinget levesszük, a szélesség a Bootstrap modal-dialoggal
+   egyezik (max 500 px), és felül jelenik meg: a régi react-bootstrap modal is
+   oda, ~3rem-re került (a tartalom mt-5 osztályával), ezt tartjuk a <dialog>
+   alap függőleges közepe helyett. A margin: 3rem auto auto = felül 3rem,
+   vízszintesen közép, alul auto. */
+dialog.todo-modal {
+    /* A <dialog> NEM .modal, ezért a Bootstrap --bs-modal-* változói (amiket a
+       react-bootstrap .modal gyökere definiált) itt hiányoznának, és a
+       .modal-body padding: var(--bs-modal-padding) 0-ra esne — a felirat és a
+       gombok a keretig érnének. A body-padingot itt pótoljuk. */
+    --bs-modal-padding: 1rem;
+    /* A Bootstrap modal-dialog méretezését követi, breakpointonként (l. a lenti
+       576px-es media query-t). Mobilon (<576px) a margó 0.5rem minden oldal
+       (Bootstrap --bs-modal-margin), a szélesség a maradék; a max-width a
+       Bootstrap --bs-modal-width (500px). A width: calc(100% - 1rem) adja a
+       0.5rem + 0.5rem oldalsó margót, a margin: 0.5rem auto a felső/alsó 0.5rem-et
+       és a vízszintes középre igazítást. */
+    width: calc(100% - 1rem);
+    max-width: 500px;
+    margin: 0.5rem auto;
+    padding: 0;
+    border: none;
+    background: transparent;
+    /* Fade megjelenés/eltűnés. Az opacity átmenete mellé a display és az overlay
+       DISZKRÉT átmenete (allow-discrete) kell, mert a <dialog> nyitáskor
+       display:none -> block-ra vált — enélkül a belépő fade el sem indulna, a
+       kilépő pedig azonnal eltűnne. A @starting-style adja a belépő kezdőállapotot. */
+    opacity: 0;
+    transition: opacity 0.2s ease,
+                display 0.2s ease allow-discrete,
+                overlay 0.2s ease allow-discrete;
+}
+dialog.todo-modal[open] {
+    opacity: 1;
+}
+@starting-style {
+    dialog.todo-modal[open] {
+        opacity: 0;
+    }
+}
+
+/* 576px fölött a Bootstrap a margót 1.75rem-re növeli (--bs-modal-margin), a
+   modal a max 500px-en, középen — a mobil 0.5rem helyett több levegő nagy
+   képernyőn. (A width: calc(100% - 1rem) marad, de a max-width 500px korlátoz.) */
+@media (min-width: 576px) {
+    dialog.todo-modal {
+        margin: 1.75rem auto;
+    }
+}
+
+/* A háttér elsötétítése — a react-bootstrap backdrop-ja is ~félig áttetsző fekete.
+   A backdrop külön fade-el (a nyitó/záró átmenettel együtt). */
+dialog.todo-modal::backdrop {
+    background: rgba(0, 0, 0, 0);
+    -webkit-backdrop-filter: blur(0);
+    backdrop-filter: blur(0);
+    transition: background 0.2s ease,
+                -webkit-backdrop-filter 0.2s ease,
+                backdrop-filter 0.2s ease,
+                display 0.2s ease allow-discrete,
+                overlay 0.2s ease allow-discrete;
+}
+dialog.todo-modal[open]::backdrop {
+    /* A háttér nemcsak sötétedik, hanem el is mosódik a modal mögött — a
+       -webkit- előtag a Safarinak kell. */
+    background: rgba(0, 0, 0, 0.5);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+}
+@starting-style {
+    dialog.todo-modal[open]::backdrop {
+        background: rgba(0, 0, 0, 0);
+        -webkit-backdrop-filter: blur(0);
+        backdrop-filter: blur(0);
+    }
+}
+
+/* Mozgásérzékeny felhasználóknak (prefers-reduced-motion) nincs átúszás — a modal
+   azonnal jelenik meg/tűnik el. Bevett a11y-gyakorlat: az animáció ne ártson
+   azoknak, akiknél a mozgás rosszullétet okozhat. */
+@media (prefers-reduced-motion: reduce) {
+    dialog.todo-modal,
+    dialog.todo-modal::backdrop {
+        transition: none;
+    }
 }

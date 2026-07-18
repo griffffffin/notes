@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react";
+import {useState} from "react";
 import {useNavigate} from "react-router-dom";
 import Modal from "./modal";
 import {useAuth} from "../../contexts/auth";
@@ -18,10 +18,6 @@ export default function DeleteAndModal(props) {
     };
 
     const handleModalClose = () => setIsModalShow(false);
-
-    useEffect(() => {
-        if (isModalShow) document.getElementsByClassName("btn-close")[0].classList.add("text-" + props.color);
-    }, [isModalShow, props.color]);
 
     const handleDelete = () => {
         handleModalClose();

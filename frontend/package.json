@@ -21,7 +21,6 @@
     "axios": "^1.18.1",
     "bootstrap": "^5.3.8",
     "react": "^19.2.7",
-    "react-bootstrap": "^2.10.10",
     "react-cookie": "^8.1.2",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1",
