@@ -242,6 +242,22 @@ textarea.form-control::placeholder {
 }
 
 
+/*save.jsx – a szerkesztő első sora (cím + sorszám-toolbar)*/
+/* A card 27px-re lekerekített, de a card-header alapból NEM kap lekerekítést:
+   a .card border-radius-át !important-tal írtuk felül (27px), amitől a Bootstrap
+   --bs-card-inner-border-radius nem frissül, és a header szögletes marad. Amíg a
+   header átlátszó volt (bg-transparent), ez nem látszott; a bg-theme-page-es
+   sorszám-toolbar viszont fekete/fehér téglalap-sarokkal kilógott a card ívén.
+   Ezért a sor két SZÉLSŐ elemének külső felső sarkát a card-hoz igazítjuk. */
+form.card > .input-group:first-child > :first-child {
+    border-top-left-radius: 27px !important;
+}
+
+form.card > .input-group:first-child > :last-child {
+    border-top-right-radius: 27px !important;
+}
+
+
 /*read.jsx*/
 /* A kártyarács vízszintesen SOHA nem hozhat létre görgetést: a kártyák az ablak
    szélességéhez igazodnak, oldalra kilógniuk sosem szabad. Ezt itt kimondjuk,

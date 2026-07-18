@@ -69,8 +69,11 @@ export default function Order(props) {
         };
     }, [plusDown, minusDown, props]);
 
+    /* A sorszám-toolbar a TÉMA színeit viseli (nem a to-do sajátját): a háttere a
+       lap háttere (bg-theme-page), a szám és a gombok a kiemelőszínt (text-theme;
+       a gombok fill=currentColor ebből veszik). */
     return (
-        <div className={"card-header no-focus bg-transparent fs-4 user-select-none pe-2 text-" + props.color}>
+        <div className="card-header no-focus bg-theme-page fs-4 user-select-none pe-2 text-theme">
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor"
                  className="bi bi-dash-circle me-1 pb-1" viewBox="0 0 16 16"
                  onMouseDown={handleMinusDown} onMouseUp={handleMinusUp}
@@ -78,13 +81,31 @@ export default function Order(props) {
                 <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
                 <path d="M4 8a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7A.5.5 0 0 1 4 8z"/>
             </svg>
-            <span data-tooltip-id="order-tooltip">{props.current}</span>
+            {/* tabular-nums: minden számjegy AZONOS szélességű (mint egy
+                táblázatban), így a szám szélessége csak a jegyek SZÁMÁTÓL függ,
+                a konkrét számjegyektől nem — 1 és 8 egyforma helyet foglal. Enélkül
+                a keskeny és széles számjegyek váltogatták a szélességet, és attól
+                ugrált a + gomb. Az inline-block + text-align a számot a két gomb
+                közé középre igazítja. (A jegyszám VÁLTOZÁSA — 9→10 — még szélesít
+                egyet, de az ritka és logikus.) */}
+            <span data-tooltip-id="order-tooltip"
+                  style={{fontVariantNumeric: "tabular-nums", display: "inline-block", textAlign: "center"}}>
+                {props.current}
+            </span>
             {/* A CSS-t a main.jsx importálja statikusan (disableStyleInjection).
                 z-index 10: a react-tooltip alapértéke 1, ami a fókuszált input
-                (Bootstrap: 5) alá esne. */}
-            <ReactTooltip id="order-tooltip" className={"border-" + props.color} place="bottom" clickable={true}
+                (Bootstrap: 5) alá esne.
+
+                A háttér/szöveg a TÉMA színeit viseli (mint a sorszám-toolbar), a
+                react-tooltip alapértelmezett szürke háttere + fehér szövege
+                helyett: háttér a lap (--theme-page-bg), szöveg és keret a
+                kiemelőszín (--theme-accent). A színeket inline adjuk, mert a
+                react-tooltip a saját (injektálatlan) stílusát tenné rá. */}
+            <ReactTooltip id="order-tooltip" place="bottom" clickable={true}
                           disableStyleInjection={true}
-                          border={"1px solid " + props.colorHex} style={{zIndex: 10}}>
+                          border="1px solid var(--theme-accent)"
+                          style={{zIndex: 10, backgroundColor: "var(--theme-page-bg)",
+                                  color: "var(--theme-accent)", fontSize: "60%"}}>
                 Sorszám
             </ReactTooltip>
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor"
