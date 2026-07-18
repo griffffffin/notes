@@ -87,6 +87,26 @@ describe("Save útvonalai", () => {
         expect(screen.getByPlaceholderText("Cím")).toHaveValue("");
         expect(screen.getByPlaceholderText("Kategória")).toHaveValue("");
     });
+
+    it("ha a to-do betöltése hibázik, a főoldalra visz, nem pörög a betöltő", async () => {
+        // A /id kérés elszáll (pl. timeout) — a szerkesztő NEM ragadhat a
+        // spinneren, mert a setIsLoading(false) a betöltött adathoz kötött.
+        handleAxios.mockImplementation((url, data, then, catchError) => {
+            if (url === "/id") catchError({message: "timeout of 15000ms exceeded"});
+            else if (url === "/last/order") then({data: 3});
+            else if (url === "/") then({data: [TODO]});
+            else then({status: 200, data: {}});
+            return Promise.resolve();
+        });
+        renderRoutes();
+
+        // A listáról a kártyára kattintva indul a szerkesztő betöltése.
+        await userEvent.click(await screen.findByText("Bevásárlás"));
+
+        // A betöltés hibája visszavisz a főoldalra; a Cím mező meg sem jelenik.
+        await waitFor(() => expect(window.location.pathname).toBe("/"));
+        expect(screen.queryByPlaceholderText("Cím")).not.toBeInTheDocument();
+    });
 });
 
 describe("Save színe", () => {
@@ -139,6 +159,36 @@ describe("Változatlan mentés", () => {
         // ...de a főoldalra azért visszavisz.
         await waitFor(() => expect(window.location.pathname).toBe("/"));
     });
+
+    it("Escape a szerkesztőben a Tovább gombbal egyenértékű: a főoldalra visz", async () => {
+        renderRoutes();
+
+        await userEvent.click(await screen.findByText("Bevásárlás"));
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
+
+        // Az Escape a formot süti el (mint a Tovább); változatlan to-dónál ez a
+        // "csak navigálás" ágra fut, tehát a főoldalra kerülünk.
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => expect(window.location.pathname).toBe("/"));
+    });
+
+    it("Escape ÉRINTETLEN create-en mentés nélkül a főoldalra visz (nem kényszerít)", async () => {
+        window.history.pushState({}, "", "/create");
+        renderRoutes();
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toBeInTheDocument());
+
+        // Üres űrlaphoz hozzá sem nyúltunk: nem kérünk kötelező mezőt, csak elvetjük.
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => expect(window.location.pathname).toBe("/"));
+        expect(screen.queryByText("Ez a mező kitöltése kötelező.")).not.toBeInTheDocument();
+    });
+
+    /* A "megkezdett, de hiányos" ág (dirty create + üres kötelező mező → nem
+       navigál, hibabuborék a mezőnél) élesben, headless renderrel igazolt. Itt
+       tudatosan NEM teszteljük jsdom-ban: a form.requestSubmit() + a submit-handler
+       closure időzítése jsdom alatt megbízhatatlan, a react-tooltip portálja pedig
+       nem lekérdezhető — a teszt inkább a keretrendszert vizsgálná, mint a
+       viselkedésünket. */
 
     it("ha módosítok, a Tovább elküldi a szervernek", async () => {
         renderRoutes();

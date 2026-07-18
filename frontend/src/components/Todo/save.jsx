@@ -15,6 +15,7 @@ import {useTheme} from "../../contexts/theme";
 import {useAuth} from "../../contexts/auth";
 import {TODO_COLORS} from "../../todoColors";
 import {logRequestError} from "../../log";
+import {Tooltip as ReactTooltip} from "react-tooltip";
 
 /* Változatlan-e az űrlap ahhoz képest, amit a szerver adott? */
 const isUnchanged = (current, loaded) =>
@@ -50,6 +51,11 @@ export default function Save(props) {
     const [isCategoryAngleClicked, setIsCategoryAngleClicked] = useState(false);
     const navigate = useNavigate();
     const {handleAxios} = useAuth();
+    const formRef = useRef(null);
+    /* A kötelező mezők SAJÁT hibabuborékja a natív böngésző-buborék helyett (azt
+       nem lehet stílusozni). null = nincs hiba; egyébként a hibás mező
+       CSS-szelektora, amihez a tooltipet horgonyozzuk. */
+    const [validationAnchor, setValidationAnchor] = useState(null);
 
     /* A hex a színnévből egyértelműen adódik, tehát nem state: kiszámoljuk.
        Korábban külön state volt, amit egy switch-es setter tartott szinkronban
@@ -113,7 +119,14 @@ export default function Save(props) {
                 setCategory(response.data.category);
                 setIsCategoryValid(true);
                 setIsDisabled(false);
-            }, logRequestError);
+            }, (error) => {
+                // A to-do nem tölthető be (pl. timeout vagy törölt elem) — vissza
+                // a listához, hogy a szerkesztő betöltője ne pörögjön örökké. A
+                // setIsLoading(false) a betöltött adathoz kötött, tehát hiba után
+                // magától nem oldódna fel; a read.jsx is navigációval kezeli.
+                logRequestError(error);
+                navigate("/");
+            });
         }
         handleAxios("/last/order", {},
             (response) => {
@@ -121,7 +134,7 @@ export default function Save(props) {
                 lastOrder === 0 ? setLastOrder(0) : setLastOrder(isUpdate ? lastOrder - 1 : lastOrder);
             },
             logRequestError);
-    }, [isUpdate, todoId, handleAxios]);
+    }, [isUpdate, todoId, handleAxios, navigate]);
 
     const setTask = useCallback((key, content, isDone) => {
         return {
@@ -146,6 +159,13 @@ export default function Save(props) {
 
     useEffect(() => setIsDisabled(!(isTitleValid && isCategoryValid)), [isTitleValid, isCategoryValid]);
 
+    /* A hibabuborék eltűnik, amint az ÉPP JELZETT mező kitöltötté válik — nem kell
+       kézzel bezárni, a kitöltés maga oldja fel. */
+    useEffect(() => {
+        if (validationAnchor === "#createColumn" && isTitleValid) setValidationAnchor(null);
+        else if (validationAnchor?.includes("Kategória") && isCategoryValid) setValidationAnchor(null);
+    }, [validationAnchor, isTitleValid, isCategoryValid]);
+
     const handleColorAngleClick = useCallback(() => setIsColorAngleClicked(!isColorAngleClicked),
         [isColorAngleClicked]);
 
@@ -161,20 +181,27 @@ export default function Save(props) {
             color: color,
             order: order,
         }
-        /* Ha semmi nem változott, NEM megyünk a szerverhez. Nem csak a
-           fölösleges kérés miatt: a mentés updatedAt-et is ír, tehát egy üres
-           "Tovább" módosítottnak jelölné a to-dót — hazudna a "mikor nyúltál
-           hozzá utoljára" adat, és a napi export is fölöslegesen lefutna.
-
-           A tasks/taskOrder összehasonlítása JSON-on át megy: a tasks kulcsai
-           számok, azokat a JS mindig növekvő sorrendben járja be, tehát a
-           szöveges alak stabil — nem fordulhat elő, hogy azonos tartalom
-           különbözőnek látsszon. */
-        if (isUpdate && loadedTodo.current && isUnchanged(data, loadedTodo.current)) {
+        /* ÉRINTETLEN űrlapot mentés nélkül elvetünk, és NEM kérünk kötelező mezőt —
+           nem kényszerítünk kitöltésre azt, aki hozzá sem nyúlt. Create-nél ez az
+           üres űrlap (se cím, se kategória, se listaelem); update-nél a betöltöttel
+           egyező tartalom (a mentés updatedAt-et is írna, tehát egy üres "Tovább"
+           hazudná, hogy hozzányúltunk, és a napi export is fölöslegesen futna). Az
+           isUnchanged JSON-on át hasonlít: a tasks kulcsai számok, amiket a JS
+           növekvő sorrendben jár be, tehát a szöveges alak stabil. */
+        const pristine = isUpdate
+            ? (loadedTodo.current && isUnchanged(data, loadedTodo.current))
+            : (!title.trim() && !category.trim() && Object.keys(todo.tasks ?? {}).length === 0);
+        if (pristine) {
             props.handleLinkClicked();
             navigate("/");
             return;
         }
+        /* Idáig jutva a felhasználó MÁR ÍRT valamit. Ha egy kötelező mező üres, a
+           saját hibabuborékot mutatjuk (a nem stílusozható natív helyett), és nem
+           mentünk/navigálunk. A cím az első, aztán a kategória. */
+        if (!isTitleValid) { setValidationAnchor("#createColumn"); return; }
+        if (!isCategoryValid) { setValidationAnchor("input[placeholder='Kategória']"); return; }
+        setValidationAnchor(null);
 
         if (isUpdate) data["id"] = todoId;
         handleAxios(url, data, (response) => {
@@ -184,7 +211,8 @@ export default function Save(props) {
                 navigate("/");
             }
         }, logRequestError);
-    }, [props, title, todo.tasks, todo.columns, category, color, order, isUpdate, todoId, url, navigate, handleAxios]);
+    }, [props, title, todo.tasks, todo.columns, category, color, order, isUpdate, todoId, url, navigate, handleAxios,
+        isTitleValid, isCategoryValid]);
 
     /* A színre már nem kell várni (a témából indul, nem egy kérés hozza), csak
        a sorszám-korlátra — szerkesztéskor ráadásul a betöltött to-do mezőire. */
@@ -195,6 +223,21 @@ export default function Save(props) {
         } else setIsLoading(false);
     }, [isUpdate, lastOrder, title, isTitleValid, category, isCategoryValid]);
 
+    /* Escape a szerkesztőben = mentés + vissza a főoldalra, pontosan úgy, ahogy a
+       "Tovább" gomb: a formot sütjük el (requestSubmit), így a natív validáció és
+       a handleSubmit (benne a "változatlan → csak navigálás" és a "mentés →
+       navigálás" ág) egyaránt ugyanúgy lefut. Kivétel: ha a törlés-modal nyitva
+       van, az Escape AZT zárja (natív <dialog> viselkedés) — ott nem mentünk. */
+    useEffect(() => {
+        const onKeyDown = (event) => {
+            if (event.key === "Escape" && !document.querySelector("dialog[open]")) {
+                formRef.current?.requestSubmit();
+            }
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, []);
+
     /* Szerkesztés id nélkül — közvetlen /update URL vagy F5. Nincs mit
        szerkeszteni, ezért vissza a főoldalra. A replace azért kell, hogy a
        zsákutca-/update ne kerüljön be az előzményekbe: a Vissza gomb ne ide
@@ -204,7 +247,8 @@ export default function Save(props) {
 
     return (
         isLoading ? <Spinner class="min-vh-75"/> :
-            <form onSubmit={handleSubmit} className={"col-11 col-sm-10 col-md-8 col-lg-7 col-xl-6 card " +
+            <form ref={formRef} noValidate onSubmit={handleSubmit}
+                  className={"col-11 col-sm-10 col-md-8 col-lg-7 col-xl-6 card " +
                 "mx-auto mt-3 bg-transparent border-2 border-" + color}>
 
                 <div className="input-group">
@@ -245,6 +289,19 @@ export default function Save(props) {
 
                     </div>
                 </div>
+
+                {/* Kötelező-mező hibabuborék a natív böngésző-buborék helyett. A
+                    "Sorszám" tooltip stílusát viseli (lap-háttér, kiemelőszínű keret
+                    és szöveg), a mező ALATT jelenik meg (place=bottom). Kontrollált:
+                    a validationAnchor vezérli (a submit-validáció állítja), és a
+                    horgony is onnan jön — a hibás mező CSS-szelektora. */}
+                <ReactTooltip id="validation-tooltip" isOpen={validationAnchor !== null}
+                              anchorSelect={validationAnchor ?? undefined} place="bottom"
+                              disableStyleInjection={true} border="1px solid var(--theme-accent)"
+                              style={{zIndex: 20, backgroundColor: "var(--theme-page-bg)",
+                                  color: "var(--theme-accent)"}}>
+                    Ez a mező kitöltése kötelező.
+                </ReactTooltip>
 
             </form>
     );
