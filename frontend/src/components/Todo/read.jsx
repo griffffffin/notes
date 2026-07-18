@@ -139,14 +139,27 @@ export default function Read(props) {
 
     useEffect(() => {
         if (missingFilter) return;
-        handleAxios(props.url, filter ?? {}, (response) => setTodos(response.data),
-            (error) => {
-                logRequestError(error);
-                /* A pörgő karika azt ígéri, hogy MINDJÁRT jön az adat. Ha a
-                   kérés elbukott, ez hazugság: inkább üres listát mutatunk,
-                   mint egy örökké tartó várakozást. */
-                setTodos([]);
-            });
+        /* Versenyhelyzet ellen. Ez az effekt egy betöltésen belül többször is
+           elindulhat (a törlés utáni navigáció két lekérést indít), és két
+           párhuzamos kérés válasza fordított sorrendben is visszaérhet — ilyenkor
+           egy RÉGI, lassabban érkező válasz felülírná a frisset. Éles buildben épp
+           ez ragasztotta bent a törölt to-do "szellemét" a listában; a dev
+           duplázott effektje véletlenül elfedte.
+
+           A guard: minden lefutás saját `active` jelzőt kap, a cleanup false-ra
+           állítja. Csak a LEGUTÓBBI (még aktív) kérés írhatja a listát. */
+        let active = true;
+        handleAxios(props.url, filter ?? {}, (response) => {
+            if (active) setTodos(response.data);
+        }, (error) => {
+            if (!active) return;
+            logRequestError(error);
+            /* A pörgő karika azt ígéri, hogy MINDJÁRT jön az adat. Ha a kérés
+               elbukott, ez hazugság: inkább üres listát mutatunk, mint egy
+               örökké tartó várakozást. */
+            setTodos([]);
+        });
+        return () => {active = false;};
     }, [props.url, filter, missingFilter, handleAxios]);
 
     useEffect(() => {
