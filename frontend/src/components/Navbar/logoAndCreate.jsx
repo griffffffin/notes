@@ -23,7 +23,7 @@ export default function LogoAndCreate(props) {
                        után a főoldalra) jogosan kéziek: azok egy MŰVELET
                        eredményei, nem célpontok — linkként hamis ígéret lenne
                        rájuk kattintani. */
-                    <Link to="/create" onClick={props.handleLinkClicked} className="no-focus">
+                    <Link to="/to-do/create" onClick={props.handleLinkClicked} className="no-focus">
                         <FontAwesomeIcon className={"pt-1 ms-sm-3 ps-3 text-" + color}
                                          icon="fa-solid fa-plus" size="2x"/>
                     </Link>

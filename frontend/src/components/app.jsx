@@ -35,7 +35,7 @@ export default function App() {
         // Kijelentkezve nincs mit lekérni — enélkül a bejelentkező képernyőn is
         // elindulna egy kérés, ami 401-gyel bukna.
         if (!isLoggedIn) return;
-        handleAxios("/categories", {}, (response) => setCategories(response.data),
+        handleAxios("/to-do/categories", {}, (response) => setCategories(response.data),
             logRequestError);
     }, [isLoggedIn, handleAxios]);
 

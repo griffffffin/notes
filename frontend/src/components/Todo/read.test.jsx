@@ -48,7 +48,7 @@ const TODOS = [
 const renderRead = () => render(
     <CookiesProvider>
         <ThemeProvider>
-            <MemoryRouter><Read url="/" handleLinkClicked={linkClicked}/></MemoryRouter>
+            <MemoryRouter><Read url="/to-do" handleLinkClicked={linkClicked}/></MemoryRouter>
         </ThemeProvider>
     </CookiesProvider>
 );
@@ -57,7 +57,7 @@ beforeEach(() => {
     linkClicked.mockClear();
     handleAxios.mockReset();
     handleAxios.mockImplementation((url, data, then) => {
-        if (url === "/") then({data: TODOS});
+        if (url === "/to-do") then({data: TODOS});
         else then({status: 200, data: {}});
         return Promise.resolve();
     });
@@ -90,7 +90,7 @@ describe("Read", () => {
     it("másik kártyára húzva a CÉLKÁRTYA sorszámát küldi, nem az indexét", async () => {
         await dropOn("a", "c");
         // A "Cékla" sorszáma 9 (nem 2), mert a szűrt nézetek listája hézagos.
-        expect(handleAxios).toHaveBeenCalledWith("/reorder", {id: "a", order: 9},
+        expect(handleAxios).toHaveBeenCalledWith("/to-do/reorder", {id: "a", order: 9},
             expect.any(Function), expect.any(Function));
     });
 
@@ -178,32 +178,57 @@ describe("Szűrő az URL-ből", () => {
         );
     };
 
-    it("/category/:name a dekódolt name-mel szűrt kérést küld", async () => {
+    it("/to-do/category/:name a dekódolt name-mel szűrt kérést küld", async () => {
         handleAxios.mockImplementation((url, data, then) => {
-            then({data: url === "/" ? TODOS : []});
+            then({data: url === "/to-do" ? TODOS : []});
             return Promise.resolve();
         });
         /* A %20 a szóköz, a %C5%91 az "ő" kódja: a Link encodeURIComponenttel
            kódol, a React Router dekódolva adja a :name-et — így a szóközös/ékezetes
            kategórianév is épen ér a szűrőbe. */
-        renderRoutes("/category/otthoni%20teend%C5%91k");
+        renderRoutes("/to-do/category/otthoni%20teend%C5%91k");
         await waitFor(() => {
-            const call = handleAxios.mock.calls.find((c) => c[0] === "/category");
+            const call = handleAxios.mock.calls.find((c) => c[0] === "/to-do/category");
             expect(call?.[1]).toEqual({category: "otthoni teendők"});
         });
     });
 
-    it("csupasz /category a listát adja, nem szűr és nem pörög", async () => {
-        renderRoutes("/category");
-        // A főoldali lista betölt (Alma), szűrő nélküli /category kérés nem megy ki.
+    it("csupasz /to-do/category a listát adja, nem szűr és nem pörög", async () => {
+        renderRoutes("/to-do/category");
+        // A főoldali lista betölt (Alma), szűrő nélküli kategória-kérés nem megy ki.
         await waitFor(() => expect(screen.getByText("Alma")).toBeInTheDocument());
-        expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/category");
+        expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/to-do/category");
     });
 
-    it("csupasz /color a listát adja, nem szűr", async () => {
-        renderRoutes("/color");
+    it("csupasz /to-do/color a listát adja, nem szűr", async () => {
+        renderRoutes("/to-do/color");
         await waitFor(() => expect(screen.getByText("Alma")).toBeInTheDocument());
-        expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/color");
+        expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/to-do/color");
+    });
+
+    it("ÜRES szűrt nézet a to-do listára irányít (átsorolt/törölt utolsó elem)", async () => {
+        // A kategória-szűrő üres listát ad (nincs már ilyen kategóriájú elem), a
+        // főlista viszont a to-dókat.
+        handleAxios.mockImplementation((url, data, then) => {
+            then({data: url === "/to-do" ? TODOS : []});
+            return Promise.resolve();
+        });
+        renderRoutes("/to-do/category/otthon");
+        // A kihalt szűrt nézet zsákutca → átirányít a főlistára, ahol a to-dók jönnek.
+        await waitFor(() => expect(window.location.pathname).toBe("/to-do"));
+        expect(screen.getByText("Alma")).toBeInTheDocument();
+    });
+
+    it("ÜRES FŐlista nem irányít át, marad a /to-do-n (legitim üres állapot)", async () => {
+        // Egyetlen to-do sincs — ez legitim "nincs teendő", nem zsákutca.
+        handleAxios.mockImplementation((url, data, then) => {
+            then({data: []});
+            return Promise.resolve();
+        });
+        renderRoutes("/to-do");
+        // A /to-do-n maradunk (nincs redirect), és a betöltő sem pörög tovább.
+        await waitFor(() => expect(document.querySelector(".min-vh-75")).not.toBeInTheDocument());
+        expect(window.location.pathname).toBe("/to-do");
     });
 
     it("hiba esetén sem pörög örökké a betöltő-jelző", async () => {

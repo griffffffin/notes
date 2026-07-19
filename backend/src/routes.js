@@ -34,20 +34,29 @@ router.use(auth);
    kijelentkezés lényege. */
 router.use("/refresh", userRefresh);
 
-router.use("/todo/create", validateTodoBody, todoCreate);
+/* A to-do minden végpontja a /to-do névtér alatt — így a további kategóriák
+   (pl. /quotes) ütközés nélkül kapják a saját "create", "id", "update"
+   végpontjaikat. A user- és auth-útvonalak (login, refresh) kategóriától
+   függetlenek, ezért fentebb NEM kerülnek prefix alá. */
+const todoRouter = require("express").Router();
 
-router.use("/last/order", readLastOrder);
-router.use("/categories", todoReadCategory);
-router.use("/id", validateTodoId, todoReadById);
-router.use("/category", validateCategoryFilter, todoReadByCategory);
-router.use("/color", validateColorFilter, todoReadByColor);
+todoRouter.use("/create", validateTodoBody, todoCreate);
+
+todoRouter.use("/last/order", readLastOrder);
+todoRouter.use("/categories", todoReadCategory);
+todoRouter.use("/id", validateTodoId, todoReadById);
+todoRouter.use("/category", validateCategoryFilter, todoReadByCategory);
+todoRouter.use("/color", validateColorFilter, todoReadByColor);
 
 // A módosításnak az id-ja ÉS a törzse is ellenőrzendő, a törlésnek csak az id-ja.
-router.use("/update", validateTodoId, validateTodoBody, todoUpdate);
-router.use("/delete", validateTodoId, todoDelete);
+todoRouter.use("/update", validateTodoId, validateTodoBody, todoUpdate);
+todoRouter.use("/delete", validateTodoId, todoDelete);
 // Csak a sorszámot mozgatja (főoldali húzás) — a tartalomhoz nem nyúl.
-router.use("/reorder", validateTodoId, validateOrderOnly, todoReorder);
+todoRouter.use("/reorder", validateTodoId, validateOrderOnly, todoReorder);
 
-router.use(todoRead);
+// A to-do főlistája: POST /to-do
+todoRouter.use(todoRead);
+
+router.use("/to-do", todoRouter);
 
 module.exports = router;

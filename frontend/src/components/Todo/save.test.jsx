@@ -49,9 +49,9 @@ beforeEach(() => {
     window.history.pushState({}, "", "/");
     handleAxios.mockReset();
     handleAxios.mockImplementation((url, data, then) => {
-        if (url === "/id") then({data: TODO});
-        else if (url === "/last/order") then({data: 3});
-        else if (url === "/") then({data: [TODO]});
+        if (url === "/to-do/id") then({data: TODO});
+        else if (url === "/to-do/last/order") then({data: 3});
+        else if (url === "/to-do") then({data: [TODO]});
         else then({status: 200, data: {}});
         return Promise.resolve();
     });
@@ -63,10 +63,10 @@ afterEach(() => {
 
 describe("Save útvonalai", () => {
     it("/update azonosító nélkül a listát adja, nem a szerkesztőt, és nem hasal el", async () => {
-        /* Közvetlen URL-beírás vagy F5 azonosító nélkül: a csupasz /update nem
-           illeszkedik a /update/:id mintára, így a "*" ág főoldali listája jön —
-           nincs mit szerkeszteni, a szerkesztő meg sem jelenik. */
-        window.history.pushState({}, "", "/update");
+        /* Közvetlen URL-beírás vagy F5 azonosító nélkül: a csupasz /to-do/update
+           nem illeszkedik a /to-do/update/:id mintára, így a "*" ág átirányítja a
+           to-do listára — nincs mit szerkeszteni, a szerkesztő meg sem jelenik. */
+        window.history.pushState({}, "", "/to-do/update");
 
         renderRoutes();
 
@@ -85,7 +85,7 @@ describe("Save útvonalai", () => {
         // Onnan a navbar "+" gombjával az új to-do űrlapra.
         await userEvent.click(document.querySelector('[data-icon="fa-solid fa-plus"]'));
 
-        await waitFor(() => expect(window.location.pathname).toBe("/create"));
+        await waitFor(() => expect(window.location.pathname).toBe("/to-do/create"));
         expect(screen.getByPlaceholderText("Cím")).toHaveValue("");
         expect(screen.getByPlaceholderText("Kategória")).toHaveValue("");
     });
@@ -94,9 +94,9 @@ describe("Save útvonalai", () => {
         // A /id kérés elszáll (pl. timeout) — a szerkesztő NEM ragadhat a
         // spinneren, mert a setIsLoading(false) a betöltött adathoz kötött.
         handleAxios.mockImplementation((url, data, then, catchError) => {
-            if (url === "/id") catchError({message: "timeout of 15000ms exceeded"});
-            else if (url === "/last/order") then({data: 3});
-            else if (url === "/") then({data: [TODO]});
+            if (url === "/to-do/id") catchError({message: "timeout of 15000ms exceeded"});
+            else if (url === "/to-do/last/order") then({data: 3});
+            else if (url === "/to-do") then({data: [TODO]});
             else then({status: 200, data: {}});
             return Promise.resolve();
         });
@@ -106,7 +106,7 @@ describe("Save útvonalai", () => {
         await userEvent.click(await screen.findByText("Bevásárlás"));
 
         // A betöltés hibája visszavisz a főoldalra; a Cím mező meg sem jelenik.
-        await waitFor(() => expect(window.location.pathname).toBe("/"));
+        await waitFor(() => expect(window.location.pathname).toBe("/to-do"));
         expect(screen.queryByPlaceholderText("Cím")).not.toBeInTheDocument();
     });
 });
@@ -135,7 +135,7 @@ describe("Save színe", () => {
     });
 
     it("új to-do a téma alapszínével indul", async () => {
-        window.history.pushState({}, "", "/create");
+        window.history.pushState({}, "", "/to-do/create");
 
         renderRoutes();
 
@@ -154,12 +154,12 @@ describe("Változatlan mentés", () => {
         handleAxios.mockClear();
         await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
 
-        /* Egyetlen /update kérés sem mehet ki: a mentés updatedAt-et is írna,
-           tehát egy üres "Tovább" hazudná, hogy hozzányúltunk. */
+        /* Egyetlen /to-do/update kérés sem mehet ki: a mentés updatedAt-et is
+           írna, tehát egy üres "Tovább" hazudná, hogy hozzányúltunk. */
         const calls = handleAxios.mock.calls.map((call) => call[0]);
-        expect(calls).not.toContain("/update");
+        expect(calls).not.toContain("/to-do/update");
         // ...de a főoldalra azért visszavisz.
-        await waitFor(() => expect(window.location.pathname).toBe("/"));
+        await waitFor(() => expect(window.location.pathname).toBe("/to-do"));
     });
 
     it("Escape a szerkesztőben a Tovább gombbal egyenértékű: a főoldalra visz", async () => {
@@ -171,17 +171,17 @@ describe("Változatlan mentés", () => {
         // Az Escape a formot süti el (mint a Tovább); változatlan to-dónál ez a
         // "csak navigálás" ágra fut, tehát a főoldalra kerülünk.
         await userEvent.keyboard("{Escape}");
-        await waitFor(() => expect(window.location.pathname).toBe("/"));
+        await waitFor(() => expect(window.location.pathname).toBe("/to-do"));
     });
 
     it("Escape ÉRINTETLEN create-en mentés nélkül a főoldalra visz (nem kényszerít)", async () => {
-        window.history.pushState({}, "", "/create");
+        window.history.pushState({}, "", "/to-do/create");
         renderRoutes();
         await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toBeInTheDocument());
 
         // Üres űrlaphoz hozzá sem nyúltunk: nem kérünk kötelező mezőt, csak elvetjük.
         await userEvent.keyboard("{Escape}");
-        await waitFor(() => expect(window.location.pathname).toBe("/"));
+        await waitFor(() => expect(window.location.pathname).toBe("/to-do"));
         expect(screen.queryByText("Ez a mező kitöltése kötelező.")).not.toBeInTheDocument();
     });
 
@@ -202,6 +202,47 @@ describe("Változatlan mentés", () => {
         handleAxios.mockClear();
         await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
 
-        await waitFor(() => expect(handleAxios.mock.calls.map((c) => c[0])).toContain("/update"));
+        await waitFor(() => expect(handleAxios.mock.calls.map((c) => c[0])).toContain("/to-do/update"));
+    });
+});
+
+describe("Szerkesztőből kilépés célja", () => {
+    it("update mentése a szűrt nézetbe tér vissza, ahonnan indult (nem a főoldalra)", async () => {
+        // A szűrt kategória-nézet is a to-dót adja, hogy legyen mire kattintani.
+        handleAxios.mockImplementation((url, data, then) => {
+            if (url === "/to-do/id") then({data: TODO});
+            else if (url === "/to-do/last/order") then({data: 3});
+            else if (url === "/to-do/category") then({data: [TODO]});
+            else then({status: 200, data: {}});
+            return Promise.resolve();
+        });
+        window.history.pushState({}, "", "/to-do/category/otthon");
+        renderRoutes();
+
+        // A szűrt listáról a kártyára kattintva jutunk a szerkesztőbe (history-lépés).
+        await userEvent.click(await screen.findByText("Bevásárlás"));
+        await waitFor(() => expect(window.location.pathname).toBe("/to-do/update/todo-1"));
+
+        // Módosítunk, majd mentünk.
+        await userEvent.type(screen.getByPlaceholderText("Cím"), " ma");
+        await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
+
+        /* A mentés VISSZALÉP a böngésző-előzményben: a szűrt nézetbe, ahonnan
+           indultunk — nem a /to-do főoldalra. Így a szűrő nem vész el. */
+        await waitFor(() => expect(window.location.pathname).toBe("/to-do/category/otthon"));
+    });
+
+    it("update közvetlen megnyitás után (nincs app-előzmény) a to-do listára ment", async () => {
+        /* F5 vagy közvetlen link: a szerkesztő az első history-bejegyzés
+           (location.key === "default"), nincs hová visszalépni — a fallback a
+           to-do lista, nem egy vak history-ugrás ki az appból. */
+        window.history.pushState({}, "", "/to-do/update/todo-1");
+        renderRoutes();
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
+
+        await userEvent.type(screen.getByPlaceholderText("Cím"), " ma");
+        await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
+
+        await waitFor(() => expect(window.location.pathname).toBe("/to-do"));
     });
 });

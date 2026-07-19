@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from "react";
-import {Navigate, useNavigate, useParams} from "react-router-dom";
+import {Navigate, useLocation, useNavigate, useParams} from "react-router-dom";
 import Spinner from "../spinner";
 import NoFocusInput from "../Input/noFocusInput";
 import Order from "./order";
@@ -47,6 +47,7 @@ export default function Save(props) {
     const [isCategoryValid, setIsCategoryValid] = useState(false);
     const [isDisabled, setIsDisabled] = useState(true);
     const {id} = useParams();
+    const location = useLocation();
     const [lastOrder, setLastOrder] = useState(null);
     const [isCategoryAngleClicked, setIsCategoryAngleClicked] = useState(false);
     const navigate = useNavigate();
@@ -70,7 +71,7 @@ export default function Save(props) {
        a még "true" isUpdate-tel futott le a lenti lekérdezés a már üres
        navigációs state-en (TypeError: reading 'id' of null). */
     const isUpdate = Boolean(props.isUpdate);
-    const url = isUpdate ? "/update" : "/todo/create";
+    const url = isUpdate ? "/to-do/update" : "/to-do/create";
 
     /* Melyik to-do-t szerkesztjük. Az azonosító az URL /update/:id szegmenséből
        jön, így F5 és közvetlen link után is megvan (szemben a régi navigációs
@@ -82,6 +83,16 @@ export default function Save(props) {
        bármi. Ref és nem state: senki nem jeleníti meg, és a változása nem
        járhat újrarajzolással. */
     const loadedTodo = useRef(null);
+
+    /* A szerkesztőből kilépés célja. Update esetén VISSZA oda, ahonnan indult
+       (a listáról, akár szűrt nézetből) — a böngésző-előzményen keresztül, hogy
+       a szűrő ne vesszen el. Ha nincs app-on belüli előzmény (F5 vagy közvetlen
+       link: a location kulcsa "default"), vagy ha új to-do-t hoztunk létre, a
+       to-do listára megyünk. */
+    const leaveEditor = useCallback(() => {
+        if (isUpdate && location.key !== "default") navigate(-1);
+        else navigate("/to-do");
+    }, [isUpdate, location.key, navigate]);
 
     const handleColorChange = useCallback((event) => {
         setColor(event.target.value);
@@ -98,7 +109,7 @@ export default function Save(props) {
         if (isUpdate && !todoId) return;
 
         if (todoId) {
-            handleAxios("/id", {id: todoId}, (response) => {
+            handleAxios("/to-do/id", {id: todoId}, (response) => {
                 // Pillanatkép arról, AMIT a szerver adott — a beküldéskor ehhez
                 // hasonlítunk, hogy egy változatlan űrlap ne írjon feleslegesen.
                 loadedTodo.current = {
@@ -127,16 +138,16 @@ export default function Save(props) {
                 // setIsLoading(false) a betöltött adathoz kötött, tehát hiba után
                 // magától nem oldódna fel; a read.jsx is navigációval kezeli.
                 logRequestError(error);
-                navigate("/");
+                leaveEditor();
             });
         }
-        handleAxios("/last/order", {},
+        handleAxios("/to-do/last/order", {},
             (response) => {
                 const lastOrder = response.data;
                 lastOrder === 0 ? setLastOrder(0) : setLastOrder(isUpdate ? lastOrder - 1 : lastOrder);
             },
             logRequestError);
-    }, [isUpdate, todoId, handleAxios, navigate]);
+    }, [isUpdate, todoId, handleAxios, leaveEditor]);
 
     const setTask = useCallback((key, content, isDone) => {
         return {
@@ -195,7 +206,7 @@ export default function Save(props) {
             : (!title.trim() && !category.trim() && Object.keys(todo.tasks ?? {}).length === 0);
         if (pristine) {
             props.handleLinkClicked();
-            navigate("/");
+            leaveEditor();
             return;
         }
         /* Idáig jutva a felhasználó MÁR ÍRT valamit. Ha egy kötelező mező üres, a
@@ -237,10 +248,10 @@ export default function Save(props) {
             if (response.status === 200) {
                 props.handleLinkClicked();
                 props.handleCategoryChange();
-                navigate("/");
+                leaveEditor();
             }
         }, logRequestError);
-    }, [props, title, todo.tasks, todo.columns, category, color, order, isUpdate, todoId, url, navigate, handleAxios,
+    }, [props, title, todo.tasks, todo.columns, category, color, order, isUpdate, todoId, url, leaveEditor, handleAxios,
         isTitleValid, isCategoryValid]);
 
     /* A színre már nem kell várni (a témából indul, nem egy kérés hozza), csak
@@ -272,7 +283,7 @@ export default function Save(props) {
        zsákutca-/update ne kerüljön be az előzményekbe: a Vissza gomb ne ide
        dobja vissza a felhasználót. (Minden hook FÖLÖTTE fut le — a React
        szabálya, hogy hookot nem hagyhatunk ki feltételesen.) */
-    if (isUpdate && !todoId) return <Navigate to="/" replace/>;
+    if (isUpdate && !todoId) return <Navigate to="/to-do" replace/>;
 
     return (
         isLoading ? <Spinner class="min-vh-75"/> :

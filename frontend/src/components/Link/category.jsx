@@ -29,7 +29,7 @@ export default function Category(props) {
            state-tel. Az encodeURIComponent a szóközt/ékezetet/perjelet kódolja,
            hogy a kategórianév ne törje szét az útvonalat; a Read a :name-et már
            dekódolva kapja vissza. */
-        <Link to={"/category/" + encodeURIComponent(props.category)} onClick={props.onClick}
+        <Link to={"/to-do/category/" + encodeURIComponent(props.category)} onClick={props.onClick}
               className={props.class + " d-block text-decoration-none text-" + (props.color ?? color)}>
             {props.category}
         </Link>

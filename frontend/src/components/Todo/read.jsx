@@ -135,11 +135,11 @@ export default function Read(props) {
        Az őr (missingFilter) mégis marad: ha valaki a :name nélküli /category
        útvonalat írja be, az a /category/:name mintára nem illeszkedik ugyan (a
        "*" főoldalra esik), de a védelem olcsó és egyértelművé teszi a szándékot. */
-    const needsFilter = props.url === "/category" || props.url === "/color";
+    const needsFilter = props.url === "/to-do/category" || props.url === "/to-do/color";
     /* useMemo, mert az objektum-literál rendernként új referencia lenne, és a
        lenti effekt függ tőle — memoizálás nélkül minden render újratöltene. */
     const filter = useMemo(
-        () => (name != null ? (props.url === "/color" ? {color: name} : {category: name}) : null),
+        () => (name != null ? (props.url === "/to-do/color" ? {color: name} : {category: name}) : null),
         [name, props.url],
     );
     const missingFilter = needsFilter && !filter;
@@ -274,7 +274,7 @@ export default function Read(props) {
         // mint a visszaugrás, mert legközelebbi töltéskor derülne csak ki.
         setTodos(arrayMove(todos, from, to));
 
-        handleAxios("/reorder", {id: active.id, order: targetOrder},
+        handleAxios("/to-do/reorder", {id: active.id, order: targetOrder},
             () => {},
             (error) => {
                 logRequestError(error);
@@ -284,7 +284,17 @@ export default function Read(props) {
 
     // Szűrő nélküli szűrt nézet: nincs mit listázni, vissza a főoldalra. A
     // replace azért kell, hogy a zsákutca ne kerüljön az előzményekbe.
-    if (missingFilter) return <Navigate to="/" replace/>;
+    if (missingFilter) return <Navigate to="/to-do" replace/>;
+
+    /* ÜRES szűrt nézet: a kategória/szín-szűrő nem ad találatot — jellemzően mert
+       az utolsó ilyen elemet átsorolták (más kategória/szín) vagy törölték. A
+       puszta üres lista zsákutca (a felhasználó egy kihalt szűrt nézetet bámulna),
+       ezért vissza a főlistára. A FŐLISTA (needsFilter false) ellenben LEGITIMEN
+       lehet üres ("nincs teendő"), ott nem irányítunk át. A todos itt már betöltött
+       tömb (üres listánál is lefutott a setIsLoading(false)); betöltés közben még
+       undefined, arra az Array.isArray hamis, tehát nem lövünk el korán. */
+    if (needsFilter && Array.isArray(todos) && todos.length === 0)
+        return <Navigate to="/to-do" replace/>;
 
     return (
         isLoading ? <Spinner class="min-vh-75"/> :

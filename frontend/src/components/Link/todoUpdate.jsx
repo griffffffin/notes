@@ -18,7 +18,7 @@ export default function TodoUpdate(props) {
            Save őre joggal dob vissza a főoldalra. Az _id 24 jegyű hex ObjectId,
            nincs benne kódolandó karakter, de a konzisztenciáért itt is
            encodeURIComponent-et használunk. */
-        <Link to={"/update/" + encodeURIComponent(props.todo._id)} onClick={props.handleLinkClicked}
+        <Link to={"/to-do/update/" + encodeURIComponent(props.todo._id)} onClick={props.handleLinkClicked}
               className="text-decoration-none">
             <div className={"card-header caveat bg-transparent no-focus ms-1 text-" + props.todo.color}>
                 <div className="float-end ms-1">{props.todo.percentage}%</div>

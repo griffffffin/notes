@@ -202,8 +202,33 @@ describe("Sikeres belépés utáni cím", () => {
         await userEvent.type(screen.getByLabelText("Jelszó megerősítése"), "Teszt1234");
         await userEvent.click(submitButton());
 
-        /* A tartalom a süti miatt magától cserélődne, de a cím nem: a belépett
-           route-tábla "*" ága a /signup-ra is illeszkedik. */
-        await waitFor(() => expect(window.location.pathname).toBe("/"));
+        /* Regisztráció után a belépett nézetbe kell jutni. Az Entry a gyökérre
+           navigál, amit a route-tábla a to-do listára (/to-do) irányít át — így
+           a /signup címen semmiképp nem maradhatunk. */
+        await waitFor(() => expect(window.location.pathname).toBe("/to-do"));
+    });
+
+    it("login nélkül megnyitott védett címen belépés után OTT marad, nem a főoldalon", async () => {
+        // Login nélkül egy védett, szűrt címet nyitunk meg (nem /login, nem /signup).
+        window.history.pushState({}, "", "/to-do/category/otthon");
+        render(
+            <CookiesProvider>
+                <ThemeProvider>
+                    <AuthProvider>
+                        <Routes/>
+                    </AuthProvider>
+                </ThemeProvider>
+            </CookiesProvider>
+        );
+
+        // Kijelentkezve a bejelentkező űrlap fogad; belépünk.
+        await userEvent.type(screen.getByLabelText("Felhasználónév"), "anna");
+        await userEvent.type(screen.getByLabelText("Jelszó"), "Teszt1234");
+        await userEvent.click(submitButton());
+
+        /* Belépés után a router a MEGNYITOTT címre renderel (az Entry már nem
+           navigál kézzel), tehát a szűrt nézetben maradunk — nem a /to-do
+           főoldalra dobjuk a felhasználót. */
+        await waitFor(() => expect(window.location.pathname).toBe("/to-do/category/otthon"));
     });
 });

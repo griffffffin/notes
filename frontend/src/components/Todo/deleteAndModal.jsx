@@ -21,12 +21,13 @@ export default function DeleteAndModal(props) {
 
     const handleDelete = () => {
         handleModalClose();
-        // Kész id-t kapunk, nem a nyers location-t: a navigációs state
-        // kicsomagolása a Save dolga, itt már csak "melyik to-do" a kérdés.
-        handleAxios("/delete", {id: props.todoId}, (response) => {
+        // Kész id-t kapunk (a Save az URL-ből olvassa ki), itt már csak "melyik
+        // to-do" a kérdés. Törlés után a to-do listára megyünk: a szerkesztett
+        // elem megszűnt, nincs hova "visszalépni".
+        handleAxios("/to-do/delete", {id: props.todoId}, (response) => {
             if (response.status === 200) {
                 props.handleCategoryChange();
-                navigate("/");
+                navigate("/to-do");
             }
         }, logRequestError);
     };
