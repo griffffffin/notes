@@ -1,0 +1,93 @@
+/* A sorszám-eltolás tesztjei — a lista INTEGRITÁSÁNAK magja.
+
+   Minden elemnek egyedi, hézagmentes `order`-e van. Beszúráskor, törléskor és
+   áthelyezéskor a szomszédokat pontosan el kell tolni, különben lyuk vagy
+   ütközés keletkezik a sorszámokban (amitől a húzás és a rendezés némán
+   elromlana). Ezt a controllerek egy updateMany-hívással intézik; itt azt
+   ellenőrizzük, hogy a SZŰRŐ és az ELTOLÁS iránya minden esetben helyes.
+
+   A Mongoose-modellt memóriabeli mockra cseréljük (mint az ownership.test.js),
+   és az updateMany-hívások argumentumait rögzítjük — adatbázis nem kell. */
+const test = require("node:test");
+const assert = require("node:assert");
+const express = require("express");
+const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
+const request = require("supertest");
+
+process.env.JWT_SECRET = "teszt-titok-csak-a-teszthez";
+
+const modelPath = require.resolve("../../models/todo");
+const userModelPath = require.resolve("../../models/user");
+const newId = () => new mongoose.Types.ObjectId().toString();
+const OWNER = newId();
+// A vizsgált to-do az 5. sorszámon áll — a mozgatásokat ehhez viszonyítjuk.
+const LIST = {_id: newId(), user: OWNER, title: "Lista", order: 5};
+
+// Minden updateMany-hívás szűrőjét és eltolását ide gyűjtjük.
+const updateManyCalls = [];
+
+/* A create `new Todo(...).save()`-t hív, ezért a mock KONSTRUKTOR, a többi
+   metódus pedig statikus rajta — ugyanaz a Todo, amit a controllerek látnak. */
+function Todo(data) { Object.assign(this, data); }
+Todo.findById = (id) => Promise.resolve(String(id) === LIST._id ? LIST : null);
+Todo.findByIdAndDelete = () => Promise.resolve(LIST);
+Todo.findByIdAndUpdate = () => Promise.resolve(LIST);
+Todo.updateMany = (filter, update) => { updateManyCalls.push({filter, update}); return Promise.resolve({}); };
+Todo.prototype.save = function () { return Promise.resolve(); };
+
+require.cache[modelPath] = {id: modelPath, filename: modelPath, loaded: true, exports: Todo};
+require.cache[userModelPath] = {
+    id: userModelPath, filename: userModelPath, loaded: true,
+    exports: {findById: async (id) => String(id) === OWNER ? {_id: id, name: "teszt"} : null},
+};
+
+const auth = require("../../middleware/auth");
+const create = require("./create");
+const deleteTodo = require("./delete");
+const reorder = require("./reorder");
+
+const app = express();
+app.use(express.json());
+app.use(auth);
+app.use("/create", create);
+app.use("/delete", deleteTodo);
+app.use("/reorder", reorder);
+
+const token = jwt.sign({id: OWNER}, process.env.JWT_SECRET, {expiresIn: "7d"});
+const post = (path, body) => request(app).post(path).set("Authorization", "Bearer " + token).send(body);
+
+test.beforeEach(() => { updateManyCalls.length = 0; });
+
+test("create: a beszúrási helytől fölfelé mindenkit eggyel lejjebb tol", async () => {
+    await post("/create", {order: 2, title: "Új", category: "c", color: "warning", tasks: {}, taskOrder: []});
+    assert.strictEqual(updateManyCalls.length, 1);
+    assert.deepStrictEqual(updateManyCalls[0].filter, {user: OWNER, order: {$gte: 2}});
+    assert.strictEqual(updateManyCalls[0].update.$inc.order, 1);
+});
+
+test("delete: a törölt fölöttiek eggyel feljebb csúsznak, hogy ne maradjon lyuk", async () => {
+    await post("/delete", {id: LIST._id});
+    assert.strictEqual(updateManyCalls.length, 1);
+    assert.deepStrictEqual(updateManyCalls[0].filter, {user: OWNER, order: {$gt: 5}});
+    assert.strictEqual(updateManyCalls[0].update.$inc.order, -1);
+});
+
+test("reorder felfelé (5 -> 2): a közbeeső [2, 5) elemek eggyel lejjebb csúsznak", async () => {
+    await post("/reorder", {id: LIST._id, order: 2});
+    assert.strictEqual(updateManyCalls.length, 1);
+    assert.deepStrictEqual(updateManyCalls[0].filter, {user: OWNER, order: {$gte: 2, $lt: 5}});
+    assert.strictEqual(updateManyCalls[0].update.$inc.order, 1);
+});
+
+test("reorder lefelé (5 -> 8): a közbeeső (5, 8] elemek eggyel feljebb csúsznak", async () => {
+    await post("/reorder", {id: LIST._id, order: 8});
+    assert.strictEqual(updateManyCalls.length, 1);
+    assert.deepStrictEqual(updateManyCalls[0].filter, {user: OWNER, order: {$lte: 8, $gt: 5}});
+    assert.strictEqual(updateManyCalls[0].update.$inc.order, -1);
+});
+
+test("reorder azonos sorszámra: senkit nem tol el (nincs fölösleges írás)", async () => {
+    await post("/reorder", {id: LIST._id, order: 5});
+    assert.strictEqual(updateManyCalls.length, 0);
+});
