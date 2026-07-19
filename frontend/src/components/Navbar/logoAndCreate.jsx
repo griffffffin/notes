@@ -24,8 +24,8 @@ export default function LogoAndCreate(props) {
                        eredményei, nem célpontok — linkként hamis ígéret lenne
                        rájuk kattintani. */
                     <Link to="/to-do/create" onClick={props.handleLinkClicked} className="no-focus">
-                        <FontAwesomeIcon className={"pt-1 ms-sm-3 ps-3 text-" + color}
-                                         icon="fa-solid fa-plus" size="2x"/>
+                        <FontAwesomeIcon className={"create-plus pt-1 ms-sm-3 ps-3 text-" + color}
+                                         icon="fa-solid fa-plus" size="xl"/>
                     </Link>
                 }
             </div>

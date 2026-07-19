@@ -59,6 +59,60 @@ textarea.form-control::placeholder {
 
 
 /*navbar.jsx*/
+/* A navbar egy sorban maradjon keskeny mobilon is. A Bootstrap .input-group
+   alapból width: 100%, amitől a bal (logó + "+") és a jobb blokk (szín,
+   Kategória, kijelentkezés, kapcsoló) is az EGÉSZ szélességet kéri, ezért
+   egymás alá törnek. A fő soron ehelyett a tartalmuk szélességét kérjük tőlük,
+   és a sort nowrap-re állítjuk — így egymás mellé férnek. A szűkítés csak a
+   container-fluidon BELÜLI input-groupokra hat: a legördülő
+   (CategoryAndColorGroup) a nav közvetlen gyereke, az továbbra is külön sorban
+   nyílik. */
+.navbar > .container-fluid {
+    flex-wrap: nowrap;
+}
+.navbar > .container-fluid .input-group {
+    width: auto;
+    /* A jobb oldali blokk se tördeljön belül: a színválasztó ne essen új sorba.
+       A helyet a lenti media query a fölös térközök szűkítésével nyeri vissza. */
+    flex-wrap: nowrap;
+}
+
+/* Keskeny mobilon a fölös vízszintes közök viszik a helyet — ezeket szűkítjük,
+   hogy a teljes navbar egy sorba férjen a Kategória felirat zsugorítása NÉLKÜL.
+   A .navbar prefix + !important legyőzi a Bootstrap utility-osztályokat (ps-3,
+   pe-2), amik különben a fix közöket adják. */
+@media (max-width: 575.98px) {
+    .navbar > .container-fluid {
+        margin-left: 0.25rem !important;
+        margin-right: 0.25rem !important;
+    }
+    /* A To-do felirat↔"+" (ps-3) és a kijelentkezés↔kapcsoló (a signout az egy
+       svg, nem button — ezt itt NEM szűkítjük) gépihez hasonló távolságú marad.
+       A helyet a color-gomb és a Kategória közti köz (button.pe-2) + a container
+       margói adják. */
+    .navbar .ps-3 {
+        padding-left: 0.7rem !important;
+    }
+    .navbar button.pe-2 {
+        padding-right: 0.5rem !important;
+    }
+}
+
+/* A "+" ikon mérete a képernyő szélességéhez igazodik, mert a size prop nem tud
+   töréspontot: egy oszlopos (mobil, <576px) nézetben xl (ezt a size="xl" adja),
+   a köztes sávban (sm–lg, 576–991px) 1.7em, a lg töréspont (≥992px) fölött a
+   tágasabb elrendezésen 2em. */
+@media (min-width: 576px) {
+    .create-plus {
+        font-size: 1.7em !important;
+    }
+}
+@media (min-width: 992px) {
+    .create-plus {
+        font-size: 2em !important;
+    }
+}
+
 .logo {
     font-family: "CaveatSemiBold", sans-serif !important;
 }
