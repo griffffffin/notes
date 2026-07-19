@@ -1,7 +1,7 @@
 import {render, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {CookiesProvider} from "react-cookie";
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
+import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest";
 import Routes from "../routes";
 import {ThemeProvider} from "../../contexts/theme";
 
@@ -44,6 +44,14 @@ const renderRoutes = () => render(
 // A kártya színe a szegély-osztályból olvasható ki ("border-danger").
 const cardColor = () => [...document.querySelector("form").classList]
     .find((c) => c.startsWith("border-") && c !== "border-2");
+
+/* A jsdom nem ad valódi canvas-t; a fieldOf a placeholder szélességét
+   measureText-tel méri a buborék vízszintes horgonyához. Egy egyszerű mock elég:
+   a pontos szélesség itt nem számít, mert a buborék MEGJELENÉSÉT vizsgáljuk, nem
+   a pixelpozícióját (azt élőben, headless renderrel néztük). */
+beforeAll(() => {
+    HTMLCanvasElement.prototype.getContext = () => ({font: "", measureText: () => ({width: 10})});
+});
 
 beforeEach(() => {
     window.history.pushState({}, "", "/");
@@ -185,12 +193,24 @@ describe("Változatlan mentés", () => {
         expect(screen.queryByText("Ez a mező kitöltése kötelező.")).not.toBeInTheDocument();
     });
 
-    /* A "megkezdett, de hiányos" ág (dirty create + üres kötelező mező → nem
-       navigál, hibabuborék a mezőnél) élesben, headless renderrel igazolt. Itt
-       tudatosan NEM teszteljük jsdom-ban: a form.requestSubmit() + a submit-handler
-       closure időzítése jsdom alatt megbízhatatlan, a react-tooltip portálja pedig
-       nem lekérdezhető — a teszt inkább a keretrendszert vizsgálná, mint a
-       viselkedésünket. */
+    it("megkezdett, de hiányos create: a mentés megáll, nem navigál és nem ment", async () => {
+        window.history.pushState({}, "", "/to-do/create");
+        renderRoutes();
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toBeInTheDocument());
+
+        /* A kategóriát kitöltjük, a címet üresen hagyjuk: így már NEM érintetlen az
+           űrlap (nem a "csak elvetjük" ág), de egy kötelező mező hiányzik. */
+        await userEvent.type(screen.getByPlaceholderText("Kategória"), "munka");
+        handleAxios.mockClear();
+        await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
+
+        /* A hiányzó cím megállítja a mentést: create-kérés nem megy ki, és a
+           szerkesztőben maradunk. A hibabuborék MEGJELENÉSE react-tooltip portál +
+           canvas-mérés — azt élőben, headless renderrel igazoltuk; jsdom-ban a
+           portál nem rajzol, ezért itt a megfigyelhető VISELKEDÉST rögzítjük. */
+        expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/to-do/create");
+        expect(window.location.pathname).toBe("/to-do/create");
+    });
 
     it("ha módosítok, a Tovább elküldi a szervernek", async () => {
         renderRoutes();
