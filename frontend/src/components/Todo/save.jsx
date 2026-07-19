@@ -53,9 +53,11 @@ export default function Save(props) {
     const {handleAxios} = useAuth();
     const formRef = useRef(null);
     /* A kötelező mezők SAJÁT hibabuborékja a natív böngésző-buborék helyett (azt
-       nem lehet stílusozni). null = nincs hiba; egyébként a hibás mező
-       CSS-szelektora, amihez a tooltipet horgonyozzuk. */
-    const [validationAnchor, setValidationAnchor] = useState(null);
+       nem lehet stílusozni). null = nincs hiba; egyébként {anchor, name}: a hibás
+       mező CSS-szelektora (a tooltip horgonya) és a NEVE (a placeholderből, kis
+       kezdőbetűvel). A névből áll össze az "A/Az <név> kitöltése kötelező." szöveg,
+       így egy új mező (pl. idézet) esetén a felirat magától helyes lesz. */
+    const [validation, setValidation] = useState(null);
 
     /* A hex a színnévből egyértelműen adódik, tehát nem state: kiszámoljuk.
        Korábban külön state volt, amit egy switch-es setter tartott szinkronban
@@ -162,9 +164,9 @@ export default function Save(props) {
     /* A hibabuborék eltűnik, amint az ÉPP JELZETT mező kitöltötté válik — nem kell
        kézzel bezárni, a kitöltés maga oldja fel. */
     useEffect(() => {
-        if (validationAnchor === "#createColumn" && isTitleValid) setValidationAnchor(null);
-        else if (validationAnchor?.includes("Kategória") && isCategoryValid) setValidationAnchor(null);
-    }, [validationAnchor, isTitleValid, isCategoryValid]);
+        if (validation?.anchor === "#createColumn" && isTitleValid) setValidation(null);
+        else if (validation?.anchor?.includes("Kategória") && isCategoryValid) setValidation(null);
+    }, [validation, isTitleValid, isCategoryValid]);
 
     const handleColorAngleClick = useCallback(() => setIsColorAngleClicked(!isColorAngleClicked),
         [isColorAngleClicked]);
@@ -198,10 +200,37 @@ export default function Save(props) {
         }
         /* Idáig jutva a felhasználó MÁR ÍRT valamit. Ha egy kötelező mező üres, a
            saját hibabuborékot mutatjuk (a nem stílusozható natív helyett), és nem
-           mentünk/navigálunk. A cím az első, aztán a kategória. */
-        if (!isTitleValid) { setValidationAnchor("#createColumn"); return; }
-        if (!isCategoryValid) { setValidationAnchor("input[placeholder='Kategória']"); return; }
-        setValidationAnchor(null);
+           mentünk/navigálunk. A név a mező placeholderéből jön, kis kezdőbetűvel —
+           így új mezőnél nem kell hozzányúlni a szöveghez. A cím az első, aztán a
+           kategória. */
+        const fieldOf = (selector) => {
+            const el = document.querySelector(selector);
+            const r = el.getBoundingClientRect();
+            const cs = getComputedStyle(el);
+            /* A nyíl a PLACEHOLDER közepére mutasson, ne a hosszú input közepére.
+               A placeholder szöveg félszélességét canvasszal mérjük (a mező saját
+               fontjával), a bal padding után — ide horgonyozzuk a tooltipet
+               (position), place=bottom-mal, így a nyila épp a placeholder alá esik. */
+            const ctx = document.createElement("canvas").getContext("2d");
+            ctx.font = cs.font || `${cs.fontSize} ${cs.fontFamily}`;
+            const half = ctx.measureText(el.placeholder).width / 2;
+            /* A horgony a PLACEHOLDER SZÖVEG jobb-alsó tájékára esik: vízszintesen
+               a szöveg közepe (bal padding + félszélesség), függőlegesen a szöveg
+               alja (top + felső padding + betűméret). Így a buborék szorosan a
+               placeholder alá kerül, nem a magas mező aljához — a "Sorszám" tooltip
+               és a szám közti szoros távolsághoz hasonlóan. */
+            return {
+                anchor: selector,
+                name: el.placeholder.toLowerCase(),
+                pos: {
+                    x: r.left + (parseFloat(cs.paddingLeft) || 0) + half,
+                    y: r.top + (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.fontSize) || 16),
+                },
+            };
+        };
+        if (!isTitleValid) { setValidation(fieldOf("#createColumn")); return; }
+        if (!isCategoryValid) { setValidation(fieldOf("input[placeholder='Kategória']")); return; }
+        setValidation(null);
 
         if (isUpdate) data["id"] = todoId;
         handleAxios(url, data, (response) => {
@@ -290,17 +319,20 @@ export default function Save(props) {
                     </div>
                 </div>
 
-                {/* Kötelező-mező hibabuborék a natív böngésző-buborék helyett. A
-                    "Sorszám" tooltip stílusát viseli (lap-háttér, kiemelőszínű keret
-                    és szöveg), a mező ALATT jelenik meg (place=bottom). Kontrollált:
-                    a validationAnchor vezérli (a submit-validáció állítja), és a
-                    horgony is onnan jön — a hibás mező CSS-szelektora. */}
-                <ReactTooltip id="validation-tooltip" isOpen={validationAnchor !== null}
-                              anchorSelect={validationAnchor ?? undefined} place="bottom"
+                {/* Kötelező-mező hibabuborék a natív böngésző-buborék helyett, a
+                    "Sorszám" tooltip stílusában (lap-háttér, kiemelőszínű keret és
+                    szöveg). A tooltipet a placeholder KÖZEPÉRE horgonyozzuk (a submit
+                    által mért position), place=bottom-mal, így a nyila a placeholder
+                    alá esik, nem a hosszú input közepére. A szöveg névelője a mezőnév
+                    kezdőbetűjéből adódik: magánhangzó → "Az", egyébként "A". */}
+                <ReactTooltip id="validation-tooltip" isOpen={validation !== null}
+                              position={validation?.pos} place="bottom"
                               disableStyleInjection={true} border="1px solid var(--theme-accent)"
                               style={{zIndex: 20, backgroundColor: "var(--theme-page-bg)",
                                   color: "var(--theme-accent)"}}>
-                    Ez a mező kitöltése kötelező.
+                    {validation &&
+                        `${/^[aáeéiíoóöőuúüű]/i.test(validation.name) ? "Az" : "A"} ` +
+                        `${validation.name} kitöltése kötelező.`}
                 </ReactTooltip>
 
             </form>
