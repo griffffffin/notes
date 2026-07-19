@@ -46,7 +46,12 @@ const todoSchema = new Schema({
     },
     order: {
         type: Number,
-        required: true
+        required: true,
+        /* Második védvonal a validáló middleware mögött (validateTodo.js): a
+           sorszám 1-től indul, 0 vagy negatív sosem érvényes. A middleware ma is
+           ellenőrzi, de ha egy szkript vagy jövőbeli végpont megkerülné, a modell
+           itt akkor is elutasítja. */
+        min: 1
     },
     createdAt: {
         type: Date,
