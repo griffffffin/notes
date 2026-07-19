@@ -10,6 +10,7 @@ import Spinner from "../spinner";
 import LinkTodoUpdate from "../Link/todoUpdate";
 import LinkCategory from "../Link/category";
 import SortableCard from "./DragAndDrop/sortableCard";
+import {restrictToList} from "./DragAndDrop/restrictToList";
 import {useAuth} from "../../contexts/auth";
 import {logRequestError} from "../../log";
 
@@ -74,41 +75,6 @@ const AUTO_SCROLL_THRESHOLD = {x: 0, y: 0.35};
    egyszer: a szorzó két lépésben is feljebb kúszott, mert valójában az indulás
    késett — a zóna tágítása után derült ki, hogy nem a sebességgel volt baj. */
 const AUTO_SCROLL_ACCELERATION = 25;
-
-/* A kártya ne hagyhassa el a listát.
-
-   Miért kell: a húzott kártya CSS-eltolással mozog, az eltolt elem pedig
-   MEGNÖVELI a lap görgethető területét. Ha a lista alá húzod, a böngésző
-   hirtelen ad még görgethető helyet, az auto-görgetés követi, attól még több
-   hely lesz — és a kártya elszabadul a "semmibe". Ugyanez oldalra. Fölfelé és
-   balra ez nem fordulhat elő: negatív irányba a böngésző NEM hoz létre
-   görgethető területet. (A user mindkét irányban észrevette pont ezt az
-   aszimmetriát.)
-
-   Egy módosító nem több, mint egy függvény: megkapja a húzás eltolását, és
-   visszaadja a MEGENGEDETTET. A konténer a kártya szülője, vagyis a lista sora
-   — a kártya azon belül bárhova mehet, azon kívülre nem. Egy oszlopban ez
-   ingyen adja a "csak függőlegesen" viselkedést is: ott a kártya kitölti a sor
-   szélességét, tehát vízszintesen nincs hova mozdulnia.
-
-   Az auto-görgetést NEM akadályozza: a sor a képernyőnél magasabb, tehát a
-   kártya bőven kilóghat a látható rész fölé/alá — csak a listán túlra nem. */
-const restrictToList = ({transform, draggingNodeRect, containerNodeRect}) => {
-    if (!draggingNodeRect || !containerNodeRect) return transform;
-    const limited = {...transform};
-
-    if (draggingNodeRect.top + transform.y <= containerNodeRect.top)
-        limited.y = containerNodeRect.top - draggingNodeRect.top;
-    else if (draggingNodeRect.bottom + transform.y >= containerNodeRect.top + containerNodeRect.height)
-        limited.y = containerNodeRect.top + containerNodeRect.height - draggingNodeRect.bottom;
-
-    if (draggingNodeRect.left + transform.x <= containerNodeRect.left)
-        limited.x = containerNodeRect.left - draggingNodeRect.left;
-    else if (draggingNodeRect.right + transform.x >= containerNodeRect.left + containerNodeRect.width)
-        limited.x = containerNodeRect.left + containerNodeRect.width - draggingNodeRect.right;
-
-    return limited;
-};
 
 // Állandó tömb: rendernként újat adva a DndContext fölöslegesen dolgozna.
 const MODIFIERS = [restrictToList];
