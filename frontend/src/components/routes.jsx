@@ -30,11 +30,15 @@ export default function Routes(props) {
                               categories={props.categories} handleCategoryChange={props.handleCategoryChange}/>}/>
                     <Route path="*" element={
                         <Read url="/" handleLinkClicked={props.handleLinkClicked}/>}/>
-                    <Route path="/category" element={
+                    {/* A szűrő és a szerkesztendő azonosító az URL-ben, nem a
+                        navigációs state-ben — így F5/direkt link sem törik el
+                        (a state csak navigációval együtt érkezik). A :name a
+                        kategória/szín, a :id a szerkesztett to-do azonosítója. */}
+                    <Route path="/category/:name" element={
                         <Read url="/category" handleLinkClicked={props.handleLinkClicked}/>}/>
-                    <Route path="/color" element={
+                    <Route path="/color/:name" element={
                         <Read url="/color" handleLinkClicked={props.handleLinkClicked}/>}/>
-                    <Route path="/update" element={
+                    <Route path="/update/:id" element={
                         <Save key="update" isUpdate={true} handleLinkClicked={props.handleLinkClicked}
                               categories={props.categories} handleCategoryChange={props.handleCategoryChange}/>}/>
                 </ReactRoutes>

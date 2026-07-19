@@ -1,5 +1,5 @@
-import {useCallback, useEffect, useRef, useState} from "react";
-import {Navigate, useLocation} from "react-router-dom";
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import {Navigate, useParams} from "react-router-dom";
 import {
     closestCenter, DndContext, MouseSensor, TouchSensor, useSensor, useSensors,
 } from "@dnd-kit/core";
@@ -115,26 +115,33 @@ const MODIFIERS = [restrictToList];
 
 export default function Read(props) {
     const [isLoading, setIsLoading] = useState(true);
-    const location = useLocation();
+    const {name} = useParams();
     const [todos, setTodos] = useState();
     const {handleAxios} = useAuth();
 
-    /* A szűrő (kategória vagy szín) a navigációs állapotból jön. A felhasználó
-       azonosítója NEM: azt a szerver a tokenből tudja.
+    /* A szűrő (kategória vagy szín) az URL-ből jön: a /category/:name és a
+       /color/:name útvonal :name szegmense. A felhasználó azonosítója NEM az
+       URL-ből — azt a szerver a tokenből tudja.
 
-       A szűrt nézetek NEM állnak meg a szűrő nélkül: a /category-nek tudnia
-       kell, MELYIK kategóriát kérdezze. A navigációs state viszont csak
-       navigációval együtt érkezik — közvetlen URL-beírásnál vagy F5-nél üres.
-       Ilyenkor üres szűrőt küldenénk, amit a szerver joggal utasít el, a lista
-       sosem érkezne meg, és a betöltő-jelző ÖRÖKRE bent ragadna — a felhasználó
-       egy pörgő karikát bámulna, amiből nincs kiút. Ezért lentebb inkább
-       visszavisszük a főoldalra, ahogy a /update is teszi id nélkül.
+       Az URL-alapú szűrő azért kell, mert a szűrt nézetnek tudnia kell, MELYIK
+       kategóriát/színt kérdezze, és ennek F5 vagy közvetlen link után is állnia
+       kell. (Régen ez navigációs state-ben utazott, ami csak navigációval együtt
+       érkezik: F5-nél elveszett, üres szűrőt küldtünk, a szerver joggal utasította
+       el, és a betöltő-jelző örökre bent ragadt.)
 
-       (Ez a rés a navigációs state-re épülő tervezésből fakad. A gyökeres
-       megoldás az URL-alapú útvonal — /category/:name —, ami a kategória-
-       bővítéssel jön; addig ez az őr fedez.) */
+       A :name-et a React Router már dekódolva adja vissza (a Link-ek
+       encodeURIComponent-tel kódolják, hogy a szóköz/ékezet ne törje az URL-t).
+
+       Az őr (missingFilter) mégis marad: ha valaki a :name nélküli /category
+       útvonalat írja be, az a /category/:name mintára nem illeszkedik ugyan (a
+       "*" főoldalra esik), de a védelem olcsó és egyértelművé teszi a szándékot. */
     const needsFilter = props.url === "/category" || props.url === "/color";
-    const filter = location.state ?? null;
+    /* useMemo, mert az objektum-literál rendernként új referencia lenne, és a
+       lenti effekt függ tőle — memoizálás nélkül minden render újratöltene. */
+    const filter = useMemo(
+        () => (name != null ? (props.url === "/color" ? {color: name} : {category: name}) : null),
+        [name, props.url],
+    );
     const missingFilter = needsFilter && !filter;
 
     useEffect(() => {

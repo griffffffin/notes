@@ -24,10 +24,12 @@ export default function Category(props) {
     const {color} = useTheme();
 
     return (
-        /* A state viszi a szűrőt: MELYIK kategóriát kérje le a lista. Enélkül a
-           Read őre joggal dob vissza a főoldalra. (Az URL-be a kategória neve a
-           kategória-bővítéssel költözik: /category/:name.) */
-        <Link to="/category" state={{category: props.category}} onClick={props.onClick}
+        /* A szűrő az URL-ben utazik (/category/:name): MELYIK kategóriát kérje le
+           a lista. Így F5/direkt link után is áll — szemben a régi navigációs
+           state-tel. Az encodeURIComponent a szóközt/ékezetet/perjelet kódolja,
+           hogy a kategórianév ne törje szét az útvonalat; a Read a :name-et már
+           dekódolva kapja vissza. */
+        <Link to={"/category/" + encodeURIComponent(props.category)} onClick={props.onClick}
               className={props.class + " d-block text-decoration-none text-" + (props.color ?? color)}>
             {props.category}
         </Link>

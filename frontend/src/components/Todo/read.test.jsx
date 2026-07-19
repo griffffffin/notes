@@ -158,10 +158,13 @@ describe("Read", () => {
     });
 });
 
-describe("Hiányzó szűrő", () => {
-    /* A szűrt nézetek a navigációs state-ből tudják, mire szűrjenek. Közvetlen
-       URL-beírásnál vagy F5-nél az üres — a régi kód ilyenkor üres szűrőt
-       küldött, a szerver elutasította, és a spinner ÖRÖKRE pörgött. */
+describe("Szűrő az URL-ből", () => {
+    /* A szűrt nézetek a :name URL-szegmensből tudják, mire szűrjenek. A csupasz
+       /category vagy /color (name nélkül) nem illeszkedik a /category/:name
+       mintára, ezért a "*" ág főoldali listája jön — nem a szűrt nézet, és
+       főleg nem egy örökké pörgő betöltő (a régi, navigációs state-re épülő kód
+       F5-nél üres szűrőt küldött, amit a szerver elutasított, a spinner meg
+       örökre pörgött). */
     const renderRoutes = (path) => {
         window.history.pushState({}, "", path);
         return render(
@@ -175,15 +178,31 @@ describe("Hiányzó szűrő", () => {
         );
     };
 
-    it("/category szűrő nélkül a főoldalra visz, nem pörög örökké", async () => {
+    it("/category/:name a dekódolt name-mel szűrt kérést küld", async () => {
+        handleAxios.mockImplementation((url, data, then) => {
+            then({data: url === "/" ? TODOS : []});
+            return Promise.resolve();
+        });
+        /* A %20 a szóköz, a %C5%91 az "ő" kódja: a Link encodeURIComponenttel
+           kódol, a React Router dekódolva adja a :name-et — így a szóközös/ékezetes
+           kategórianév is épen ér a szűrőbe. */
+        renderRoutes("/category/otthoni%20teend%C5%91k");
+        await waitFor(() => {
+            const call = handleAxios.mock.calls.find((c) => c[0] === "/category");
+            expect(call?.[1]).toEqual({category: "otthoni teendők"});
+        });
+    });
+
+    it("csupasz /category a listát adja, nem szűr és nem pörög", async () => {
         renderRoutes("/category");
-        await waitFor(() => expect(window.location.pathname).toBe("/"));
+        // A főoldali lista betölt (Alma), szűrő nélküli /category kérés nem megy ki.
+        await waitFor(() => expect(screen.getByText("Alma")).toBeInTheDocument());
         expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/category");
     });
 
-    it("/color szűrő nélkül a főoldalra visz", async () => {
+    it("csupasz /color a listát adja, nem szűr", async () => {
         renderRoutes("/color");
-        await waitFor(() => expect(window.location.pathname).toBe("/"));
+        await waitFor(() => expect(screen.getByText("Alma")).toBeInTheDocument());
         expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/color");
     });
 

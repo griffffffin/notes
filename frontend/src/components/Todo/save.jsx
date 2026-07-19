@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from "react";
-import {Navigate, useLocation, useNavigate} from "react-router-dom";
+import {Navigate, useNavigate, useParams} from "react-router-dom";
 import Spinner from "../spinner";
 import NoFocusInput from "../Input/noFocusInput";
 import Order from "./order";
@@ -46,7 +46,7 @@ export default function Save(props) {
     const [category, setCategory] = useState("");
     const [isCategoryValid, setIsCategoryValid] = useState(false);
     const [isDisabled, setIsDisabled] = useState(true);
-    const location = useLocation();
+    const {id} = useParams();
     const [lastOrder, setLastOrder] = useState(null);
     const [isCategoryAngleClicked, setIsCategoryAngleClicked] = useState(false);
     const navigate = useNavigate();
@@ -72,11 +72,11 @@ export default function Save(props) {
     const isUpdate = Boolean(props.isUpdate);
     const url = isUpdate ? "/update" : "/todo/create";
 
-    /* Melyik to-do-t szerkesztjük. A <Link state={{id}}> teszi ide, DE ez csak
-       a linken át érkezve van meg: közvetlen URL-beírásnál vagy F5-nél a
-       navigációs state null. Ezért olvassuk óvatosan; a hiányát lentebb
-       átirányítással kezeljük. */
-    const todoId = isUpdate ? (location.state?.id ?? null) : null;
+    /* Melyik to-do-t szerkesztjük. Az azonosító az URL /update/:id szegmenséből
+       jön, így F5 és közvetlen link után is megvan (szemben a régi navigációs
+       state-tel, ami csak linken át érkezett). A :id csak akkor hiányzik, ha az
+       útvonal nem is illeszkedett — a hiányát lentebb átirányítással kezeljük. */
+    const todoId = isUpdate ? (id ?? null) : null;
 
     /* A szerverről betöltött állapot — a beküldéskor ehhez mérjük, változott-e
        bármi. Ref és nem state: senki nem jeleníti meg, és a változása nem

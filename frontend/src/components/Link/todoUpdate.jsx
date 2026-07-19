@@ -14,10 +14,11 @@ import {Link} from "react-router-dom";
    is eshet, ha a lista közben átrendeződött alatta. */
 export default function TodoUpdate(props) {
     return (
-        /* A state viszi az azonosítót a szerkesztőnek; enélkül a Save őre joggal
-           dob vissza a főoldalra. (Az URL-be az azonosító a kategória-bővítéssel
-           költözik: /update/:id.) */
-        <Link to="/update" state={{id: props.todo._id}} onClick={props.handleLinkClicked}
+        /* Az azonosító az URL-ben utazik (/update/:id) a szerkesztőnek; enélkül a
+           Save őre joggal dob vissza a főoldalra. Az _id 24 jegyű hex ObjectId,
+           nincs benne kódolandó karakter, de a konzisztenciáért itt is
+           encodeURIComponent-et használunk. */
+        <Link to={"/update/" + encodeURIComponent(props.todo._id)} onClick={props.handleLinkClicked}
               className="text-decoration-none">
             <div className={"card-header caveat bg-transparent no-focus ms-1 text-" + props.todo.color}>
                 <div className="float-end ms-1">{props.todo.percentage}%</div>

@@ -62,14 +62,16 @@ afterEach(() => {
 });
 
 describe("Save útvonalai", () => {
-    it("/update közvetlen megnyitásakor a főoldalra irányít, nem hasal el", async () => {
-        /* Közvetlen URL-beírás vagy F5: a React Router navigációs state-je üres,
-           tehát nincs id — nincs mit szerkeszteni. */
+    it("/update azonosító nélkül a listát adja, nem a szerkesztőt, és nem hasal el", async () => {
+        /* Közvetlen URL-beírás vagy F5 azonosító nélkül: a csupasz /update nem
+           illeszkedik a /update/:id mintára, így a "*" ág főoldali listája jön —
+           nincs mit szerkeszteni, a szerkesztő meg sem jelenik. */
         window.history.pushState({}, "", "/update");
 
         renderRoutes();
 
-        await waitFor(() => expect(window.location.pathname).toBe("/"));
+        // A lista betölt (a to-do címe kártyaként megjelenik), a Cím mező nem.
+        await waitFor(() => expect(screen.getByText("Bevásárlás")).toBeInTheDocument());
         expect(screen.queryByPlaceholderText("Cím")).not.toBeInTheDocument();
     });
 
