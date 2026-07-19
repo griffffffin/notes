@@ -54,6 +54,13 @@ export function useAuth() {
 export function AuthProvider({children}) {
     const [cookies, setCookie, removeCookie] = useCookies(["user"]);
     const token = cookies.user ?? null;
+    /* A friss tokent egy refben is tartjuk, hogy a handleAxios NE függjön tőle.
+       Enélkül a token 5 percenkénti megújulása minden alkalommal új handleAxios-
+       referenciát gyártana, amitől a rá épülő effektek (pl. a lista lekérése a
+       read.jsx-ben) fölöslegesen újrafutnának. A refből a hívás PILLANATÁBAN
+       mindig a legfrissebb tokent olvassuk, tehát a fejléc így is helyes. */
+    const tokenRef = useRef(token);
+    tokenRef.current = token;
     /* Refek és nem state-ek: másodpercenként sokszor frissülnek, és senki nem
        jeleníti meg őket — state-ként minden egérmozdulat újrarajzolná az egész
        appot. */
@@ -66,13 +73,13 @@ export function AuthProvider({children}) {
     const handleAxios = useCallback((url, data, then, catchError) =>
         axios.post(import.meta.env.VITE_BACKEND + url, data, {
             timeout: REQUEST_TIMEOUT_MS,
-            headers: token ? {Authorization: "Bearer " + token} : undefined,
+            headers: tokenRef.current ? {Authorization: "Bearer " + tokenRef.current} : undefined,
         })
             .then(then)
             .catch((error) => {
                 if (error.response?.status === 401) removeCookie("user", {path: "/"});
                 catchError(error);
-            }), [token, removeCookie]);
+            }), [removeCookie]);
 
     useEffect(() => {
         // Kijelentkezve nincs mit lejáratni és nincs mit figyelni.
