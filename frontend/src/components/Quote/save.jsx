@@ -2,6 +2,7 @@ import {useCallback, useEffect, useRef, useState} from "react";
 import {Navigate, useLocation, useNavigate, useParams} from "react-router-dom";
 import Spinner from "../spinner";
 import SubmitButton from "../Button/submitButton";
+import AuthorInput from "./authorInput";
 import DeleteAndModal from "../Todo/deleteAndModal";
 import {useAuth} from "../../contexts/auth";
 import {useTheme} from "../../contexts/theme";
@@ -152,9 +153,8 @@ export default function QuoteSave(props) {
                           className={"form-control card-header caveat no-focus bg-transparent ms-1 text-" + color}/>
 
                 <div className="card-body py-1">
-                    <input value={author} onChange={(event) => setAuthor(event.target.value)} placeholder="Szerző"
-                           autoComplete="off"
-                           className={"form-control caveat no-focus bg-transparent ps-2 text-" + color}/>
+                    <AuthorInput value={author} onChange={(event) => setAuthor(event.target.value)}
+                                 placeholder="Szerző" class={"caveat ps-2 text-" + color}/>
 
                     <div className="d-grid">
                         <SubmitButton isDisabled={false} isOutline={false} color={color} text="Tovább"/>

@@ -27,6 +27,7 @@ const todoReorder = require("./controllers/Todo/reorder");
 
 const quoteCreate = require("./controllers/Quote/create");
 const quoteReadLastOrder = require("./controllers/Quote/readLastOrder");
+const quoteReadAuthors = require("./controllers/Quote/readAuthors");
 const quoteRead = require("./controllers/Quote/read");
 const quoteReadByAuthor = require("./controllers/Quote/readByAuthor");
 const quoteReadById = require("./controllers/Quote/readById");
@@ -83,6 +84,7 @@ const quoteRouter = require("express").Router();
 
 quoteRouter.use("/create", validateQuoteBody, quoteCreate);
 quoteRouter.use("/last/order", quoteReadLastOrder);
+quoteRouter.use("/authors", quoteReadAuthors);
 quoteRouter.use("/author", validateAuthorFilter, quoteReadByAuthor);
 
 quoteRouter.use("/update", validateQuoteId, validateQuoteBody, quoteUpdate);

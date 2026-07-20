@@ -1,0 +1,75 @@
+import {useEffect, useState} from "react";
+import {useAuth} from "../../contexts/auth";
+import {logRequestError} from "../../log";
+
+// Ennyi szünet után kérünk javaslatot: gépelés közben minden billentyűnél
+// fölösleges a szerverhez fordulni, csak ha a felhasználó "megállt".
+const DEBOUNCE_MS = 200;
+
+/* Szerző-mező ghost-text kiegészítéssel. A látható input MÖGÖTT egy azonos
+   betűtípusú/paddingű réteg: a beírt részt színtelenül tartja (hogy a
+   kiegészítés a helyére kerüljön), a szerver által javasolt folytatást pedig
+   halványan mutatja (pl. "Má" + halvány "rai"). Enter vagy a szöveg végén a
+   jobbra-nyíl elfogadja.
+
+   A javaslatot a /quotes/authors adja (a legutóbb használt, prefixre szűrt
+   szerző). A kiegészítést CSAK akkor mutatjuk, ha a beírt szöveg tényleg a
+   javaslat eleje — így egy elkésett válasz nem villant fel rossz folytatást. */
+export default function AuthorInput(props) {
+    const {handleAxios} = useAuth();
+    const [suggestion, setSuggestion] = useState("");
+    const value = props.value;
+
+    const completion = (suggestion && value &&
+        suggestion.toLowerCase().startsWith(value.toLowerCase()) && suggestion.length > value.length)
+        ? suggestion.slice(value.length) : "";
+
+    useEffect(() => {
+        if (!value.trim()) {
+            setSuggestion("");
+            return;
+        }
+        const timer = setTimeout(() => {
+            handleAxios("/quotes/authors", {prefix: value},
+                (response) => setSuggestion(response.data[0] ?? ""),
+                logRequestError);
+        }, DEBOUNCE_MS);
+        return () => clearTimeout(timer);
+    }, [value, handleAxios]);
+
+    const handleKeyDown = (event) => {
+        if (!completion) return;
+        const atEnd = event.target.selectionStart === value.length;
+        if (event.key === "Enter" || (event.key === "ArrowRight" && event.ctrlKey && atEnd)) {
+            // Enter vagy Ctrl+jobbra a szöveg végén: az EGÉSZ kiegészítést egyben.
+            event.preventDefault();
+            props.onChange({target: {value: value + completion}});
+            setSuggestion("");
+        } else if (event.key === "ArrowRight" && atEnd) {
+            /* Jobbra a szöveg végén: EGY betűt húz be a kiegészítésből. Minden
+               további jobbra-lépés a következőt — telefonon a Swiftkey szóköz-
+               húzása így fokozatosan gépeli be a javaslatot: amennyit jobbra
+               mész, annyi betűt. A suggestion marad, a completion a value
+               növekedtével magától rövidül (a következő lépésig). */
+            event.preventDefault();
+            props.onChange({target: {value: value + completion[0]}});
+        }
+    };
+
+    return (
+        <div className="position-relative">
+            {/* A háttérréteg: pontosan az input alatt (azonos class → azonos font
+                és padding). A beírt rész színtelen (helykitöltő), a kiegészítés
+                halvány. aria-hidden + pointerEvents:none — a képernyőolvasó és a
+                kattintás az inputé. A pre megőrzi a szóközöket. */}
+            <div aria-hidden="true" style={{pointerEvents: "none", whiteSpace: "pre"}}
+                 className={props.class + " form-control bg-transparent border-0 position-absolute top-0 start-0 w-100"}>
+                <span style={{color: "transparent"}}>{value}</span>
+                <span style={{opacity: 0.45}}>{completion}</span>
+            </div>
+            <input value={value} onChange={props.onChange} onKeyDown={handleKeyDown} placeholder={props.placeholder}
+                   autoComplete="off"
+                   className={props.class + " form-control no-focus bg-transparent position-relative"}/>
+        </div>
+    );
+}
