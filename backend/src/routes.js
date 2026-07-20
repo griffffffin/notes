@@ -3,6 +3,9 @@ const auth = require("./middleware/auth");
 const {
     validateTodoBody, validateTodoId, validateOrderOnly, validateCategoryFilter, validateColorFilter,
 } = require("./middleware/validateTodo");
+const {
+    validateQuoteBody, validateQuoteId, validateOrderOnly: validateQuoteOrderOnly, validateAuthorFilter,
+} = require("./middleware/validateQuote");
 const validateCredentials = require("./middleware/validateCredentials");
 
 const userCreate = require("./controllers/User/create");
@@ -22,9 +25,23 @@ const todoUpdate = require("./controllers/Todo/update");
 const todoDelete = require("./controllers/Todo/delete");
 const todoReorder = require("./controllers/Todo/reorder");
 
+const quoteCreate = require("./controllers/Quote/create");
+const quoteReadLastOrder = require("./controllers/Quote/readLastOrder");
+const quoteRead = require("./controllers/Quote/read");
+const quoteReadByAuthor = require("./controllers/Quote/readByAuthor");
+const quoteReadById = require("./controllers/Quote/readById");
+const quoteUpdate = require("./controllers/Quote/update");
+const quoteDelete = require("./controllers/Quote/delete");
+const quoteReorder = require("./controllers/Quote/reorder");
+
 
 router.use("/user/create", validateCredentials, userCreate);
 router.use("/login", validateCredentials, userLogin);
+
+/* Egy idézet PUBLIKUSAN olvasható az azonosítója alapján (a megosztott link egy
+   konkrét idézetre mutat) — ezért ül ez az EGYETLEN idézet-végpont az auth
+   ELŐTT. A lista és minden írás-művelet auth mögött van. */
+router.use("/quotes/id", validateQuoteId, quoteReadById);
 
 // Innentől minden végpont csak érvényes tokennel érhető el.
 router.use(auth);
@@ -58,5 +75,23 @@ todoRouter.use("/reorder", validateTodoId, validateOrderOnly, todoReorder);
 todoRouter.use(todoRead);
 
 router.use("/to-do", todoRouter);
+
+/* Az idézetek névtere. Az egy-idézet-olvasás (/quotes/id) fentebb, az auth ELŐTT
+   van; itt a saját lista, a szerző-szűrés és az írás-műveletek, mind auth mögött.
+   Szimmetrikus a /to-do-val, csak vékonyabb (nincs szín, sorszám-lekérdezés). */
+const quoteRouter = require("express").Router();
+
+quoteRouter.use("/create", validateQuoteBody, quoteCreate);
+quoteRouter.use("/last/order", quoteReadLastOrder);
+quoteRouter.use("/author", validateAuthorFilter, quoteReadByAuthor);
+
+quoteRouter.use("/update", validateQuoteId, validateQuoteBody, quoteUpdate);
+quoteRouter.use("/delete", validateQuoteId, quoteDelete);
+quoteRouter.use("/reorder", validateQuoteId, validateQuoteOrderOnly, quoteReorder);
+
+// Az idézet-lista: POST /quotes
+quoteRouter.use(quoteRead);
+
+router.use("/quotes", quoteRouter);
 
 module.exports = router;
