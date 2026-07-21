@@ -18,14 +18,18 @@ const DEBOUNCE_MS = 200;
 export default function AuthorInput(props) {
     const {handleAxios} = useAuth();
     const [suggestion, setSuggestion] = useState("");
+    /* Csak azután ajánlunk, hogy a felhasználó MAGA nyúlt a mezőhöz. Update-nél a
+       mező a betöltött szerzővel indul — ilyenkor NEM villantunk ghost-textet, amíg
+       az átírás el nem kezdődik; a create-nél az első leütés úgyis bekapcsolja. */
+    const [touched, setTouched] = useState(false);
     const value = props.value;
 
-    const completion = (suggestion && value &&
+    const completion = (touched && suggestion && value &&
         suggestion.toLowerCase().startsWith(value.toLowerCase()) && suggestion.length > value.length)
         ? suggestion.slice(value.length) : "";
 
     useEffect(() => {
-        if (!value.trim()) {
+        if (!touched || !value.trim()) {
             setSuggestion("");
             return;
         }
@@ -35,7 +39,13 @@ export default function AuthorInput(props) {
                 logRequestError);
         }, DEBOUNCE_MS);
         return () => clearTimeout(timer);
-    }, [value, handleAxios]);
+    }, [value, touched, handleAxios]);
+
+    // A felhasználó módosítása kapcsolja be a javaslatokat (a betöltött érték nem).
+    const handleChange = (event) => {
+        setTouched(true);
+        props.onChange(event);
+    };
 
     const handleKeyDown = (event) => {
         if (!completion) return;
@@ -67,7 +77,7 @@ export default function AuthorInput(props) {
                 <span style={{color: "transparent"}}>{value}</span>
                 <span style={{opacity: 0.45}}>{completion}</span>
             </div>
-            <input value={value} onChange={props.onChange} onKeyDown={handleKeyDown} placeholder={props.placeholder}
+            <input value={value} onChange={handleChange} onKeyDown={handleKeyDown} placeholder={props.placeholder}
                    autoComplete="off"
                    className={props.class + " form-control no-focus bg-transparent position-relative"}/>
         </div>
