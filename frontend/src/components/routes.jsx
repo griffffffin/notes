@@ -81,6 +81,13 @@ export default function Routes(props) {
                         példányt, és a beírt adatok meg a hibaüzenet átjönnének
                         a másik űrlapra. */}
                     <Route path="/signup" element={<Entry key="signup" isLogin={false}/>}/>
+                    {/* A szerkesztő-URL (/quotes/update/:id) kijelentkezve NEM
+                        publikus nézet: enélkül a statikus "update" szegmenst a lenti
+                        /quotes/:author/:id az author-nak venné, és megmutatná az
+                        idézetet. A szerkesztéshez belépés kell, ezért a bejelentkezőt
+                        adjuk — a megosztható link a /quotes/:author/:id (valódi
+                        szerzővel). A statikus route rangban megelőzi a dinamikusat. */}
+                    <Route path="/quotes/update/:id" element={<Entry key="login" isLogin={true}/>}/>
                     {/* Publikus idézet-nézet bejelentkezés nélkül is — a megosztott
                         link ettől működik kijelentkezve. Minden más ismeretlen út a
                         bejelentkező képernyőre esik (a "*"). */}
