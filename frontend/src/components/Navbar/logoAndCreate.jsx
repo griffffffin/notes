@@ -1,15 +1,16 @@
-import {Link} from "react-router-dom";
-import LinkLogo from "../Link/logo";
+import {Link, useLocation} from "react-router-dom";
+import CategorySwitcher, {currentCategory} from "./categorySwitcher";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {useTheme} from "../../contexts/theme";
 
 export default function LogoAndCreate(props) {
     const {color} = useTheme();
+    const location = useLocation();
 
     return (
         <div className="d-grid pb-1">
             <div className="input-group align-items-center">
-                <LinkLogo onClick={props.isVisible && props.handleLinkClicked}/>
+                <CategorySwitcher onClick={props.isVisible && props.handleLinkClicked}/>
                 {props.isCreateVisible &&
                     /* Link, és nem kattintás-kezelős ikon: a "+" egy OLDALRA visz
                        (/create), nem műveletet végez — ahogy mellette a logó is
@@ -23,8 +24,13 @@ export default function LogoAndCreate(props) {
                        után a főoldalra) jogosan kéziek: azok egy MŰVELET
                        eredményei, nem célpontok — linkként hamis ígéret lenne
                        rájuk kattintani. */
-                    <Link to="/to-do/create" onClick={props.handleLinkClicked} className="no-focus">
-                        <FontAwesomeIcon className={"create-plus pt-1 ms-sm-3 ps-3 text-" + color}
+                    <Link to={currentCategory(location.pathname).path + "/create"}
+                          onClick={props.handleLinkClicked} className="no-focus">
+                        {/* A logó és a "+" távolsága: <576px-en a ps-3 (1rem) — ez jó.
+                            A töréspont (≥576px) fölött korábban egy plusz ms-sm-3 (1rem)
+                            is jött, összesen 2rem; ezt felezzük (az ms-sm-3-at elvéve),
+                            így ≥576px-en is 1rem marad a távolság. */}
+                        <FontAwesomeIcon className={"create-plus pt-1 ps-3 text-" + color}
                                          icon="fa-solid fa-plus" size="xl"/>
                     </Link>
                 }

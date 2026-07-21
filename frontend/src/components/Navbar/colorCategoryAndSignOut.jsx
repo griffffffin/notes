@@ -15,11 +15,15 @@ export default function ColorCategoryAndSignOut(props) {
     }, [props, logout]);
 
     return (<>
-        <NoFocusButton onClick={props.handleColorClick} class="pe-2"
-                       text={<FontAwesomeIcon className={"py-1 pe-sm-3 text-" + color} size="xl"
-                                              icon={props.isColorClicked ? "fa-solid fa-fill-drip" :
-                                                  "fa-solid fa-fill"}/>}/>
-        <Category onClick={props.handleCategoryClick} isClicked={props.isCategoryClicked}/>
+        {/* A szín- és kategória-választó CSAK a to-dóé (showColorCategory); az
+            idézetek navbarjában nincs, csak a kijelentkezés marad. */}
+        {props.showColorCategory && <>
+            <NoFocusButton onClick={props.handleColorClick} class="pe-2"
+                           text={<FontAwesomeIcon className={"py-1 pe-sm-3 text-" + color} size="xl"
+                                                  icon={props.isColorClicked ? "fa-solid fa-fill-drip" :
+                                                      "fa-solid fa-fill"}/>}/>
+            <Category onClick={props.handleCategoryClick} isClicked={props.isCategoryClicked}/>
+        </>}
         <FontAwesomeIcon role="button" icon="fa-solid fa-right-from-bracket" size="xl" onClick={handleSignOut}
                          className={"py-1 pe-2 ps-sm-2 text-" + color}/>
     </>);
