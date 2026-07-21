@@ -10,7 +10,12 @@ const mongoose = require("mongoose");
    validációja külön él, hogy egymástól függetlenül változhasson. A MAX_ORDER a
    to-dóéval EGYEZIK — ha ott változik, itt is állítandó. */
 
-const MAX_QUOTE = 2000;    // egy idézet több mondat is lehet, ezért bőségesebb, mint a to-do címe
+/* Egy idézet lehet akár több tízezer karakteres (hosszú részlet, vers, teljes
+   idézetgyűjtemény-bejegyzés) — bőséges felső korlát, ami DoS-védelemnek még
+   marad (16 MB a Mongo-dokumentum kemény határa, ettől jóval alatta vagyunk).
+   A korlát NEM bit-tárolású (ez csak egy hossz-összehasonlítás, a szöveg a DB-ben
+   ugyanúgy tárolódik), ezért nincs oka 2-hatványnak lennie. */
+const MAX_QUOTE = 100000;
 const MAX_AUTHOR = 200;
 const MAX_ORDER = 100000;
 

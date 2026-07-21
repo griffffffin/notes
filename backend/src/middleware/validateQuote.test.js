@@ -28,7 +28,7 @@ test("üres vagy hiányzó idézetet elutasít (400)", async () => {
 });
 
 test("túl hosszú idézetet elutasít (400)", async () => {
-    assert.strictEqual((await post({...VALID, quote: "a".repeat(2001)})).status, 400);
+    assert.strictEqual((await post({...VALID, quote: "a".repeat(100001)})).status, 400);
 });
 
 test("a szerző elhagyható: nélküle és üresen is átmegy", async () => {
