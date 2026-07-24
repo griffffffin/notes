@@ -18,6 +18,13 @@
     src: url("/fonts/Caveat-VariableFont_wght.ttf") format("truetype");
 }
 
+/* A logó (to-do + quotes közös) kézírás-fontja. Variable font (wght-tengely),
+   mint a Caveat — a .logo súlyát a font-weight állítja. */
+@font-face {
+    font-family: "DancingScript";
+    src: url("/fonts/DancingScript-VariableFont_wght.ttf") format("truetype");
+}
+
 
 body {
     font-family: "EncodeSansSemiExpanded", sans-serif !important;
@@ -117,6 +124,28 @@ textarea.form-control::placeholder {
     font-family: "CaveatSemiBold", sans-serif !important;
 }
 
+/* A Quotes logó — és KIZÁRÓLAG az — Dancing Scriptet visel (a to-do logó marad
+   CaveatSemiBold; a Dancing Script sehol máshol nem szerepel). Variable font, a
+   súlyt a font-weight adja: a Regular a CaveatSemiBold-hoz képest vékony.
+
+   A Dancing Script azonos font-méretnél MAGASABB betűket rajzol, mint a To-do
+   CaveatSemiBold-ja (canvas-méréssel a cap-magasság 72 vs 65). Hogy a felirat
+   MAGASSÁGA egyezzen a To-doéval (az a mérvadó), a Quotes logót annak display-5
+   méretének 0.9-szeresére skálázzuk. A képlet a Bootstrap .display-5 reszponzív
+   méretét tükrözi (calc + 1200px töréspont), szorozva az aránnyal — ha a Bootstrap
+   ezt egyszer megváltoztatja, ez a két érték is állítandó. */
+.logo-quotes {
+    font-family: "DancingScript", cursive !important;
+    font-weight: 600 !important;
+    font-size: calc((1.475rem + 2.7vw) * 0.9) !important;
+}
+
+@media (min-width: 1200px) {
+    .logo-quotes {
+        font-size: calc(3rem * 0.9) !important;
+    }
+}
+
 .caveat {
     font-family: "Caveat", sans-serif !important;
     font-size: 155% !important;
@@ -143,7 +172,14 @@ textarea.form-control::placeholder {
     color: var(--theme-text) !important;
 }
 
-.border-theme {
+/* Duplázott szelektor (0,2,0 specificitás) SZÁNDÉKOSAN: az index.css a Bootstrap
+   ELŐTT tölt, így a Bootstrap `.border` utility rövidítése (border: … !important,
+   benne a border-color) EGYENLŐ specificitáson, KÉSŐBBI szabályként felülírná az
+   egyszeres `.border-theme` border-color-ját — a téma-keret helyett a Bootstrap
+   szürke alapkerete jönne (ez okozta az idézet törlés-modaljának "fehér" keretét,
+   ahol a `border border-3 border-theme` közül a border-theme veszített). A
+   duplázás specificitásban veri a `.border`-t, sorrendtől függetlenül. */
+.border-theme.border-theme {
     border-color: var(--theme-accent) !important;
 }
 
@@ -309,6 +345,27 @@ form.card > .input-group:first-child > :first-child {
 
 form.card > .input-group:first-child > :last-child {
     border-top-right-radius: 27px !important;
+}
+
+/* Az idézet-szerkesztő szövegmezője (Quote/save.jsx). A szöveg és a placeholder is
+   felül, balra zárt. A magasság a tartalomhoz nő (autoGrow a save.jsx-ben a
+   scrollHeight-re állítja), ezért a görgetősávot elrejtjük és a kézi átméretezőt is
+   levesszük — így SOSEM jelenik meg scrollbar. */
+#quoteField {
+    text-align: left;
+    overflow: hidden;
+    resize: none;
+}
+
+/* A félkövér idézet-részek (renderBold → <strong>) JÓVAL vastagabbak. A Caveat
+   variable font wght-tengelye 700-nál megáll — ez viszont a sima <strong>
+   alapértéke, tehát önmagában nem lenne feltűnő. Ezért a súly mellé a betű SAJÁT
+   színével húzott kontúrt is teszünk (-webkit-text-stroke), ami tovább hízlalja a
+   glifeket: így a félkövér erősen elüt a sima szövegtől. */
+.caveat strong,
+.caveat b {
+    font-weight: 700 !important;
+    -webkit-text-stroke: 0.6px currentColor;
 }
 
 
@@ -535,22 +592,9 @@ dialog.todo-modal {
     padding: 0;
     border: none;
     background: transparent;
-    /* Fade megjelenés/eltűnés. Az opacity átmenete mellé a display és az overlay
-       DISZKRÉT átmenete (allow-discrete) kell, mert a <dialog> nyitáskor
-       display:none -> block-ra vált — enélkül a belépő fade el sem indulna, a
-       kilépő pedig azonnal eltűnne. A @starting-style adja a belépő kezdőállapotot. */
-    opacity: 0;
-    transition: opacity 0.2s ease,
-                display 0.2s ease allow-discrete,
-                overlay 0.2s ease allow-discrete;
-}
-dialog.todo-modal[open] {
-    opacity: 1;
-}
-@starting-style {
-    dialog.todo-modal[open] {
-        opacity: 0;
-    }
+    /* A modal ÁTMENET NÉLKÜL, azonnal jelenik meg (a user kérése): nincs opacity-
+       fade, nincs display/overlay allow-discrete, nincs @starting-style — a natív
+       <dialog> a showModal()-ra rögtön látszik, a close()-ra rögtön eltűnik. */
 }
 
 /* 576px fölött a Bootstrap a margót 1.75rem-re növeli (--bs-modal-margin), a
@@ -563,38 +607,8 @@ dialog.todo-modal[open] {
 }
 
 /* A háttér elsötétítése — a react-bootstrap backdrop-ja is ~félig áttetsző fekete.
-   A backdrop külön fade-el (a nyitó/záró átmenettel együtt). */
+   Átmenet NÉLKÜL (mint a modal doboz): a sötét háttér a modallal együtt, azonnal
+   megjelenik. NINCS backdrop-filter blur (a Pi-n akadozott). */
 dialog.todo-modal::backdrop {
-    background: rgba(0, 0, 0, 0);
-    -webkit-backdrop-filter: blur(0);
-    backdrop-filter: blur(0);
-    transition: background 0.2s ease,
-                -webkit-backdrop-filter 0.2s ease,
-                backdrop-filter 0.2s ease,
-                display 0.2s ease allow-discrete,
-                overlay 0.2s ease allow-discrete;
-}
-dialog.todo-modal[open]::backdrop {
-    /* A háttér nemcsak sötétedik, hanem el is mosódik a modal mögött — a
-       -webkit- előtag a Safarinak kell. */
-    background: rgba(0, 0, 0, 0.5);
-    -webkit-backdrop-filter: blur(4px);
-    backdrop-filter: blur(4px);
-}
-@starting-style {
-    dialog.todo-modal[open]::backdrop {
-        background: rgba(0, 0, 0, 0);
-        -webkit-backdrop-filter: blur(0);
-        backdrop-filter: blur(0);
-    }
-}
-
-/* Mozgásérzékeny felhasználóknak (prefers-reduced-motion) nincs átúszás — a modal
-   azonnal jelenik meg/tűnik el. Bevett a11y-gyakorlat: az animáció ne ártson
-   azoknak, akiknél a mozgás rosszullétet okozhat. */
-@media (prefers-reduced-motion: reduce) {
-    dialog.todo-modal,
-    dialog.todo-modal::backdrop {
-        transition: none;
-    }
+    background: rgba(0, 0, 0, 0.85);
 }
