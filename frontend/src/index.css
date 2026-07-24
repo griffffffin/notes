@@ -371,10 +371,21 @@ form.card > .input-group:first-child > :last-child {
    felül, balra zárt. A magasság a tartalomhoz nő (autoGrow a save.jsx-ben a
    scrollHeight-re állítja), ezért a görgetősávot elrejtjük és a kézi átméretezőt is
    levesszük — így SOSEM jelenik meg scrollbar. */
+/* A sorszám-választó (order div) a quote-editorban vízszintesen SZIMMETRIKUS: a
+   bal paddingja PONTOSAN annyi, mint a jobb (pe-2 = 0.5rem). A card-header alapból
+   1rem bal paddingot adna — ezt írjuk felül 0.5rem-re, hogy a mínusz és a plusz
+   egyforma messze legyen az oszlop két szélétől. A textarea jobb paddingja 0 (l.
+   lent), így a szöveg a sorszám-oszlop bal széléig érhet. :has() a quote-editorra
+   szűkít, a to-do egysoros címéhez nem nyúl. */
+.input-group:has(> #quoteField) > :last-child {
+    padding-left: 0.5rem !important;
+}
+
 #quoteField {
     text-align: left;
     overflow: hidden;
     resize: none;
+    padding-right: 0 !important;
     /* A szerkesztő idézet-mezője (create ÉS update) ugyanakkora, mint a lista-
        nézet szövege (145%): amit gépelsz, akkora, amekkorának a listában is
        látszik majd. A mező a card-header osztályt is viseli (a form-lekerekítés
