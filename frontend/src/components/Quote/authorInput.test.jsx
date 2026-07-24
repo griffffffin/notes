@@ -49,6 +49,15 @@ describe("AuthorInput — ghost-text", () => {
         expect(input).toHaveValue("Márai");
     });
 
+    it("Enter elfogadáskor a JAVASLAT írásmódját veszi át (kisbetűs prefix → tárolt alak)", async () => {
+        render(<Wrapper/>);
+        const input = screen.getByPlaceholderText("Szerző");
+        await userEvent.type(input, "má");        // kisbetűvel gépel
+        await screen.findByText("rai");
+        await userEvent.type(input, "{Enter}");
+        expect(input).toHaveValue("Márai");        // a tárolt alakot kapja, nem "márai"-t
+    });
+
     it("a jobbra-nyíl a szöveg végén EGY betűt húz be (telefonos fokozatos elfogadás)", async () => {
         render(<Wrapper/>);
         const input = screen.getByPlaceholderText("Szerző");

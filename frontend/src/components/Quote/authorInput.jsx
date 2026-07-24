@@ -51,9 +51,11 @@ export default function AuthorInput(props) {
         if (!completion) return;
         const atEnd = event.target.selectionStart === value.length;
         if (event.key === "Enter" || (event.key === "ArrowRight" && event.ctrlKey && atEnd)) {
-            // Enter vagy Ctrl+jobbra a szöveg végén: az EGÉSZ kiegészítést egyben.
+            // Enter vagy Ctrl+jobbra a szöveg végén: az EGÉSZ javaslat elfogadása —
+            // a JAVASLAT írásmódjával (nem a beírt prefix betűzésével). Így "már" →
+            // "Márai" lesz, nem "márai": ha az egészet elfogadod, a tárolt alakot kapod.
             event.preventDefault();
-            props.onChange({target: {value: value + completion}});
+            props.onChange({target: {value: suggestion}});
             setSuggestion("");
         } else if (event.key === "ArrowRight" && atEnd) {
             /* Jobbra a szöveg végén: EGY betűt húz be a kiegészítésből. Minden
