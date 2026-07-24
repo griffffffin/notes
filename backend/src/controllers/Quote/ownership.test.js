@@ -64,6 +64,19 @@ test("nem létező idézetnél 404 (nincs mit rejteni, publikus)", async () => {
     assert.strictEqual(response.status, 404);
 });
 
+test("a publikus válasz csak a whitelistelt mezőket adja — a tulajdonos user-id és a belső azonosító NEM szivárog", async () => {
+    const response = await request(app).post("/id").send({id: OWNER_QUOTE._id});
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.quote, "Anna idézete");
+    assert.strictEqual(response.body.author, "Anna");
+    // A sorszám a SZERKESZTŐNEK kell (a stepper kezdőértéke) — jelen van.
+    assert.strictEqual(response.body.order, 1);
+    // A tulajdonos azonosítója egy publikus végponton nem jelenhet meg.
+    assert.strictEqual(response.body.user, undefined);
+    // A belső Mongo-azonosító sem szivárog (nincs rá szükség).
+    assert.strictEqual(response.body._id, undefined);
+});
+
 test("IDEGEN nem módosíthatja más idézetét (403)", async () => {
     const response = await request(app).post("/update").set("Authorization", tokenFor(STRANGER)).send(editBody);
     assert.strictEqual(response.status, 403);
