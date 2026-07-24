@@ -136,7 +136,11 @@ textarea.form-control::placeholder {
    ezt egyszer megváltoztatja, ez a két érték is állítandó. */
 .logo-quotes {
     font-family: "DancingScript", cursive !important;
-    font-weight: 600 !important;
+    /* A DancingScript variable font wght-tengelye 400–700; 700-on visszük, hogy
+       a súlya a To-do CaveatSemiBold-jához közelítsen — 600-on vékonyabbnak
+       hatott nála. (SemiBold static vágat nincs a fájlból, de a variable font a
+       700-at is adja, mint a Caveatnál a .caveat strong.) */
+    font-weight: 700 !important;
     font-size: calc((1.475rem + 2.7vw) * 0.9) !important;
 }
 
@@ -371,6 +375,11 @@ form.card > .input-group:first-child > :last-child {
     text-align: left;
     overflow: hidden;
     resize: none;
+    /* A szerkesztő idézet-mezője (create ÉS update) ugyanakkora, mint a lista-
+       nézet szövege (145%): amit gépelsz, akkora, amekkorának a listában is
+       látszik majd. A mező a card-header osztályt is viseli (a form-lekerekítés
+       miatt), ami 200%-ot adna — az id-szelektor (1,0,0) ezt felülírja. */
+    font-size: 145% !important;
 }
 
 /* A félkövér idézet-részek (renderBold → <strong>) JÓVAL vastagabbak. A Caveat
