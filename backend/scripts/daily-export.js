@@ -15,7 +15,8 @@ const Todo = require("../src/models/todo");
 const Quote = require("../src/models/quote");
 
 const EXPORT_DIR = process.env.EXPORT_DIR || "/opt/backups/to-do/daily";
-const RETENTION_DAYS = 30;
+// Kategóriánként ennyi LEGFRISSEBB exportfájlt tartunk meg, a többit töröljük.
+const RETENTION_COUNT = 10;
 
 /* A mentendő kategóriák: a fájlnév-előtag és a Mongoose-modell. A sort "user
    order" mindegyiknél működik (mindnek van user + order mezője), és determinista
@@ -58,18 +59,19 @@ async function exportCategory(category, startOfWindow, endOfWindow) {
     console.log(`[${category.name}] ${documents.length} dokumentum exportálva: ${file}`);
 }
 
-/* Retenció EGY kategóriára — de régi fájlt csak akkor törlünk, ha annak a
-   kategóriának a legfrissebb mentése érvényes, nem üres JSON-tömb (legalább egy
-   elemmel): üres/hibás friss mentés ne tüntethesse el a még adatot őrző régieket.
-   A szűrés a kategória fájlnév-előtagjára megy, hogy a kategóriák retenciója NE
-   keveredjen (a quotes friss mentése ne törölhessen régi todos-fájlt). */
+/* Retenció EGY kategóriára: a RETENTION_COUNT legfrissebb fájlt tartjuk meg, a
+   többit töröljük — DE csak akkor, ha a kategória legfrissebb mentése érvényes,
+   nem üres JSON-tömb (legalább egy elemmel): üres/hibás friss mentés ne
+   tüntethesse el a még adatot őrző régieket. A szűrés a kategória fájlnév-
+   előtagjára megy, hogy a kategóriák retenciója NE keveredjen (a quotes friss
+   mentése ne törölhessen régi todos-fájlt). */
 function retainCategory(category) {
     const prefix = category.name + "-";
     const files = fs.readdirSync(EXPORT_DIR)
         .filter((name) => name.startsWith(prefix) && name.endsWith(".json"))
         .map((name) => ({name, path: path.join(EXPORT_DIR, name)}))
-        .sort((a, b) => fs.statSync(b.path).mtimeMs - fs.statSync(a.path).mtimeMs);
-    if (files.length === 0) return;
+        .sort((a, b) => fs.statSync(b.path).mtimeMs - fs.statSync(a.path).mtimeMs);   // legfrissebb elöl
+    if (files.length <= RETENTION_COUNT) return;
 
     let newestHasData = false;
     try {
@@ -81,12 +83,10 @@ function retainCategory(category) {
         console.log(`[${category.name}] A legfrissebb export üres vagy hibás — retenciós törlés kihagyva.`);
         return;
     }
-    const limit = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
-    for (const file of files) {
-        if (fs.statSync(file.path).mtimeMs < limit) {
-            fs.unlinkSync(file.path);
-            console.log(`[${category.name}] Régi export törölve: ${file.name}`);
-        }
+    // A 10 legfrissebbet megtartjuk (a lista elején), a többit töröljük.
+    for (const file of files.slice(RETENTION_COUNT)) {
+        fs.unlinkSync(file.path);
+        console.log(`[${category.name}] Régi export törölve: ${file.name}`);
     }
 }
 
