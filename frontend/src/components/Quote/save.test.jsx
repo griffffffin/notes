@@ -54,28 +54,31 @@ afterEach(() => {
     document.cookie = "backgroundColor=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
 });
 
+const quoteField = () => screen.getByPlaceholderText("Idézet szövege");
+
 describe("QuoteSave — create", () => {
-    it("idézet mentése a /quotes/create-et hívja a szöveggel, szerzővel és a lista végi sorszámmal", async () => {
+    it("idézet mentése a /quotes/create-et hívja a szöveggel, szerzővel és az alap sorszámmal", async () => {
         window.history.pushState({}, "", "/quotes/create");
         renderRoutes();
-        await waitFor(() => expect(screen.getByPlaceholderText("Idézet")).toBeInTheDocument());
+        await waitFor(() => expect(quoteField()).toBeInTheDocument());
 
-        await userEvent.type(screen.getByPlaceholderText("Idézet"), "Új idézet");
+        await userEvent.type(quoteField(), "Új idézet");
         await userEvent.type(screen.getByPlaceholderText("Szerző"), "Én");
         handleAxios.mockClear();
         await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
 
-        // A last/order 3 volt, tehát az új idézet a 4. helyre (a lista végére) kerül.
+        // Az Order alapból 1 (a lista eleje), pontosan a to-do mintájára — az új
+        // idézet ide kerül, hacsak a felhasználó nem lépteti lejjebb.
         await waitFor(() => {
             const call = handleAxios.mock.calls.find((c) => c[0] === "/quotes/create");
-            expect(call?.[1]).toMatchObject({quote: "Új idézet", author: "Én", order: 4});
+            expect(call?.[1]).toMatchObject({quote: "Új idézet", author: "Én", order: 1});
         });
     });
 
     it("üres idézet + kitöltött szerző: a mentés megáll (a szerző kötelező NEM, az idézet igen)", async () => {
         window.history.pushState({}, "", "/quotes/create");
         renderRoutes();
-        await waitFor(() => expect(screen.getByPlaceholderText("Idézet")).toBeInTheDocument());
+        await waitFor(() => expect(quoteField()).toBeInTheDocument());
 
         await userEvent.type(screen.getByPlaceholderText("Szerző"), "Én");
         handleAxios.mockClear();
@@ -87,10 +90,25 @@ describe("QuoteSave — create", () => {
         expect(window.location.pathname).toBe("/quotes/create");
     });
 
+    it("Ctrl+B a kijelölt szöveget félkövérré teszi, ismételt nyomásra vissza (toggle, nem halmoz)", async () => {
+        window.history.pushState({}, "", "/quotes/create");
+        renderRoutes();
+        const field = await screen.findByPlaceholderText("Idézet szövege");
+
+        await userEvent.type(field, "szép");
+        field.setSelectionRange(0, 4);          // a teljes "szép" kijelölése
+        await userEvent.keyboard("{Control>}b{/Control}");
+        await waitFor(() => expect(field).toHaveValue("**szép**"));
+
+        // A kijelölés a "szép"-en maradt (a ** kívül) — újabb Ctrl+B leveszi.
+        await userEvent.keyboard("{Control>}b{/Control}");
+        await waitFor(() => expect(field).toHaveValue("szép"));
+    });
+
     it("érintetlen create: a Tovább csak visszavisz a listára, nem ment", async () => {
         window.history.pushState({}, "", "/quotes/create");
         renderRoutes();
-        await waitFor(() => expect(screen.getByPlaceholderText("Idézet")).toBeInTheDocument());
+        await waitFor(() => expect(quoteField()).toBeInTheDocument());
 
         handleAxios.mockClear();
         await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
@@ -105,16 +123,16 @@ describe("QuoteSave — update", () => {
         window.history.pushState({}, "", "/quotes/update/q-1");
         renderRoutes();
 
-        await waitFor(() => expect(screen.getByPlaceholderText("Idézet")).toHaveValue("Az élet szép."));
+        await waitFor(() => expect(quoteField()).toHaveValue("Az élet szép."));
         expect(screen.getByPlaceholderText("Szerző")).toHaveValue("Valaki");
     });
 
     it("módosítás után a /quotes/update-et hívja az id-val", async () => {
         window.history.pushState({}, "", "/quotes/update/q-1");
         renderRoutes();
-        await waitFor(() => expect(screen.getByPlaceholderText("Idézet")).toHaveValue("Az élet szép."));
+        await waitFor(() => expect(quoteField()).toHaveValue("Az élet szép."));
 
-        await userEvent.type(screen.getByPlaceholderText("Idézet"), " Tényleg.");
+        await userEvent.type(quoteField(), " Tényleg.");
         handleAxios.mockClear();
         await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
 
@@ -127,7 +145,7 @@ describe("QuoteSave — update", () => {
     it("változatlan tartalommal a Tovább NEM ment (nincs /quotes/update)", async () => {
         window.history.pushState({}, "", "/quotes/update/q-1");
         renderRoutes();
-        await waitFor(() => expect(screen.getByPlaceholderText("Idézet")).toHaveValue("Az élet szép."));
+        await waitFor(() => expect(quoteField()).toHaveValue("Az élet szép."));
 
         handleAxios.mockClear();
         await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
