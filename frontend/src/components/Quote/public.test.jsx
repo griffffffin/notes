@@ -40,16 +40,29 @@ describe("QuotePublic (megosztott idézet)", () => {
         renderRoutes("/quotes/M%C3%A1rai/q-1");
 
         expect(await screen.findByText("Megosztott idézet.")).toBeVisible();
-        expect(screen.getByText("— Márai")).toBeVisible();
+        expect(screen.getByText("Márai")).toBeVisible();
     });
 
-    it("nem létező idézetnél a 'Nincs ilyen idézet.' üzenetet mutatja, nem pörög a betöltő", async () => {
+    it("a **…** markert félkövérként rendereli, a marker maga nem látszik", async () => {
+        handleAxios.mockImplementation((url, data, then) => {
+            if (url === "/quotes/id") then({data: {...QUOTE, quote: "Sima **félkövér** rész."}});
+            return Promise.resolve();
+        });
+        renderRoutes("/quotes/M%C3%A1rai/q-1");
+
+        const bold = await screen.findByText("félkövér");
+        expect(bold.tagName).toBe("STRONG");
+        // A `**` marker a renderelt szövegben már nem szerepel.
+        expect(document.body.textContent).not.toContain("**");
+    });
+
+    it("nem létező idézetnél a 'Nem létező idézet.' üzenetet mutatja, nem pörög a betöltő", async () => {
         handleAxios.mockImplementation((url, data, then, catchError) => {
             catchError({response: {status: 404}});
             return Promise.resolve();
         });
         renderRoutes("/quotes/x/nincs");
 
-        expect(await screen.findByText("Nincs ilyen idézet.")).toBeVisible();
+        expect(await screen.findByText("Nem létező idézet.")).toBeVisible();
     });
 });

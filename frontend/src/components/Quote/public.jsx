@@ -3,6 +3,7 @@ import {useParams} from "react-router-dom";
 import Spinner from "../spinner";
 import {useAuth} from "../../contexts/auth";
 import {useTheme} from "../../contexts/theme";
+import {renderBold} from "./bold";
 import {logRequestError} from "../../log";
 
 /* Egy megosztott idézet PUBLIKUS nézete (/quotes/:author/:id). Token nélkül is
@@ -26,18 +27,21 @@ export default function QuotePublic() {
             });
     }, [id, handleAxios]);
 
-    if (notFound) return <div className={"text-center mt-5 caveat text-" + color}>Nincs ilyen idézet.</div>;
+    if (notFound) return <div className={"text-center mt-5 caveat text-" + color}>Nem létező idézet.</div>;
     if (!quote) return <Spinner class="min-vh-75"/>;
 
     return (
         <div className={"col-11 col-sm-10 col-md-8 col-lg-7 col-xl-6 card mx-auto mt-3 " +
             "bg-transparent border-2 border-" + color}>
-            <div className={"card-body caveat text-center px-4 py-4 text-" + color} style={{fontSize: "170%"}}>
-                {quote.quote}
+            {/* A törzsszöveg BALRA zárt (mint a szerkesztőben); a szerző marad
+                középen (l. a card-footer text-center-jét). */}
+            <div className={"card-body caveat text-start px-4 py-4 text-" + color}
+                 style={{fontSize: "170%", whiteSpace: "pre-wrap"}}>
+                {renderBold(quote.quote)}
             </div>
             {quote.author &&
                 <div className={"card-footer caveat text-center bg-transparent border-0 pb-3 text-" + color}>
-                    — {quote.author}
+                    {quote.author}
                 </div>}
         </div>
     );
