@@ -151,6 +151,22 @@ textarea.form-control::placeholder {
     font-size: 155% !important;
 }
 
+/* A LISTÁK szövege egy fokkal kisebb (145%), de CSAK a MEGJELENÍTETT szöveg —
+   az idézet-kártyák törzse és a to-do task-sorai mind <div>-ként renderelődnek.
+   A beviteli mezők (Szerző-input, "új task", a to-do kategória-mező) <input>-ek,
+   ezekre a `div.caveat` NEM illik, tehát 155%-osak maradnak. A card-header/
+   modal-title 200%-ot a `.caveat.card-header` (0,2,0 specificitás) tartja a
+   `div.caveat:not(.form-control)` (0,2,1) felett, így a lista-CÍMEK sem kisebbednek.
+
+   A :not(.form-control) NEM elhagyható: a Szerző-mező ghost-text overlay-e egy
+   form-control osztályú <div> (az input MÖGÖTT, azonos betűvel/paddinggel, hogy a
+   kiegészítés a beírt szöveg folytatásaként illeszkedjen). Enélkül ez az overlay
+   145%-ra zsugorodna, míg a mögötte lévő <input> 155% maradna — a ghost-text
+   elcsúszna. A form-control kizárásával az overlay is 155% marad, illeszkedik. */
+div.caveat:not(.form-control) {
+    font-size: 145% !important;
+}
+
 
 /*entry.jsx*/
 /* --- Téma-színek: az értékeket a ThemeProvider tölti CSS-változókba a THEMES
@@ -365,7 +381,7 @@ form.card > .input-group:first-child > :last-child {
 .caveat strong,
 .caveat b {
     font-weight: 700 !important;
-    -webkit-text-stroke: 0.6px currentColor;
+    -webkit-text-stroke: 0.8px currentColor;
 }
 
 
