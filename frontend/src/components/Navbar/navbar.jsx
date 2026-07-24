@@ -1,16 +1,18 @@
 import {useLocation} from "react-router-dom";
 import LogoAndCreate from "./logoAndCreate";
-import {currentCategory} from "./categorySwitcher";
+import {currentSection} from "./sectionSwitcher";
 import ColorCategoryAndSignOut from "./colorCategoryAndSignOut";
 import Switch from "./switch";
 import CategoryAndColorGroup from "../Link/categoryAndColorGroup";
 
 export default function Navbar(props) {
     /* A szín- és kategória-választó a to-do SAJÁTJA (kártyaszín, kategória-szűrés);
-       más kategóriában — pl. idézetek — nincs értelme, ezért csak a to-do útjain
-       jelenik meg. A kijelentkezés-ikon és a téma-váltó viszont mindenhol marad.
-       A useLocation itt működik: a Navbar a Routeren BELÜL renderelődik. */
-    const isTodo = currentCategory(useLocation().pathname).path === "/to-do";
+       más SZEKCIÓBAN — pl. idézetek — nincs értelme, ezért csak a to-do útjain
+       jelenik meg. (A "kategória" itt a to-do belső, elemekre vonatkozó mezője; a
+       "szekció" a felső szint — l. sectionSwitcher.jsx.) A kijelentkezés-ikon és a
+       téma-váltó mindenhol marad. A useLocation itt működik: a Navbar a Routeren
+       BELÜL renderelődik. */
+    const isTodo = currentSection(useLocation().pathname).path === "/to-do";
     /* Nincs useCallback: ezek sima onClick-ekre mennek, memózatlan komponensekre —
        a memózásnak nem lenne fogyasztója. (Ráadásul a régi [props] függőség
        hatástalan volt: a props objektum minden rendernél új.) */
@@ -38,6 +40,9 @@ export default function Navbar(props) {
                                      isCreateVisible={props.isVisible}/>
                     : <div className="d-grid pb-1" aria-hidden="true">
                           <div className="input-group align-items-center">
+                              {/* A magasságot az igazi logó font-osztályai (display-5 logo)
+                                  adják — ha az igazi logó mérete változik, ITT is kövesd,
+                                  különben a téma-váltó függőlegesen elcsúszik. */}
                               <div className="display-5 logo invisible">&nbsp;</div>
                           </div>
                       </div>}

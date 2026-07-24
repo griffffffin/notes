@@ -75,11 +75,20 @@ komponensek nagy része átkerül, csak az új backend és kategóriák köré b
 - Nyelv: JavaScript egyelőre (TypeScript-re váltás később, külön lépésben, ha az
   alap már stabil)
 - Backend: Express + Mongoose, FerretDB-hez kapcsolódva (MongoDB-kompatibilis protokoll)
-- Adatmodell: **kategóriánként külön tábla/collection**, nem egy közös polimorf
-  tábla. Alkategóriák (pl. film műfaja) NEM külön táblák, hanem oszlop az adott
-  kategória tábláján belül, amire az URL-routing szűr (pl. `/movies/comedy` a
-  `movies` tábla `genre` oszlopára szűrt nézet).
-- URL-struktúra: egy domain, kategóriánkénti route-ok (`/movies/comedy`, `/series`,
+- **Szótár — két szint, két név** (a kódban szándékosan külön, hogy ne
+  keveredjenek): a felső szint a **szekció** (`section`) — egy tartalomtípus,
+  saját collectionnel (to-do, idézetek, film…). A szekción belüli, elemekre
+  vonatkozó osztályozás a **kategória** (`category`) vagy más domain-specifikus
+  mező (film: `genre`, idézet: `author`). A régi kód a felső szintet is
+  "kategóriának" hívta — ez ütközött a to-do saját `category` mezőjével, ezért a
+  felső szint kódbeli neve `section` (l. `Navbar/sectionSwitcher.jsx`,
+  `currentSection`). A to-do belső `category` DB-mezője VÁLTOZATLAN marad.
+- Adatmodell: **szekciónként külön tábla/collection**, nem egy közös polimorf
+  tábla. A szekción belüli szűrő-oszlopok (pl. film műfaja, to-do kategóriája)
+  NEM külön táblák, hanem oszlop az adott szekció tábláján belül, amire az
+  URL-routing szűr (pl. `/movies/comedy` a `movies` tábla `genre` oszlopára
+  szűrt nézet).
+- URL-struktúra: egy domain, szekciónkénti route-ok (`/movies/comedy`, `/series`,
   `/books`, `/thoughts`, stb.)
 - Ismert kategóriák eddig: movies (cím, évszám, genre), quotes (szerző, idézet
   szövege) - a többi (jegyzetek, sorozatok, könyvek, egyéb könyvjelzők) mezői

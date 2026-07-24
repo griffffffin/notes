@@ -35,9 +35,9 @@ export default function Read(props) {
     });
 
     // A gyökér-átirányítás ide tér vissza: jelöljük, hogy a to-do az utolsó
-    // megnyitott kategória (a szűrt nézetek is a /to-do gyökérre mutatnak).
+    // megnyitott szekció (a szűrt nézetek is a /to-do gyökérre mutatnak).
     useEffect(() => {
-        localStorage.setItem("lastCategory", "/to-do");
+        localStorage.setItem("lastSection", "/to-do");
     }, []);
 
     // Szűrő nélküli szűrt nézet: nincs mit listázni, vissza a főoldalra (replace,

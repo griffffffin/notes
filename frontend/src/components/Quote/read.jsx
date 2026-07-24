@@ -33,9 +33,9 @@ export default function QuoteRead(props) {
     });
 
     // A gyökér-átirányítás ide tér vissza: jelöljük, hogy az idézetek az utolsó
-    // megnyitott kategória (a szűrt nézetek is a /quotes gyökérre mutatnak).
+    // megnyitott szekció (a szűrt nézetek is a /quotes gyökérre mutatnak).
     useEffect(() => {
-        localStorage.setItem("lastCategory", "/quotes");
+        localStorage.setItem("lastSection", "/quotes");
     }, []);
 
     // Szűrő nélküli szűrt nézet: vissza az idézet-listára (replace, hogy a

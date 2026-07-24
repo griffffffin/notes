@@ -22,12 +22,12 @@ export default function Routes(props) {
                     handleLinkClicked={props.handleLinkClicked} isVisible={true}
                     categories={props.categories}/>
                 <ReactRoutes>
-                    {/* A gyökér az UTOLSÓ megnyitott kategóriára visz (a Read és a
+                    {/* A gyökér az UTOLSÓ megnyitott SZEKCIÓRA visz (a Read és a
                         QuoteRead mountkor a localStorage-ba menti, melyikben jársz),
                         így ott folytatod, ahol abbahagytad. Első alkalommal (üres
                         tár) a /to-do. Eszközönként külön, mert localStorage. */}
                     <Route path="/" element={
-                        <Navigate to={localStorage.getItem("lastCategory") ?? "/to-do"} replace/>}/>
+                        <Navigate to={localStorage.getItem("lastSection") ?? "/to-do"} replace/>}/>
                     <Route path="/to-do" element={
                         <Read url="/to-do" handleLinkClicked={props.handleLinkClicked}/>}/>
                     {/* A key nem dísz: a /to-do/create és a /to-do/update UGYANAZT

@@ -1,5 +1,5 @@
 import {Link, useLocation} from "react-router-dom";
-import CategorySwitcher, {currentCategory} from "./categorySwitcher";
+import SectionSwitcher, {currentSection} from "./sectionSwitcher";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {useTheme} from "../../contexts/theme";
 
@@ -10,7 +10,7 @@ export default function LogoAndCreate(props) {
     return (
         <div className="d-grid pb-1">
             <div className="input-group align-items-center">
-                <CategorySwitcher onClick={props.isVisible && props.handleLinkClicked}/>
+                <SectionSwitcher onClick={props.isVisible && props.handleLinkClicked}/>
                 {props.isCreateVisible &&
                     /* Link, és nem kattintás-kezelős ikon: a "+" egy OLDALRA visz
                        (/create), nem műveletet végez — ahogy mellette a logó is
@@ -24,7 +24,7 @@ export default function LogoAndCreate(props) {
                        után a főoldalra) jogosan kéziek: azok egy MŰVELET
                        eredményei, nem célpontok — linkként hamis ígéret lenne
                        rájuk kattintani. */
-                    <Link to={currentCategory(location.pathname).path + "/create"}
+                    <Link to={currentSection(location.pathname).path + "/create"}
                           onClick={props.handleLinkClicked} className="no-focus">
                         {/* A logó és a "+" távolsága: <576px-en a ps-3 (1rem) — ez jó.
                             A töréspont (≥576px) fölött korábban egy plusz ms-sm-3 (1rem)
