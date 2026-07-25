@@ -1,83 +1,109 @@
-import {useCallback, useEffect, useRef, useState} from "react";
+import {useCallback, useEffect, useRef} from "react";
 import {Tooltip as ReactTooltip} from "react-tooltip";
 
-/* Ennyit vár a léptető két lépés között. EGY helyen áll, mert a lenti két
-   effekt (le és fel) ugyanezt az ütemet használja — külön számokként némán
-   elcsúszhatnának egymástól.
-
-   Ez egyben a KATTINTÁS késleltetése is: a kattintásra a szám ennyivel később
-   mozdul, mert a lépést mindkét esetben ugyanaz az időzítő adja. */
+/* Ennyit vár a léptető két lépés között — ÉS ennyivel később mozdul a kattintásra
+   is (a kattintás egyetlen lépése is ezen az időzítőn megy). EGY helyen áll, mert
+   a lefelé és a felfelé léptetés ugyanezt az ütemet használja; külön számokként
+   némán elcsúszhatnának egymástól. */
 export const STEP_DELAY_MS = 100;
 
 export default function Order(props) {
-    const [plusDown, setPlusDown] = useState(false);
-    const [minusDown, setMinusDown] = useState(false);
-    /* Lépett-e már a mostani lenyomás óta — az időzítő takarítása ettől függ
-       (lásd lent). Ref és nem state: a változása NEM járhat újrarajzolással,
-       különben újraindítaná azt az effektet, amit épp szabályoz. */
-    const hasStepped = useRef(false);
+    /* Alapértékek a SORSZÁM-használathoz (to-do + idézet): 1-től, egyesével,
+       "Sorszám" tooltip lefelé. A per-idézet BETŰMÉRET-stepper ugyanezt a
+       komponenst használja: a léptetés (kattintás/nyomva tartás, ütem) SZÁNDÉKOSAN
+       1:1 azonos a sorszáméval — csak a TARTOMÁNY (min 80, max 300) és a FELIRAT
+       tér el ("Betűméret" tooltip FELFELÉ). A step-et egyik hívó sem adja meg, így
+       mindkettő egyesével lép. A tooltipId külön adható, mert egy oldalon KÉT
+       stepper is lehet (a szerkesztőben a sorszám ÉS a betűméret) — azonos id-jű
+       tooltipek ütköznének. */
+    const min = props.min ?? 1;
+    const step = props.step ?? 1;
+    const tooltipId = props.tooltipId ?? "order-tooltip";
+    /* A felső korlát: ha a hívó megadja a max propot (betűméret: 300), az; különben
+       a sorszám-minta last+1-e — create-nél az új elem a lista VÉGÉRE, azaz last+1-re
+       is kerülhet (l. az order-tesztet). */
+    const max = props.max ?? (props.last + 1);
+    /* Két lépés közti idő ezredmásodpercben — ennyivel később mozdul a kattintás, és
+       ennyi a nyomva tartás ismétlési üteme. Alap a STEP_DELAY_MS; a hívó felülírhatja
+       (a betűméret-stepper feleannyit ad → dupla sebesség). */
+    const stepDelay = props.stepDelay ?? STEP_DELAY_MS;
 
-    const handleMinusDown = useCallback(() => {
-        hasStepped.current = false;
-        setMinusDown(true);
+    /* A nyomva tartás ismétlő-időzítője. Ref, mert a lenyomás és az elengedés közt
+       kell életben tartani, és a változása NEM járhat újrarajzolással. */
+    const timer = useRef(null);
+    /* Lépett-e már a mostani lenyomás óta. Ez választja szét a KATTINTÁST a NYOMVA
+       TARTÁSTÓL az elengedéskor: kattintásnál (még nem lépett) a függőben lévő
+       EGYETLEN lépést hagyjuk lefutni; nyomva tartás után (már lépett) a soron
+       következő lépést eldobjuk, hogy elengedés után ne szaladjon tovább. */
+    const stepped = useRef(false);
+    /* Nyomva tartják-e még. A tick csak akkor ütemez újabb lépést, ha ez igaz —
+       így az elengedés (window-figyelő) egyetlen ref-váltással leállítja az
+       ismétlést, bárhol is engedték fel az egeret. */
+    const holding = useRef(false);
+    /* A legfrissebb érték tükre. A tick EBBŐL számol (nem a props.current-ból): a
+       gyors ismétlés alatt a props.current egy rendert késhet, a ref viszont a
+       lépéssel egyszerre frissül, így nem lép duplát vagy ki a határon. */
+    const valueRef = useRef(props.current);
+    valueRef.current = props.current;
+
+    const clamp = useCallback((value) => Math.min(max, Math.max(min, value)), [min, max]);
+
+    /* Elengedés — az egész ABLAKRA kötve (l. start), nem csak a gombra. Ez a hiba
+       gyökér-javítása: ha az egeret a gombon KÍVÜL engedik fel (a gombról lecsúszva,
+       vagy mert a szám 9→10 szélesedésekor a + gomb kicsúszik a kurzor alól), a
+       gombra kötött onMouseUp sosem sülne el, és a léptető pörögne tovább — főleg
+       fölfelé, ahol nincs közeli határ, ami megállítsa. A window-figyelő bárhol
+       elkapja az elengedést. */
+    const release = useCallback(() => {
+        holding.current = false;
+        window.removeEventListener("mouseup", release);
+        window.removeEventListener("touchend", release);
+        window.removeEventListener("touchcancel", release);
+        if (stepped.current && timer.current) {
+            clearTimeout(timer.current);
+            timer.current = null;
+        }
     }, []);
-    const handleMinusUp = useCallback(() => setMinusDown(false), []);
-    const handlePlusDown = useCallback(() => {
-        hasStepped.current = false;
-        setPlusDown(true);
-    }, []);
-    const handlePlusUp = useCallback(() => setPlusDown(false), []);
 
-    /* Az időzítő takarítása FELTÉTELES, és ez szándékos.
+    const start = useCallback((event, direction) => {
+        // A szintetikus egéresemények kiiktatása touchnál (különben a touchstart utáni
+        // kései mousedown másodszor is indítana): a textarea fókusza is megmarad.
+        event.preventDefault?.();
+        if (timer.current) clearTimeout(timer.current);
+        stepped.current = false;
+        holding.current = true;
+        window.addEventListener("mouseup", release);
+        window.addEventListener("touchend", release);
+        window.addEventListener("touchcancel", release);
 
-       A léptetés úgy működik, hogy a lenyomás STEP_DELAY_MS-mal későbbre
-       ütemez egy lépést; a lépés után a szülő új props-t ad, amitől az effekt
-       újraindul és ütemezi a következőt — ez adja az ismétlést.
-
-       KATTINTÁSNÁL (a késleltetésnél rövidebb nyomás) az elengedés még az első
-       lépés ELŐTT jön, tehát a függőben lévő időzítő adja az EGYETLEN lépést. Ha azt
-       feltétel nélkül eldobnánk, a kattintás nem csinálna semmit — a léptető
-       megszűnne működni. A feltétel nélküli takarítás kézenfekvőbbnek látszik,
-       és pont ezért veszélyes: némán megölné a kattintást, miközben a nyomva
-       tartás továbbra is hibátlanul menne.
-
-       NYOMVA TARTÁS után viszont a soron következő időzítőt el KELL dobni,
-       különben elengedés után még egyet lép: 8-ról indulva, 3-nál elengedve
-       2 lett belőle.
-
-       A kettőt a hasStepped választja szét: csak azt az időzítőt állítjuk le,
-       ami egy már megkezdett ismétlés folytatása lenne. */
-    useEffect(() => {
-        if (plusDown || !minusDown || props.current <= 1) return;
-        const timer = setTimeout(() => {
-            hasStepped.current = true;
-            props.setOrder(props.current - 1);
-        }, STEP_DELAY_MS);
-        return () => {
-            if (hasStepped.current) clearTimeout(timer);
+        const tick = () => {
+            const next = clamp(valueRef.current + direction * step);
+            // Elértük a határt (nincs változás) — állj le, ne pörögjön üresben.
+            if (next === valueRef.current) { timer.current = null; return; }
+            stepped.current = true;
+            valueRef.current = next;
+            props.setOrder(next);
+            // Csak akkor ütemezz újabb lépést, ha MÉG nyomva tartják. Kattintásnál a
+            // holding az elengedéskor már false, tehát pontosan egyszer lép.
+            timer.current = holding.current ? setTimeout(tick, stepDelay) : null;
         };
-    }, [plusDown, minusDown, props]);
+        timer.current = setTimeout(tick, stepDelay);
+    }, [clamp, step, props, release]);
 
-    useEffect(() => {
-        if (!plusDown || minusDown || props.last < props.current) return;
-        const timer = setTimeout(() => {
-            hasStepped.current = true;
-            props.setOrder(props.current + 1);
-        }, STEP_DELAY_MS);
-        return () => {
-            if (hasStepped.current) clearTimeout(timer);
-        };
-    }, [plusDown, minusDown, props]);
+    const handleMinusDown = useCallback((event) => start(event, -1), [start]);
+    const handlePlusDown = useCallback((event) => start(event, 1), [start]);
+
+    // Leszereléskor: függőben lévő időzítő + window-figyelők eltakarítása.
+    useEffect(() => release, [release]);
 
     /* A sorszám-toolbar a TÉMA színeit viseli (nem a to-do sajátját): a háttere a
        lap háttere (bg-theme-page), a szám és a gombok a kiemelőszínt (text-theme;
        a gombok fill=currentColor ebből veszik). */
     return (
-        <div className="card-header no-focus bg-theme-page fs-4 user-select-none pe-2 text-theme">
+        <div className="card-header no-focus bg-theme-page fs-4 user-select-none pe-2 text-theme flex-shrink-0">
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor"
                  className="bi bi-dash-circle me-1 pb-1" viewBox="0 0 16 16"
-                 onMouseDown={handleMinusDown} onMouseUp={handleMinusUp}
-                 onTouchStart={handleMinusDown} onTouchEnd={handleMinusUp}>
+                 onMouseDown={handleMinusDown} onTouchStart={handleMinusDown}>
                 <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
                 <path d="M4 8a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7A.5.5 0 0 1 4 8z"/>
             </svg>
@@ -88,7 +114,7 @@ export default function Order(props) {
                 ugrált a + gomb. Az inline-block + text-align a számot a két gomb
                 közé középre igazítja. (A jegyszám VÁLTOZÁSA — 9→10 — még szélesít
                 egyet, de az ritka és logikus.) */}
-            <span data-tooltip-id="order-tooltip"
+            <span data-tooltip-id={tooltipId}
                   style={{fontVariantNumeric: "tabular-nums", display: "inline-block", textAlign: "center"}}>
                 {props.current}
             </span>
@@ -101,17 +127,16 @@ export default function Order(props) {
                 helyett: háttér a lap (--theme-page-bg), szöveg és keret a
                 kiemelőszín (--theme-accent). A színeket inline adjuk, mert a
                 react-tooltip a saját (injektálatlan) stílusát tenné rá. */}
-            <ReactTooltip id="order-tooltip" place="bottom" clickable={true}
+            <ReactTooltip id={tooltipId} place={props.tooltipPlace ?? "bottom"} clickable={true}
                           disableStyleInjection={true}
                           border="1px solid var(--theme-accent)"
                           style={{zIndex: 10, backgroundColor: "var(--theme-page-bg)",
                                   color: "var(--theme-accent)", fontSize: "60%"}}>
-                Sorszám
+                {props.tooltip ?? "Sorszám"}
             </ReactTooltip>
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor"
                  className="bi bi-plus-circle ms-1 pb-1" viewBox="0 0 16 16"
-                 onMouseDown={handlePlusDown} onMouseUp={handlePlusUp}
-                 onTouchStart={handlePlusDown} onTouchEnd={handlePlusUp}>
+                 onMouseDown={handlePlusDown} onTouchStart={handlePlusDown}>
                 <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
                 <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1
                         0-1h3v-3A.5.5 0 0 1 8 4z"/>

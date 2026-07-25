@@ -83,6 +83,26 @@ describe("Order", () => {
         expect(screen.getByText("9")).toBeInTheDocument();
     });
 
+    /* A JAVÍTOTT hiba regressziós tesztje: az elengedés a gombon KÍVÜL történik (a
+       document.body-n, nem az SVG-n). A régi kód az onMouseUp-ot csak a gombra
+       kötötte, így ez az elengedés elkerülte, és a léptető pörgött tovább — főleg
+       fölfelé, ahol nincs közeli határ. Az elengedés-figyelő most a window-on van,
+       ezért bárhol felengedve megáll. (A body-ra dobott mouseup a window-ig
+       buborékol, de a gomb SVG-jét — ami nem őse a body-nak — sosem érné el.) */
+    it("a gombon KÍVÜL felengedve is megáll (nem szalad túl)", () => {
+        const {container} = render(<Parent/>);
+
+        fireEvent.mouseDown(plus(container));
+        act(() => vi.advanceTimersByTime(STEP_DELAY_MS));
+        expect(screen.getByText("9")).toBeInTheDocument();
+
+        // Elengedés máshol, NEM a + gombon:
+        fireEvent.mouseUp(document.body);
+        act(() => vi.advanceTimersByTime(2000));
+
+        expect(screen.getByText("9")).toBeInTheDocument();
+    });
+
     it("az alsó határon (1) nem lép tovább lefelé", () => {
         const {container} = render(<Parent start={1}/>);
 
