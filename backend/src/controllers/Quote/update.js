@@ -15,7 +15,8 @@ module.exports = router.post("/", (request, response) => {
         const order = request.body.order;
         const save = () => Quote.findByIdAndUpdate(
             id,
-            {quote: request.body.quote, author: request.body.author, order: order, updatedAt: new Date()},
+            {quote: request.body.quote, author: request.body.author, order: order,
+                fontSize: request.body.fontSize, updatedAt: new Date()},
             {runValidators: true},
         )
             .then(() => response.json("Idézet frissítve."))

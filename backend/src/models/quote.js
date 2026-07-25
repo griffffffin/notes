@@ -32,6 +32,17 @@ const quoteSchema = new Schema({
         // Mint a to-dónál: a sorszám 1-től indul, második védvonal a middleware mögött.
         min: 1
     },
+    /* Per-idézet betűméret SZÁZALÉKBAN (a body font-méretéhez képest): a szerkesztő
+       "Betűméret" steppere állítja, és minden nézet — lista, publikus, szerkesztő —
+       ezzel a mérettel rajzolja az idézetet. Alap 155% (a Szerző-mező mérete), így a
+       mező nélküli régi idézetek is a szerzővel egyező, olvasható méretben jelennek
+       meg. A tartományt a middleware (validateQuote) is őrzi; itt a séma védvonala. */
+    fontSize: {
+        type: Number,
+        default: 155,
+        min: 100,
+        max: 200
+    },
     createdAt: {
         type: Date,
         default: Date.now,

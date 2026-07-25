@@ -18,7 +18,7 @@ const newId = () => new mongoose.Types.ObjectId().toString();
 const OWNER = newId();
 const STRANGER = newId();
 const MISSING_ID = newId();
-const OWNER_QUOTE = {_id: newId(), user: OWNER, quote: "Anna idézete", author: "Anna", order: 1};
+const OWNER_QUOTE = {_id: newId(), user: OWNER, quote: "Anna idézete", author: "Anna", order: 1, fontSize: 160};
 
 require.cache[modelPath] = {
     id: modelPath, filename: modelPath, loaded: true,
@@ -69,8 +69,9 @@ test("a publikus válasz csak a whitelistelt mezőket adja — a tulajdonos user
     assert.strictEqual(response.status, 200);
     assert.strictEqual(response.body.quote, "Anna idézete");
     assert.strictEqual(response.body.author, "Anna");
-    // A sorszám a SZERKESZTŐNEK kell (a stepper kezdőértéke) — jelen van.
+    // A sorszám a SZERKESZTŐNEK, a betűméret a MEGJELENÍTÉSNEK kell — jelen vannak.
     assert.strictEqual(response.body.order, 1);
+    assert.strictEqual(response.body.fontSize, 160);
     // A tulajdonos azonosítója egy publikus végponton nem jelenhet meg.
     assert.strictEqual(response.body.user, undefined);
     // A belső Mongo-azonosító sem szivárog (nincs rá szükség).

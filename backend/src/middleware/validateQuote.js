@@ -18,6 +18,9 @@ const mongoose = require("mongoose");
 const MAX_QUOTE = 100000;
 const MAX_AUTHOR = 200;
 const MAX_ORDER = 100000;
+// A betűméret (százalék) korlátai — EGYEZZENEK a quote.js séma min/max-jával.
+const MIN_FONTSIZE = 100;
+const MAX_FONTSIZE = 200;
 
 const isText = (value) => typeof value === "string";
 const isInteger = (value) => typeof value === "number" && Number.isInteger(value);
@@ -37,6 +40,13 @@ function quoteErrors(body) {
     }
 
     if (!isInteger(body.order) || body.order < 1 || body.order > MAX_ORDER) errors.push("Érvénytelen sorszám.");
+
+    /* A betűméret OPCIONÁLIS: hiánya (undefined) esetén a séma alapértéke (155)
+       áll be. Ha adott, egész szám és a tartományban legyen — a típusszigor itt is
+       NoSQL-injekció ellen véd (operátor-objektum ne juthasson a mentésbe). */
+    if (body.fontSize !== undefined &&
+        (!isInteger(body.fontSize) || body.fontSize < MIN_FONTSIZE || body.fontSize > MAX_FONTSIZE))
+        errors.push("Érvénytelen betűméret.");
 
     return errors;
 }
