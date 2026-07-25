@@ -140,7 +140,7 @@ textarea.form-control::placeholder {
        a súlya a To-do CaveatSemiBold-jához közelítsen — 600-on vékonyabbnak
        hatott nála. (SemiBold static vágat nincs a fájlból, de a variable font a
        700-at is adja, mint a Caveatnál a .caveat strong.) */
-    font-weight: 700 !important;
+    font-weight: 900 !important;
     font-size: calc((1.475rem + 2.7vw) * 0.9) !important;
 }
 
@@ -168,7 +168,12 @@ textarea.form-control::placeholder {
    145%-ra zsugorodna, míg a mögötte lévő <input> 155% maradna — a ghost-text
    elcsúszna. A form-control kizárásával az overlay is 155% marad, illeszkedik. */
 div.caveat:not(.form-control) {
-    font-size: 145% !important;
+    /* A méret a --quote-fs CSS-változóból jön (idézet-kártya, publikus nézet, a
+       Quote/save.jsx Betűméret-steppere állítja), hiányában 145%. Így a per-idézet
+       betűméret akkor is felülírja a !important-os szabályt, ha inline van megadva
+       (az inline érték a változóba megy, nem a font-size-ba). A to-do task-sorai
+       nem állítanak --quote-fs-t, ezért náluk marad a 145%. */
+    font-size: var(--quote-fs, 145%) !important;
 }
 
 
@@ -382,15 +387,17 @@ form.card > .input-group:first-child > :last-child {
 }
 
 #quoteField {
-    text-align: left;
+    /* Sorkizárt: a sorok bal ÉS jobb széle is egyenesbe áll (az utolsó sor marad
+       balra zárt — ez a justify természete). A card-header középre igazítását veri. */
+    text-align: justify;
     overflow: hidden;
     resize: none;
     padding-right: 0 !important;
-    /* A szerkesztő idézet-mezője (create ÉS update) ugyanakkora, mint a lista-
-       nézet szövege (145%): amit gépelsz, akkora, amekkorának a listában is
-       látszik majd. A mező a card-header osztályt is viseli (a form-lekerekítés
-       miatt), ami 200%-ot adna — az id-szelektor (1,0,0) ezt felülírja. */
-    font-size: 145% !important;
+    /* A szerkesztő idézet-mezője a per-idézet betűmérettel rajzol (--quote-fs, a
+       Betűméret-stepper állítja), így WYSIWYG: amit gépelsz, akkora, amekkorának a
+       listában is látszik. Hiányában 145%. A mező a card-header osztályt is viseli
+       (a form-lekerekítés miatt), ami 200%-ot adna — az id-szelektor (1,0,0) veri. */
+    font-size: var(--quote-fs, 145%) !important;
 }
 
 /* A félkövér idézet-részek (renderBold → <strong>) JÓVAL vastagabbak. A Caveat
