@@ -33,10 +33,16 @@ export default function QuotePublic() {
     return (
         <div className={"col-11 col-sm-10 col-md-8 col-lg-7 col-xl-6 card mx-auto mt-3 " +
             "bg-transparent border-2 border-" + color}>
-            {/* A törzsszöveg BALRA zárt (mint a szerkesztőben); a szerző marad
-                középen (l. a card-footer text-center-jét). */}
-            <div className={"card-body caveat text-start px-4 py-4 text-" + color}
-                 style={{fontSize: "170%", whiteSpace: "pre-wrap"}}>
+            {/* A törzsszöveg SORKIZÁRT (mint a szerkesztőben és a listában); a szerző
+                marad középen (l. a card-footer text-center-jét). A textAlign inline,
+                mert a Bootstrap text-* osztályok !important-ja verné — ezért a
+                text-start-ot le is vettük. */}
+            {/* A megosztott idézet a SAJÁT betűméretével jelenik meg (--quote-fs, a
+                readById adja vissza); hiányában a Szerző-mérettel egyező 155%. A
+                .caveat szabály ebből rajzol. */}
+            <div className={"card-body caveat px-4 py-4 text-" + color}
+                 style={{"--quote-fs": (quote.fontSize ?? 155) + "%", whiteSpace: "pre-wrap",
+                     textAlign: "justify"}}>
                 {renderBold(quote.quote)}
             </div>
             {quote.author &&
