@@ -69,7 +69,14 @@ export default function AuthorInput(props) {
     };
 
     return (
-        <div className="position-relative">
+        /* flex-grow-1: a szerkesztőben a Szerző-mező egy input-groupban ül a
+           betűméret-stepper mellett — így tölti ki a maradék helyet (a sorszám-sor
+           textareájához hasonlóan). A régi, önálló elrendezésben (block) hatástalan.
+           minWidth:0: ez a div (nem közvetlen form-control gyerek) NEM kapja meg a
+           Bootstrap input-group min-width:0 szabályát, ezért keskeny kijelzőn nem
+           tudott 0 alá zsugorodni, és a stepper a szerző ALÁ csúszott. A 0-ra
+           zsugoríthatóság tartja egy sorban telefonon is. */
+        <div className="position-relative flex-grow-1" style={{minWidth: 0}}>
             {/* A háttérréteg: pontosan az input alatt (azonos class → azonos font
                 és padding). A beírt rész színtelen (helykitöltő), a kiegészítés
                 halvány. aria-hidden + pointerEvents:none — a képernyőolvasó és a
