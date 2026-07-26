@@ -266,3 +266,69 @@ describe("Szerkesztőből kilépés célja", () => {
         await waitFor(() => expect(window.location.pathname).toBe("/to-do"));
     });
 });
+
+/* A VISSZA GOMB (böngésző POP) a useBlocker-en át pontosan úgy viselkedik, mint a
+   Tovább: van mentenivaló → ellenőriz; érvényesnél MENT, majd folytatja a
+   visszalépést (proceed). A böngésző Vissza gombját a window.history.back() modellezi
+   (a data router popstate-re ugyanazt az utat futtatja). */
+describe("Save — Vissza gomb (böngésző POP) a blockeren át", () => {
+    it("érvényes módosítást MENT, majd visszaenged az előző oldalra", async () => {
+        // Előzmény: a lista, majd a szerkesztő — így van hová visszalépni.
+        window.history.pushState({}, "", "/to-do");
+        window.history.pushState({}, "", "/to-do/update/todo-1");
+        renderRoutes();
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
+
+        await userEvent.type(screen.getByPlaceholderText("Cím"), " ma");
+        handleAxios.mockClear();
+        window.history.back();
+
+        await waitFor(() => expect(handleAxios.mock.calls.some((c) => c[0] === "/to-do/update")).toBe(true));
+        await waitFor(() => expect(window.location.pathname).toBe("/to-do"));
+    });
+});
+
+/* A szerkesztő ELHAGYÁSA (logóra kattintás, Vissza gomb, bármely navigáció) a
+   szerkesztő leválását (unmount) jelenti — ilyenkor ugyanaz a mentés fusson le, mint
+   a Tovább/Escape-nél, csak navigáció nélkül. A leválást a teszt az unmount()-tal
+   modellezi. A legfontosabb a NEGATÍV eset: a Tovább utáni leválás ne mentsen újra. */
+describe("Save — mentés leváláskor (logó/Vissza/navigáció)", () => {
+    it("módosított to-do a szerkesztő leválásakor (unmount) mentődik", async () => {
+        window.history.pushState({}, "", "/to-do/update/todo-1");
+        const view = renderRoutes();
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
+
+        await userEvent.type(screen.getByPlaceholderText("Cím"), " ma");
+        handleAxios.mockClear();
+        view.unmount();
+
+        const call = handleAxios.mock.calls.find((c) => c[0] === "/to-do/update");
+        expect(call?.[1]).toMatchObject({id: "todo-1", title: "Bevásárlás ma"});
+    });
+
+    it("érintetlen szerkesztő leválása NEM ment", async () => {
+        window.history.pushState({}, "", "/to-do/update/todo-1");
+        const view = renderRoutes();
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
+
+        handleAxios.mockClear();
+        view.unmount();
+
+        expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/to-do/update");
+    });
+
+    it("Tovább után a leválás NEM ment újra (nincs dupla mentés)", async () => {
+        window.history.pushState({}, "", "/to-do/update/todo-1");
+        const view = renderRoutes();
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
+
+        await userEvent.type(screen.getByPlaceholderText("Cím"), " ma");
+        handleAxios.mockClear();
+        await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
+        await waitFor(() => expect(handleAxios.mock.calls.some((c) => c[0] === "/to-do/update")).toBe(true));
+        view.unmount();
+
+        const updates = handleAxios.mock.calls.filter((c) => c[0] === "/to-do/update");
+        expect(updates).toHaveLength(1);
+    });
+});

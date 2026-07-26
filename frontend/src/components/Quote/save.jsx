@@ -1,9 +1,9 @@
-import {useCallback, useEffect, useRef, useState} from "react";
-import {Navigate, useLocation, useNavigate, useParams} from "react-router-dom";
+import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react";
+import {Navigate, useBlocker, useLocation, useNavigate, useParams} from "react-router-dom";
 import Spinner from "../spinner";
 import SubmitButton from "../Button/submitButton";
 import AuthorInput from "./authorInput";
-import Order from "../Todo/order";
+import Order, {STEP_DELAY_MS} from "../Todo/order";
 import DeleteAndModal from "../Todo/deleteAndModal";
 import {toggleBold, normalizeBold} from "./bold";
 import {useAuth} from "../../contexts/auth";
@@ -11,13 +11,20 @@ import {useTheme} from "../../contexts/theme";
 import {logRequestError} from "../../log";
 import {Tooltip as ReactTooltip} from "react-tooltip";
 
+/* Az új idézet alap betűmérete SZÁZALÉKBAN — szándékosan a Szerző-mező méretével
+   egyezik (a .caveat szabály 155%-a), hogy a szerkesztőben az idézet és a szerző
+   egy méretűnek induljon, és a lista is így mutassa. A "Betűméret"-stepperrel
+   idézetenként átállítható; a mező nélküli régi idézetek is ekkorák. */
+const DEFAULT_FONT_SIZE = 155;
+
 /* Az idézet-szerkesztő (create és update). A to-do save.jsx VÉKONYABB mása: az
    idézet-textarea + szerző-input + a KÖZÖS Order sorszám-választó (a to-doból),
-   de nincs szín, listaelem vagy százalék. A közös mentés-viselkedést a to-do
-   mintája adja: az Escape a
-   formot süti el ("Tovább"-ként), a hiányzó kötelező mezőnél saját hibabuborék,
-   változatlan tartalomnál csak visszalépés. A törlést a paraméterezett
-   DeleteAndModal intézi (a /quotes/delete végponttal, vissza a /quotes-ra). */
+   de nincs szín, listaelem vagy százalék. A KILÉPÉS-viselkedést a to-do mintája
+   adja: a Tovább gomb / Escape a formot süti el, majd navigál; a navigációt
+   (Tovább, Escape, logó, "+", Vissza gomb, szekció-váltás) a useBlocker kapja el,
+   és amíg van mentenivaló, előbb ELLENŐRIZ + MENT, csak utána enged tovább
+   (üres idézetnél hibabuborék + maradás). A törlést a paraméterezett DeleteAndModal
+   intézi (a /quotes/delete végponttal, vissza a /quotes-ra). */
 export default function QuoteSave(props) {
     const [quote, setQuote] = useState("");
     const [author, setAuthor] = useState("");
@@ -26,6 +33,10 @@ export default function QuoteSave(props) {
     // alapból a lista ELEJÉRE kerül (1), onnan léptethető lejjebb.
     const [order, setOrder] = useState(1);
     const [lastOrder, setLastOrder] = useState(null);
+    // Per-idézet betűméret SZÁZALÉKBAN. Create-nél az alap a Szerző mezőével egyező
+    // DEFAULT_FONT_SIZE, update-nél a betöltött érték. A "Betűméret" stepper állítja;
+    // a nézetek a --quote-fs CSS-változón át rajzolják ekkorára az idézetet.
+    const [fontSize, setFontSize] = useState(DEFAULT_FONT_SIZE);
     const [isLoading, setIsLoading] = useState(true);
     const [validation, setValidation] = useState(null);
     const {id} = useParams();
@@ -39,14 +50,53 @@ export default function QuoteSave(props) {
     // újrarajzol, előbb a DOM-értéknek frissülnie kell) — ide tesszük a [start,end]-t.
     const pendingSelection = useRef(null);
     const loaded = useRef(null);
+    /* Igaz, ha a mentés MÁR elintézte a távozást (a blocker mentés+proceed ága, vagy a
+       Törlés) — ilyenkor a leváláskori (unmount) mentés NEM fut le újra (create-nél
+       nehogy duplán hozzon létre). A blocker shouldBlock-ja is ezt nézi: ha igaz, nem
+       blokkol (a törlés-navigáció és a már-elintézett proceed szabadon átmehet). */
+    const leftViaForm = useRef(false);
+    /* A leváláskor futtatandó mentés legfrissebb változata — minden renderben
+       frissül, hogy az unmount az aktuális állapotot mentse (l. lentebb). */
+    const saveOnLeaveRef = useRef(() => {});
+    /* A "van-e mentenivaló?" (dirty) legfrissebb értéke — a useBlocker shouldBlock-ja
+       ref-ből olvassa, hogy stabil (üres deps) függvény lehessen, mégis a friss
+       állapotot lássa. */
+    const isDirtyRef = useRef(false);
+    /* Egy blokkolt navigációt EGYSZER dolgozunk fel — a StrictMode (dev) kétszer
+       futtatja az effekteket, enélkül a mentés duplázódna. */
+    const handledBlockRef = useRef(false);
 
     const isUpdate = Boolean(props.isUpdate);
     const url = isUpdate ? "/quotes/update" : "/quotes/create";
     const quoteId = isUpdate ? (id ?? null) : null;
 
+    /* Változatlan-e a szerkesztő ahhoz képest, amit menteni érdemes? Create-nél:
+       üres (se idézet, se szerző) — ilyenkor nincs mentenivaló. Update-nél: a
+       betöltöttel egyező tartalom (a mentés updatedAt-et is írna, tehát egy üres
+       "Tovább" hazudná, hogy hozzányúltunk). Ha még nincs betöltve (loaded null:
+       betöltés alatt vagy hiba után), szintén pristine — nincs mit menteni, és a
+       betöltés-hiba leaveEditor()-ja se akadjon a blockerbe. */
+    const isPristine = (cleanedQuote) => {
+        if (isUpdate) {
+            if (loaded.current == null) return true;
+            return cleanedQuote === loaded.current.quote && author === loaded.current.author
+                && order === loaded.current.order && fontSize === loaded.current.fontSize;
+        }
+        return !quote.trim() && !author.trim();
+    };
+    isDirtyRef.current = !isPristine(normalizeBold(quote));
+
+    /* A useBlocker DATA ROUTERT kér (l. routes.jsx). shouldBlock: akkor blokkoljuk a
+       navigációt, ha van mentenivaló (dirty) ÉS nem a mentés/törlés maga navigál
+       (leftViaForm). A függvény üres deps-szel stabil, de refekből olvas, így a friss
+       állapotot látja — a react-router így nem regisztrálja újra minden rendernél. */
+    const shouldBlock = useCallback(() => !leftViaForm.current && isDirtyRef.current, []);
+    const blocker = useBlocker(shouldBlock);
+
     /* Kilépés a szerkesztőből: update esetén VISSZA oda, ahonnan indult (a
        böngésző-előzményből), közvetlen link/F5 esetén (nincs app-előzmény) a
-       listára; create után mindig a listára. */
+       listára; create után mindig a listára. A navigációt a blocker kapja el, ha
+       van mentenivaló — ez indítja a mentést. */
     const leaveEditor = useCallback(() => {
         if (isUpdate && location.key !== "default") navigate(-1);
         else navigate("/quotes");
@@ -61,10 +111,20 @@ export default function QuoteSave(props) {
                 setQuote(q.quote);
                 setAuthor(q.author ?? "");
                 setOrder(q.order);
+                setFontSize(q.fontSize ?? DEFAULT_FONT_SIZE);
                 setIsQuoteValid(Boolean(q.quote));
-                // A sorszám is része a "változott-e" ellenőrzésnek: az Order-választóval
-                // a felhasználó a tartalom érintése nélkül is átsorolhatja az idézetet.
-                loaded.current = {quote: q.quote, author: q.author ?? "", order: q.order};
+                /* A kurzort a betöltött szöveg VÉGÉRE tesszük (update, a to-do mintájára).
+                   UGYANAZON az úton, mint a Ctrl+B: a pendingSelection-t a lenti layout-
+                   effekt fókusz + setSelectionRange + scrollCaretIntoView hármassal
+                   dolgozza fel. A scrollCaretIntoView getBoundingClientRect-je reflow-t
+                   kényszerít, ami a villogó jelet AZONNAL kirajzolja (asztali Chrome enélkül
+                   csak billentyűleütésre mutatta), és a kurzort láthatóvá is görgeti. */
+                pendingSelection.current = [q.quote.length, q.quote.length];
+                // A sorszám ÉS a betűméret is része a "változott-e" ellenőrzésnek: az
+                // Order- és a Betűméret-stepperrel a felhasználó a szöveg érintése
+                // nélkül is módosíthatja az idézetet.
+                loaded.current = {quote: q.quote, author: q.author ?? "", order: q.order,
+                    fontSize: q.fontSize ?? DEFAULT_FONT_SIZE};
             }, (error) => {
                 // Nem tölthető be (törölt elem vagy timeout) — vissza a listához,
                 // hogy a betöltő ne pörögjön örökké.
@@ -93,8 +153,9 @@ export default function QuoteSave(props) {
     }, [isUpdate, lastOrder, quote, isQuoteValid]);
 
     /* Escape = mentés + vissza, pontosan úgy, ahogy a "Tovább": a formot sütjük
-       el (requestSubmit), így a handleSubmit minden ága ugyanúgy lefut. Kivétel:
-       ha a törlés-modal nyitva van, az Escape AZT zárja (natív <dialog>). */
+       el (requestSubmit), így a handleSubmit ugyanúgy lefut (leaveEditor → a blocker
+       ellenőriz+ment, ha kell). Kivétel: ha a törlés-modal nyitva van, az Escape
+       AZT zárja (natív <dialog>). */
     useEffect(() => {
         const onKeyDown = (event) => {
             if (event.key === "Escape" && !document.querySelector("dialog[open]")) {
@@ -190,7 +251,21 @@ export default function QuoteSave(props) {
        akár többsoros idézet így teljesen látszik, nem gördül), és ha a Ctrl+B
        kijelölés-visszaállítást kért, azt is elvégezzük — mindkettő a render UTÁN
        kell, amikor a textarea DOM-értéke már friss. */
-    useEffect(() => {
+    /* A textarea magasságát a TARTALOMHOZ igazítjuk — de SZÁNDÉKOSAN csak a szöveg
+       (quote) változására és betöltéskor, a BETŰMÉRET váltására NEM. Betűméret-
+       állításkor a mező mérete maradjon változatlan (ne ugráljon a modal, ne
+       csússzanak el a gombok a kéz alól); a mező a betöltéskori méretében marad, a
+       szöveg nő/zsugorodik benne. A betöltött idézet a mentett méretével kap helyet
+       (ekkor a quote/isLoading váltás futtatja ezt az effektet). Ezért fontSize
+       NINCS a függőségek közt.
+
+       useLayoutEffect (nem useEffect): a magasság-igazítás a KIRAJZOLÁS ELŐTT fut le.
+       Enélkül egy hosszú idézet megnyitásakor a mező előbb kis (rows=4) magassággal
+       kirajzolódott — a Tovább/Törlés gombok FENT villantak fel (a piros Törlés
+       zavaróan) —, majd az autoGrow a festés után megnövelte, és a gombok leugrottak.
+       A layout-effekttel a mező már az első festéskor a végleges magasságú, így a
+       gombok azonnal a helyükön (a szöveg után) jelennek meg, felvillanás nélkül. */
+    useLayoutEffect(() => {
         if (isLoading) return;
         const el = textareaRef.current;
         if (!el) return;
@@ -206,6 +281,7 @@ export default function QuoteSave(props) {
             scrollCaretIntoView(el);
         }
     }, [quote, isLoading, autoGrow, scrollCaretIntoView]);
+
 
     /* A hibabuborékot a mező placeholderének KÖZEPÉRE horgonyozzuk: a szöveg
        félszélességét a mező saját fontjával mérjük (canvas), a bal/felső padding
@@ -230,41 +306,66 @@ export default function QuoteSave(props) {
         };
     };
 
-    const handleSubmit = useCallback((event) => {
-        event.preventDefault();
-        // A félkövér-markereket MENTÉSKOR normalizáljuk (a user kérése): a `**`-ok
-        // flip-flopját tiszta bold-futamokra oldjuk fel, mielőtt tárolnánk. A tárolt
-        // (loaded) érték is ilyen normalizált, ezért ehhez mérjük a "változott-e"-t.
-        const cleanedQuote = normalizeBold(quote);
-        const data = {quote: cleanedQuote, author: author, order: order};
+    /* A NAVIGÁCIÓ-ELKAPÓ mentés magja: a blocker akkor billen "blocked"-ba, ha van
+       mentenivaló ÉS navigálni próbálnak (Tovább, Escape, logó, "+", Vissza gomb,
+       szekció-váltás). Ilyenkor: üres idézetnél hibabuborék + MARADÁS (reset), NEM
+       enged tovább; érvényesnél MENT, majd a mentés BEFEJEZŐDÉSE UTÁN folytatja a
+       blokkolt navigációt (proceed) — így a cél-lista friss. A blocker.proceed() a
+       felhasználó EREDETI céljára navigál (a logó a listára, a "+" a create-re, a
+       Vissza az előző oldalra), tehát nem kell külön kezelni az egyes linkeket. */
+    useEffect(() => {
+        if (blocker.state !== "blocked") { handledBlockRef.current = false; return; }
+        if (handledBlockRef.current) return;
+        handledBlockRef.current = true;
 
-        /* Változatlan-e a szerkesztő? Create-nél: üres (se idézet, se szerző) —
-           ilyenkor csak elvetjük. Update-nél: a betöltöttel egyező tartalom (a
-           mentés updatedAt-et is írna, tehát egy üres "Tovább" hazudná, hogy
-           hozzányúltunk). */
-        const pristine = isUpdate
-            ? (loaded.current && cleanedQuote === loaded.current.quote && author === loaded.current.author
-                && order === loaded.current.order)
-            : (!quote.trim() && !author.trim());
-        if (pristine) {
-            props.handleLinkClicked();
-            leaveEditor();
-            return;
-        }
-
-        // Megkezdett, de az idézet üres: a saját hibabuborékot mutatjuk, és nem
-        // mentünk. A szerző OPCIONÁLIS, azt nem kérjük számon.
-        if (!isQuoteValid) { setValidation(fieldOf("#quoteField", "idézet")); return; }
+        // Megkezdett, de az idézet üres: a saját hibabuborékot mutatjuk, és maradunk.
+        // A szerző OPCIONÁLIS, azt nem kérjük számon.
+        if (!isQuoteValid) { setValidation(fieldOf("#quoteField", "idézet")); blocker.reset(); return; }
         setValidation(null);
 
+        // Innentől mentünk; a mentés sikeréig NEM navigálunk. leftViaForm: az unmount-
+        // mentés már ne fusson újra a proceed utáni leváláskor.
+        leftViaForm.current = true;
+        // A félkövér-markereket MENTÉSKOR normalizáljuk: a `**`-ok flip-flopját tiszta
+        // bold-futamokra oldjuk fel (a tárolt/loaded érték is normalizált).
+        const data = {quote: normalizeBold(quote), author: author, order: order, fontSize: fontSize};
         if (isUpdate) data["id"] = quoteId;
         handleAxios(url, data, (response) => {
-            if (response.status === 200) {
-                props.handleLinkClicked();
-                leaveEditor();
-            }
-        }, logRequestError);
-    }, [quote, author, order, isUpdate, quoteId, url, leaveEditor, handleAxios, isQuoteValid, props]);
+            if (response.status === 200) { props.handleLinkClicked(); blocker.proceed(); }
+            else { leftViaForm.current = false; blocker.reset(); }
+        }, (error) => {
+            // A mentés elbukott: maradunk (reset), és egy későbbi távozás újrapróbálja.
+            leftViaForm.current = false;
+            logRequestError(error);
+            blocker.reset();
+        });
+    }, [blocker, isQuoteValid, quote, author, order, fontSize, isUpdate, quoteId, url, handleAxios, props]);
+
+    /* A Tovább gomb (és az Escape) már csak NAVIGÁL — az ellenőrzést+mentést a
+       fenti blocker intézi, ha van mentenivaló. Érintetlen űrlapnál a blocker nem
+       blokkol, tehát egyszerűen visszalépünk. */
+    const handleSubmit = useCallback((event) => {
+        event.preventDefault();
+        leaveEditor();
+    }, [leaveEditor]);
+
+    /* A LEVÁLÁSKORI (unmount) mentés — a KIJELENTKEZÉSre, ami NEM router-navigáció
+       (a removeCookie React-újrarendert vált ki), ezért a blocker nem látja. Ilyenkor
+       ugyanaz az ellenőrző+mentő logika fut le, csak navigáció nélkül. A closure-t
+       minden renderben frissítjük, hogy az unmount a LEGFRISSEBB állapotot mentse.
+       Nem mentünk, ha a form érintetlen vagy az idézet üres — és ha a blocker/Törlés
+       már elintézte a távozást (leftViaForm), akkor sem (nehogy duplán mentsen). */
+    saveOnLeaveRef.current = () => {
+        if (leftViaForm.current) return;
+        const cleanedQuote = normalizeBold(quote);
+        if (isPristine(cleanedQuote) || !isQuoteValid) return;
+        const data = {quote: cleanedQuote, author: author, order: order, fontSize: fontSize};
+        if (isUpdate) data["id"] = quoteId;
+        handleAxios(url, data, () => {}, logRequestError);
+    };
+
+    // A fenti mentés a szerkesztő LEVÁLÁSAKOR (pl. kijelentkezés) fut le, egyszer.
+    useEffect(() => () => saveOnLeaveRef.current(), []);
 
     // Szerkesztés id nélkül (közvetlen /update URL vagy F5) — nincs mit
     // szerkeszteni, vissza a listára. Minden hook FÖLÖTTE fut le.
@@ -285,6 +386,7 @@ export default function QuoteSave(props) {
                     <textarea ref={textareaRef} id="quoteField" value={quote} onChange={handleQuoteChange}
                               onKeyDown={handleQuoteKeyDown}
                               placeholder="Idézet szövege" rows="4" autoFocus
+                              style={{"--quote-fs": fontSize + "%"}}
                               className={"form-control card-header caveat no-focus bg-transparent ms-1 text-" + color}/>
                     <Order current={order} setOrder={setOrder} last={lastOrder} color={color}/>
                 </div>
@@ -292,15 +394,36 @@ export default function QuoteSave(props) {
                 {/* pb-3 (nem py-1): a legalsó gomb — create-nél a "Tovább",
                     update-nél a "Törlés" — alatt nagyobb levegő a card aljáig. */}
                 <div className="card-body pt-1 pb-3">
-                    <AuthorInput value={author} onChange={(event) => setAuthor(event.target.value)}
-                                 placeholder="Szerző" class={"caveat ps-2 text-" + color}/>
+                    {/* A szerző-mező és a "Betűméret"-stepper egy sorban — a stepper a
+                        sorszám-választó (Order) 1:1 mása: a léptetés (egyesével,
+                        nyomva tartva ismételve) is azonos, csak a tartomány más
+                        (100–200%), "Betűméret" tooltippel FELFELÉ, és külön tooltip-id-vel
+                        (egy oldalon a sorszám ÉS a betűméret is stepper). */}
+                    {/* flex-nowrap: a Szerző-mező és a stepper egy sorban maradjon
+                        telefonon is (a Bootstrap input-group alapból sort tördel). A
+                        zsugoríthatóságot a Szerző-mező wrapper minWidth:0-ja adja.
+                        width: calc(100% + 1rem): a card-body jobb paddingján (1rem) TÚLnyújtja
+                        a sort JOBBRA, így a stepper jobb széle a sorszám-sor stepperével EGY
+                        VONALBA kerül (mindkettő pe-2 = azonos táv a modal szélétől; headless
+                        méréssel igazolva: 10px = 10px). A sorszám-sor a formban ül (nincs
+                        card-body padding), ezért volt kijjebb. (Negatív margó nem elég: a
+                        Bootstrap .input-group width:100%, azon a margó nem tolja a jobb szélt;
+                        a Bootstrap negatív margó-utility-ket meg alapból nem is generál.) */}
+                    <div className="input-group flex-nowrap" style={{width: "calc(100% + 1rem)"}}>
+                        <AuthorInput value={author} onChange={(event) => setAuthor(event.target.value)}
+                                     placeholder="Szerző" class={"caveat ps-2 text-" + color}/>
+                        <Order current={fontSize} setOrder={setFontSize} max={200} min={100}
+                               stepDelay={STEP_DELAY_MS / 2}
+                               color={color} tooltip="Betűméret" tooltipPlace="top" tooltipId="fontsize-tooltip"/>
+                    </div>
 
                     <div className="d-grid">
                         <SubmitButton isDisabled={false} isOutline={false} color={color} text="Tovább"/>
 
                         {isUpdate &&
                             <DeleteAndModal handleLinkClicked={props.handleLinkClicked} color={color}
-                                            deleteUrl="/quotes/delete" listUrl="/quotes" itemId={quoteId}/>}
+                                            deleteUrl="/quotes/delete" listUrl="/quotes" itemId={quoteId}
+                                            onDelete={() => { leftViaForm.current = true; }}/>}
                     </div>
                 </div>
 

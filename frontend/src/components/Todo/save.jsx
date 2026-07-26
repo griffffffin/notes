@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from "react";
-import {Navigate, useLocation, useNavigate, useParams} from "react-router-dom";
+import {Navigate, useBlocker, useLocation, useNavigate, useParams} from "react-router-dom";
 import Spinner from "../spinner";
 import NoFocusInput from "../Input/noFocusInput";
 import Order from "./order";
@@ -83,12 +83,27 @@ export default function Save(props) {
        bármi. Ref és nem state: senki nem jeleníti meg, és a változása nem
        járhat újrarajzolással. */
     const loadedTodo = useRef(null);
+    /* Igaz, ha a mentés MÁR elintézte a távozást (a blocker mentés+proceed ága, vagy a
+       Törlés) — ilyenkor a leváláskori (unmount) mentés NEM fut le újra (create-nél
+       nehogy duplán hozzon létre). A blocker shouldBlock-ja is ezt nézi: ha igaz, nem
+       blokkol (a törlés-navigáció és a már-elintézett proceed szabadon átmehet). */
+    const leftViaForm = useRef(false);
+    /* A leváláskor futtatandó mentés legfrissebb változata — minden renderben frissül,
+       hogy az unmount az aktuális állapotot mentse (l. lentebb). */
+    const saveOnLeaveRef = useRef(() => {});
+    /* A "van-e mentenivaló?" (dirty) legfrissebb értéke — a useBlocker shouldBlock-ja
+       ref-ből olvassa, hogy stabil (üres deps) függvény lehessen, mégis a friss
+       állapotot lássa. */
+    const isDirtyRef = useRef(false);
+    /* Egy blokkolt navigációt EGYSZER dolgozunk fel — a StrictMode (dev) kétszer
+       futtatja az effekteket, enélkül a mentés duplázódna. */
+    const handledBlockRef = useRef(false);
 
     /* A szerkesztőből kilépés célja. Update esetén VISSZA oda, ahonnan indult
        (a listáról, akár szűrt nézetből) — a böngésző-előzményen keresztül, hogy
        a szűrő ne vesszen el. Ha nincs app-on belüli előzmény (F5 vagy közvetlen
        link: a location kulcsa "default"), vagy ha új to-do-t hoztunk létre, a
-       to-do listára megyünk. */
+       to-do listára megyünk. A navigációt a blocker kapja el, ha van mentenivaló. */
     const leaveEditor = useCallback(() => {
         if (isUpdate && location.key !== "default") navigate(-1);
         else navigate("/to-do");
@@ -182,77 +197,129 @@ export default function Save(props) {
     const handleColorAngleClick = useCallback(() => setIsColorAngleClicked(!isColorAngleClicked),
         [isColorAngleClicked]);
 
-    const handleSubmit = useCallback((event) => {
-        event.preventDefault();
-        // A user-azonosítót NEM küldjük: a szerver a tokenből veszi (a régi app
-        // itt hitt a kliensnek — ez volt a fő biztonsági gyengesége).
-        let data = {
+    /* Az AKTUÁLIS űrlap adata egy objektumban — a mentés és a "változott-e"
+       ellenőrzés is ezt használja. A user-azonosítót NEM küldjük: a szerver a
+       tokenből veszi (a régi app itt hitt a kliensnek — ez volt a fő gyengesége). */
+    const currentData = () => ({
+        title: title,
+        tasks: todo.tasks,
+        taskOrder: todo.columns["createColumn"].taskOrder,
+        category: category,
+        color: color,
+        order: order,
+    });
+
+    /* Van-e mentenivaló? ÉRINTETLEN űrlapot nem mentünk. Create-nél ez az üres
+       űrlap (se cím, se kategória, se listaelem); update-nél a betöltöttel egyező
+       tartalom (a mentés updatedAt-et is írna, tehát egy üres "Tovább" hazudná, hogy
+       hozzányúltunk). Ha még nincs betöltve (loadedTodo null), szintén pristine —
+       nincs mit menteni, és a betöltés-hiba leaveEditor()-ja se akadjon a blockerbe. */
+    const isPristine = () => isUpdate
+        ? (loadedTodo.current == null || isUnchanged(currentData(), loadedTodo.current))
+        : (!title.trim() && !category.trim() && Object.keys(todo.tasks ?? {}).length === 0);
+    isDirtyRef.current = !isPristine();
+
+    /* A useBlocker DATA ROUTERT kér (l. routes.jsx). shouldBlock: akkor blokkoljuk a
+       navigációt, ha van mentenivaló (dirty) ÉS nem a mentés/törlés maga navigál
+       (leftViaForm). Üres deps-szel stabil, de refekből olvas, így friss állapotot lát. */
+    const shouldBlock = useCallback(() => !leftViaForm.current && isDirtyRef.current, []);
+    const blocker = useBlocker(shouldBlock);
+
+    /* A kötelező mező hibabuborékjának horgonya: a mező placeholderének KÖZEPÉRE
+       (a szöveg félszélességét canvasszal mérve, a bal padding után), place=bottom-mal,
+       így a nyila a placeholder alá esik, nem a hosszú input közepére. A név a
+       placeholderből, kis kezdőbetűvel — új mezőnél magától helyes a felirat. */
+    const fieldOf = (selector) => {
+        const el = document.querySelector(selector);
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        const ctx = document.createElement("canvas").getContext("2d");
+        ctx.font = cs.font || `${cs.fontSize} ${cs.fontFamily}`;
+        const half = ctx.measureText(el.placeholder).width / 2;
+        return {
+            anchor: selector,
+            name: el.placeholder.toLowerCase(),
+            pos: {
+                x: r.left + (parseFloat(cs.paddingLeft) || 0) + half,
+                y: r.top + (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.fontSize) || 16),
+            },
+        };
+    };
+
+    /* A NAVIGÁCIÓ-ELKAPÓ mentés magja: a blocker akkor billen "blocked"-ba, ha van
+       mentenivaló ÉS navigálni próbálnak (Tovább, Escape, logó, "+", Vissza gomb,
+       szekció-váltás). Ilyenkor: hiányzó kötelező mezőnél (cím/kategória) hibabuborék
+       + MARADÁS (reset), NEM enged tovább; érvényesnél MENT, majd a mentés
+       BEFEJEZŐDÉSE UTÁN folytatja a blokkolt navigációt (proceed) — így a cél-lista
+       friss. A proceed() a felhasználó EREDETI céljára navigál (a logó a listára, a
+       "+" a create-re, a Vissza az előző oldalra). */
+    useEffect(() => {
+        if (blocker.state !== "blocked") { handledBlockRef.current = false; return; }
+        if (handledBlockRef.current) return;
+        handledBlockRef.current = true;
+
+        // A cím az első, aztán a kategória — a hiányzó mezőnél a saját hibabuborékot
+        // mutatjuk (a nem stílusozható natív helyett), és maradunk.
+        if (!isTitleValid) { setValidation(fieldOf("#createColumn")); blocker.reset(); return; }
+        if (!isCategoryValid) { setValidation(fieldOf("input[placeholder='Kategória']")); blocker.reset(); return; }
+        setValidation(null);
+
+        // Innentől mentünk; a mentés sikeréig NEM navigálunk. leftViaForm: az unmount-
+        // mentés már ne fusson újra a proceed utáni leváláskor. Az adatot itt INLINE
+        // építjük (nem a currentData() helperrel), hogy az effekt függőségei — amiket
+        // amúgy is figyel (title, todo, category…) — pontosan lefedjék a felhasznált
+        // értékeket (exhaustive-deps).
+        leftViaForm.current = true;
+        const data = {
             title: title,
             tasks: todo.tasks,
             taskOrder: todo.columns["createColumn"].taskOrder,
             category: category,
             color: color,
             order: order,
-        }
-        /* ÉRINTETLEN űrlapot mentés nélkül elvetünk, és NEM kérünk kötelező mezőt —
-           nem kényszerítünk kitöltésre azt, aki hozzá sem nyúlt. Create-nél ez az
-           üres űrlap (se cím, se kategória, se listaelem); update-nél a betöltöttel
-           egyező tartalom (a mentés updatedAt-et is írna, tehát egy üres "Tovább"
-           hazudná, hogy hozzányúltunk, és a napi export is fölöslegesen futna). Az
-           isUnchanged JSON-on át hasonlít: a tasks kulcsai számok, amiket a JS
-           növekvő sorrendben jár be, tehát a szöveges alak stabil. */
-        const pristine = isUpdate
-            ? (loadedTodo.current && isUnchanged(data, loadedTodo.current))
-            : (!title.trim() && !category.trim() && Object.keys(todo.tasks ?? {}).length === 0);
-        if (pristine) {
-            props.handleLinkClicked();
-            leaveEditor();
-            return;
-        }
-        /* Idáig jutva a felhasználó MÁR ÍRT valamit. Ha egy kötelező mező üres, a
-           saját hibabuborékot mutatjuk (a nem stílusozható natív helyett), és nem
-           mentünk/navigálunk. A név a mező placeholderéből jön, kis kezdőbetűvel —
-           így új mezőnél nem kell hozzányúlni a szöveghez. A cím az első, aztán a
-           kategória. */
-        const fieldOf = (selector) => {
-            const el = document.querySelector(selector);
-            const r = el.getBoundingClientRect();
-            const cs = getComputedStyle(el);
-            /* A nyíl a PLACEHOLDER közepére mutasson, ne a hosszú input közepére.
-               A placeholder szöveg félszélességét canvasszal mérjük (a mező saját
-               fontjával), a bal padding után — ide horgonyozzuk a tooltipet
-               (position), place=bottom-mal, így a nyila épp a placeholder alá esik. */
-            const ctx = document.createElement("canvas").getContext("2d");
-            ctx.font = cs.font || `${cs.fontSize} ${cs.fontFamily}`;
-            const half = ctx.measureText(el.placeholder).width / 2;
-            /* A horgony a PLACEHOLDER SZÖVEG jobb-alsó tájékára esik: vízszintesen
-               a szöveg közepe (bal padding + félszélesség), függőlegesen a szöveg
-               alja (top + felső padding + betűméret). Így a buborék szorosan a
-               placeholder alá kerül, nem a magas mező aljához — a "Sorszám" tooltip
-               és a szám közti szoros távolsághoz hasonlóan. */
-            return {
-                anchor: selector,
-                name: el.placeholder.toLowerCase(),
-                pos: {
-                    x: r.left + (parseFloat(cs.paddingLeft) || 0) + half,
-                    y: r.top + (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.fontSize) || 16),
-                },
-            };
         };
-        if (!isTitleValid) { setValidation(fieldOf("#createColumn")); return; }
-        if (!isCategoryValid) { setValidation(fieldOf("input[placeholder='Kategória']")); return; }
-        setValidation(null);
-
         if (isUpdate) data["id"] = todoId;
         handleAxios(url, data, (response) => {
             if (response.status === 200) {
                 props.handleLinkClicked();
                 props.handleCategoryChange();
-                leaveEditor();
-            }
+                blocker.proceed();
+            } else { leftViaForm.current = false; blocker.reset(); }
+        }, (error) => {
+            // A mentés elbukott: maradunk (reset), egy későbbi távozás újrapróbálja.
+            leftViaForm.current = false;
+            logRequestError(error);
+            blocker.reset();
+        });
+    }, [blocker, isTitleValid, isCategoryValid, title, category, color, order, todo,
+        isUpdate, todoId, url, handleAxios, props]);
+
+    /* A Tovább gomb (és az Escape) már csak NAVIGÁL — az ellenőrzést+mentést a
+       fenti blocker intézi, ha van mentenivaló. Érintetlen űrlapnál a blocker nem
+       blokkol, tehát egyszerűen visszalépünk. */
+    const handleSubmit = useCallback((event) => {
+        event.preventDefault();
+        leaveEditor();
+    }, [leaveEditor]);
+
+    /* A LEVÁLÁSKORI (unmount) mentés — a KIJELENTKEZÉSre, ami NEM router-navigáció
+       (a removeCookie React-újrarendert vált ki), ezért a blocker nem látja. Ilyenkor
+       ugyanaz az ellenőrző+mentő logika fut le, csak navigáció nélkül. A closure-t
+       minden renderben frissítjük, hogy az unmount a LEGFRISSEBB állapotot mentse.
+       Nem mentünk, ha a form érintetlen vagy egy kötelező mező hiányzik — és ha a
+       blocker/Törlés már elintézte a távozást (leftViaForm), akkor sem. */
+    saveOnLeaveRef.current = () => {
+        if (leftViaForm.current) return;
+        if (isPristine() || !(isTitleValid && isCategoryValid)) return;
+        const data = currentData();
+        if (isUpdate) data["id"] = todoId;
+        handleAxios(url, data, (response) => {
+            if (response.status === 200) props.handleCategoryChange();
         }, logRequestError);
-    }, [props, title, todo.tasks, todo.columns, category, color, order, isUpdate, todoId, url, leaveEditor, handleAxios,
-        isTitleValid, isCategoryValid]);
+    };
+
+    // A fenti mentés a szerkesztő LEVÁLÁSAKOR (pl. kijelentkezés) fut le, egyszer.
+    useEffect(() => () => saveOnLeaveRef.current(), []);
 
     /* A színre már nem kell várni (a témából indul, nem egy kérés hozza), csak
        a sorszám-korlátra — szerkesztéskor ráadásul a betöltött to-do mezőire. */
@@ -264,10 +331,9 @@ export default function Save(props) {
     }, [isUpdate, lastOrder, title, isTitleValid, category, isCategoryValid]);
 
     /* Escape a szerkesztőben = mentés + vissza a főoldalra, pontosan úgy, ahogy a
-       "Tovább" gomb: a formot sütjük el (requestSubmit), így a natív validáció és
-       a handleSubmit (benne a "változatlan → csak navigálás" és a "mentés →
-       navigálás" ág) egyaránt ugyanúgy lefut. Kivétel: ha a törlés-modal nyitva
-       van, az Escape AZT zárja (natív <dialog> viselkedés) — ott nem mentünk. */
+       "Tovább" gomb: a formot sütjük el (requestSubmit), így a handleSubmit
+       (leaveEditor → a blocker ellenőriz+ment, ha kell) ugyanúgy lefut. Kivétel:
+       ha a törlés-modal nyitva van, az Escape AZT zárja (natív <dialog>). */
     useEffect(() => {
         const onKeyDown = (event) => {
             if (event.key === "Escape" && !document.querySelector("dialog[open]")) {
@@ -318,7 +384,8 @@ export default function Save(props) {
                             <DeleteAndModal handleLinkClicked={props.handleLinkClicked}
                                             setIsColorClicked={setIsColorAngleClicked} color={color} todoId={todoId}
                                             setIsCategoryClicked={setIsCategoryAngleClicked}
-                                            handleCategoryChange={props.handleCategoryChange}/>}
+                                            handleCategoryChange={props.handleCategoryChange}
+                                            onDelete={() => { leftViaForm.current = true; }}/>}
 
                         <NoFocusButton onClick={handleColorAngleClick} class="pb-0" color={color}
                                        text={<FontAwesomeIcon icon="fa-solid fa-paint-roller" size="xl"
@@ -332,7 +399,7 @@ export default function Save(props) {
 
                 {/* Kötelező-mező hibabuborék a natív böngésző-buborék helyett, a
                     "Sorszám" tooltip stílusában (lap-háttér, kiemelőszínű keret és
-                    szöveg). A tooltipet a placeholder KÖZEPÉRE horgonyozzuk (a submit
+                    szöveg). A tooltipet a placeholder KÖZEPÉRE horgonyozzuk (a fieldOf
                     által mért position), place=bottom-mal, így a nyila a placeholder
                     alá esik, nem a hosszú input közepére. A szöveg névelője a mezőnév
                     kezdőbetűjéből adódik: magánhangzó → "Az", egyébként "A". */}

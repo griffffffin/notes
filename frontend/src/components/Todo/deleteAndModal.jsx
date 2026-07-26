@@ -29,6 +29,9 @@ export default function DeleteAndModal(props) {
 
     const handleDelete = () => {
         handleModalClose();
+        // A szerkesztő jelezni kérheti, hogy törlés indul (onDelete) — így a leváláskori
+        // (unmount) mentése NEM próbálja visszamenteni a már törölt elemet.
+        props.onDelete?.();
         // Kész id-t kapunk (a szerkesztő az URL-ből olvassa ki); törlés után a
         // saját listára megyünk, mert a szerkesztett elem megszűnt.
         handleAxios(deleteUrl, {id: itemId}, (response) => {
