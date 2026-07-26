@@ -18,4 +18,4 @@ const TOKEN_TTL = "15m";
 
 const signToken = (id) => jwt.sign({id}, process.env.JWT_SECRET, {expiresIn: TOKEN_TTL});
 
-module.exports = {TOKEN_TTL, signToken};
+module.exports = {signToken};

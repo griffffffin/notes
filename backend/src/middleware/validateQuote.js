@@ -82,5 +82,5 @@ const validateAuthorFilter = (request, response, next) => {
 };
 
 module.exports = {
-    validateQuoteBody, validateQuoteId, validateOrderOnly, validateAuthorFilter, quoteErrors,
+    validateQuoteBody, validateQuoteId, validateOrderOnly, validateAuthorFilter,
 };

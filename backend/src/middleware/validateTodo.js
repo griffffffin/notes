@@ -138,5 +138,4 @@ const validateColorFilter = (request, response, next) => {
 
 module.exports = {
     validateTodoBody, validateTodoId, validateOrderOnly, validateCategoryFilter, validateColorFilter,
-    todoErrors, COLORS,
 };
