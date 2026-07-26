@@ -1,0 +1,51 @@
+name: CI
+
+# Egy "robot", ami a GitHubon minden változásnál leellenőrzi ugyanazt, amit
+# helyben is futtatunk: lint, halott-kód, tesztek, build. Ha bármelyik elhasal
+# (nem-nulla kilépési kód), a lépés PIROS lesz, és a commit/PR megbukik — ez a
+# "kapu". A monorepo két csomagja (frontend + backend) külön, párhuzamos jobban
+# fut, hogy egyik bukása se rejtse el a másikét, és gyorsabb is legyen.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # A Pi éles Node-ja v22 — a CI ugyanezt használja, hogy ne "az én
+          # gépemen működött" alapon térjen el a viselkedés.
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci                 # tiszta, lockfile-hű telepítés (nem "install")
+      - run: npm run lint           # oxlint — hibára bukik, a meglévő warningokra nem
+      - run: npm run knip           # keresztfájlos halott kód → exit 1 = bukás
+      - run: npm test               # vitest (jsdom, DB nem kell)
+      - run: npm run build          # a build maga is elhasal, ha valami törött
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run knip
+      # node --test: a tesztek saját Express appot építenek és a Mongoose-modelleket
+      # mockolják, ezért ADATBÁZIS NÉLKÜL is lefutnak — a CI-nek nem kell FerretDB.
+      - run: npm test
