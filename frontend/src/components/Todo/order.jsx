@@ -11,7 +11,7 @@ export default function Order(props) {
     /* Alapértékek a SORSZÁM-használathoz (to-do + idézet): 1-től, egyesével,
        "Sorszám" tooltip lefelé. A per-idézet BETŰMÉRET-stepper ugyanezt a
        komponenst használja: a léptetés (kattintás/nyomva tartás, ütem) SZÁNDÉKOSAN
-       1:1 azonos a sorszáméval — csak a TARTOMÁNY (min 80, max 300) és a FELIRAT
+       1:1 azonos a sorszáméval — csak a TARTOMÁNY (min 100, max 200) és a FELIRAT
        tér el ("Betűméret" tooltip FELFELÉ). A step-et egyik hívó sem adja meg, így
        mindkettő egyesével lép. A tooltipId külön adható, mert egy oldalon KÉT
        stepper is lehet (a szerkesztőben a sorszám ÉS a betűméret) — azonos id-jű
@@ -19,9 +19,11 @@ export default function Order(props) {
     const min = props.min ?? 1;
     const step = props.step ?? 1;
     const tooltipId = props.tooltipId ?? "order-tooltip";
-    /* A felső korlát: ha a hívó megadja a max propot (betűméret: 300), az; különben
-       a sorszám-minta last+1-e — create-nél az új elem a lista VÉGÉRE, azaz last+1-re
-       is kerülhet (l. az order-tesztet). */
+    /* A felső korlát: ha a hívó megadja a max propot (betűméret: 200), az; különben
+       a sorszám-minta last+1-e. A `last` a MEGLÉVŐ elemek száma; az új elem eggyel
+       több pozíciót nyit, így a legnagyobb VÁLASZTHATÓ sorszám last+1. (Az új to-do
+       alapból az ELSŐ helyre, 1-re kerül — l. a save.jsx useState(1)-ét; a stepper
+       viszont felengedi egészen a végére, last+1-re is. L. az order-tesztet.) */
     const max = props.max ?? (props.last + 1);
     /* Két lépés közti idő ezredmásodpercben — ennyivel később mozdul a kattintás, és
        ennyi a nyomva tartás ismétlési üteme. Alap a STEP_DELAY_MS; a hívó felülírhatja

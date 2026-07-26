@@ -118,8 +118,10 @@ describe("Order", () => {
         fireEvent.mouseDown(plus(container));
         act(() => vi.advanceTimersByTime(2000));
 
-        /* A last a már meglévő elemek száma, az új elem a lista VÉGÉRE, tehát
-           last+1-re is kerülhet — ezért enged a feltétel 11-ig, és ott áll meg. */
+        /* A last a MEGLÉVŐ elemek száma; az új elem eggyel több pozíciót nyit, így
+           a legnagyobb választható sorszám last+1 = 11 — eddig enged a stepper, és
+           ott áll meg. (Alapból az első helyre, 1-re kerülne; ez a teszt a felső
+           határt nézi.) */
         expect(screen.getByText("11")).toBeInTheDocument();
     });
 });

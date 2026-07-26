@@ -139,7 +139,7 @@ textarea.form-control::placeholder {
     /* A DancingScript variable font wght-tengelye 400–700; 700-on visszük, hogy
        a súlya a To-do CaveatSemiBold-jához közelítsen — 600-on vékonyabbnak
        hatott nála. (SemiBold static vágat nincs a fájlból, de a variable font a
-       700-at is adja, mint a Caveatnál a .caveat strong.) */
+       900-at is adja, mint a Caveatnál a .caveat strong.) */
     font-weight: 900 !important;
     font-size: calc((1.475rem + 2.7vw) * 0.9) !important;
 }
@@ -155,25 +155,28 @@ textarea.form-control::placeholder {
     font-size: 155% !important;
 }
 
-/* A LISTÁK szövege egy fokkal kisebb (145%), de CSAK a MEGJELENÍTETT szöveg —
-   az idézet-kártyák törzse és a to-do task-sorai mind <div>-ként renderelődnek.
-   A beviteli mezők (Szerző-input, "új task", a to-do kategória-mező) <input>-ek,
-   ezekre a `div.caveat` NEM illik, tehát 155%-osak maradnak. A card-header/
-   modal-title 200%-ot a `.caveat.card-header` (0,2,0 specificitás) tartja a
-   `div.caveat:not(.form-control)` (0,2,1) felett, így a lista-CÍMEK sem kisebbednek.
+/* A MEGJELENÍTETT idézet/to-do szöveg (az idézet-kártyák törzse és a to-do
+   task-sorai) mind <div> — ezekre a lenti `div.caveat:not(.form-control)` szabály
+   illik, ami engedi a per-idézet betűméretet (--quote-fs). A beviteli mezők
+   (Szerző-input, "új task", a to-do kategória-mező) <input>-ek: rájuk a `div.caveat`
+   NEM illik, ezért a .caveat alap 155%-ánál maradnak. A card-header/modal-title
+   200%-ot a `.caveat.card-header` (0,2,0 specificitás) tartja a
+   `div.caveat:not(.form-control)` (0,2,1) felett, így a lista-CÍMEK nem esnek vissza
+   a törzsszöveg méretére.
 
    A :not(.form-control) NEM elhagyható: a Szerző-mező ghost-text overlay-e egy
    form-control osztályú <div> (az input MÖGÖTT, azonos betűvel/paddinggel, hogy a
-   kiegészítés a beírt szöveg folytatásaként illeszkedjen). Enélkül ez az overlay
-   145%-ra zsugorodna, míg a mögötte lévő <input> 155% maradna — a ghost-text
-   elcsúszna. A form-control kizárásával az overlay is 155% marad, illeszkedik. */
+   kiegészítés a beírt szöveg folytatásaként illeszkedjen). A form-control kizárása
+   nélkül EZT a divet is a --quote-fs-es szabály vinné, azaz egy per-idézet mérethez
+   igazodhatna — a mögötte lévő <input> viszont a lapos .caveat 155%-on marad, és a
+   ghost-text elcsúszna. A kizárással az overlay is a 155%-os <input>-hez tapad. */
 div.caveat:not(.form-control) {
     /* A méret a --quote-fs CSS-változóból jön (idézet-kártya, publikus nézet, a
-       Quote/save.jsx Betűméret-steppere állítja), hiányában 145%. Így a per-idézet
+       Quote/save.jsx Betűméret-steppere állítja), hiányában 155%. Így a per-idézet
        betűméret akkor is felülírja a !important-os szabályt, ha inline van megadva
        (az inline érték a változóba megy, nem a font-size-ba). A to-do task-sorai
-       nem állítanak --quote-fs-t, ezért náluk marad a 145%. */
-    font-size: var(--quote-fs, 145%) !important;
+       nem állítanak --quote-fs-t, ezért náluk a 155%-os fallback marad. */
+    font-size: var(--quote-fs, 155%) !important;
 }
 
 
@@ -395,9 +398,9 @@ form.card > .input-group:first-child > :last-child {
     padding-right: 0 !important;
     /* A szerkesztő idézet-mezője a per-idézet betűmérettel rajzol (--quote-fs, a
        Betűméret-stepper állítja), így WYSIWYG: amit gépelsz, akkora, amekkorának a
-       listában is látszik. Hiányában 145%. A mező a card-header osztályt is viseli
+       listában is látszik. Hiányában 155%. A mező a card-header osztályt is viseli
        (a form-lekerekítés miatt), ami 200%-ot adna — az id-szelektor (1,0,0) veri. */
-    font-size: var(--quote-fs, 145%) !important;
+    font-size: var(--quote-fs, 155%) !important;
 }
 
 /* A félkövér idézet-részek (renderBold → <strong>) JÓVAL vastagabbak. A Caveat
