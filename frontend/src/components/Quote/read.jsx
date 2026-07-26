@@ -21,15 +21,16 @@ export default function QuoteRead(props) {
 
     const needsFilter = props.url === "/quotes/author";
     /* A "névtelen" idézeteket a URL-ben "Anonymous" jelöli (üres szerző nem lehet
-       URL-szegmens); a szervernek viszont üres stringgel szűrünk rájuk. */
+       URL-szegmens); a szervernek viszont üres stringgel szűrünk rájuk. A csupasz
+       /quotes (:author nélkül) nem ide, hanem a szűretlen listára jut, a szűrt
+       nézetet pedig a route :author paramétere garantálja — külön őr itt nem kell. */
     const filter = useMemo(
         () => (author != null ? {author: author === "Anonymous" ? "" : author} : null),
         [author],
     );
-    const missingFilter = needsFilter && !filter;
 
     const {cards, isLoading, ...grid} = useSortableCards({
-        url: props.url, filter, reorderUrl: "/quotes/reorder", handleAxios, skip: missingFilter,
+        url: props.url, filter, reorderUrl: "/quotes/reorder", handleAxios,
     });
 
     // A gyökér-átirányítás ide tér vissza: jelöljük, hogy az idézetek az utolsó
@@ -37,10 +38,6 @@ export default function QuoteRead(props) {
     useEffect(() => {
         localStorage.setItem("lastSection", "/quotes");
     }, []);
-
-    // Szűrő nélküli szűrt nézet: vissza az idézet-listára (replace, hogy a
-    // zsákutca ne kerüljön az előzményekbe).
-    if (missingFilter) return <Navigate to="/quotes" replace/>;
 
     // ÜRES szűrt nézet (az utolsó ilyen szerzőjű idézetet átírták/törölték) —
     // vissza a teljes listára. A teljes lista LEGITIMEN lehet üres.

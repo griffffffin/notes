@@ -22,12 +22,11 @@ const SINGLE_COLUMN_QUERY = "(max-width: 575.98px)";
 /* Egy húzással átrendezhető kártyalista LOGIKÁJA — kategóriától független. A
    to-do és az idézet lista ugyanezt a betöltés+húzás gépezetet használja; csak a
    végpont (`url`, `reorderUrl`), a `filter` és a kártya TARTALMA tér el (az
-   utóbbi a SortableCardGrid render-propja). A `skip` a szűrő nélküli szűrt
-   nézetet fedi: a hívó ilyenkor átirányít, addig ne induljon lekérés.
+   utóbbi a SortableCardGrid render-propja).
 
    A kártyák azonosítója egységesen a MongoDB `_id` (mindkét kategóriában az), a
    sorrend pedig az `order` mező — a húzás ezekre épül. */
-export function useSortableCards({url, filter, reorderUrl, handleAxios, skip}) {
+export function useSortableCards({url, filter, reorderUrl, handleAxios}) {
     const [cards, setCards] = useState();
     const [isLoading, setIsLoading] = useState(true);
 
@@ -38,7 +37,6 @@ export function useSortableCards({url, filter, reorderUrl, handleAxios, skip}) {
        elem "szellemét"). A guard: minden lefutás saját `active` jelzőt kap, a
        cleanup false-ra állítja; csak a LEGUTÓBBI kérés írhat. */
     useEffect(() => {
-        if (skip) return;
         let active = true;
         handleAxios(url, filter ?? {}, (response) => {
             if (active) setCards(response.data);
@@ -50,7 +48,7 @@ export function useSortableCards({url, filter, reorderUrl, handleAxios, skip}) {
             setCards([]);
         });
         return () => {active = false;};
-    }, [url, filter, skip, handleAxios]);
+    }, [url, filter, handleAxios]);
 
     useEffect(() => {
         if (cards) setIsLoading(false);

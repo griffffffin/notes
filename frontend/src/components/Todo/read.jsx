@@ -19,8 +19,9 @@ export default function Read(props) {
        azonosítója NEM az URL-ből — azt a szerver a tokenből tudja.
 
        A :name-et a React Router már dekódolva adja (a Link-ek
-       encodeURIComponent-tel kódolják). Az őr (missingFilter) a csupasz /category
-       útvonalat fedi, ami a "*"-ra esne — olcsó, explicit védelem. */
+       encodeURIComponent-tel kódolják). A csupasz /category (:name nélkül) IDE be
+       sem jut: a route-ban a :name kötelező, így az ilyen útvonal a "*"-ágra esik,
+       ami a listára irányít — külön komponens-őr itt már nem kell. */
     const needsFilter = props.url === "/to-do/category" || props.url === "/to-do/color";
     // useMemo, mert az objektum-literál rendernként új referencia lenne, és a hook
     // betöltő effektje függ tőle — memoizálás nélkül minden render újratöltene.
@@ -28,10 +29,9 @@ export default function Read(props) {
         () => (name != null ? (props.url === "/to-do/color" ? {color: name} : {category: name}) : null),
         [name, props.url],
     );
-    const missingFilter = needsFilter && !filter;
 
     const {cards, isLoading, ...grid} = useSortableCards({
-        url: props.url, filter, reorderUrl: "/to-do/reorder", handleAxios, skip: missingFilter,
+        url: props.url, filter, reorderUrl: "/to-do/reorder", handleAxios,
     });
 
     // A gyökér-átirányítás ide tér vissza: jelöljük, hogy a to-do az utolsó
@@ -39,10 +39,6 @@ export default function Read(props) {
     useEffect(() => {
         localStorage.setItem("lastSection", "/to-do");
     }, []);
-
-    // Szűrő nélküli szűrt nézet: nincs mit listázni, vissza a főoldalra (replace,
-    // hogy a zsákutca ne kerüljön az előzményekbe).
-    if (missingFilter) return <Navigate to="/to-do" replace/>;
 
     /* ÜRES szűrt nézet: a szűrő nem ad találatot — jellemzően mert az utolsó ilyen
        elemet átsorolták vagy törölték. A kihalt szűrt nézet zsákutca, ezért vissza
