@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react";
-import {Navigate, useBlocker, useLocation, useNavigate, useParams} from "react-router-dom";
+import {useBlocker, useLocation, useNavigate, useParams} from "react-router-dom";
 import Spinner from "../spinner";
 import SubmitButton from "../Button/submitButton";
 import AuthorInput from "./authorInput";
@@ -68,7 +68,10 @@ export default function QuoteSave(props) {
 
     const isUpdate = Boolean(props.isUpdate);
     const url = isUpdate ? "/quotes/update" : "/quotes/create";
-    const quoteId = isUpdate ? (id ?? null) : null;
+    /* Az azonosító az URL /update/:id szegmenséből jön. A route-ban a :id kötelező,
+       tehát update-nél mindig megvan; a csupasz /update-et a "*"-ág fogja el, ide
+       nem jut. Create-nél nincs szerkesztett elem: null. */
+    const quoteId = isUpdate ? id : null;
 
     /* Változatlan-e a szerkesztő ahhoz képest, amit menteni érdemes? Create-nél:
        üres (se idézet, se szerző) — ilyenkor nincs mentenivaló. Update-nél: a
@@ -103,8 +106,6 @@ export default function QuoteSave(props) {
     }, [isUpdate, location.key, navigate]);
 
     useEffect(() => {
-        // Szerkesztés id nélkül: nincs mit betölteni, a render átirányít.
-        if (isUpdate && !quoteId) return;
         if (quoteId) {
             handleAxios("/quotes/id", {id: quoteId}, (response) => {
                 const q = response.data;
@@ -366,10 +367,6 @@ export default function QuoteSave(props) {
 
     // A fenti mentés a szerkesztő LEVÁLÁSAKOR (pl. kijelentkezés) fut le, egyszer.
     useEffect(() => () => saveOnLeaveRef.current(), []);
-
-    // Szerkesztés id nélkül (közvetlen /update URL vagy F5) — nincs mit
-    // szerkeszteni, vissza a listára. Minden hook FÖLÖTTE fut le.
-    if (isUpdate && !quoteId) return <Navigate to="/quotes" replace/>;
 
     return (
         isLoading ? <Spinner class="min-vh-75"/> :

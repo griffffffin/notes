@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from "react";
-import {Navigate, useBlocker, useLocation, useNavigate, useParams} from "react-router-dom";
+import {useBlocker, useLocation, useNavigate, useParams} from "react-router-dom";
 import Spinner from "../spinner";
 import NoFocusInput from "../Input/noFocusInput";
 import Order from "./order";
@@ -75,9 +75,10 @@ export default function Save(props) {
 
     /* Melyik to-do-t szerkesztjük. Az azonosító az URL /update/:id szegmenséből
        jön, így F5 és közvetlen link után is megvan (szemben a régi navigációs
-       state-tel, ami csak linken át érkezett). A :id csak akkor hiányzik, ha az
-       útvonal nem is illeszkedett — a hiányát lentebb átirányítással kezeljük. */
-    const todoId = isUpdate ? (id ?? null) : null;
+       state-tel, ami csak linken át érkezett). A route-ban a :id kötelező, tehát
+       update-nél mindig megvan; a csupasz /update-et a "*"-ág fogja el (a listára
+       irányítja), ide már nem jut el. Create-nél nincs szerkesztett elem: null. */
+    const todoId = isUpdate ? id : null;
 
     /* A szerverről betöltött állapot — a beküldéskor ehhez mérjük, változott-e
        bármi. Ref és nem state: senki nem jeleníti meg, és a változása nem
@@ -120,9 +121,6 @@ export default function Save(props) {
     }, []);
 
     useEffect(() => {
-        // Szerkesztés id nélkül: nincs mit betölteni, a render átirányít.
-        if (isUpdate && !todoId) return;
-
         if (todoId) {
             handleAxios("/to-do/id", {id: todoId}, (response) => {
                 // Pillanatkép arról, AMIT a szerver adott — a beküldéskor ehhez
@@ -343,13 +341,6 @@ export default function Save(props) {
         window.addEventListener("keydown", onKeyDown);
         return () => window.removeEventListener("keydown", onKeyDown);
     }, []);
-
-    /* Szerkesztés id nélkül — közvetlen /update URL vagy F5. Nincs mit
-       szerkeszteni, ezért vissza a főoldalra. A replace azért kell, hogy a
-       zsákutca-/update ne kerüljön be az előzményekbe: a Vissza gomb ne ide
-       dobja vissza a felhasználót. (Minden hook FÖLÖTTE fut le — a React
-       szabálya, hogy hookot nem hagyhatunk ki feltételesen.) */
-    if (isUpdate && !todoId) return <Navigate to="/to-do" replace/>;
 
     return (
         isLoading ? <Spinner class="min-vh-75"/> :
