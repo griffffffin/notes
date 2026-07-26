@@ -1,5 +1,5 @@
 import {Link} from "react-router-dom";
-import {useTheme} from "../../contexts/theme";
+import {useTheme} from "../../contexts/theme-context";
 
 /* Egy szerző-hivatkozás az idézet-kártya láblécén — a to-do LinkCategory párja:
    a szerző szűrt nézetére visz (/quotes/:author). Az encodeURIComponent a

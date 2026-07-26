@@ -15,7 +15,7 @@ beforeAll(() => {
 
 // Állandó handleAxios (a komponens nem függ tőle effektben, de a mock stabil legyen).
 const {handleAxios} = vi.hoisted(() => ({handleAxios: vi.fn()}));
-vi.mock("../../contexts/auth", () => ({useAuth: () => ({handleAxios})}));
+vi.mock("../../contexts/auth-context", () => ({useAuth: () => ({handleAxios})}));
 
 /* A DeleteAndModal a szerkesztőben él; a törlés utáni navigációt egy valódi
    route-táblával figyeljük: a /to-do route egy jelző-szöveget render. */

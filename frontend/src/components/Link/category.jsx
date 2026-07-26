@@ -1,5 +1,5 @@
 import {Link} from "react-router-dom";
-import {useTheme} from "../../contexts/theme";
+import {useTheme} from "../../contexts/theme-context";
 
 /* Egy kategória-hivatkozás. KÉT helyen jelenik meg: a to-do kártya láblécében
    ÉS a navbar kategória-legördülőjében.

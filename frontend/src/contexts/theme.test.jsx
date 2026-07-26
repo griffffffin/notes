@@ -2,7 +2,8 @@ import {render, screen} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {CookiesProvider} from "react-cookie";
 import {beforeEach, describe, expect, it} from "vitest";
-import {THEMES, ThemeProvider, useTheme} from "./theme";
+import {ThemeProvider} from "./theme";
+import {THEMES, useTheme} from "./theme-context";
 
 /* Kis próbakomponens, ami kiírja, amit a Contextből kap — így a hookot
    önmagában, komponensfa nélkül tudjuk vizsgálni. */

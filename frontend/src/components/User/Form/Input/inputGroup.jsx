@@ -1,6 +1,6 @@
 import RoundedPillInput from "../../../Input/roundedPillInput";
 import PasswordGroup from "./Password/passwordGroup";
-import {useTheme} from "../../../../contexts/theme";
+import {useTheme} from "../../../../contexts/theme-context";
 
 export default function InputGroup(props) {
     const {isChecked} = useTheme();

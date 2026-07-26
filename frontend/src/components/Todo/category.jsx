@@ -6,7 +6,7 @@ export default function Category(props) {
     // Nincs useCallback: sima onChange/onClick, nincs memózott fogyasztó.
     const handleChange = (event) => {
         props.setCategory(event.target.value);
-        event.target.value.length ? props.setIsValid(true) : props.setIsValid(false);
+        props.setIsValid(event.target.value.length > 0);
         props.setIsAngleClicked(false);
     };
 

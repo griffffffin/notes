@@ -1,5 +1,5 @@
 import {useEffect, useState} from "react";
-import {useAuth} from "../../contexts/auth";
+import {useAuth} from "../../contexts/auth-context";
 import {logRequestError} from "../../log";
 
 // Ennyi szünet után kérünk javaslatot: gépelés közben minden billentyűnél

@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useState} from "react";
 import InputGroup from "./Form/Input/inputGroup";
 import SubmitButtonGroup from "../Button/submitButtonGroup";
-import {useAuth} from "../../contexts/auth";
+import {useAuth} from "../../contexts/auth-context";
 import {logRequestError} from "../../log";
 
 export default function Entry(props) {
@@ -43,26 +43,23 @@ export default function Entry(props) {
     const handleNameChange = useCallback((event) => {
         if (isLoginError || isSignUpError) clearError();
         setName(event.target.value);
-        event.target.value.length ? setIsNameValid(true) : setIsNameValid(false);
+        setIsNameValid(event.target.value.length > 0);
     }, [isLoginError, isSignUpError, clearError]);
 
     const handlePasswordChange = useCallback((event) => {
         if (isLoginError || isSignUpError) clearError();
         setPassword(event.target.value);
-        if (isLogin) event.target.value.length >= 8 ? setIsPasswordValid(true) : setIsPasswordValid(false);
+        if (isLogin) setIsPasswordValid(event.target.value.length >= 8);
         else {
-            /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/.test(event.target.value) ?
-                setIsPasswordValid(true) : setIsPasswordValid(false);
-            (event.target.value === passwordConfirm) ?
-                setIsPasswordConfirmValid(true) : setIsPasswordConfirmValid(false);
+            setIsPasswordValid(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/.test(event.target.value));
+            setIsPasswordConfirmValid(event.target.value === passwordConfirm);
         }
     }, [isLoginError, isSignUpError, clearError, isLogin, passwordConfirm]);
 
     const handlePasswordConfirmChange = useCallback((event) => {
         if (isLoginError || isSignUpError) clearError();
         setPasswordConfirm(event.target.value);
-        (event.target.value === password) ?
-            setIsPasswordConfirmValid(true) : setIsPasswordConfirmValid(false);
+        setIsPasswordConfirmValid(event.target.value === password);
     }, [isLoginError, isSignUpError, clearError, password]);
 
     const handleEyeClick = useCallback(() => setIsPasswordVisible(!isPasswordVisible), [isPasswordVisible]);

@@ -6,8 +6,8 @@ import AuthorInput from "./authorInput";
 import Order, {STEP_DELAY_MS} from "../Todo/order";
 import DeleteAndModal from "../Todo/deleteAndModal";
 import {toggleBold, normalizeBold} from "./bold";
-import {useAuth} from "../../contexts/auth";
-import {useTheme} from "../../contexts/theme";
+import {useAuth} from "../../contexts/auth-context";
+import {useTheme} from "../../contexts/theme-context";
 import {logRequestError} from "../../log";
 import {Tooltip as ReactTooltip} from "react-tooltip";
 

@@ -1,6 +1,6 @@
 import PasswordAndTooltip from "./passwordAndTooltip";
 import PasswordConfirmAndErrorLabel from "./passwordConfirmAndErrorLabel";
-import {useTheme} from "../../../../../contexts/theme";
+import {useTheme} from "../../../../../contexts/theme-context";
 
 export default function PasswordGroup(props) {
     const {isChecked} = useTheme();

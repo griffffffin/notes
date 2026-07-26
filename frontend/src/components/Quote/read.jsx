@@ -3,8 +3,8 @@ import {Navigate, useParams} from "react-router-dom";
 import Spinner from "../spinner";
 import LinkAuthor from "../Link/author";
 import LinkQuoteUpdate from "../Link/quoteUpdate";
-import {useAuth} from "../../contexts/auth";
-import {useTheme} from "../../contexts/theme";
+import {useAuth} from "../../contexts/auth-context";
+import {useTheme} from "../../contexts/theme-context";
 import {useSortableCards} from "../CardList/useSortableCards";
 import SortableCardGrid from "../CardList/SortableCardGrid";
 

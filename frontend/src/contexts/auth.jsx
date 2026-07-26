@@ -1,6 +1,7 @@
 import axios from "axios";
-import {createContext, useCallback, useContext, useEffect, useMemo, useRef} from "react";
+import {useCallback, useEffect, useMemo, useRef} from "react";
 import {useCookies} from "react-cookie";
+import {AuthContext} from "./auth-context";
 
 /* Bejelentkezés és szerverhívás egy helyen.
 
@@ -42,14 +43,6 @@ const REQUEST_TIMEOUT_MS = 15 * 1000;
    hogy nem akadályozzuk meg az alapértelmezett viselkedést — enélkül minden
    görgetésnél meg kellene várnia a kódunkat, ami akadozást okozna. */
 const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "wheel"];
-
-const AuthContext = createContext(null);
-
-export function useAuth() {
-    const auth = useContext(AuthContext);
-    if (!auth) throw new Error("useAuth csak <AuthProvider> alatt használható.");
-    return auth;
-}
 
 export function AuthProvider({children}) {
     const [cookies, setCookie, removeCookie] = useCookies(["user"]);

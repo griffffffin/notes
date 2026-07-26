@@ -1,7 +1,8 @@
 import {Link, useLocation} from "react-router-dom";
-import SectionSwitcher, {currentSection} from "./sectionSwitcher";
+import SectionSwitcher from "./sectionSwitcher";
+import {currentSection} from "./sections";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
-import {useTheme} from "../../contexts/theme";
+import {useTheme} from "../../contexts/theme-context";
 
 export default function LogoAndCreate(props) {
     const {color} = useTheme();

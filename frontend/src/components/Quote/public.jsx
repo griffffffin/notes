@@ -1,8 +1,8 @@
 import {useEffect, useState} from "react";
 import {useParams} from "react-router-dom";
 import Spinner from "../spinner";
-import {useAuth} from "../../contexts/auth";
-import {useTheme} from "../../contexts/theme";
+import {useAuth} from "../../contexts/auth-context";
+import {useTheme} from "../../contexts/theme-context";
 import {renderBold} from "./bold";
 import {logRequestError} from "../../log";
 

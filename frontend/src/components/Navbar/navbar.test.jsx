@@ -15,7 +15,7 @@ vi.mock("@fortawesome/react-fontawesome", () => ({
 
 // A kijelentkezéshez a valódi AuthProvider helyett elég a logout kimockolása.
 const {logout} = vi.hoisted(() => ({logout: vi.fn()}));
-vi.mock("../../contexts/auth", () => ({useAuth: () => ({logout, handleAxios: vi.fn()})}));
+vi.mock("../../contexts/auth-context", () => ({useAuth: () => ({logout, handleAxios: vi.fn()})}));
 
 const setup = (overrides = {}) => {
     const props = {

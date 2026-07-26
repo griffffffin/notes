@@ -12,7 +12,7 @@ const {handleAxios, auth} = vi.hoisted(() => {
     const fn = vi.fn();
     return {handleAxios: fn, auth: {isLoggedIn: true, handleAxios: fn}};
 });
-vi.mock("../../contexts/auth", () => ({useAuth: () => auth}));
+vi.mock("../../contexts/auth-context", () => ({useAuth: () => auth}));
 
 const renderRoutes = (path) => {
     window.history.pushState({}, "", path);

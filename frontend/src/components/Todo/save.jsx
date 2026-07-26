@@ -11,8 +11,8 @@ import Category from "./category";
 import SubmitButton from "../Button/submitButton";
 import DeleteAndModal from "./deleteAndModal";
 import ColorButtonGroup from "../Button/colorButtonGroup";
-import {useTheme} from "../../contexts/theme";
-import {useAuth} from "../../contexts/auth";
+import {useTheme} from "../../contexts/theme-context";
+import {useAuth} from "../../contexts/auth-context";
 import {TODO_COLORS} from "../../todoColors";
 import {logRequestError} from "../../log";
 import {Tooltip as ReactTooltip} from "react-tooltip";
@@ -117,7 +117,7 @@ export default function Save(props) {
 
     const handleTitleChange = useCallback((event) => {
         setTitle(event.target.value);
-        event.target.value.length ? setIsTitleValid(true) : setIsTitleValid(false);
+        setIsTitleValid(event.target.value.length > 0);
     }, []);
 
     useEffect(() => {
@@ -157,7 +157,7 @@ export default function Save(props) {
         handleAxios("/to-do/last/order", {},
             (response) => {
                 const lastOrder = response.data;
-                lastOrder === 0 ? setLastOrder(0) : setLastOrder(isUpdate ? lastOrder - 1 : lastOrder);
+                setLastOrder(lastOrder === 0 ? 0 : (isUpdate ? lastOrder - 1 : lastOrder));
             },
             logRequestError);
     }, [isUpdate, todoId, handleAxios, leaveEditor]);

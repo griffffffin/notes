@@ -9,7 +9,7 @@ import Read from "./Todo/read";
 import QuoteRead from "./Quote/read";
 import QuoteSave from "./Quote/save";
 import QuotePublic from "./Quote/public";
-import {useAuth} from "../contexts/auth";
+import {useAuth} from "../contexts/auth-context";
 
 /* Miért DATA ROUTER (createBrowserRouter + RouterProvider) a régi deklaratív
    <BrowserRouter> + <Routes> helyett? A szerkesztők (Save/QuoteSave) a

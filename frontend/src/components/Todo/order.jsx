@@ -90,7 +90,7 @@ export default function Order(props) {
             timer.current = holding.current ? setTimeout(tick, stepDelay) : null;
         };
         timer.current = setTimeout(tick, stepDelay);
-    }, [clamp, step, props, release]);
+    }, [clamp, step, stepDelay, props, release]);
 
     const handleMinusDown = useCallback((event) => start(event, -1), [start]);
     const handlePlusDown = useCallback((event) => start(event, 1), [start]);

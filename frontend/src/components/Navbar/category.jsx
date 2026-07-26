@@ -1,6 +1,6 @@
 import NoFocusButton from "../Button/noFocusButton";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
-import {useTheme} from "../../contexts/theme";
+import {useTheme} from "../../contexts/theme-context";
 
 export default function Category(props) {
     const {color} = useTheme();

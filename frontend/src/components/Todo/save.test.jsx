@@ -29,7 +29,7 @@ const {handleAxios, auth} = vi.hoisted(() => {
     return {handleAxios: fn, auth: {isLoggedIn: true, handleAxios: fn}};
 });
 
-vi.mock("../../contexts/auth", () => ({useAuth: () => auth}));
+vi.mock("../../contexts/auth-context", () => ({useAuth: () => auth}));
 
 const renderRoutes = () => render(
     <CookiesProvider>

@@ -1,6 +1,6 @@
 import {useLocation} from "react-router-dom";
 import LogoAndCreate from "./logoAndCreate";
-import {currentSection} from "./sectionSwitcher";
+import {currentSection} from "./sections";
 import ColorCategoryAndSignOut from "./colorCategoryAndSignOut";
 import Switch from "./switch";
 import CategoryAndColorGroup from "../Link/categoryAndColorGroup";

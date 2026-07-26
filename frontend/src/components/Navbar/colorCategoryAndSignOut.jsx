@@ -2,8 +2,8 @@ import {useCallback} from "react";
 import NoFocusButton from "../Button/noFocusButton";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import Category from "./category";
-import {useTheme} from "../../contexts/theme";
-import {useAuth} from "../../contexts/auth";
+import {useTheme} from "../../contexts/theme-context";
+import {useAuth} from "../../contexts/auth-context";
 
 export default function ColorCategoryAndSignOut(props) {
     const {color} = useTheme();

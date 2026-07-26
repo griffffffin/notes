@@ -2,7 +2,7 @@ import RoundedPillInput from "../../../../Input/roundedPillInput";
 import NoFocusButton from "../../../../Button/noFocusButton";
 import closedEye from "../../../../../assets/icons/password/closed_eye.svg";
 import openEye from "../../../../../assets/icons/password/eye_of_providence.svg";
-import {useTheme} from "../../../../../contexts/theme";
+import {useTheme} from "../../../../../contexts/theme-context";
 
 /* Mindkét szem importált asset: a Vite a bundle-be ágyazza őket (a küszöb
    8 kB, lásd vite.config.js), így nincs értük külön letöltés, és nem villannak

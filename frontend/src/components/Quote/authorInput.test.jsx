@@ -8,7 +8,7 @@ const {handleAxios, auth} = vi.hoisted(() => {
     const fn = vi.fn();
     return {handleAxios: fn, auth: {handleAxios: fn}};
 });
-vi.mock("../../contexts/auth", () => ({useAuth: () => auth}));
+vi.mock("../../contexts/auth-context", () => ({useAuth: () => auth}));
 
 /* Az AuthorInput kontrollált (a value kívülről jön), ezért egy pici szülőbe
    ágyazzuk, ami state-ben tartja — mint a QuoteSave. */

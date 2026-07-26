@@ -1,6 +1,6 @@
 import SubmitButton from "./submitButton";
 import {Link} from "react-router-dom";
-import {useTheme} from "../../contexts/theme";
+import {useTheme} from "../../contexts/theme-context";
 
 export default function SubmitButtonGroup(props) {
     const {color} = useTheme();

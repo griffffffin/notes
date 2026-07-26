@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event";
 import axios from "axios";
 import {CookiesProvider} from "react-cookie";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
-import {AuthProvider, useAuth} from "./auth";
+import {AuthProvider} from "./auth";
+import {useAuth} from "./auth-context";
 
 vi.mock("axios");
 

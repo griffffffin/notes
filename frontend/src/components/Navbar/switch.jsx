@@ -1,5 +1,5 @@
 import ReactSwitch from "react-switch";
-import {useTheme} from "../../contexts/theme";
+import {useTheme} from "../../contexts/theme-context";
 /* A nap/hold ikon 2x retina-méretre kicsinyítve és tömörítve (19,7 kB → 3,0 kB,
    14,5 kB → 1,4 kB) — így a Vite 4 kB-os beágyazási küszöbe alá kerültek, tehát
    a bundle részei: nincs külön letöltés, nem villannak be későn, és nem kell

@@ -3,7 +3,7 @@ import {Navigate, useParams} from "react-router-dom";
 import Spinner from "../spinner";
 import LinkTodoUpdate from "../Link/todoUpdate";
 import LinkCategory from "../Link/category";
-import {useAuth} from "../../contexts/auth";
+import {useAuth} from "../../contexts/auth-context";
 import {useSortableCards} from "../CardList/useSortableCards";
 import SortableCardGrid from "../CardList/SortableCardGrid";
 

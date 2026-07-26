@@ -13,7 +13,7 @@ const {handleAxios, auth, linkClicked} = vi.hoisted(() => {
     const fn = vi.fn();
     return {handleAxios: fn, auth: {isLoggedIn: true, handleAxios: fn}, linkClicked: vi.fn()};
 });
-vi.mock("../../contexts/auth", () => ({useAuth: () => auth}));
+vi.mock("../../contexts/auth-context", () => ({useAuth: () => auth}));
 
 /* Valódi húzást jsdom-ban nem tudunk lejátszani: nincs benne elrendezés, tehát
    a dnd-kit nem tudja kiszámolni, mi fölött járunk. A húzás VÉGE viszont egy

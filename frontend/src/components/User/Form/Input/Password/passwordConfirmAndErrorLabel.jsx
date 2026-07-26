@@ -1,6 +1,6 @@
 import PasswordConfirm from "./passwordConfirm";
 import ErrorLabel from "../../errorLabel";
-import {useTheme} from "../../../../../contexts/theme";
+import {useTheme} from "../../../../../contexts/theme-context";
 
 export default function PasswordConfirmAndErrorLabel(props) {
     const {isChecked} = useTheme();

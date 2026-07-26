@@ -5,7 +5,7 @@ import {
     faPaintRoller, faPlus, faRightFromBracket,
 } from "@fortawesome/free-solid-svg-icons";
 import Routes from "./routes";
-import {useAuth} from "../contexts/auth";
+import {useAuth} from "../contexts/auth-context";
 import {logRequestError} from "../log";
 
 /* CSAK a ténylegesen használt ikonokat regisztráljuk, nem a teljes `fas`

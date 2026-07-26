@@ -1,7 +1,7 @@
 import {useState} from "react";
 import {useNavigate} from "react-router-dom";
 import Modal from "./modal";
-import {useAuth} from "../../contexts/auth";
+import {useAuth} from "../../contexts/auth-context";
 import {logRequestError} from "../../log";
 
 export default function DeleteAndModal(props) {

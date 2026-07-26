@@ -1,5 +1,5 @@
 import {Tooltip as ReactTooltip} from "react-tooltip";
-import {useTheme} from "../../../contexts/theme";
+import {useTheme} from "../../../contexts/theme-context";
 
 export default function Tooltip() {
     const {color, colorHex, pageBackground} = useTheme();
