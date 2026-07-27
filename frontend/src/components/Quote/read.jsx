@@ -40,12 +40,18 @@ export default function QuoteRead(props) {
        gombok, toggle, kártyák — l. ACCENT_RED / ThemeProvider), jelezve a szűrt
        módot; a nézetből kilépve (unmount vagy needsFilter false) visszaáll a témáé.
        Így a kártyák külön pirosítása is fölöslegessé vált (a border-theme/text-theme
-       maga is a --theme-accent-ből fest). */
+       maga is a --theme-accent-ből fest).
+
+       CSAK akkor pirosítunk, ha VAN találat: egy üres szűrt nézet (pl. /quotes/search
+       → "search" nevű szerző nincs) amúgy is visszairányít a főlistára, és a piros
+       megvillanna az ugrás előtt. A `hasFilteredResults` BOOLEAN (nem a cards
+       identitása), így a húzás-átrendezés (cards-mutáció) nem billegteti a színt. */
+    const hasFilteredResults = needsFilter && Array.isArray(cards) && cards.length > 0;
     useEffect(() => {
-        if (!needsFilter) return;
+        if (!hasFilteredResults) return;
         setAccentOverride(ACCENT_RED);
         return () => setAccentOverride(null);
-    }, [needsFilter, setAccentOverride]);
+    }, [hasFilteredResults, setAccentOverride]);
 
     // ÜRES szűrt nézet (az utolsó ilyen szerzőjű idézetet átírták/törölték) —
     // vissza a teljes listára. A teljes lista LEGITIMEN lehet üres.
