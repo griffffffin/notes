@@ -1,23 +1,18 @@
 import {useEffect, useMemo} from "react";
 import {Navigate, useParams} from "react-router-dom";
 import Spinner from "../spinner";
-import LinkAuthor from "../Link/author";
-import LinkQuoteUpdate from "../Link/quoteUpdate";
+import QuoteCard from "./card";
 import {useAuth} from "../../contexts/auth-context";
-import {useTheme} from "../../contexts/theme-context";
 import {useSortableCards} from "../CardList/useSortableCards";
 import SortableCardGrid from "../CardList/SortableCardGrid";
 
 /* Az idézet-lista. A betöltés + húzás közös gépezetét a useSortableCards hook és
    a SortableCardGrid komponens adja (ugyanaz, mint a to-dónál); itt csak az
-   idézet-SPECIFIKUS rész marad: a szerző-szűrő és a kártya TARTALMA.
-
-   Az idézetnek nincs saját színe (a to-do color-választója itt nincs), ezért a
-   kártya a TÉMA színét viseli — a keret és a szöveg is. */
+   idézet-SPECIFIKUS rész marad: a szerző-szűrő. A kártya TARTALMA a KÖZÖS
+   QuoteCard (a keresési találat is ezt használja). */
 export default function QuoteRead(props) {
     const {author} = useParams();
     const {handleAxios} = useAuth();
-    const {color} = useTheme();
 
     const needsFilter = props.url === "/quotes/author";
     /* A "névtelen" idézeteket a URL-ben "Anonymous" jelöli (üres szerző nem lehet
@@ -48,11 +43,7 @@ export default function QuoteRead(props) {
 
     return (
         <SortableCardGrid cards={cards} {...grid} renderCard={(quote) =>
-            <div className={"card bg-transparent border-2 border-" + color}>
-                <LinkQuoteUpdate quote={quote} color={color} handleLinkClicked={props.handleLinkClicked}/>
-                <LinkAuthor author={quote.author} color={color} onClick={props.handleLinkClicked}
-                            class={"card-footer small text-center bg-transparent mx-2 border-" + color}/>
-            </div>
+            <QuoteCard quote={quote} handleLinkClicked={props.handleLinkClicked}/>
         }/>
     );
 }

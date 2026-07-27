@@ -7,6 +7,7 @@ import Entry from "./User/entry";
 import Save from "./Todo/save";
 import Read from "./Todo/read";
 import QuoteRead from "./Quote/read";
+import QuoteSearchResults from "./Quote/searchResults";
 import QuoteSave from "./Quote/save";
 import QuotePublic from "./Quote/public";
 import {useAuth} from "../contexts/auth-context";
@@ -72,6 +73,11 @@ function QuoteReadRoute({url}) {
     return <QuoteRead url={url} handleLinkClicked={p.handleLinkClicked}/>;
 }
 
+function QuoteSearchRoute() {
+    const p = useRoutesProps();
+    return <QuoteSearchResults handleLinkClicked={p.handleLinkClicked}/>;
+}
+
 function QuoteSaveRoute({isUpdate}) {
     const p = useRoutesProps();
     return <QuoteSave isUpdate={isUpdate} handleLinkClicked={p.handleLinkClicked}/>;
@@ -103,6 +109,10 @@ const loggedInRoutes = createRoutesFromElements(
         <Route path="/quotes" element={<QuoteReadRoute url="/quotes"/>}/>
         <Route path="/quotes/create" element={<QuoteSaveRoute key="quote-create" isUpdate={false}/>}/>
         <Route path="/quotes/update/:id" element={<QuoteSaveRoute key="quote-update" isUpdate={true}/>}/>
+        {/* A keresés szöveg-módú találata. A statikus "search" szegmens rangban
+            megelőzi a dinamikus /quotes/:author-t ÉS a /quotes/:author/:id-t (a
+            react-router a statikus szegmenst többre értékeli), ezért nem ütköznek. */}
+        <Route path="/quotes/search/:term" element={<QuoteSearchRoute/>}/>
         <Route path="/quotes/:author" element={<QuoteReadRoute url="/quotes/author"/>}/>
         {/* Egy megosztott idézet publikus nézete. A bejelentkezett is megnyithatja
             (olvasásra); a kijelentkezett ágban ugyanez a route szerepel. */}
@@ -122,6 +132,12 @@ const loggedOutRoutes = createRoutesFromElements(
             author-nak venné, és megmutatná az idézetet. A szerkesztéshez belépés
             kell, ezért a bejelentkezőt adjuk; a statikus route megelőzi a dinamikusat. */}
         <Route path="/quotes/update/:id" element={<Entry key="login" isLogin={true}/>}/>
+        {/* A keresés is bejelentkezést kíván: kijelentkezve a /quotes/search/:term a
+            bejelentkezőre essen (mint az /update), NE a lenti /quotes/:author/:id
+            publikus nézetre — az a "search"-öt szerzőnek, a kifejezést idézet-id-nek
+            venné, és "Nem létező idézet"-et mutatna. A statikus "search" szegmens
+            rangban megelőzi a dinamikus :author-t. */}
+        <Route path="/quotes/search/:term" element={<Entry key="login" isLogin={true}/>}/>
         {/* Publikus idézet-nézet bejelentkezés nélkül is — a megosztott link ettől
             működik kijelentkezve. Minden más ismeretlen út a bejelentkezőre esik. */}
         <Route path="/quotes/:author/:id" element={<QuotePublic/>}/>

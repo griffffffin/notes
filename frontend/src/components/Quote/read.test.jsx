@@ -62,4 +62,5 @@ describe("QuoteRead", () => {
             expect(call?.[1]).toEqual({author: ""});
         });
     });
+
 });

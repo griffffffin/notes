@@ -1,4 +1,4 @@
-import {render, screen} from "@testing-library/react";
+import {fireEvent, render, screen} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {CookiesProvider} from "react-cookie";
 import {MemoryRouter} from "react-router-dom";
@@ -17,7 +17,7 @@ vi.mock("@fortawesome/react-fontawesome", () => ({
 const {logout} = vi.hoisted(() => ({logout: vi.fn()}));
 vi.mock("../../contexts/auth-context", () => ({useAuth: () => ({logout, handleAxios: vi.fn()})}));
 
-const setup = (overrides = {}) => {
+const setup = (overrides = {}, route = "/") => {
     const props = {
         isVisible: true, categories: ["otthon", "munka"], handleLinkClicked: vi.fn(),
         setIsCategoryClicked: vi.fn(), isCategoryClicked: false,
@@ -26,7 +26,7 @@ const setup = (overrides = {}) => {
     render(
         <CookiesProvider>
             <ThemeProvider>
-                <MemoryRouter>
+                <MemoryRouter initialEntries={[route]}>
                     <Navbar {...props}/>
                 </MemoryRouter>
             </ThemeProvider>
@@ -79,5 +79,21 @@ describe("Navbar szűrő-kapcsolók", () => {
         // A színeknek nincs szöveges nevük (csak színfolt), ezért a href alapján
         // ellenőrizzük: a "danger" a to-do szín-szűrt nézetére visz.
         expect(document.querySelector('a[href="/to-do/color/danger"]')).toBeInTheDocument();
+    });
+});
+
+describe("Navbar — kereső fókusz (mobil kifeszülés)", () => {
+    it("a keresőbe kattintva a container megkapja a quote-search-focused osztályt, blur-re elveszti", async () => {
+        // A Quotes lista-oldalon jelenik meg a kereső.
+        setup({}, "/quotes");
+        const input = screen.getByPlaceholderText("Keresés...");
+        const container = document.querySelector(".container-fluid");
+        expect(container).not.toHaveClass("quote-search-focused");
+
+        await userEvent.click(input);
+        expect(container).toHaveClass("quote-search-focused");
+
+        fireEvent.blur(input);
+        expect(container).not.toHaveClass("quote-search-focused");
     });
 });

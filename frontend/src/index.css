@@ -97,8 +97,11 @@ textarea.form-control::placeholder {
        svg, nem button — ezt itt NEM szűkítjük) gépihez hasonló távolságú marad.
        A helyet a color-gomb és a Kategória közti köz (button.pe-2) + a container
        margói adják. */
+    /* A logó↔"+" köz (bal) egyezzen a kijelentkezés↔kapcsoló közével (jobb): a
+       jobb oldali a signout pe-2-je (0.5rem, mérve ~7,5px), ezért a "+" bal
+       padding-ját is 0.5rem-re vesszük — telefonon szimmetrikus így a két szél. */
     .navbar .ps-3 {
-        padding-left: 0.7rem !important;
+        padding-left: 0.5rem !important;
     }
     .navbar button.pe-2 {
         padding-right: 0.5rem !important;
@@ -118,6 +121,99 @@ textarea.form-control::placeholder {
     .create-plus {
         font-size: 2em !important;
     }
+}
+
+/* A Quotes-navbar keresője (quoteSearch.jsx). A navbar KÖZEPÉN ül, abszolút
+   pozícióban (a container-fluid position-relative-jéhez képest, start-50 +
+   translate-middle) — ezért itt csak a SZÉLESSÉGÉT szabjuk meg. A szélesség
+   TÖRÉSPONTONKÉNT külön (nincs közös alap-szabály): minden min-width-blokk a saját
+   sávjára állít, NÖVEKVŐ sorrendben, hogy a legnagyobb illeszkedő nyerjen. A lg
+   (≥992) szándékosan hiányzik: ott a md értéke öröklődik. (Bootstrap-töréspontok:
+   xs<576, sm≥576, md≥768, lg≥992, xl≥1200, xxl≥1400.)
+
+   Az érték `vw`: a nézetablak szélességének százaléka (1vw = a böngészőablak
+   szélességének 1%-a), így a sáv a képernyővel arányos. (Ha fix felső korlátot is
+   akarnál, a `min(Xvw, Yrem)` a kettő közül a KISEBBET venné.) */
+/* xs (<576px) — telefon */
+@media (max-width: 575.98px) {
+    .quote-search {
+        width: 26vw;
+    }
+}
+/* sm (≥576px) — a 36vw itt sok, a 26/31vw kevés volt, ezért 34vw */
+@media (min-width: 576px) {
+    .quote-search {
+        width: 34vw;
+    }
+}
+/* md (≥768px) */
+@media (min-width: 768px) {
+    .quote-search {
+        width: 36vw;
+    }
+}
+/* lg (≥992px): nincs külön érték — a md 36vw-je öröklődik. */
+/* xl (≥1200px) */
+@media (min-width: 1200px) {
+    .quote-search {
+        width: 22vw;
+    }
+}
+/* xxl (≥1400px) — a 22vw itt kevés, a 25/26/30/36vw sok volt, ezért 24vw */
+@media (min-width: 1400px) {
+    .quote-search {
+        width: 24vw;
+    }
+}
+/* MOBIL: a mezőbe kattintva a kereső ÁTVESZI a navbart — közel a kártyák széléig
+   feszül. A calc(100vw - 2rem) a képernyő szélességéből hagy ~1rem margót két
+   oldalt (hangolható). A KÖZÉPRE-igazítást megtartjuk (az inline start-50 +
+   translate-middle marad), így a sáv csak SZÉLESEDIK a középpontból, NEM ugrik
+   oldalra. A szét-/összenyílás ANIMÁLT (0.35s): a sáv szélessége kifut/behúzódik,
+   a többi elem eközben ELHALVÁNYUL (opacity 1↔0), majd fókusz alatt kattinthatatlan
+   (pointer-events:none). Az opacity:0 — szemben a display:none-nal — MEGTARTJA a
+   boxot, így a navbar magassága nem omlik össze (a rá abszolút pozicionált kereső
+   függőleges közepe megmarad). A pill ATLÁTSZATLAN lap-hátteret kap, hogy a mögötte
+   elhalványuló elemek ne villanjanak át rajta az átmenet alatt. A
+   .quote-search-focused osztályt a navbar teszi a container-fluidra fókusz alatt;
+   blur után minden visszaáll. Csak mobilon. */
+@media (max-width: 575.98px) {
+    .quote-search {
+        background: var(--theme-page-bg);
+        transition: width 0.35s ease-in-out;
+    }
+    .navbar > .container-fluid > .d-grid {
+        transition: opacity 0.45s ease-in-out;
+    }
+    .quote-search-focused > .d-grid {
+        opacity: 0;
+        pointer-events: none;
+    }
+    .quote-search-focused .quote-search {
+        width: calc(100vw - 2rem) !important;
+    }
+}
+/* A keresősáv betűje md-től (≥768px) 150% (az alap-szabályban lentebb), ALATTA
+   (xs + sm, <768px) 145% — a kisebb képernyőn a valamivel kisebb betű jobban elfér. */
+@media (max-width: 767.98px) {
+    .quote-search .form-control {
+        font-size: 145% !important;
+    }
+}
+/* A pill VÉKONY — a teljes sáv (borderrel) a kártyák szerző-láblécének magasságához
+   hangolva. A betű 150% (md alatt 145%, fentebb): itt írjuk felül a .caveat 155%-át
+   (0,2,0 specificitás > .caveat 0,1,0, mindkettő !important → ez nyer). A magasságot
+   a tartalom (betű × 1.2 sorköz) + border (2×2px) + padding adja; a padding a mért
+   célhoz hangolható. A padding-left a placeholder ELŐTTI köz (a rounded-pill bal
+   ívéhez is levegő). A form-control alap min-height-ját nullázzuk; a szabály a belső
+   ghost-rétegre (szintén .form-control) IS hat, hogy a két réteg együtt maradjon. */
+.quote-search .form-control {
+    min-height: 0;
+    padding-top: 0.064rem;
+    padding-bottom: 0.064rem;
+    padding-left: 1rem;
+    line-height: 1.2;
+    font-size: 150% !important;
 }
 
 .logo {
