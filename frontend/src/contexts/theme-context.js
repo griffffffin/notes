@@ -17,20 +17,20 @@ export const THEMES = {
         cookieValue: "black",                   // a meglévő süti-értékek maradnak
         pageBackground: "#000",
         text: "#fff",                           // alap szövegszín az oldalon
-        accent: "#ffc107",                      // kiemelőszín: logó, ikonok, gombok
+        accent: "#ffca28",                      // kiemelőszín: logó, ikonok, gombok
         accentContrast: "#000",                 // szöveg a kiemelőszínű gombokon
-        focusBorder: "#ffd6a6",                 // input fókusz-keret
-        focusRing: "rgba(255, 193, 7, 0.45)",   // input fókusz-ragyogás
+        focusBorder: "#ffe289",                 // input fókusz-keret (az akcentus világos árnyalata)
+        focusRing: "rgba(255, 202, 40, 0.45)",  // input fókusz-ragyogás (az akcentus 45%-on)
         todoDefaultColor: "warning",            // az új to-do kártya kezdőszíne (a kártya-paletta 6 nevéből)
     },
     light: {
         cookieValue: "white",
         pageBackground: "#fff",
         text: "#000",
-        accent: "#0d6efd",
+        accent: "#0b5ed7",
         accentContrast: "#fff",
-        focusBorder: "#9ec5fe",
-        focusRing: "rgba(13, 110, 253, 0.35)",
+        focusBorder: "#91b7ed",
+        focusRing: "rgba(11, 94, 215, 0.35)",
         todoDefaultColor: "primary",
     },
 };

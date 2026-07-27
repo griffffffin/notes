@@ -10,9 +10,9 @@
          világos témán a FEKETE fél lesz kék. A geometria/méretek ott AZONOSAK.
          A viewBox tágabb a 100-asnál, hogy a körvonal kifelé eső fele elférjen,
          a korong mérete maradjon. -->
-    <circle cx="50" cy="50" r="49.3" fill="#ffc107"/>
+    <circle cx="50" cy="50" r="49.3" fill="#ffca28"/>
     <path fill="#000" d="M50 0.7a49.3 49.3 0 0 1 0 98.6a24.65 24.65 0 0 1 0-49.3a24.65 24.65 0 0 0 0-49.3"/>
     <circle cx="50" cy="26.2" r="6.2" fill="#000"/>
-    <circle cx="50" cy="73.8" r="6.2" fill="#ffc107"/>
-    <circle cx="50" cy="50" r="49.3" fill="none" stroke="#ffc107" stroke-width="5.4"/>
+    <circle cx="50" cy="73.8" r="6.2" fill="#ffca28"/>
+    <circle cx="50" cy="50" r="49.3" fill="none" stroke="#ffca28" stroke-width="5.4"/>
 </svg>
