@@ -384,10 +384,11 @@ export default function QuoteSave(props) {
        kijelentkezés a hívás pillanatára már törli az ÉLŐ tokent, ezért azt EXPLICIT
        átadjuk a handleAxios-nak, különben a mentés token nélkül, 401-gyel elveszne.
 
-       Korlát: a TÉTLENSÉGI kijelentkezésnél a token lejárat MIATT szűnik meg (a 15
-       perces határ = a token élettartama), tehát ott a zárványolt token is lejárt —
-       az a mentés nem menthető meg. A KÉZI kijelentkezés (gomb) érvényes tokennel
-       történik, azt ez a mentés megőrzi. */
+       A KÉZI kijelentkezés (gomb) BÁRMIKOR jöhet, érvényes tokennel (a user épp aktív) —
+       ezt a zárványolt token őrzi meg. A TÉTLENSÉGI (timeout) ágat külön a 10 perces
+       autosave fedi le (l. lentebb): az még érvényes tokennel ment és a listára navigál,
+       tehát 15 percnél már nincs mentetlen szerkesztő. (Kivétel: ha az autosave hálózati
+       hibán elbukik, marad az eredeti korlát — 15 percnél a token lejárt, nem menthető.) */
     saveOnLeaveRef.current = () => {
         if (leftViaForm.current) return;
         const cleanedQuote = normalizeBold(quote);
