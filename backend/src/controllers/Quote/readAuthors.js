@@ -1,10 +1,7 @@
 const router = require("express").Router();
 const Quote = require("../../models/quote");
 const serverError = require("../../serverError");
-
-// A regex-speciális karakterek escape-elése: enélkül egy "." bármit illesztene,
-// egy ".*" pedig a keresés jelentését változtatná (regex-injekció).
-const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRegex = require("./escapeRegex");
 
 /* Szerző-javaslatok a beírt prefixhez (autocomplete). A felhasználó szerzői, a
    prefixszel kezdve, a LEGUTÓBBI használat szerint rendezve. Mivel egy szerzőhöz

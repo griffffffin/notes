@@ -7,7 +7,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const request = require("supertest");
 
-const {validateQuoteBody, validateQuoteId, validateAuthorFilter} = require("./validateQuote");
+const {validateQuoteBody, validateQuoteId, validateAuthorFilter, validateSearchTerm} = require("./validateQuote");
 
 const app = express();
 app.use(express.json());
@@ -73,4 +73,24 @@ test("szerző-szűrő: stringet átenged (üreset is), operátort elutasít (400
     assert.strictEqual((await request(filterApp).post("/author").send({author: ""})).status, 200);
     assert.strictEqual((await request(filterApp).post("/author").send({author: {$ne: null}})).status, 400);
     assert.strictEqual((await request(filterApp).post("/author").send({})).status, 400);
+});
+
+const searchApp = express();
+searchApp.use(express.json());
+searchApp.post("/search", validateSearchTerm, (request_, response) => response.json({ok: true}));
+
+test("keresés: nem-üres stringet átenged, üreset/csak-szóközt elutasít (400)", async () => {
+    assert.strictEqual((await request(searchApp).post("/search").send({term: "élet"})).status, 200);
+    // A szerző-szűréssel szemben az ÜRES keresés értelmetlen (mindent illesztene) — 400.
+    assert.strictEqual((await request(searchApp).post("/search").send({term: ""})).status, 400);
+    assert.strictEqual((await request(searchApp).post("/search").send({term: "   "})).status, 400);
+    assert.strictEqual((await request(searchApp).post("/search").send({})).status, 400);
+});
+
+test("keresés: objektumot string helyett elutasít — NoSQL-injekció ellen (400)", async () => {
+    assert.strictEqual((await request(searchApp).post("/search").send({term: {$ne: null}})).status, 400);
+});
+
+test("keresés: túl hosszú kifejezést elutasít (400)", async () => {
+    assert.strictEqual((await request(searchApp).post("/search").send({term: "a".repeat(501)})).status, 400);
 });

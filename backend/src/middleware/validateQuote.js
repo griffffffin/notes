@@ -18,6 +18,10 @@ const mongoose = require("mongoose");
 const MAX_QUOTE = 100000;
 const MAX_AUTHOR = 200;
 const MAX_ORDER = 100000;
+/* A keresőkifejezés felső korlátja. Bőven elég bármely értelmes szó/szókapcsolat
+   kereséséhez (a szerzőnév maga is legfeljebb MAX_AUTHOR), viszont megakadályozza,
+   hogy egy abszurd hosszú kifejezésből aránytalanul nagy regex épüljön. */
+const MAX_SEARCH = 500;
 // A betűméret (százalék) korlátai — EGYEZZENEK a quote.js séma min/max-jával.
 const MIN_FONTSIZE = 100;
 const MAX_FONTSIZE = 200;
@@ -81,6 +85,17 @@ const validateAuthorFilter = (request, response, next) => {
     next();
 };
 
+/* A kereséshez (/quotes/search, /quotes/search-mode): a kifejezés escape-elve
+   egyenesen egy regexbe, majd a lekérdezésbe kerül — operátor ne juthasson bele
+   (string legyen), és üres/csak-szóköz kifejezésre ne is fussunk keresést. A
+   típusszigor itt is NoSQL-injekció ellen véd. */
+const validateSearchTerm = (request, response, next) => {
+    const term = request.body?.term;
+    if (!isText(term) || !term.trim()) return response.status(400).json("Érvénytelen keresőkifejezés.");
+    if (term.length > MAX_SEARCH) return response.status(400).json(`A keresés legfeljebb ${MAX_SEARCH} karakter lehet.`);
+    next();
+};
+
 module.exports = {
-    validateQuoteBody, validateQuoteId, validateOrderOnly, validateAuthorFilter,
+    validateQuoteBody, validateQuoteId, validateOrderOnly, validateAuthorFilter, validateSearchTerm,
 };

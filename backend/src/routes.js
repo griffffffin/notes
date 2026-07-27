@@ -5,6 +5,7 @@ const {
 } = require("./middleware/validateTodo");
 const {
     validateQuoteBody, validateQuoteId, validateOrderOnly: validateQuoteOrderOnly, validateAuthorFilter,
+    validateSearchTerm,
 } = require("./middleware/validateQuote");
 const validateCredentials = require("./middleware/validateCredentials");
 
@@ -28,6 +29,8 @@ const todoReorder = require("./controllers/Todo/reorder");
 const quoteCreate = require("./controllers/Quote/create");
 const quoteReadLastOrder = require("./controllers/Quote/readLastOrder");
 const quoteReadAuthors = require("./controllers/Quote/readAuthors");
+const quoteReadSearchMode = require("./controllers/Quote/readSearchMode");
+const quoteReadSearch = require("./controllers/Quote/readSearch");
 const quoteRead = require("./controllers/Quote/read");
 const quoteReadByAuthor = require("./controllers/Quote/readByAuthor");
 const quoteReadById = require("./controllers/Quote/readById");
@@ -86,6 +89,11 @@ quoteRouter.use("/create", validateQuoteBody, quoteCreate);
 quoteRouter.use("/last/order", quoteReadLastOrder);
 quoteRouter.use("/authors", quoteReadAuthors);
 quoteRouter.use("/author", validateAuthorFilter, quoteReadByAuthor);
+/* A keresés két végpontja. A /search-mode a beküldéskori MÓD-döntés (olcsó,
+   lét-kérdések), a /search a szöveg-mód TÖMB-találata (a húzáshoz). A statikus
+   nevek nem ütköznek egymással, sem a /author-ral. */
+quoteRouter.use("/search-mode", validateSearchTerm, quoteReadSearchMode);
+quoteRouter.use("/search", validateSearchTerm, quoteReadSearch);
 
 quoteRouter.use("/update", validateQuoteId, validateQuoteBody, quoteUpdate);
 quoteRouter.use("/delete", validateQuoteId, quoteDelete);
