@@ -47,6 +47,17 @@ export const ACCENT_RED = {
     focusRing: "rgba(219, 25, 55, 0.4)",
 };
 
+/* A quotes szekció VILÁGOS témájú akcentusa: tinta-kék, a globális világos kék
+   (#0b5ed7) helyett. SÖTÉT témán a szekció a globális (sárga) akcentust használja —
+   ezért ez CSAK a világos érték; a sötétnél a szekció-override null (l. useQuoteAccent).
+   Ez a szekciónkénti világos/sötét színrendszer első példánya (később más szekciók is
+   kaphatnak sajátot). A focus-* a tintához igazított input-fókusz-keret/-ragyogás. */
+export const QUOTES_LIGHT_ACCENT = {
+    accent: "#284ec0",
+    focusBorder: "#9eafe3",
+    focusRing: "rgba(40, 78, 192, 0.35)",
+};
+
 export const ThemeContext = createContext(null);
 
 export function useTheme() {

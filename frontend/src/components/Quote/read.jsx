@@ -3,7 +3,7 @@ import {Navigate, useParams} from "react-router-dom";
 import Spinner from "../spinner";
 import QuoteCard from "./card";
 import {useAuth} from "../../contexts/auth-context";
-import {useTheme, ACCENT_RED} from "../../contexts/theme-context";
+import {useQuoteAccent} from "./useQuoteAccent";
 import {useSortableCards} from "../CardList/useSortableCards";
 import SortableCardGrid from "../CardList/SortableCardGrid";
 
@@ -14,7 +14,6 @@ import SortableCardGrid from "../CardList/SortableCardGrid";
 export default function QuoteRead(props) {
     const {author} = useParams();
     const {handleAxios} = useAuth();
-    const {setAccentOverride} = useTheme();
 
     const needsFilter = props.url === "/quotes/author";
     /* A "névtelen" idézeteket a URL-ben "Anonymous" jelöli (üres szerző nem lehet
@@ -36,22 +35,14 @@ export default function QuoteRead(props) {
         localStorage.setItem("lastSection", "/quotes");
     }, []);
 
-    /* A szerző-szűrt nézet PIROS akcentust ad az EGÉSZ appnak (navbar, scrollbar,
-       gombok, toggle, kártyák — l. ACCENT_RED / ThemeProvider), jelezve a szűrt
-       módot; a nézetből kilépve (unmount vagy needsFilter false) visszaáll a témáé.
-       Így a kártyák külön pirosítása is fölöslegessé vált (a border-theme/text-theme
-       maga is a --theme-accent-ből fest).
-
-       CSAK akkor pirosítunk, ha VAN találat: egy üres szűrt nézet (pl. /quotes/search
-       → "search" nevű szerző nincs) amúgy is visszairányít a főlistára, és a piros
-       megvillanna az ugrás előtt. A `hasFilteredResults` BOOLEAN (nem a cards
-       identitása), így a húzás-átrendezés (cards-mutáció) nem billegteti a színt. */
+    /* A szekció akcentusa (l. useQuoteAccent): a quotes-lista VILÁGOS témán tinta-kék,
+       sötéten a globális sárga. A szerző-szűrt nézet PIROSSAL üti felül — de CSAK ha VAN
+       találat: egy üres szűrt nézet (pl. /quotes/search → nincs "search" nevű szerző)
+       amúgy is visszairányít a főlistára, és a piros megvillanna az ugrás előtt. A
+       `hasFilteredResults` BOOLEAN (nem a cards identitása), így a húzás-átrendezés
+       (cards-mutáció) nem billegteti a színt. */
     const hasFilteredResults = needsFilter && Array.isArray(cards) && cards.length > 0;
-    useEffect(() => {
-        if (!hasFilteredResults) return;
-        setAccentOverride(ACCENT_RED);
-        return () => setAccentOverride(null);
-    }, [hasFilteredResults, setAccentOverride]);
+    useQuoteAccent(hasFilteredResults);
 
     // ÜRES szűrt nézet (az utolsó ilyen szerzőjű idézetet átírták/törölték) —
     // vissza a teljes listára. A teljes lista LEGITIMEN lehet üres.

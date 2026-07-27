@@ -1,6 +1,6 @@
 import {render, screen, waitFor} from "@testing-library/react";
 import {CookiesProvider} from "react-cookie";
-import {beforeEach, describe, expect, it, vi} from "vitest";
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import Routes from "../routes";
 import {ThemeProvider} from "../../contexts/theme";
 
@@ -37,6 +37,11 @@ beforeEach(() => {
         else then({status: 200, data: {}});
         return Promise.resolve();
     });
+});
+
+afterEach(() => {
+    // A világos-téma sütit töröljük, hogy a többi teszt az alap (sötét) témával induljon.
+    document.cookie = "backgroundColor=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
 });
 
 describe("QuoteRead", () => {
@@ -76,5 +81,15 @@ describe("QuoteRead", () => {
         renderRoutes("/quotes");
         await screen.findByText("Első idézet");
         expect(document.documentElement.style.getPropertyValue("--theme-accent")).not.toBe("#db1937");
+    });
+
+    it("a quotes-lista VILÁGOS témán a szekció tinta-kékjét kapja (#284ec0, nem a globális #0b5ed7)", async () => {
+        // Világos témával indítunk (a ThemeProvider a backgroundColor sütiből olvassa).
+        document.cookie = "backgroundColor=white; path=/";
+        renderRoutes("/quotes");
+        await screen.findByText("Első idézet");
+        // A szekció-override (useQuoteAccent) egy effektben áll be — waitForrel várjuk ki.
+        await waitFor(() =>
+            expect(document.documentElement.style.getPropertyValue("--theme-accent")).toBe("#284ec0"));
     });
 });

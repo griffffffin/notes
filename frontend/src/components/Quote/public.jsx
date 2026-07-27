@@ -3,6 +3,7 @@ import {useParams} from "react-router-dom";
 import Spinner from "../spinner";
 import {useAuth} from "../../contexts/auth-context";
 import {useTheme} from "../../contexts/theme-context";
+import {useQuoteAccent} from "./useQuoteAccent";
 import {renderBold} from "./bold";
 import {logRequestError} from "../../log";
 
@@ -16,6 +17,8 @@ export default function QuotePublic() {
     const {id} = useParams();
     const {handleAxios} = useAuth();
     const {color} = useTheme();
+    // A megosztott egy-idézet nézet is a quotes szekció: világos témán tinta-kék.
+    useQuoteAccent();
     const [quote, setQuote] = useState();
     const [notFound, setNotFound] = useState(false);
 

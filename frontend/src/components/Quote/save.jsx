@@ -8,6 +8,7 @@ import DeleteAndModal from "../Todo/deleteAndModal";
 import {toggleBold, normalizeBold} from "./bold";
 import {useAuth} from "../../contexts/auth-context";
 import {useTheme} from "../../contexts/theme-context";
+import {useQuoteAccent} from "./useQuoteAccent";
 import {logRequestError} from "../../log";
 import {Tooltip as ReactTooltip} from "react-tooltip";
 
@@ -44,6 +45,8 @@ export default function QuoteSave(props) {
     const navigate = useNavigate();
     const {handleAxios, token} = useAuth();
     const {color} = useTheme();
+    // A szerkesztő is a quotes szekció része: világos témán tinta-kék akcentus.
+    useQuoteAccent();
     const formRef = useRef(null);
     const textareaRef = useRef(null);
     // A Ctrl+B utáni kijelölést a render UTÁN állítjuk vissza (a setQuote
