@@ -27,7 +27,10 @@ export default function QuotePublic() {
             });
     }, [id, handleAxios]);
 
-    if (notFound) return <div className={"text-center mt-5 caveat text-" + color}>Nem létező idézet.</div>;
+    // A "nincs ilyen idézet" üzenet 200%-os (a --quote-fs a .caveat 155%-át írja
+    // felül, l. index.css) — hangsúlyosabb, mint a törzsszöveg.
+    if (notFound) return <div style={{"--quote-fs": "200%"}}
+                              className={"text-center mt-5 caveat text-" + color}>Nem létező idézet.</div>;
     if (!quote) return <Spinner class="min-vh-75"/>;
 
     return (
