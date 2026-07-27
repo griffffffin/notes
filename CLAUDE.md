@@ -112,7 +112,7 @@ komponensek nagy része átkerül, csak az új backend és kategóriák köré b
   az ELŐZŐ napot vizsgálja, csak ha volt módosítás; 30 napi retenció;
   cél: `/opt/backups/to-do/daily/`
 - Heti teljes mentés vasárnap 01:00 (`to-do-backup.timer` → `deploy/weekly-backup.sh`,
-  pg_dump gzippel); 12 heti retenció; cél: `/opt/backups/to-do/weekly/`
+  pg_dump gzippel); ~100 heti retenció (`RETENTION_DAYS=700`); cél: `/opt/backups/to-do/weekly/`
 - Mindkét timer `Persistent=true`: kimaradt futást bepótol. A retenció csak akkor
   töröl régit, ha a legfrissebb mentés bizonyítottan ép/nem üres.
 

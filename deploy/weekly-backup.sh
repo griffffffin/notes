@@ -5,7 +5,9 @@
 # Régi mentést csak akkor töröl, ha a friss mentés épnek bizonyult.
 set -eu
 BACKUP_DIR=/opt/backups/to-do/weekly
-RETENTION_DAYS=84
+# 700 nap = 100 hét: kb. ennyi heti dumpot tartunk meg (a mentés heti egy, tehát a
+# nap-alapú retenció ~100 fájlt hagy meg), a régebbieket töröljük.
+RETENTION_DAYS=700
 FILE="$BACKUP_DIR/postgres-$(date +%F).sql.gz"
 
 # 0600: a dump a teljes adatbázist tartalmazza — csak a tulajdonos olvashassa
