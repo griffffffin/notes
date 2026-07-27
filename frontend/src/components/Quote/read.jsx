@@ -3,6 +3,7 @@ import {Navigate, useParams} from "react-router-dom";
 import Spinner from "../spinner";
 import QuoteCard from "./card";
 import {useAuth} from "../../contexts/auth-context";
+import {useTheme, ACCENT_RED} from "../../contexts/theme-context";
 import {useSortableCards} from "../CardList/useSortableCards";
 import SortableCardGrid from "../CardList/SortableCardGrid";
 
@@ -13,6 +14,7 @@ import SortableCardGrid from "../CardList/SortableCardGrid";
 export default function QuoteRead(props) {
     const {author} = useParams();
     const {handleAxios} = useAuth();
+    const {setAccentOverride} = useTheme();
 
     const needsFilter = props.url === "/quotes/author";
     /* A "névtelen" idézeteket a URL-ben "Anonymous" jelöli (üres szerző nem lehet
@@ -33,6 +35,17 @@ export default function QuoteRead(props) {
     useEffect(() => {
         localStorage.setItem("lastSection", "/quotes");
     }, []);
+
+    /* A szerző-szűrt nézet PIROS akcentust ad az EGÉSZ appnak (navbar, scrollbar,
+       gombok, toggle, kártyák — l. ACCENT_RED / ThemeProvider), jelezve a szűrt
+       módot; a nézetből kilépve (unmount vagy needsFilter false) visszaáll a témáé.
+       Így a kártyák külön pirosítása is fölöslegessé vált (a border-theme/text-theme
+       maga is a --theme-accent-ből fest). */
+    useEffect(() => {
+        if (!needsFilter) return;
+        setAccentOverride(ACCENT_RED);
+        return () => setAccentOverride(null);
+    }, [needsFilter, setAccentOverride]);
 
     // ÜRES szűrt nézet (az utolsó ilyen szerzőjű idézetet átírták/törölték) —
     // vissza a teljes listára. A teljes lista LEGITIMEN lehet üres.

@@ -63,4 +63,18 @@ describe("QuoteRead", () => {
         });
     });
 
+    it("a szerző-szűrt nézetben a téma-akcentus PIROSRA vált (#db1937)", async () => {
+        renderRoutes("/quotes/M%C3%A1rai");
+        await screen.findByText("Első idézet");
+        // Az EGÉSZ app akcentusa (a html --theme-accent) piros lesz — ebből fest a
+        // navbar, a scrollbar, a gombok és a kártyák is.
+        await waitFor(() =>
+            expect(document.documentElement.style.getPropertyValue("--theme-accent")).toBe("#db1937"));
+    });
+
+    it("a teljes listában az akcentus a TÉMÁÉ marad (nem piros)", async () => {
+        renderRoutes("/quotes");
+        await screen.findByText("Első idézet");
+        expect(document.documentElement.style.getPropertyValue("--theme-accent")).not.toBe("#db1937");
+    });
 });
