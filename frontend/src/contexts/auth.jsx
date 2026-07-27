@@ -63,16 +63,22 @@ export function AuthProvider({children}) {
     const login = useCallback((newToken) => setCookie("user", newToken, {path: "/"}), [setCookie]);
     const logout = useCallback(() => removeCookie("user", {path: "/"}), [removeCookie]);
 
-    const handleAxios = useCallback((url, data, then, catchError) =>
-        axios.post(import.meta.env.VITE_BACKEND + url, data, {
+    /* Az `authToken` OPCIONÁLIS felülírás: alapból az ÉLŐ tokent (tokenRef) küldjük.
+       A kijelentkezéskori unmount-mentés (Quote/save.jsx) viszont a MÁR TÖRÖLT élő
+       token helyett a leváláskor még érvényes, ZÁRVÁNYOLT tokent adja át — enélkül a
+       mentés token nélkül, 401-gyel bukna (removeCookie már lefutott, tokenRef null). */
+    const handleAxios = useCallback((url, data, then, catchError, authToken) => {
+        const bearer = authToken ?? tokenRef.current;
+        return axios.post(import.meta.env.VITE_BACKEND + url, data, {
             timeout: REQUEST_TIMEOUT_MS,
-            headers: tokenRef.current ? {Authorization: "Bearer " + tokenRef.current} : undefined,
+            headers: bearer ? {Authorization: "Bearer " + bearer} : undefined,
         })
             .then(then)
             .catch((error) => {
                 if (error.response?.status === 401) removeCookie("user", {path: "/"});
                 catchError(error);
-            }), [removeCookie]);
+            });
+    }, [removeCookie]);
 
     useEffect(() => {
         // Kijelentkezve nincs mit lejáratni és nincs mit figyelni.

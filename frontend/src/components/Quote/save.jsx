@@ -42,7 +42,7 @@ export default function QuoteSave(props) {
     const {id} = useParams();
     const location = useLocation();
     const navigate = useNavigate();
-    const {handleAxios} = useAuth();
+    const {handleAxios, token} = useAuth();
     const {color} = useTheme();
     const formRef = useRef(null);
     const textareaRef = useRef(null);
@@ -350,22 +350,35 @@ export default function QuoteSave(props) {
         leaveEditor();
     }, [leaveEditor]);
 
-    /* A LEVÁLÁSKORI (unmount) mentés — a KIJELENTKEZÉSre, ami NEM router-navigáció
-       (a removeCookie React-újrarendert vált ki), ezért a blocker nem látja. Ilyenkor
-       ugyanaz az ellenőrző+mentő logika fut le, csak navigáció nélkül. A closure-t
-       minden renderben frissítjük, hogy az unmount a LEGFRISSEBB állapotot mentse.
-       Nem mentünk, ha a form érintetlen vagy az idézet üres — és ha a blocker/Törlés
-       már elintézte a távozást (leftViaForm), akkor sem (nehogy duplán mentsen). */
+    /* A LEVÁLÁSKORI (unmount) mentés — a KIJELENTKEZÉSre (removeCookie), ami NEM
+       router-navigáció, hanem React-újrarender: a blocker nem látja. A blocker
+       ellenőrzése (üres idézet → hibabuborék + MARADÁS) itt SZÁNDÉKOSAN nem fut le,
+       és nem is kell: kijelentkezéskor nincs hova "maradni", és nincs kinek visszajelezni.
+       Csak CSENDES mentés történik — a mentendő értékekre ugyanaz a szűrő, mint a
+       blockernél: ha az idézet érvényes ÉS változott a tartalom, elmentjük; ha
+       érvénytelen (üres idézet) vagy érintetlen, ELDOBJUK. És ha a blocker/Törlés már
+       elintézte a távozást (leftViaForm), itt sem mentünk (nehogy duplán).
+
+       A closure-t minden renderben frissítjük, hogy az unmount a LEGFRISSEBB állapotot
+       mentse — és hogy a legutóbbi render (még érvényes) `token`-jét zárványolja: a
+       kijelentkezés a hívás pillanatára már törli az ÉLŐ tokent, ezért azt EXPLICIT
+       átadjuk a handleAxios-nak, különben a mentés token nélkül, 401-gyel elveszne.
+
+       Korlát: a TÉTLENSÉGI kijelentkezésnél a token lejárat MIATT szűnik meg (a 15
+       perces határ = a token élettartama), tehát ott a zárványolt token is lejárt —
+       az a mentés nem menthető meg. A KÉZI kijelentkezés (gomb) érvényes tokennel
+       történik, azt ez a mentés megőrzi. */
     saveOnLeaveRef.current = () => {
         if (leftViaForm.current) return;
         const cleanedQuote = normalizeBold(quote);
         if (isPristine(cleanedQuote) || !isQuoteValid) return;
         const data = {quote: cleanedQuote, author: author, order: order, fontSize: fontSize};
         if (isUpdate) data["id"] = quoteId;
-        handleAxios(url, data, () => {}, logRequestError);
+        // A zárványolt `token` (nem az élő tokenRef): kijelentkezéskor az élő már null.
+        handleAxios(url, data, () => {}, logRequestError, token);
     };
 
-    // A fenti mentés a szerkesztő LEVÁLÁSAKOR (pl. kijelentkezés) fut le, egyszer.
+    // A fenti mentés a szerkesztő LEVÁLÁSAKOR (kézi kijelentkezés) fut le, egyszer.
     useEffect(() => () => saveOnLeaveRef.current(), []);
 
     return (

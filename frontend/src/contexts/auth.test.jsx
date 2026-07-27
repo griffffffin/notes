@@ -19,6 +19,10 @@ function AuthProbe() {
             <button onClick={() => login("uj-token")}>belépés</button>
             <button onClick={logout}>kilépés</button>
             <button onClick={() => handleAxios("/valami", {a: 1}, () => {}, () => {})}>kérés</button>
+            {/* Explicit token-felülírással — ezt használja a leváláskori (kijelentkezés
+                utáni) mentés, amikor az élő token már törlődött. */}
+            <button onClick={() => handleAxios("/valami", {a: 1}, () => {}, () => {}, "zárvány-token")}>
+                kérés-tokennel</button>
         </div>
     );
 }
@@ -81,6 +85,18 @@ describe("AuthProvider", () => {
         expect(axios.post).toHaveBeenCalledWith(
             expect.stringContaining("/valami"), {a: 1},
             expect.objectContaining({headers: undefined}));
+    });
+
+    it("kijelentkezve is viszi az EXPLICIT kapott tokent (leváláskori mentés)", async () => {
+        // Nincs belépés: az élő token hiányzik (ez a kijelentkezés-utáni állapot). A
+        // leváláskori mentés viszont a leváláskor még érvényes tokent ZÁRVÁNYOLJA és
+        // explicit átadja — a fejlécnek EZT kell vinnie, különben a mentés 401-en veszne.
+        renderAuth();
+        await userEvent.click(screen.getByRole("button", {name: "kérés-tokennel"}));
+
+        expect(axios.post).toHaveBeenCalledWith(
+            expect.stringContaining("/valami"), {a: 1},
+            expect.objectContaining({headers: {Authorization: "Bearer zárvány-token"}}));
     });
 
     it("401-es válasznál kilépteti a felhasználót (lejárt token)", async () => {
