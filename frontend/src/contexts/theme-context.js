@@ -35,6 +35,18 @@ export const THEMES = {
     },
 };
 
+/* Szekció-akcentus felülírás (setAccentOverride, l. ThemeProvider): egy nézet a téma
+   kiemelőszínét ideiglenesen MÁSSAL válthatja ki — így a --theme-accent-re épülő
+   MINDEN elem (navbar, scrollbar, gombok, toggle-ragyogás, kártyák) együtt vált,
+   mindkét témában. Az első ilyen a szerző-szűrt idézet-nézet PIROSA (a nap-ikon
+   színe); a név ÁLTALÁNOS, mert más szekciók/nézetek is kaphatnak sajátot. A focus-*
+   a piroshoz igazított input-fókusz-keret/-ragyogás. */
+export const ACCENT_RED = {
+    accent: "#db1937",
+    focusBorder: "#f1a7b3",
+    focusRing: "rgba(219, 25, 55, 0.4)",
+};
+
 export const ThemeContext = createContext(null);
 
 export function useTheme() {

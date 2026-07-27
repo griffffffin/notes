@@ -10,6 +10,17 @@ export function ThemeProvider({children}) {
 
     const theme = isLight ? THEMES.light : THEMES.dark;
 
+    /* Szekció-akcentus felülírás: egy nézet (pl. a szerző-szűrt idézet-lista)
+       ideiglenesen mással válthatja ki a téma kiemelőszínét — a setAccentOverride-ot
+       a context adja tovább, a nézet mountkor beállítja, unmountkor null-ra teszi.
+       Az EFFEKTÍV kiemelőszín ezért az override, ha van, különben a témáé; így a
+       --theme-accent-re épülő MINDEN elem (navbar, scrollbar, gombok, toggle-
+       ragyogás, kártyák) EGYÜTT vált, mindkét témában. */
+    const [accentOverride, setAccentOverride] = useState(null);
+    const accent = accentOverride?.accent ?? theme.accent;
+    const focusBorder = accentOverride?.focusBorder ?? theme.focusBorder;
+    const focusRing = accentOverride?.focusRing ?? theme.focusRing;
+
     const handleCheckedChange = useCallback(() => setIsLight((light) => !light), []);
 
     /* useLayoutEffect és NEM useEffect: ez a különbség itt látható a képernyőn.
@@ -32,10 +43,10 @@ export function ThemeProvider({children}) {
         html.style.background = theme.pageBackground;
         html.style.setProperty("--theme-page-bg", theme.pageBackground);
         html.style.setProperty("--theme-text", theme.text);
-        html.style.setProperty("--theme-accent", theme.accent);
+        html.style.setProperty("--theme-accent", accent);
         html.style.setProperty("--theme-accent-contrast", theme.accentContrast);
-        html.style.setProperty("--theme-focus-border", theme.focusBorder);
-        html.style.setProperty("--theme-focus-ring", theme.focusRing);
+        html.style.setProperty("--theme-focus-border", focusBorder);
+        html.style.setProperty("--theme-focus-ring", focusRing);
 
         /* A gördítősáv nyilai. Miért ITT áll össze a kép, és nem a CSS-ben?
 
@@ -54,8 +65,8 @@ export function ThemeProvider({children}) {
            2026-07-17: 5 px-es kép a 6 px-es gombon 0,45 px-et csúszott a hüvelyk
            tengelyéhez képest — a felső nyíl jobbra, az alsó balra.) */
         const arrow = (path) => `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'` +
-            ` viewBox='0 0 10 10'%3E%3Cpath d='${path}' fill='${theme.accent.replace("#", "%23")}'` +
-            ` stroke='${theme.accent.replace("#", "%23")}' stroke-width='1'` +
+            ` viewBox='0 0 10 10'%3E%3Cpath d='${path}' fill='${accent.replace("#", "%23")}'` +
+            ` stroke='${accent.replace("#", "%23")}' stroke-width='1'` +
             ` stroke-linejoin='round'/%3E%3C/svg%3E")`;
         html.style.setProperty("--scrollbar-arrow-up", arrow("M5 2 L8.2 8 L5 6.4 L1.8 8 Z"));
         html.style.setProperty("--scrollbar-arrow-down", arrow("M5 8 L1.8 2 L5 3.6 L8.2 2 Z"));
@@ -71,7 +82,8 @@ export function ThemeProvider({children}) {
            állítjuk össze, és a <link rel="icon"> href-jét cseréljük. A statikus
            favicon.svg a boot-pillanat tartaléka marad (az alapértelmezett, sötét
            téma színeivel), amíg ez a csere le nem fut. */
-        const accent = theme.accent;
+        /* A favicon is az EFFEKTÍV akcentust viseli (a fenti `accent`) — így a fül
+           ikonja is jelzi a szekció-módot (pl. a szerző-szűrt nézet pirosát). */
         /* A klasszikus jin-jang, de a HÁTTÉRREL KONTRASZTOS fele a kiemelőszínre
            cserélve. Sötét témán a lap fekete, tehát a fehér fél lesz accent
            (sárga), a fekete marad; világoson a lap fehér, tehát a fekete fél lesz
@@ -104,7 +116,7 @@ export function ThemeProvider({children}) {
             `<circle cx="50" cy="50" r="49.3" fill="none" stroke="${accent}" stroke-width="5.4"/></svg>`);
         const link = document.querySelector("link[rel=icon]");
         if (link) link.href = favicon;
-    }, [theme]);
+    }, [theme, accent, focusBorder, focusRing]);
 
     /* Sima useEffect (a festés UTÁN fut) — SZÁNDÉKOSAN, két okból is.
 
@@ -129,12 +141,16 @@ export function ThemeProvider({children}) {
         // formában fűzik — a "theme" végződéshez az index.css saját osztályai
         // tartoznak (.text-theme, .btn-theme, ...), CSS-változókból színezve.
         color: "theme",
-        colorHex: theme.accent,
+        // Az EFFEKTÍV akcentus (szekció-override, ha van) — pl. a toggle-ragyogás
+        // (Switch colorHex) ebből is pirosra vált a szerző-szűrt nézetben.
+        colorHex: accent,
         pageBackground: theme.pageBackground,
         todoDefaultColor: theme.todoDefaultColor,
         isChecked: isLight,
         handleCheckedChange,
-    }), [theme, isLight, handleCheckedChange]);
+        // A szekció-akcentus felülírása (a nézet mountkor beállítja, unmountkor null).
+        setAccentOverride,
+    }), [theme, accent, isLight, handleCheckedChange]);
 
     return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
