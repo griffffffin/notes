@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react";
+import {useEffect, useRef, useState} from "react";
 import {useAuth} from "../../contexts/auth-context";
 import {logRequestError} from "../../log";
 
@@ -14,7 +14,16 @@ const DEBOUNCE_MS = 200;
 
    A javaslatot a /quotes/authors adja (a legutóbb használt, prefixre szűrt
    szerző). A kiegészítést CSAK akkor mutatjuk, ha a beírt szöveg tényleg a
-   javaslat eleje — így egy elkésett válasz nem villant fel rossz folytatást. */
+   javaslat eleje — így egy elkésett válasz nem villant fel rossz folytatást.
+
+   KÉT HELYEN használjuk, ezért paraméterezett (a ghost-text magja ne
+   duplázódjon): a szerkesztő szerző-mezőjeként, és a Quotes-navbar keresőjeként.
+   - onSubmit megadva (KERESŐ mód): az Enter a keresést INDÍTJA, nem a javaslatot
+     fogadja el — a szerzőt a jobbra-nyíllal (betűnként) vagy Ctrl+jobbra-nyíllal
+     (egészben) veszed át, majd Enter keres. onSubmit nélkül (SZERKESZTŐ mód) az
+     Enter a régi módon az egész javaslatot fogadja el.
+   - wrapperClass a külső doboz osztályát adja: a szerkesztőben flex-grow-1 (egy
+     input-groupban ül), a keresőben a hívó saját szélessége. */
 export default function AuthorInput(props) {
     const {handleAxios} = useAuth();
     const [suggestion, setSuggestion] = useState("");
@@ -22,14 +31,31 @@ export default function AuthorInput(props) {
        mező a betöltött szerzővel indul — ilyenkor NEM villantunk ghost-textet, amíg
        az átírás el nem kezdődik; a create-nél az első leütés úgyis bekapcsolja. */
     const [touched, setTouched] = useState(false);
+    // Fókuszban van-e a mező. A KERESŐ ezt használja a szerkesztő "touched"-je
+    // helyett: ott a javaslat csak akkor kell, ha BELEKATTINTOK (fókusz), a
+    // beküldés után pedig (blur) el is tűnjön.
+    const [focused, setFocused] = useState(false);
+    const inputRef = useRef(null);
     const value = props.value;
+    const isSearch = Boolean(props.onSubmit);
 
-    const completion = (touched && suggestion && value &&
+    /* Mikor "aktív" a javaslat? Szerkesztőben az első átírás után (touched);
+       keresőben csak fókuszban. Így a keresőben a betöltött/commitolt kifejezésre
+       (pl. a találati oldalon a mezőben álló szó) NEM villan ghost, csak ha
+       belekattintok. */
+    const active = isSearch ? focused : touched;
+
+    /* Az igazítás a keresőé: a COMMITOLT kifejezést (amit a mező az aktuális
+       nézethez mutat) unfókuszáltan KÖZÉPRE tesszük, gépelés/fókusz közben BALRA;
+       üres mező (placeholder) is balra. A szerkesztő nem kér igazítást (bal). */
+    const align = isSearch ? (!focused && value ? "center" : "left") : undefined;
+
+    const completion = (active && suggestion && value &&
         suggestion.toLowerCase().startsWith(value.toLowerCase()) && suggestion.length > value.length)
         ? suggestion.slice(value.length) : "";
 
     useEffect(() => {
-        if (!touched || !value.trim()) {
+        if (!active || !value.trim()) {
             setSuggestion("");
             return;
         }
@@ -39,7 +65,27 @@ export default function AuthorInput(props) {
                 logRequestError);
         }, DEBOUNCE_MS);
         return () => clearTimeout(timer);
-    }, [value, touched, handleAxios]);
+    }, [value, active, handleAxios]);
+
+    /* Telefonon a virtuális billentyűzet eltűnése (rendszer vissza-gombja vagy a
+       billentyűzet elrejtése) NEM mindig veszi le a fókuszt az inputról — ilyenkor a
+       kereső "kifeszített" állapotban ragadna. A visualViewport a billentyűzet
+       NYITÁSAKOR megkisebbedik, ZÁRÁSKOR visszanő; ha becsukódott (a takart magasság
+       visszaesik), mi vesszük le a fókuszt (blur → a sáv visszaáll). Csak kereső
+       módban, csak fókusz alatt, és csak ott, ahol van visualViewport (mobil). A
+       küszöbök heurisztikusak (a billentyűzet ~200-300px) — valós eszközön hangolhatók. */
+    useEffect(() => {
+        if (!isSearch || !focused || !window.visualViewport) return;
+        const viewport = window.visualViewport;
+        let keyboardOpen = false;
+        const onResize = () => {
+            const covered = window.innerHeight - viewport.height;
+            if (covered > 150) keyboardOpen = true;
+            else if (keyboardOpen && covered < 80) inputRef.current?.blur();
+        };
+        viewport.addEventListener("resize", onResize);
+        return () => viewport.removeEventListener("resize", onResize);
+    }, [isSearch, focused]);
 
     // A felhasználó módosítása kapcsolja be a javaslatokat (a betöltött érték nem).
     const handleChange = (event) => {
@@ -47,7 +93,44 @@ export default function AuthorInput(props) {
         props.onChange(event);
     };
 
+    /* KERESŐ módban a mezőre koppintva (telefonon) elfogadjuk az EGÉSZ javaslatot —
+       a szürke folytatásra ÉS a beírt részre is (a ghost-réteg pointerEvents:none-ja
+       miatt a szürkére koppintás is ide, az inputra érkezik). NEM keresünk vele,
+       ahhoz további Enter kell. Csak ÉRINTÉSRE hat (pointerType==="touch"), hogy
+       asztali gépen a kattintás továbbra is a kurzort pozicionálja. */
+    const handlePointerUp = (event) => {
+        if (props.onSubmit && completion && event.pointerType === "touch") {
+            props.onChange({target: {value: suggestion}});
+            setSuggestion("");
+        }
+    };
+
     const handleKeyDown = (event) => {
+        // KERESŐ mód: az Enter keres (a javaslat elfogadása nélkül is), akár van
+        // kiegészítés, akár nincs. Ezért a completion-őr ELŐTT áll.
+        if (props.onSubmit && event.key === "Enter") {
+            event.preventDefault();
+            props.onSubmit();
+            // A keresés után VEGYE LE a fókuszt: a mező a commitolt kifejezést
+            // középen, unfókuszáltan mutatja (ghost sem villan, míg vissza nem
+            // kattintok).
+            inputRef.current?.blur();
+            return;
+        }
+        // KERESŐ mód: az Escape ÜRÍTI a mezőt (a javaslat is eltűnik, mert az
+        // effekt üres értéknél törli). A szerkesztőben az Escape MÁS (mentés+vissza),
+        // ezért csak onSubmit mellett — a read-oldalakon nincs is más Escape-kezelő.
+        if (props.onSubmit && event.key === "Escape") {
+            event.preventDefault();
+            props.onChange({target: {value: ""}});
+            return;
+        }
+        // KERESŐ mód: ÜRES mezőn a Backspace leveszi a fókuszt — telefonon a sáv így
+        // visszaáll kicsire. Üres mezőn a Backspace-nek úgy sincs mit törölnie.
+        if (props.onSubmit && event.key === "Backspace" && !value) {
+            inputRef.current?.blur();
+            return;
+        }
         if (!completion) return;
         const atEnd = event.target.selectionStart === value.length;
         if (event.key === "Enter" || (event.key === "ArrowRight" && event.ctrlKey && atEnd)) {
@@ -76,18 +159,25 @@ export default function AuthorInput(props) {
            Bootstrap input-group min-width:0 szabályát, ezért keskeny kijelzőn nem
            tudott 0 alá zsugorodni, és a stepper a szerző ALÁ csúszott. A 0-ra
            zsugoríthatóság tartja egy sorban telefonon is. */
-        <div className="position-relative flex-grow-1" style={{minWidth: 0}}>
+        <div className={"position-relative " + (props.wrapperClass ?? "flex-grow-1")} style={{minWidth: 0}}>
             {/* A háttérréteg: pontosan az input alatt (azonos class → azonos font
                 és padding). A beírt rész színtelen (helykitöltő), a kiegészítés
                 halvány. aria-hidden + pointerEvents:none — a képernyőolvasó és a
                 kattintás az inputé. A pre megőrzi a szóközöket. */}
-            <div aria-hidden="true" style={{pointerEvents: "none", whiteSpace: "pre"}}
+            {/* Az igazítás (align, l. fent) a keresőé: a commitolt kifejezést
+                unfókuszáltan középen, gépeléskor/fókuszban balra; a placeholder
+                (üres) balra. A ghost-réteg ugyanazt az igazítást viseli, mint az
+                input, hogy a value + completion egymáson maradjon. */}
+            <div aria-hidden="true" style={{pointerEvents: "none", whiteSpace: "pre", textAlign: align}}
                  className={props.class + " form-control bg-transparent border-0 position-absolute top-0 start-0 w-100"}>
                 <span style={{color: "transparent"}}>{value}</span>
                 <span style={{opacity: 0.45}}>{completion}</span>
             </div>
-            <input value={value} onChange={handleChange} onKeyDown={handleKeyDown} placeholder={props.placeholder}
-                   autoComplete="off"
+            <input ref={inputRef} value={value} onChange={handleChange} onKeyDown={handleKeyDown}
+                   onPointerUp={handlePointerUp}
+                   onFocus={() => { setFocused(true); props.onFocusChange?.(true); }}
+                   onBlur={() => { setFocused(false); props.onFocusChange?.(false); }}
+                   placeholder={props.placeholder} autoComplete="off" style={{textAlign: align}}
                    className={props.class + " form-control no-focus bg-transparent position-relative"}/>
         </div>
     );
