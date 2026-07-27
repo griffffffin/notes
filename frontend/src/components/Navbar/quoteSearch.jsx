@@ -25,7 +25,12 @@ export default function QuoteSearch(props) {
 
     const runSearch = () => {
         const trimmed = term.trim();
-        if (!trimmed) return;   // üres keresésre nem indítunk semmit
+        // Üres keresés (üres mező vagy csak szóköz) → vissza a teljes listára (főoldal).
+        if (!trimmed) {
+            props.handleLinkClicked?.();
+            navigate("/quotes");
+            return;
+        }
         /* Az "Anonymous" a névtelen (üres szerzőjű) idézetek URL-jelölője — a
            felületről máshonnan nem elérhető, ezért a keresőből visz oda: a
            szerző-szűrt /quotes/Anonymous nézetre, nem a mód-döntésen át (a

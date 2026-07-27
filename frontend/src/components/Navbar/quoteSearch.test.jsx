@@ -53,12 +53,14 @@ describe("QuoteSearch — beküldés", () => {
             "/quotes/search-mode", expect.anything(), expect.anything(), expect.anything());
     });
 
-    it("üres (csak szóköz) kifejezésre nem indít keresést", async () => {
+    it("üres (csak szóköz) kereséssel a teljes listára (/quotes) navigál", async () => {
         render(<QuoteSearch initialTerm="" handleLinkClicked={vi.fn()}/>);
 
         await userEvent.type(screen.getByPlaceholderText("Keresés..."), "   {Enter}");
 
-        expect(handleAxios).not.toHaveBeenCalled();
-        expect(navigate).not.toHaveBeenCalled();
+        expect(navigate).toHaveBeenCalledWith("/quotes");
+        // Nem a mód-döntésen át megy (nincs mit keresni).
+        expect(handleAxios).not.toHaveBeenCalledWith(
+            "/quotes/search-mode", expect.anything(), expect.anything(), expect.anything());
     });
 });
