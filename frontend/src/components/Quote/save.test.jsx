@@ -1,4 +1,4 @@
-import {render, screen, waitFor} from "@testing-library/react";
+import {act, fireEvent, render, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {CookiesProvider} from "react-cookie";
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest";
@@ -140,6 +140,52 @@ describe("QuoteSave — update", () => {
             expect(field.selectionStart).toBe(end);
             expect(field.selectionEnd).toBe(end);
         });
+    });
+
+    it("10 perc tétlenség után autosave: menti a módosítást és a listára navigál", async () => {
+        vi.useFakeTimers();
+        try {
+            window.history.pushState({}, "", "/quotes/update/q-1");
+            renderRoutes();
+            // A betöltés (handleAxios → setState) lefuttatása a hamis órán.
+            await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+            const field = document.querySelector("#quoteField");
+            // Módosítás → dirty ÉS érvényes.
+            fireEvent.change(field, {target: {value: "Az élet szép. Módosítva."}});
+            handleAxios.mockClear();
+
+            // 10 perc tétlenség (közben SEMMI aktivitás) → az autosave elsül.
+            await act(async () => { await vi.advanceTimersByTimeAsync(10 * 60 * 1000); });
+
+            const call = handleAxios.mock.calls.find((c) => c[0] === "/quotes/update");
+            expect(call?.[1]).toMatchObject({id: "q-1"});
+            // Siker után a listára navigál (kilép a szerkesztőből).
+            expect(window.location.pathname).toBe("/quotes");
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("aktivitás újraindítja az autosave-órát (nem ment idő előtt)", async () => {
+        vi.useFakeTimers();
+        try {
+            window.history.pushState({}, "", "/quotes/update/q-1");
+            renderRoutes();
+            await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+            fireEvent.change(document.querySelector("#quoteField"), {target: {value: "Módosítva."}});
+            handleAxios.mockClear();
+
+            // 9 perc tétlenség, egy billentyű, majd újabb 9 perc — összesen 18 perc, de
+            // tétlenül csak 9 → NEM autosave-el, és bent maradunk a szerkesztőben.
+            await act(async () => { await vi.advanceTimersByTimeAsync(9 * 60 * 1000); });
+            await act(async () => { window.dispatchEvent(new KeyboardEvent("keydown")); });
+            await act(async () => { await vi.advanceTimersByTimeAsync(9 * 60 * 1000); });
+
+            expect(handleAxios.mock.calls.some((c) => c[0] === "/quotes/update")).toBe(false);
+            expect(window.location.pathname).toBe("/quotes/update/q-1");
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it("módosítás után a /quotes/update-et hívja az id-val", async () => {

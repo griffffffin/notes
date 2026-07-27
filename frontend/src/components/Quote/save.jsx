@@ -18,6 +18,20 @@ import {Tooltip as ReactTooltip} from "react-tooltip";
    idézetenként átállítható; a mező nélküli régi idézetek is ekkorák. */
 const DEFAULT_FONT_SIZE = 155;
 
+/* A szerkesztő autosave-e ennyi TÉTLENSÉG után ment és visz vissza a listára.
+   SZÁNDÉKOSAN kevesebb, mint az auth 15 perces tétlenségi kijelentkezése (auth.jsx
+   IDLE_LIMIT_MS): így az otthagyott, mentetlen munka még ÉRVÉNYES tokennel elmentődik,
+   mielőtt a session lejár. Fontos: a mentés utáni navigáció NEM aktivitás és NEM hív
+   /refresh-t, tehát ez a 15 perces órát NEM indítja újra — a tétlenségi kijelentkezés a
+   menetrend szerint (a valódi utolsó aktivitástól) következik be. */
+const AUTOSAVE_IDLE_MS = 10 * 60 * 1000;
+
+/* A tétlenség-figyelő események — SZÁNDÉKOSAN ugyanaz a halmaz, mint az auth
+   idle-detektálásáé (auth.jsx ACTIVITY_EVENTS): az autosave akkor süljön el, amikor a
+   felhasználó tényleg ELSÉTÁLT (semmi input), ugyanúgy mérve, mint a tétlenségi
+   kijelentkezés. Ha ott bővül a lista, itt is bővítendő. */
+const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "wheel"];
+
 /* Az idézet-szerkesztő (create és update). A to-do save.jsx VÉKONYABB mása: az
    idézet-textarea + szerző-input + a KÖZÖS Order sorszám-választó (a to-doból),
    de nincs szín, listaelem vagy százalék. A KILÉPÉS-viselkedést a to-do mintája
@@ -386,6 +400,44 @@ export default function QuoteSave(props) {
 
     // A fenti mentés a szerkesztő LEVÁLÁSAKOR (kézi kijelentkezés) fut le, egyszer.
     useEffect(() => () => saveOnLeaveRef.current(), []);
+
+    /* Az autosave (AUTOSAVE_IDLE_MS tétlenség) — mint a leváláskori mentés, de siker
+       UTÁN a listára navigál (kilép a szerkesztőből). A closure-t minden renderben
+       frissítjük, hogy az óra a LEGFRISSEBB állapotot mentse. A mentés az ÉLŐ tokennel
+       megy (10 percnél még érvényes); leváláskori zárványolt token itt nem kell. */
+    const autosaveRef = useRef(() => {});
+    autosaveRef.current = () => {
+        if (leftViaForm.current) return;
+        const cleanedQuote = normalizeBold(quote);
+        // Nincs mentenivaló (érintetlen vagy érvénytelen): NEM navigálunk el — hagyjuk a
+        // felhasználót, a 15 perces tétlenségi kijelentkezés majd a szokott módon jön.
+        if (isPristine(cleanedQuote) || !isQuoteValid) return;
+        const data = {quote: cleanedQuote, author: author, order: order, fontSize: fontSize};
+        if (isUpdate) data["id"] = quoteId;
+        /* A mentés MEGKEZDÉSE előtt jelöljük: a rákövetkező leválás (navigáció → unmount)
+           NE mentsen újra (create-nél nehogy duplikáljon — ezért nem kell külön
+           create→update váltás). Hibánál visszavonjuk, hogy egy későbbi távozás újrapróbálja. */
+        leftViaForm.current = true;
+        handleAxios(url, data, () => { props.handleLinkClicked(); navigate("/quotes"); },
+            (error) => { leftViaForm.current = false; logRequestError(error); });
+    };
+
+    /* Az autosave-óra: AUTOSAVE_IDLE_MS tétlenség után elsüti a mentést. MINDEN aktivitás
+       újraindítja (aktív gépelés közben tehát sosem sül el). Csak a szerkesztő életére
+       szól (mount→unmount). Az auth 15 perces óráját nem érinti: sem itt, sem a mentés
+       utáni navigációnál nincs /refresh vagy aktivitás-jelzés. */
+    useEffect(() => {
+        let timer = setTimeout(() => autosaveRef.current(), AUTOSAVE_IDLE_MS);
+        const reset = () => {
+            clearTimeout(timer);
+            timer = setTimeout(() => autosaveRef.current(), AUTOSAVE_IDLE_MS);
+        };
+        ACTIVITY_EVENTS.forEach((name) => window.addEventListener(name, reset, {passive: true}));
+        return () => {
+            clearTimeout(timer);
+            ACTIVITY_EVENTS.forEach((name) => window.removeEventListener(name, reset));
+        };
+    }, []);
 
     return (
         isLoading ? <Spinner class="min-vh-75"/> :
