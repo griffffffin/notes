@@ -34,6 +34,7 @@ const quoteReadSearch = require("./controllers/Quote/readSearch");
 const quoteRead = require("./controllers/Quote/read");
 const quoteReadByAuthor = require("./controllers/Quote/readByAuthor");
 const quoteReadById = require("./controllers/Quote/readById");
+const quoteReadForEdit = require("./controllers/Quote/readForEdit");
 const quoteUpdate = require("./controllers/Quote/update");
 const quoteDelete = require("./controllers/Quote/delete");
 const quoteReorder = require("./controllers/Quote/reorder");
@@ -89,6 +90,10 @@ quoteRouter.use("/create", validateQuoteBody, quoteCreate);
 quoteRouter.use("/last/order", quoteReadLastOrder);
 quoteRouter.use("/authors", quoteReadAuthors);
 quoteRouter.use("/author", validateAuthorFilter, quoteReadByAuthor);
+/* A szerkesztő idézet-betöltése — auth MÖGÖTT, tulajdonos-ellenőrzéssel (l.
+   readForEdit.js). A publikus /quotes/id (auth ELŐTT, fent) csak a megjelenítő
+   mezőket adja; a sorszámot a szerkesztő ezen a hitelesített végponton kapja. */
+quoteRouter.use("/edit", validateQuoteId, quoteReadForEdit);
 /* A keresés két végpontja. A /search-mode a beküldéskori MÓD-döntés (olcsó,
    lét-kérdések), a /search a szöveg-mód TÖMB-találata (a húzáshoz). A statikus
    nevek nem ütköznek egymással, sem a /author-ral. */

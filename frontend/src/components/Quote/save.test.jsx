@@ -41,7 +41,7 @@ beforeEach(() => {
     window.history.pushState({}, "", "/");
     handleAxios.mockReset();
     handleAxios.mockImplementation((url, data, then) => {
-        if (url === "/quotes/id") then({data: QUOTE});
+        if (url === "/quotes/edit") then({data: QUOTE});
         else if (url === "/quotes/last/order") then({data: 3});
         // A mentés utáni leaveEditor a /quotes listát tölti — az tömböt vár.
         else if (url === "/quotes" || url === "/quotes/author") then({data: []});
@@ -120,7 +120,7 @@ describe("QuoteSave — create", () => {
 });
 
 describe("QuoteSave — update", () => {
-    it("betölti a szerkesztendő idézetet a /quotes/id-ról", async () => {
+    it("betölti a szerkesztendő idézetet a /quotes/edit-ről", async () => {
         window.history.pushState({}, "", "/quotes/update/q-1");
         renderRoutes();
 

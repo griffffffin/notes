@@ -36,6 +36,7 @@ require.cache[userModelPath] = {
 
 const auth = require("../../middleware/auth");
 const readById = require("./readById");
+const readForEdit = require("./readForEdit");
 const update = require("./update");
 const deleteQuote = require("./delete");
 const reorder = require("./reorder");
@@ -46,6 +47,8 @@ app.use(express.json());
 // a controller egy Router, amit mountolni kell, hogy a belső "/" illeszkedjen.
 app.use("/id", readById);
 app.use(auth);
+// A szerkesztő-betöltés (/edit) az auth MÖGÖTT: hitelesített, tulajdonos-ellenőrzött.
+app.use("/edit", readForEdit);
 app.use("/update", update);
 app.use("/delete", deleteQuote);
 app.use("/reorder", reorder);
@@ -64,18 +67,45 @@ test("nem létező idézetnél 404 (nincs mit rejteni, publikus)", async () => {
     assert.strictEqual(response.status, 404);
 });
 
-test("a publikus válasz csak a whitelistelt mezőket adja — a tulajdonos user-id és a belső azonosító NEM szivárog", async () => {
+test("a publikus válasz csak a whitelistelt mezőket adja — user-id, belső azonosító ÉS sorszám NEM szivárog", async () => {
     const response = await request(app).post("/id").send({id: OWNER_QUOTE._id});
     assert.strictEqual(response.status, 200);
     assert.strictEqual(response.body.quote, "Anna idézete");
     assert.strictEqual(response.body.author, "Anna");
-    // A sorszám a SZERKESZTŐNEK, a betűméret a MEGJELENÍTÉSNEK kell — jelen vannak.
-    assert.strictEqual(response.body.order, 1);
+    // A betűméret a MEGJELENÍTÉSHEZ kell (a megosztott idézet a saját méretével) — jelen van.
     assert.strictEqual(response.body.fontSize, 160);
+    // A sorszám (listabeli pozíció) egy névtelen látogatóra nem tartozik — NINCS a publikus válaszban.
+    assert.strictEqual(response.body.order, undefined);
     // A tulajdonos azonosítója egy publikus végponton nem jelenhet meg.
     assert.strictEqual(response.body.user, undefined);
     // A belső Mongo-azonosító sem szivárog (nincs rá szükség).
     assert.strictEqual(response.body._id, undefined);
+});
+
+test("a szerkesztő-betöltés (/edit) a tulajdonosnak kiadja a sorszámot is", async () => {
+    const response = await request(app).post("/edit").set("Authorization", tokenFor(OWNER)).send({id: OWNER_QUOTE._id});
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.quote, "Anna idézete");
+    // A szerkesztőnek a sorszám (a sorszám-választó kezdőértéke) és a betűméret is kell.
+    assert.strictEqual(response.body.order, 1);
+    assert.strictEqual(response.body.fontSize, 160);
+    // A user-id itt SEM szivárog (whitelist).
+    assert.strictEqual(response.body.user, undefined);
+});
+
+test("a szerkesztő-betöltés (/edit) token nélkül 401 (auth mögött van)", async () => {
+    const response = await request(app).post("/edit").send({id: OWNER_QUOTE._id});
+    assert.strictEqual(response.status, 401);
+});
+
+test("IDEGEN nem töltheti be más idézetét a szerkesztőbe (403)", async () => {
+    const response = await request(app).post("/edit").set("Authorization", tokenFor(STRANGER)).send({id: OWNER_QUOTE._id});
+    assert.strictEqual(response.status, 403);
+});
+
+test("nem létező idézet szerkesztő-betöltése 403 (a létezést sem áruljuk el idegennek)", async () => {
+    const response = await request(app).post("/edit").set("Authorization", tokenFor(OWNER)).send({id: MISSING_ID});
+    assert.strictEqual(response.status, 403);
 });
 
 test("IDEGEN nem módosíthatja más idézetét (403)", async () => {

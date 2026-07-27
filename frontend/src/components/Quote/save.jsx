@@ -107,7 +107,10 @@ export default function QuoteSave(props) {
 
     useEffect(() => {
         if (quoteId) {
-            handleAxios("/quotes/id", {id: quoteId}, (response) => {
+            // A szerkesztő betöltése a HITELESÍTETT /quotes/edit-ről megy (nem a
+            // publikus /quotes/id-ról): innen jön a sorszám is, tulajdonos-
+            // ellenőrzés mögött. Idegen/törölt idézetnél 403 → leaveEditor.
+            handleAxios("/quotes/edit", {id: quoteId}, (response) => {
                 const q = response.data;
                 setQuote(q.quote);
                 setAuthor(q.author ?? "");
