@@ -1,19 +1,16 @@
-import {useEffect, useMemo} from "react";
-import {Navigate, useParams} from "react-router-dom";
-import Spinner from "../spinner";
+import {useMemo} from "react";
+import {useParams} from "react-router-dom";
 import QuoteCard from "./card";
-import {useAuth} from "../../contexts/auth-context";
 import {useQuoteAccent} from "./useQuoteAccent";
-import {useSortableCards} from "../CardList/useSortableCards";
-import SortableCardGrid from "../CardList/SortableCardGrid";
+import {useSectionList} from "../CardList/useSectionList";
+import CardListView from "../CardList/CardListView";
 
-/* Az idézet-lista. A betöltés + húzás közös gépezetét a useSortableCards hook és
-   a SortableCardGrid komponens adja (ugyanaz, mint a to-dónál); itt csak az
-   idézet-SPECIFIKUS rész marad: a szerző-szűrő. A kártya TARTALMA a KÖZÖS
-   QuoteCard (a keresési találat is ezt használja). */
+/* Az idézet-lista. A betöltés + húzás + szekció-emlékezet a useSectionList
+   hookban, a megjelenítés a CardListView-ban van (ugyanaz, mint a to-dónál); itt
+   csak az idézet-SPECIFIKUS rész marad: a szerző-szűrő és a szekció akcentusa. A
+   kártya TARTALMA a KÖZÖS QuoteCard (a keresési találat is ezt használja). */
 export default function QuoteRead(props) {
     const {author} = useParams();
-    const {handleAxios} = useAuth();
 
     const needsFilter = props.url === "/quotes/author";
     /* A "névtelen" idézeteket a URL-ben "Anonymous" jelöli (üres szerző nem lehet
@@ -25,35 +22,29 @@ export default function QuoteRead(props) {
         [author],
     );
 
-    const {cards, isLoading, ...grid} = useSortableCards({
-        url: props.url, filter, reorderUrl: "/quotes/reorder", handleAxios,
+    const {cards, isLoading, grid} = useSectionList({
+        url: props.url, filter, reorderUrl: "/quotes/reorder", section: "/quotes",
     });
-
-    // A gyökér-átirányítás ide tér vissza: jelöljük, hogy az idézetek az utolsó
-    // megnyitott szekció (a szűrt nézetek is a /quotes gyökérre mutatnak).
-    useEffect(() => {
-        localStorage.setItem("lastSection", "/quotes");
-    }, []);
 
     /* A szekció akcentusa (l. useQuoteAccent): a quotes-lista VILÁGOS témán tinta-kék,
        sötéten a globális sárga. A szerző-szűrt nézet PIROSSAL üti felül — de CSAK ha VAN
        találat: egy üres szűrt nézet (pl. /quotes/search → nincs "search" nevű szerző)
        amúgy is visszairányít a főlistára, és a piros megvillanna az ugrás előtt. A
        `hasFilteredResults` BOOLEAN (nem a cards identitása), így a húzás-átrendezés
-       (cards-mutáció) nem billegteti a színt. */
+       (cards-mutáció) nem billegteti a színt.
+
+       ELTÉRÉS a to-do listától: ez az egyetlen ok, amiért a `cards` itt a nézetben
+       is kell, nem elég a CardListView-nak átadni — a szekció színe a találatok
+       meglététől függ. */
     const hasFilteredResults = needsFilter && Array.isArray(cards) && cards.length > 0;
     useQuoteAccent(hasFilteredResults);
 
-    // ÜRES szűrt nézet (az utolsó ilyen szerzőjű idézetet átírták/törölték) —
+    // Üres SZŰRT nézet (az utolsó ilyen szerzőjű idézetet átírták/törölték) —
     // vissza a teljes listára. A teljes lista LEGITIMEN lehet üres.
-    if (needsFilter && Array.isArray(cards) && cards.length === 0)
-        return <Navigate to="/quotes" replace/>;
-
-    if (isLoading) return <Spinner class="min-vh-75"/>;
-
     return (
-        <SortableCardGrid cards={cards} {...grid} renderCard={(quote) =>
-            <QuoteCard quote={quote} handleLinkClicked={props.handleLinkClicked}/>
-        }/>
+        <CardListView cards={cards} isLoading={isLoading} grid={grid}
+                      emptyRedirect={needsFilter ? "/quotes" : null}
+                      renderCard={(quote) =>
+                          <QuoteCard quote={quote} handleLinkClicked={props.handleLinkClicked}/>}/>
     );
 }

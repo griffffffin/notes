@@ -1,19 +1,15 @@
-import {useEffect, useMemo} from "react";
-import {Navigate, useParams} from "react-router-dom";
-import Spinner from "../spinner";
-import LinkTodoUpdate from "../Link/todoUpdate";
-import LinkCategory from "../Link/category";
-import {useAuth} from "../../contexts/auth-context";
-import {useSortableCards} from "../CardList/useSortableCards";
-import SortableCardGrid from "../CardList/SortableCardGrid";
+import {useMemo} from "react";
+import {useParams} from "react-router-dom";
+import TodoCard from "./card";
+import {useSectionList} from "../CardList/useSectionList";
+import CardListView from "../CardList/CardListView";
 
-/* A to-do lista. A betöltés + húzás közös gépezetét a useSortableCards hook és a
-   SortableCardGrid komponens adja (ugyanazt használja az idézet-lista is); itt
-   csak a to-do-SPECIFIKUS rész marad: a szűrő értelmezése (kategória/szín), az
-   őrök, és a kártya TARTALMA (renderCard). */
+/* A to-do lista. A betöltés + húzás + szekció-emlékezet a useSectionList hookban,
+   a megjelenítés (betöltő, üres nézet, rács) a CardListView-ban van — ugyanaz,
+   amit az idézet-lista és a keresési találat is használ. Itt csak a
+   to-do-SPECIFIKUS rész marad: a szűrő értelmezése és a kártya tartalma. */
 export default function Read(props) {
     const {name} = useParams();
-    const {handleAxios} = useAuth();
 
     /* A szűrő (kategória vagy szín) a :name URL-szegmensből jön. A user
        azonosítója NEM az URL-ből — azt a szerver a tokenből tudja.
@@ -30,33 +26,17 @@ export default function Read(props) {
         [name, props.url],
     );
 
-    const {cards, isLoading, ...grid} = useSortableCards({
-        url: props.url, filter, reorderUrl: "/to-do/reorder", handleAxios,
+    const {cards, isLoading, grid} = useSectionList({
+        url: props.url, filter, reorderUrl: "/to-do/reorder", section: "/to-do",
     });
 
-    // A gyökér-átirányítás ide tér vissza: jelöljük, hogy a to-do az utolsó
-    // megnyitott szekció (a szűrt nézetek is a /to-do gyökérre mutatnak).
-    useEffect(() => {
-        localStorage.setItem("lastSection", "/to-do");
-    }, []);
-
-    /* ÜRES szűrt nézet: a szűrő nem ad találatot — jellemzően mert az utolsó ilyen
-       elemet átsorolták vagy törölték. A kihalt szűrt nézet zsákutca, ezért vissza
-       a főlistára. A FŐLISTA (needsFilter false) ellenben LEGITIMEN lehet üres. A
-       cards betöltéskor undefined, arra az Array.isArray hamis — nem lövünk korán. */
-    if (needsFilter && Array.isArray(cards) && cards.length === 0)
-        return <Navigate to="/to-do" replace/>;
-
-    if (isLoading) return <Spinner class="min-vh-75"/>;
-
+    /* Üres SZŰRT nézet esetén vissza a főlistára (a szűrő kihalt: az utolsó ilyen
+       elemet átsorolták vagy törölték). A FŐLISTA legitimen lehet üres, ezért ott
+       nincs átirányítás — l. a CardListView indoklását. */
     return (
-        <SortableCardGrid cards={cards} {...grid} renderCard={(todo) =>
-            <div className={"card bg-transparent border-2 border-" + todo.color}>
-                <LinkTodoUpdate todo={todo} handleLinkClicked={props.handleLinkClicked}/>
-                <LinkCategory category={todo.category} color={todo.color}
-                              onClick={props.handleLinkClicked}
-                              class={"card-footer small text-center bg-transparent mx-2 border-" + todo.color}/>
-            </div>
-        }/>
+        <CardListView cards={cards} isLoading={isLoading} grid={grid}
+                      emptyRedirect={needsFilter ? "/to-do" : null}
+                      renderCard={(todo) =>
+                          <TodoCard todo={todo} handleLinkClicked={props.handleLinkClicked}/>}/>
     );
 }
