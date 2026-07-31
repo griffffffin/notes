@@ -411,3 +411,56 @@ describe("Save — a leváláskori mentés zárványolt tokennel megy", () => {
         expect(call?.[4]).toBe(TEST_TOKEN);
     });
 });
+
+/* A SORSZÁM-VÁLASZTÓ felső korlátja. A szerkesztő a /last/order válaszából
+   számolja: létrehozásnál a meglévő elemek száma (N), módosításnál N-1 — mert a
+   szerkesztett elem a saját helyén MÁR bent van a listában. Az Order ehhez ad
+   még egyet (max = last + 1), tehát a legnagyobb választható sorszám create-nél
+   N+1, update-nél N.
+
+   Elcsúszva ez NÉMÁN romlik el: a stepper felenged egy olyan sorszámot, amit a
+   szerver eltolás után nem oda ad, ahova a felhasználó tette — a lista csak a
+   következő betöltéskor mutatja meg, hogy máshova került. A mock 3 meglévő
+   elemet jelent (/to-do/last/order → 3). */
+describe("Save — a sorszám-választó felső korlátja", () => {
+    // A stepper száma a tooltip-horgonyon ül; a + gomb a Bootstrap-ikon.
+    const orderValue = () => document.querySelector('[data-tooltip-id="order-tooltip"]').textContent;
+    const stepUpToLimit = async () => {
+        const plus = document.querySelector(".bi-plus-circle");
+        fireEvent.mouseDown(plus);
+        // Bőven több idő, mint amennyi a határig lépéshez kell — a stepper megáll a maxon.
+        await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+        fireEvent.mouseUp(plus);
+        await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    };
+
+    it("LÉTREHOZÁSNÁL a lista utáni új helyig enged (3 elem → 4)", async () => {
+        vi.useFakeTimers();
+        try {
+            window.history.pushState({}, "", "/to-do/create");
+            renderRoutes();
+            await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+            await stepUpToLimit();
+
+            expect(orderValue()).toBe("4");
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("MÓDOSÍTÁSNÁL csak a lista végéig (3 elem → 3), mert a szerkesztett már bent van", async () => {
+        vi.useFakeTimers();
+        try {
+            window.history.pushState({}, "", "/to-do/update/todo-1");
+            renderRoutes();
+            await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+            await stepUpToLimit();
+
+            expect(orderValue()).toBe("3");
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+});

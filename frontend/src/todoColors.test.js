@@ -1,0 +1,58 @@
+import {readFileSync} from "node:fs";
+import path from "node:path";
+import {fileURLToPath} from "node:url";
+import {describe, expect, it} from "vitest";
+import {TODO_COLORS} from "./todoColors";
+
+/* A SZÍNPALETTA a repó két csomagjában van kimondva:
+
+     - itt, a frontenden (todoColors.js): ebből épül a szerkesztő színválasztója
+       és a navbar szín-szűrője;
+     - a backenden (validateTodo.js: COLORS): ez utasítja el az ismeretlen színt,
+       mielőtt Bootstrap-osztálynévként az adatbázisba kerülne.
+
+   A kettőt NEM lehet importtal összekötni: külön package.json, külön telepítés,
+   a backend CommonJS, a frontend ESM. Egy közös fájl build-idejű függőséget
+   teremtene a két csomag között — az itt aránytalan ár egy hatelemű listáért.
+
+   Az elcsúszásuk viszont valódi hiba, csak nem néma: egy új szín felvétele a
+   frontenden ELÉRHETŐVÉ tenné a felületen, a szerver viszont 400-zal utasítaná
+   el a mentést — a felhasználó egy nem működő gombot kapna. Fordítva (a backend
+   ismer olyat, amit a frontend nem) csak holt engedély marad.
+
+   Ezért a teszt a backend forrásából olvassa ki a listát. A regex szűk
+   szándékosan: ha a COLORS deklarációja formát vált, a teszt inkább HIBÁT jelez
+   (nem talál listát), mint hogy csendben üres halmazt hasonlítson össze. */
+const backendValidator = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)), "../../backend/src/middleware/validateTodo.js");
+
+const readBackendColors = () => {
+    const source = readFileSync(backendValidator, "utf8");
+    const declaration = source.match(/const COLORS = \[([^\]]*)]/);
+    if (!declaration) throw new Error(`A COLORS deklaráció nem található: ${backendValidator}`);
+    return declaration[1].split(",")
+        .map((entry) => entry.trim().replace(/^"|"$/g, ""))
+        .filter(Boolean);
+};
+
+describe("a to-do színpaletta a két csomagban", () => {
+    it("a backend PONTOSAN ugyanazokat a színeket ismeri, mint a frontend", () => {
+        expect(readBackendColors().toSorted()).toEqual(Object.keys(TODO_COLORS).toSorted());
+    });
+
+    /* A paletta nevei Bootstrap-osztálynévbe kerülnek ("btn-" + szín, "border-" +
+       szín). Egy szóközös vagy nagybetűs név némán elrontaná a stílust: a kártya
+       keret nélkül maradna, hibaüzenet nélkül. */
+    it("minden szín neve érvényes Bootstrap-osztálynév-darab", () => {
+        for (const color of Object.keys(TODO_COLORS)) {
+            expect(color).toMatch(/^[a-z]+$/);
+        }
+    });
+
+    // A hexek a sorszám-tooltip keretéhez kellenek — hiányuk üres keretszínt adna.
+    it("minden színhez tartozik hex-kód", () => {
+        for (const [color, hex] of Object.entries(TODO_COLORS)) {
+            expect(hex, `a(z) ${color} színnek nincs hexe`).toMatch(/^#[0-9a-f]{6}$/i);
+        }
+    });
+});
