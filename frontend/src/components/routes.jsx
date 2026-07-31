@@ -10,6 +10,7 @@ import QuoteRead from "./Quote/read";
 import QuoteSearchResults from "./Quote/searchResults";
 import QuoteSave from "./Quote/save";
 import QuotePublic from "./Quote/public";
+import {lastSectionPath} from "./Navbar/sections";
 import {useAuth} from "../contexts/auth-context";
 
 /* Miért DATA ROUTER (createBrowserRouter + RouterProvider) a régi deklaratív
@@ -90,11 +91,10 @@ function QuoteSaveRoute({isUpdate}) {
    űrlapon. */
 const loggedInRoutes = createRoutesFromElements(
     <Route element={<AppLayout/>}>
-        {/* A gyökér az UTOLSÓ megnyitott SZEKCIÓRA visz (a Read és a QuoteRead
-            mountkor a localStorage-ba menti, melyikben jársz). Első alkalommal
-            (üres tár) a /to-do. Eszközönként külön, mert localStorage. */}
-        <Route path="/" element={
-            <Navigate to={localStorage.getItem("lastSection") ?? "/to-do"} replace/>}/>
+        {/* A gyökér az UTOLSÓ megnyitott SZEKCIÓRA visz (a lista-nézetek mountkor
+            jegyzik meg, melyikben jársz — useRememberSection). A tárolás
+            részletei, a kulcs és az alapértelmezés a sections.js-ben, egy helyen. */}
+        <Route path="/" element={<Navigate to={lastSectionPath()} replace/>}/>
         <Route path="/to-do" element={<TodoReadRoute url="/to-do"/>}/>
         <Route path="/to-do/create" element={<TodoSaveRoute key="create" isUpdate={false}/>}/>
         {/* A szűrő és a szerkesztendő azonosító az URL-ben, nem a navigációs
