@@ -3,8 +3,9 @@ const bcrypt = require("bcrypt");
 const User = require("../../models/user");
 const serverError = require("../../serverError");
 const {signToken} = require("../../token");
+// A költségtényező a login álca-hash-ével KÖZÖS forrásból jön (l. password.js).
+const {SALT_WORK_FACTOR} = require("../../password");
 
-const SALT_WORK_FACTOR = 10;
 const PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/;
 
 /* A név megléte és típusa a validateCredentials middleware dolga; itt már csak

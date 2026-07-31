@@ -10,25 +10,16 @@ const {signToken} = require("../../token");
    támadónak volt hasznos. */
 const BAD_LOGIN = "Hibás felhasználónév vagy jelszó.";
 
-/* Álca-hash. Az azonos hibaüzenet önmagában kevés: a VÁLASZIDŐ is árulkodik.
-   Ismeretlen névnél nem lenne mit ellenőrizni, tehát azonnal válaszolnánk;
-   létező névnél megvárnánk a bcrypt ~100 ms-os számítását. A különbség mérhető,
-   és ugyanúgy elárulja, hogy létezik-e a fiók. Ezért ismeretlen névnél is
-   lefuttatunk egy összehasonlítást — ez ellen. Indításkor egyszer számoljuk ki.
-
-   A bcrypt lassúsága itt SZÁNDÉKOS (nem hiba): a jelszó-visszafejtést teszi
-   drágává. Ezért kell hozzá igazítani az ismeretlen ág idejét, nem fordítva.
-
-   KRITIKUS, hogy az álca-hash ugyanazzal a KÖLTSÉGTÉNYEZŐVEL készüljön, mint a
-   valódi jelszavaké (SALT_WORK_FACTOR a User/create.js-ben) — a bcrypt ideje
-   ebből adódik. Eltérő tényezővel a két ág mérhetően más ideig futna, és épp
-   azt árulná el, amit el akarunk rejteni. Ha a SALT_WORK_FACTOR változik, EZT
-   is át kell írni.
+/* Az álca-hash a KÖZÖS password.js-ből jön, a jelszó-hashelés költségtényezőjével
+   együtt. Miért ott: a kettőnek azonos tényezővel kell készülnie, különben a
+   bejelentkezés két ága mérhetően eltérő ideig fut, és a válaszidőből kiderül,
+   létezik-e a fiók — hiába azonos a hibaüzenet. A kötés ezért szerkezeti, nem
+   kommentre bízott (a részletes indoklás a password.js-ben).
 
    Mérés a Pi-n, 40-40 kérés (2026-07-16): ismeretlen név átlag 134 ms
    (min 130 / max 139), létező név átlag 134 ms (min 130 / max 146) — az
    eloszlások fedik egymást, nincs kinyerhető jel. */
-const DUMMY_HASH = bcrypt.hashSync("nincs-ilyen-jelszo", 10);
+const {DUMMY_HASH} = require("../../password");
 
 module.exports = router.post("/", async (request, response) => {
     try {
