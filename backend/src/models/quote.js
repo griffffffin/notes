@@ -48,8 +48,9 @@ const quoteSchema = new Schema({
         default: Date.now,
         required: true
     },
-    /* A to-dóval szemben itt az updatedAt is kötelező (a szigorúbb séma tudatos):
-       a napi export ez alapján dönti el, volt-e módosítás — sose maradhat üresen. */
+    /* KÖTELEZŐ, mint a to-dónál (models/todo.js): a napi export ebből dönti el,
+       volt-e aznap módosítás — üresen maradó updatedAt egy egész napot kihagyatna
+       a mentésből, némán. */
     updatedAt: {
         type: Date,
         default: Date.now,

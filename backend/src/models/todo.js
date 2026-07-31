@@ -58,9 +58,16 @@ const todoSchema = new Schema({
         default: Date.now,
         required: true
     },
+    /* KÖTELEZŐ, nem csak alapértelmezett: a napi export ebből dönti el, volt-e
+       aznap módosítás (backend/scripts/daily-export.js). Ha egyetlen dokumentumon
+       is üresen maradhatna, egy nap CSENDBEN kimaradna a mentésből — a szkript
+       nem hibázna, csak nem írna fájlt. Ugyanez a szabály minden szekcióban:
+       ahol a felhasználó adata van, ott napi export van, ahhoz pedig hiteles
+       updatedAt kell. */
     updatedAt: {
         type: Date,
-        default: Date.now
+        default: Date.now,
+        required: true
     }
 });
 
