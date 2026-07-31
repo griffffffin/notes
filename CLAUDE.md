@@ -51,6 +51,11 @@ komponensek nagy része átkerül, csak az új backend és kategóriák köré b
   le van tiltva. Reboot után kézzel kell feloldani:
   `sudo unlock-opt` (a szkript a `a gépen élő telepített szkript` verziózott mása;
   bekéri a LUKS-jelszót, csatol, majd elindítja a szolgáltatásokat).
+  A verziózott szkript CSAK a projekt saját láncát ismeri (postgres, ferretdb,
+  to-do) — hogy a publikus repó ne dokumentálja, mi fut még ezen a gépen. A
+  teljes, gépspecifikus lista az `egy gépspecifikus, nem verziózott beállítófájl`-ban él
+  (`SERVICE_LIST`, `STATUS_SERVICE_LIST`), ami NEM verziókezelt; ha új
+  /opt-os szolgáltatás jön, oda kell felvenni.
 - **Fejlesztéskor figyelj**: feloldás nélkül a `/opt` üres könyvtárnak látszik —
   az sshfs-mount is üreset csatolna.
 
