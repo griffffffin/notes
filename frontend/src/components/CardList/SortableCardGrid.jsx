@@ -28,7 +28,11 @@ export default function SortableCardGrid({
     cards, isSingleColumn, sensors, handleDragStart, handleDragEnd, handlePointerDownCapture, renderCard,
 }) {
     return (
-        <div className="container-fluid">
+        /* mt-3: a navbar és az ELSŐ kártyasor közötti levegő. Ez a rácson ül, nem a
+           kártyán — a kártyáknak SEMMILYEN függőleges margójuk nincs (l. sortableCard),
+           a sorok közti térközt a .todo-grid row-gapje adja (index.css). Így az utolsó
+           sor alatt nincs térköz: a lista alja a kártyák aljánál végződik. */
+        <div className="container-fluid mt-3">
             <DndContext sensors={sensors} collisionDetection={closestCenter}
                         onDragStart={handleDragStart} onDragEnd={handleDragEnd}
                         modifiers={MODIFIERS}

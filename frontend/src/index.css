@@ -537,8 +537,21 @@ form.card > .input-group:first-child > :last-child {
    rácson BELÜL kapna görgetést, és a húzás automatikus görgetése is ezt a dobozt
    mozgatná az ablak helyett. A clip csak vág, dobozt nem csinál, és hagyja a
    függőleges irányt láthatónak. */
+/* A kártyasorok közötti térköz — SZÁNDÉKOSAN row-gap, nem a kártyák margója.
+
+   Miért nem margó: a `.row` flex-konténer, ott a szomszédos margók NEM omlanak
+   össze, tehát egy my-* két sor közé DUPLA térközt tenne; egy csak-alsó margó
+   (mb-*) viszont az UTOLSÓ sor alá is kitesz egy térközt, amit onnan nem lehet
+   levenni (nincs "utolsó sor" CSS-szelektor — a sorokat a flex-wrap alakítja ki,
+   nem elemhatár). A row-gap pontosan a sorok KÖZÉ tesz helyet: se az első fölé,
+   se az utolsó alá.
+
+   Az érték a Bootstrap 4-es lépcsője (1.5rem), hogy a kártyák közti köz a
+   szerkesztő-lapok térközeivel egy skálán legyen. A rács FELETTI levegőt külön a
+   SortableCardGrid mt-3-a adja — az szándékosan kisebb (1rem). */
 .todo-grid {
     overflow-x: clip;
+    row-gap: 1.5rem;
 }
 
 /* Amíg a téma változói nincsenek a helyükön, TILOS bármilyen átmenet.

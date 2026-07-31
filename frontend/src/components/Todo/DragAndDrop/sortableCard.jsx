@@ -50,8 +50,15 @@ export default function SortableCard({id, children}) {
            az ujjal, a lap pedig nem görög közben. */
     };
 
+    /* Itt SZÁNDÉKOSAN nincs függőleges margó (se my-*, se mb-*).
+       A kártyasorok közti térközt a rács row-gapje adja (index.css: .todo-grid),
+       mert az CSAK a sorok KÖZÉ tesz helyet: az utolsó sor alá nem. Margóval ez
+       nem érhető el — a `.row` flex-konténer, ott a margók nem omlanak össze (a
+       my-* dupla térközt adna), a csak-alsó mb-* pedig az utolsó sor alá is
+       kitenne egy térközt, amit onnan nem lehet levenni (nincs "utolsó sor"
+       szelektor). Vízszintesen marad a px-2: azt a gap nem érinti. */
     return (
-        <div ref={setNodeRef} style={style} className="col-12 col-sm-6 col-xl-4 col-xxl-3 px-2 my-3"
+        <div ref={setNodeRef} style={style} className="col-12 col-sm-6 col-xl-4 col-xxl-3 px-2"
              {...attributes} {...listeners}>
             {children}
         </div>
