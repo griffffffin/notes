@@ -1,6 +1,12 @@
-const mongoose = require("mongoose");
+const {isText, isInteger, isValidOrder} = require("./validators");
 
 /* A kérés törzsének ellenőrzése, MIELŐTT bármi az adatbázisig jutna.
+
+   A to-do SAJÁT SZABÁLYAI (mezők, hosszkorlátok, színpaletta, listaelemek)
+   SZÁNDÉKOSAN itt élnek, nem az idézetekkel közösen: a két szekció validációja
+   egymástól függetlenül változhasson. Ami minden szekcióban azonos — a
+   típus-ellenőrzők, a sorszám felső korlátja, az id- és a sorszám-middleware —,
+   az a közös validators.js-ből jön.
 
    Miért kell, ha a Mongoose-sémán is van required/type? Két okból:
    (1) a findByIdAndUpdate alapból NEM futtat sémavalidátort, tehát a módosítás
@@ -24,10 +30,6 @@ const MAX_TITLE = 200;
 const MAX_CATEGORY = 100;
 const MAX_TASK_TEXT = 1000;
 const MAX_TASK_COUNT = 500;
-const MAX_ORDER = 100000;
-
-const isText = (value) => typeof value === "string";
-const isInteger = (value) => typeof value === "number" && Number.isInteger(value);
 
 function todoErrors(body) {
     const errors = [];
@@ -41,7 +43,7 @@ function todoErrors(body) {
 
     if (!COLORS.includes(body.color)) errors.push("Ismeretlen szín.");
 
-    if (!isInteger(body.order) || body.order < 1 || body.order > MAX_ORDER) errors.push("Érvénytelen sorszám.");
+    if (!isValidOrder(body.order)) errors.push("Érvénytelen sorszám.");
 
     // A tasks elhagyható (üres to-do), de ha van, valódi objektum legyen —
     // tömb és null nem: azokon a lenti bejárás csendben rosszat csinálna.
@@ -106,22 +108,6 @@ const validateTodoBody = (request, response, next) => {
     next();
 };
 
-// Módosításhoz, törléshez, egy elem olvasásához: az id formája.
-// Enélkül a Mongoose CastError-t dobna, amiből 400 "Error: CastError…" lett.
-const validateTodoId = (request, response, next) => {
-    if (!mongoose.isValidObjectId(request.body?.id)) return response.status(400).json("Érvénytelen azonosító.");
-    next();
-};
-
-/* Az átsoroláshoz (/reorder) csak a sorszám kell, a teljes törzs nem — az id-t
-   a validateTodoId nézi meg mellette. */
-const validateOrderOnly = (request, response, next) => {
-    const order = request.body?.order;
-    if (!isInteger(order) || order < 1 || order > MAX_ORDER)
-        return response.status(400).json("Érvénytelen sorszám.");
-    next();
-};
-
 /* A szűrő-végpontok (/category, /color) a body mezőit EGYENESEN a lekérdezésbe
    teszik. A user: request.userId miatt idegen adat így sem szivároghatna ki, de
    egy {"$ne": null} a saját szűrésünk jelentését változtatná meg — a kategória-
@@ -136,6 +122,6 @@ const validateColorFilter = (request, response, next) => {
     next();
 };
 
-module.exports = {
-    validateTodoBody, validateTodoId, validateOrderOnly, validateCategoryFilter, validateColorFilter,
-};
+/* Az id- és a sorszám-ellenőrzés NEM innen jön: azok minden szekcióban azonosak,
+   ezért a közös validators.js-ben élnek, és a routes.js onnan is importálja őket. */
+module.exports = {validateTodoBody, validateCategoryFilter, validateColorFilter};

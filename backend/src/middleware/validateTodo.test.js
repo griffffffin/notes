@@ -4,17 +4,13 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const express = require("express");
-const mongoose = require("mongoose");
 const request = require("supertest");
 
-const {
-    validateTodoBody, validateTodoId, validateCategoryFilter, validateColorFilter,
-} = require("./validateTodo");
+const {validateTodoBody, validateCategoryFilter, validateColorFilter} = require("./validateTodo");
 
 const app = express();
 app.use(express.json());
 app.post("/todo", validateTodoBody, (request_, response) => response.json(request_.body));
-app.post("/id", validateTodoId, (request_, response) => response.json({ok: true}));
 
 // Érvényes alap, amiből a tesztek egy-egy mezőt rontanak el.
 const VALID = {title: "Bevásárlás", category: "otthon", color: "warning", order: 1, tasks: {}, taskOrder: []};
@@ -79,12 +75,7 @@ test("nem szám taskOrder-t elutasít (400)", async () => {
     assert.strictEqual((await post({...VALID, taskOrder: ["elso"]})).status, 400);
 });
 
-test("érvényes ObjectId-t átenged, mást elutasít (400)", async () => {
-    const valid = new mongoose.Types.ObjectId().toString();
-    assert.strictEqual((await request(app).post("/id").send({id: valid})).status, 200);
-    assert.strictEqual((await request(app).post("/id").send({id: "nem-id"})).status, 400);
-    assert.strictEqual((await request(app).post("/id").send({})).status, 400);
-});
+// Az azonosító ellenőrzése minden szekcióban közös — a tesztje a validators.test.js-ben.
 
 /* A szűrő-végpontok mezői EGYENESEN a lekérdezésbe kerülnek. Az idegen adat a
    user-szűkítés miatt így sem szivárogna ki, de egy operátor a SAJÁT szűrésünk

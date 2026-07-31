@@ -4,15 +4,13 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const express = require("express");
-const mongoose = require("mongoose");
 const request = require("supertest");
 
-const {validateQuoteBody, validateQuoteId, validateAuthorFilter, validateSearchTerm} = require("./validateQuote");
+const {validateQuoteBody, validateAuthorFilter, validateSearchTerm} = require("./validateQuote");
 
 const app = express();
 app.use(express.json());
 app.post("/quote", validateQuoteBody, (request_, response) => response.json(request_.body));
-app.post("/id", validateQuoteId, (request_, response) => response.json({ok: true}));
 
 // Érvényes alap, amiből a tesztek egy-egy mezőt rontanak el.
 const VALID = {quote: "Az élet szép.", author: "Valaki", order: 1};
@@ -56,12 +54,7 @@ test("objektumot string helyett elutasít — NoSQL-injekció ellen (400)", asyn
     assert.strictEqual((await post({...VALID, author: {$ne: null}})).status, 400);
 });
 
-test("érvényes ObjectId-t átenged, mást elutasít (400)", async () => {
-    const valid = new mongoose.Types.ObjectId().toString();
-    assert.strictEqual((await request(app).post("/id").send({id: valid})).status, 200);
-    assert.strictEqual((await request(app).post("/id").send({id: "nem-id"})).status, 400);
-    assert.strictEqual((await request(app).post("/id").send({})).status, 400);
-});
+// Az azonosító ellenőrzése minden szekcióban közös — a tesztje a validators.test.js-ben.
 
 const filterApp = express();
 filterApp.use(express.json());

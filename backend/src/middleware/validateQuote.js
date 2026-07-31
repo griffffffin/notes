@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+const {isText, isInteger, isValidOrder} = require("./validators");
 
 /* Az idézet-kérések törzsének ellenőrzése, MIELŐTT bármi az adatbázisig jutna —
    ugyanazokból az okokból, mint a to-dónál (validateTodo.js): a findByIdAndUpdate
@@ -6,9 +6,12 @@ const mongoose = require("mongoose");
    és a típus-szigor NoSQL-injekció ellen is véd (egy string helyére küldött
    {"$ne": null} operátorként jutna a szűrőbe).
 
-   A modul SZÁNDÉKOSAN önálló (nem importál a validateTodo-ból): a két kategória
-   validációja külön él, hogy egymástól függetlenül változhasson. A MAX_ORDER a
-   to-dóéval EGYEZIK — ha ott változik, itt is állítandó. */
+   ELTÉRÉS a to-do validátorától (validateTodo.js): a két modul SZÁNDÉKOSAN nem
+   importál egymásból, és nem is vonható össze. Az idézet saját szabályai (mi
+   kötelező, mekkora lehet) függetlenül változhassanak a to-doétól: az idézet
+   hosszkorlátja nem befolyásolhatja a to-do címét. Ami minden szekcióban azonos — a típus-ellenőrzők, a sorszám
+   felső korlátja, az id- és a sorszám-middleware —, az a közös validators.js-ből
+   jön; korábban ezeket kézi szinkron tartotta együtt. */
 
 /* Egy idézet lehet akár több tízezer karakteres (hosszú részlet, vers, teljes
    idézetgyűjtemény-bejegyzés) — bőséges felső korlát, ami DoS-védelemnek még
@@ -17,7 +20,6 @@ const mongoose = require("mongoose");
    ugyanúgy tárolódik), ezért nincs oka 2-hatványnak lennie. */
 const MAX_QUOTE = 100000;
 const MAX_AUTHOR = 200;
-const MAX_ORDER = 100000;
 /* A keresőkifejezés felső korlátja. Bőven elég bármely értelmes szó/szókapcsolat
    kereséséhez (a szerzőnév maga is legfeljebb MAX_AUTHOR), viszont megakadályozza,
    hogy egy abszurd hosszú kifejezésből aránytalanul nagy regex épüljön. */
@@ -25,9 +27,6 @@ const MAX_SEARCH = 500;
 // A betűméret (százalék) korlátai — EGYEZZENEK a quote.js séma min/max-jával.
 const MIN_FONTSIZE = 100;
 const MAX_FONTSIZE = 200;
-
-const isText = (value) => typeof value === "string";
-const isInteger = (value) => typeof value === "number" && Number.isInteger(value);
 
 function quoteErrors(body) {
     const errors = [];
@@ -43,7 +42,7 @@ function quoteErrors(body) {
         else if (body.author.length > MAX_AUTHOR) errors.push(`A szerző legfeljebb ${MAX_AUTHOR} karakter lehet.`);
     }
 
-    if (!isInteger(body.order) || body.order < 1 || body.order > MAX_ORDER) errors.push("Érvénytelen sorszám.");
+    if (!isValidOrder(body.order)) errors.push("Érvénytelen sorszám.");
 
     /* A betűméret OPCIONÁLIS: hiánya (undefined) esetén a séma alapértéke (155)
        áll be. Ha adott, egész szám és a tartományban legyen — a típusszigor itt is
@@ -59,21 +58,6 @@ function quoteErrors(body) {
 const validateQuoteBody = (request, response, next) => {
     const errors = quoteErrors(request.body ?? {});
     if (errors.length) return response.status(400).json(errors.join(" "));
-    next();
-};
-
-// Módosításhoz, törléshez, egy elem olvasásához: az id formája (különben a
-// Mongoose CastError-t dobna, amiből csúf 400 lenne).
-const validateQuoteId = (request, response, next) => {
-    if (!mongoose.isValidObjectId(request.body?.id)) return response.status(400).json("Érvénytelen azonosító.");
-    next();
-};
-
-// Az átsoroláshoz (/reorder) csak a sorszám kell; az id-t a validateQuoteId nézi.
-const validateOrderOnly = (request, response, next) => {
-    const order = request.body?.order;
-    if (!isInteger(order) || order < 1 || order > MAX_ORDER)
-        return response.status(400).json("Érvénytelen sorszám.");
     next();
 };
 
@@ -96,6 +80,6 @@ const validateSearchTerm = (request, response, next) => {
     next();
 };
 
-module.exports = {
-    validateQuoteBody, validateQuoteId, validateOrderOnly, validateAuthorFilter, validateSearchTerm,
-};
+/* Az id- és a sorszám-ellenőrzés NEM innen jön: azok minden szekcióban azonosak,
+   ezért a közös validators.js-ben élnek, és a routes.js onnan is importálja őket. */
+module.exports = {validateQuoteBody, validateAuthorFilter, validateSearchTerm};

@@ -1,12 +1,11 @@
 const router = require("express").Router();
 const auth = require("./middleware/auth");
-const {
-    validateTodoBody, validateTodoId, validateOrderOnly, validateCategoryFilter, validateColorFilter,
-} = require("./middleware/validateTodo");
-const {
-    validateQuoteBody, validateQuoteId, validateOrderOnly: validateQuoteOrderOnly, validateAuthorFilter,
-    validateSearchTerm,
-} = require("./middleware/validateQuote");
+/* Az azonosító és a sorszám ellenőrzése minden szekcióban ugyanaz — egy közös
+   middleware szolgálja ki mindet (korábban szekciónként külön, azonos kóddal). A
+   szekció-specifikus szabályok maradnak a saját moduljukban. */
+const {validateObjectId, validateOrderOnly} = require("./middleware/validators");
+const {validateTodoBody, validateCategoryFilter, validateColorFilter} = require("./middleware/validateTodo");
+const {validateQuoteBody, validateAuthorFilter, validateSearchTerm} = require("./middleware/validateQuote");
 const validateCredentials = require("./middleware/validateCredentials");
 
 const userCreate = require("./controllers/User/create");
@@ -46,7 +45,7 @@ router.use("/login", validateCredentials, userLogin);
 /* Egy idézet PUBLIKUSAN olvasható az azonosítója alapján (a megosztott link egy
    konkrét idézetre mutat) — ezért ül ez az EGYETLEN idézet-végpont az auth
    ELŐTT. A lista és minden írás-művelet auth mögött van. */
-router.use("/quotes/id", validateQuoteId, quoteReadById);
+router.use("/quotes/id", validateObjectId, quoteReadById);
 
 // Innentől minden végpont csak érvényes tokennel érhető el.
 router.use(auth);
@@ -66,15 +65,15 @@ todoRouter.use("/create", validateTodoBody, todoCreate);
 
 todoRouter.use("/last/order", readLastOrder);
 todoRouter.use("/categories", todoReadCategory);
-todoRouter.use("/id", validateTodoId, todoReadById);
+todoRouter.use("/id", validateObjectId, todoReadById);
 todoRouter.use("/category", validateCategoryFilter, todoReadByCategory);
 todoRouter.use("/color", validateColorFilter, todoReadByColor);
 
 // A módosításnak az id-ja ÉS a törzse is ellenőrzendő, a törlésnek csak az id-ja.
-todoRouter.use("/update", validateTodoId, validateTodoBody, todoUpdate);
-todoRouter.use("/delete", validateTodoId, todoDelete);
+todoRouter.use("/update", validateObjectId, validateTodoBody, todoUpdate);
+todoRouter.use("/delete", validateObjectId, todoDelete);
 // Csak a sorszámot mozgatja (főoldali húzás) — a tartalomhoz nem nyúl.
-todoRouter.use("/reorder", validateTodoId, validateOrderOnly, todoReorder);
+todoRouter.use("/reorder", validateObjectId, validateOrderOnly, todoReorder);
 
 // A to-do főlistája: POST /to-do
 todoRouter.use(todoRead);
@@ -93,16 +92,16 @@ quoteRouter.use("/author", validateAuthorFilter, quoteReadByAuthor);
 /* A szerkesztő idézet-betöltése — auth MÖGÖTT, tulajdonos-ellenőrzéssel (l.
    readForEdit.js). A publikus /quotes/id (auth ELŐTT, fent) csak a megjelenítő
    mezőket adja; a sorszámot a szerkesztő ezen a hitelesített végponton kapja. */
-quoteRouter.use("/edit", validateQuoteId, quoteReadForEdit);
+quoteRouter.use("/edit", validateObjectId, quoteReadForEdit);
 /* A keresés két végpontja. A /search-mode a beküldéskori MÓD-döntés (olcsó,
    lét-kérdések), a /search a szöveg-mód TÖMB-találata (a húzáshoz). A statikus
    nevek nem ütköznek egymással, sem a /author-ral. */
 quoteRouter.use("/search-mode", validateSearchTerm, quoteReadSearchMode);
 quoteRouter.use("/search", validateSearchTerm, quoteReadSearch);
 
-quoteRouter.use("/update", validateQuoteId, validateQuoteBody, quoteUpdate);
-quoteRouter.use("/delete", validateQuoteId, quoteDelete);
-quoteRouter.use("/reorder", validateQuoteId, validateQuoteOrderOnly, quoteReorder);
+quoteRouter.use("/update", validateObjectId, validateQuoteBody, quoteUpdate);
+quoteRouter.use("/delete", validateObjectId, quoteDelete);
+quoteRouter.use("/reorder", validateObjectId, validateOrderOnly, quoteReorder);
 
 // Az idézet-lista: POST /quotes
 quoteRouter.use(quoteRead);
