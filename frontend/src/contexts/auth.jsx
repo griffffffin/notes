@@ -2,7 +2,7 @@ import axios from "axios";
 import {useCallback, useEffect, useMemo, useRef} from "react";
 import {useCookies} from "react-cookie";
 import {AuthContext} from "./auth-context";
-import {ACTIVITY_EVENTS} from "../activityEvents";
+import {ACTIVITY_EVENTS, IDLE_LOGOUT_MS} from "../idle";
 
 /* Bejelentkezés és szerverhívás egy helyen.
 
@@ -14,12 +14,13 @@ import {ACTIVITY_EVENTS} from "../activityEvents";
    401-nél (lejárt vagy érvénytelen token) a süti törlődik, így az app
    automatikusan visszavált a bejelentkező képernyőre. */
 
-/* Negyed óra tétlenség után kijelentkeztetünk. A határ SZÁNDÉKOSAN egyezik a
-   token szerveroldali élettartamával (backend/src/token.js: 15m) — a kettőt
-   EGYÜTT kell módosítani. Így a felület és a token egyszerre jár le: nem
-   fordulhat elő, hogy a képernyő kijelentkezettnek látszik, miközben a lemásolt
-   süti a szerveren még működik. */
-const IDLE_LIMIT_MS = 15 * 60 * 1000;
+/* A tétlenségi kijelentkezés határa (IDLE_LOGOUT_MS) az idle.js-ben van, a
+   szerkesztők autosave-órájával EGY helyen: a kettő viszonya (az autosave
+   hamarabb sül el) az, ami a mentetlen munkát megvédi. Az érték emellett
+   SZÁNDÉKOSAN egyezik a token szerveroldali élettartamával (backend/src/token.js:
+   15m) — így a felület és a token egyszerre jár le, nem fordulhat elő, hogy a
+   képernyő kijelentkezettnek látszik, miközben a lemásolt süti a szerveren még
+   működik. Az a kötés két csomag között van, tehát csak komment tartja. */
 
 /* A megújítást AKTIVITÁS váltja ki, nem az óra — így a token lejárata mindig a
    legutóbbi tevékenységhez igazodik, és tétlen munkamenetet soha nem
@@ -101,7 +102,7 @@ export function AuthProvider({children}) {
 
         ACTIVITY_EVENTS.forEach((name) => window.addEventListener(name, markActivity, {passive: true}));
         const idleCheck = setInterval(() => {
-            if (Date.now() - lastActivity.current >= IDLE_LIMIT_MS) logout();
+            if (Date.now() - lastActivity.current >= IDLE_LOGOUT_MS) logout();
         }, IDLE_CHECK_MS);
 
         return () => {

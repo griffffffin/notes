@@ -1,17 +1,13 @@
 import {useEffect, useRef} from "react";
-import {ACTIVITY_EVENTS} from "../../activityEvents";
+import {ACTIVITY_EVENTS, AUTOSAVE_IDLE_MS} from "../../idle";
 
-/* A szerkesztők autosave-e ennyi TÉTLENSÉG után sül el.
+/* Az alapértelmezett késleltetés (AUTOSAVE_IDLE_MS) és a kijelentkezéshez való
+   viszonya az idle.js-ben van, a másik órával egy helyen — a kettő csak együtt
+   értelmezhető. Amit itt érdemes tudni: a mentés utáni navigáció NEM aktivitás
+   és NEM hív /refresh-t, tehát ez az óra a 15 perces kijelentkezést NEM tolja el;
+   az a valódi utolsó aktivitástól számítva jár le.
 
-   SZÁNDÉKOSAN kevesebb, mint az auth 15 perces tétlenségi kijelentkezése
-   (contexts/auth.jsx: IDLE_LIMIT_MS): így az otthagyott, mentetlen munka még
-   ÉRVÉNYES tokennel elmentődik, mielőtt a session lejár. Fontos: a mentés utáni
-   navigáció NEM aktivitás és NEM hív /refresh-t, tehát ez a 15 perces órát NEM
-   indítja újra — a tétlenségi kijelentkezés a menetrend szerint (a valódi utolsó
-   aktivitástól) következik be. A két érték együtt módosítandó. */
-const AUTOSAVE_IDLE_MS = 10 * 60 * 1000;
-
-/* Tétlenség-óra: `delayMs` aktivitás nélkül eltelt idő után meghívja az `onIdle`
+   Tétlenség-óra: `delayMs` aktivitás nélkül eltelt idő után meghívja az `onIdle`
    függvényt. MINDEN aktivitás újraindítja, tehát gépelés közben sosem sül el.
    Csak a hívó komponens életére szól (mount → unmount).
 
