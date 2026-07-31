@@ -1,16 +1,11 @@
-import {act, fireEvent, render, screen, waitFor} from "@testing-library/react";
+import {act, fireEvent, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {CookiesProvider} from "react-cookie";
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest";
-import Routes from "../routes";
-import {ThemeProvider} from "../../contexts/theme";
+import {renderRoutes} from "../../test/renderRoutes";
 
-/* A szerverhívást és az ikonokat kicseréljük, a témát valódiként használjuk (a
-   kártya színe a témából jön). A Routes is valódi: a /quotes/create ↔
-   /quotes/update route-viselkedés a route-tábláé. */
-vi.mock("@fortawesome/react-fontawesome", () => ({
-    FontAwesomeIcon: ({icon, ...rest}) => <span data-icon={String(icon)} {...rest}/>,
-}));
+/* Csak a SZERVERHÍVÁST cseréljük ki; a téma, a route-tábla és a szerkesztő maga
+   valódi (a /quotes/create ↔ /quotes/update viselkedés épp a route-táblán múlik).
+   A route-fa renderelésének kerete a közös test/renderRoutes segédben van. */
 
 const QUOTE = {_id: "q-1", quote: "Az élet szép.", author: "Valaki", order: 1};
 
@@ -22,17 +17,7 @@ const {handleAxios, auth} = vi.hoisted(() => {
 });
 vi.mock("../../contexts/auth-context", () => ({useAuth: () => auth}));
 
-const renderRoutes = () => render(
-    <CookiesProvider>
-        <ThemeProvider>
-            <Routes categories={[]} handleLinkClicked={vi.fn()} handleCategoryChange={vi.fn()}
-                    setIsColorAngleClicked={vi.fn()} isColorAngleClicked={false}
-                    setIsCategoryAngleClicked={vi.fn()} isCategoryAngleClicked={false}/>
-        </ThemeProvider>
-    </CookiesProvider>
-);
-
-// A jsdom nem ad valódi canvas-t; a validáció fieldOf-ja measureText-et hív.
+// A jsdom nem ad valódi canvas-t; a validáció fieldAnchor-ja measureText-et hív.
 beforeAll(() => {
     HTMLCanvasElement.prototype.getContext = () => ({font: "", measureText: () => ({width: 10})});
 });
@@ -86,7 +71,8 @@ describe("QuoteSave — create", () => {
         await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
 
         // A hiányzó idézet miatt nem megy ki create-kérés, és a szerkesztőben
-        // maradunk. (A hibabuborék megjelenése react-tooltip portál — headless.)
+        // maradunk. A gomb ilyenkor tiltott is (l. a fenti tesztet), de itt a
+        // VÉGEREDMÉNYT állítjuk: szerzővel se lehessen idézet nélkül menteni.
         expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/quotes/create");
         expect(window.location.pathname).toBe("/quotes/create");
     });
@@ -106,16 +92,32 @@ describe("QuoteSave — create", () => {
         await waitFor(() => expect(field).toHaveValue("szép"));
     });
 
-    it("érintetlen create: a Tovább csak visszavisz a listára, nem ment", async () => {
+    /* A Tovább gomb a to-do mintájára addig TILTOTT, amíg a kötelező mező (az
+       idézet szövege) üres — a szerző opcionális, az nem oldja fel. Az üres
+       űrlapról tehát nem a Tovább visz ki (mint a to-dónál sem), hanem a logó
+       vagy a Vissza gomb. */
+    it("üres idézetnél a Tovább TILTOTT, a szerző beírása nem oldja fel", async () => {
         window.history.pushState({}, "", "/quotes/create");
         renderRoutes();
         await waitFor(() => expect(quoteField()).toBeInTheDocument());
 
-        handleAxios.mockClear();
-        await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
+        expect(screen.getByRole("button", {name: "Tovább"})).toBeDisabled();
+        await userEvent.type(screen.getByPlaceholderText("Szerző"), "Én");
+        expect(screen.getByRole("button", {name: "Tovább"})).toBeDisabled();
+    });
 
-        expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/quotes/create");
-        await waitFor(() => expect(window.location.pathname).toBe("/quotes"));
+    it("az idézet beírása FELOLDJA a Tovább gombot, kiürítése újra tiltja", async () => {
+        window.history.pushState({}, "", "/quotes/create");
+        renderRoutes();
+        await waitFor(() => expect(quoteField()).toBeInTheDocument());
+
+        await userEvent.type(quoteField(), "Új idézet");
+        expect(screen.getByRole("button", {name: "Tovább"})).toBeEnabled();
+
+        // Csak szóköz = üres (a trim dönt), tehát megint tiltott.
+        await userEvent.clear(quoteField());
+        await userEvent.type(quoteField(), "   ");
+        expect(screen.getByRole("button", {name: "Tovább"})).toBeDisabled();
     });
 });
 

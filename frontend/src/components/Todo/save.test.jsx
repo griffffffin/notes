@@ -1,20 +1,12 @@
-import {render, screen, waitFor} from "@testing-library/react";
+import {act, fireEvent, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {CookiesProvider} from "react-cookie";
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest";
-import Routes from "../routes";
-import {ThemeProvider} from "../../contexts/theme";
+import {renderRoutes as renderApp} from "../../test/renderRoutes";
 
-/* A szerverhívást és az ikonokat kicseréljük, a témát viszont VALÓDIKÉNT
-   használjuk: a téma és a to-do színének viszonya épp az egyik vizsgált kérdés.
-   A Routes is valódi (nem másoljuk le a route-táblát), mert a /update → /create
-   váltás viselkedése épp a route-tábla felelőssége.
-
-   Az ikon-mock nem kényelmi kérdés: a library.add(fas) mind az ~1600 ikont
-   behúzná, amit a Pi percekig transzformál — a teszt időtúllépéssel elszállt. */
-vi.mock("@fortawesome/react-fontawesome", () => ({
-    FontAwesomeIcon: ({icon, ...rest}) => <span data-icon={String(icon)} {...rest}/>,
-}));
+/* Csak a SZERVERHÍVÁST cseréljük ki; a témát VALÓDIKÉNT használjuk (a téma és a
+   to-do színének viszonya épp az egyik vizsgált kérdés), és a route-tábla is
+   valódi — a /update → /create váltás viselkedése az ő felelőssége. A route-fa
+   renderelésének kerete a közös test/renderRoutes segédben van. */
 
 const TODO = {
     _id: "todo-1", title: "Bevásárlás", color: "danger", category: "otthon", order: 1,
@@ -24,22 +16,21 @@ const TODO = {
 /* A Context-mock ÁLLANDÓ objektumot adjon vissza: a komponensek effektjei a
    handleAxios azonosságára vannak felfüggesztve, így egy rendernként újra
    gyártott függvény végtelen újratöltő ciklust okozna a tesztben. */
-const {handleAxios, auth} = vi.hoisted(() => {
+/* A `token` a mockban is szerepel: a leváláskori mentés ezt zárványolja, és
+   EXPLICIT ötödik argumentumként adja át a handleAxios-nak (kijelentkezéskor az
+   élő token már törölve van). Az alábbi teszt épp ezt az átadást rögzíti. */
+const {handleAxios, auth, TEST_TOKEN} = vi.hoisted(() => {
     const fn = vi.fn();
-    return {handleAxios: fn, auth: {isLoggedIn: true, handleAxios: fn}};
+    const token = "teszt-token";
+    return {handleAxios: fn, TEST_TOKEN: token, auth: {isLoggedIn: true, handleAxios: fn, token}};
 });
 
 vi.mock("../../contexts/auth-context", () => ({useAuth: () => auth}));
 
-const renderRoutes = () => render(
-    <CookiesProvider>
-        <ThemeProvider>
-            <Routes categories={["otthon"]} handleLinkClicked={vi.fn()} handleCategoryChange={vi.fn()}
-                    setIsColorAngleClicked={vi.fn()} isColorAngleClicked={false}
-                    setIsCategoryAngleClicked={vi.fn()} isCategoryAngleClicked={false}/>
-        </ThemeProvider>
-    </CookiesProvider>
-);
+/* A to-do szerkesztőjéhez KELL egy létező kategória: a kategória-legördülő ebből
+   a propból tölt, és a tesztek közül több épp a választását vizsgálja. Az utat a
+   hívások maguk állítják be (pushState), ezért a path itt marad üresen. */
+const renderRoutes = () => renderApp(undefined, {categories: ["otthon"]});
 
 // A kártya színe a szegély-osztályból olvasható ki ("border-danger").
 const cardColor = () => [...document.querySelector("form").classList]
@@ -330,5 +321,93 @@ describe("Save — mentés leváláskor (logó/Vissza/navigáció)", () => {
 
         const updates = handleAxios.mock.calls.filter((c) => c[0] === "/to-do/update");
         expect(updates).toHaveLength(1);
+    });
+});
+
+/* AUTOSAVE: tétlenség után a szerkesztő magától ment és visszalép a listára. Ez
+   védi az otthagyott munkát: a mentés még ÉRVÉNYES tokennel megy, mielőtt az auth
+   15 perces tétlenségi kijelentkezése lejáratná a session-t. Az idézet-szerkesztő
+   ugyanezt teszi, ugyanazzal a közös órával (Editor/useIdleTimer). */
+describe("Save — autosave tétlenség után", () => {
+    it("tétlenség után menti a módosítást és a listára navigál", async () => {
+        vi.useFakeTimers();
+        try {
+            window.history.pushState({}, "", "/to-do/update/todo-1");
+            renderRoutes();
+            // A betöltés (handleAxios → setState) lefuttatása a hamis órán.
+            await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+            fireEvent.change(document.querySelector("#createColumn"), {target: {value: "Módosított cím"}});
+            handleAxios.mockClear();
+
+            // 10 perc tétlenség (közben SEMMI aktivitás) → az autosave elsül.
+            await act(async () => { await vi.advanceTimersByTimeAsync(10 * 60 * 1000); });
+
+            const call = handleAxios.mock.calls.find((c) => c[0] === "/to-do/update");
+            expect(call?.[1]).toMatchObject({id: "todo-1", title: "Módosított cím"});
+            // Siker után a listára navigál (kilép a szerkesztőből).
+            expect(window.location.pathname).toBe("/to-do");
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("aktivitás újraindítja az órát (nem ment idő előtt)", async () => {
+        vi.useFakeTimers();
+        try {
+            window.history.pushState({}, "", "/to-do/update/todo-1");
+            renderRoutes();
+            await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+            fireEvent.change(document.querySelector("#createColumn"), {target: {value: "Módosított cím"}});
+            handleAxios.mockClear();
+
+            // 9 perc tétlenség, egy billentyű, majd újabb 9 perc — összesen 18 perc, de
+            // tétlenül csak 9 → NEM autosave-el, és bent maradunk a szerkesztőben.
+            await act(async () => { await vi.advanceTimersByTimeAsync(9 * 60 * 1000); });
+            await act(async () => { window.dispatchEvent(new KeyboardEvent("keydown")); });
+            await act(async () => { await vi.advanceTimersByTimeAsync(9 * 60 * 1000); });
+
+            expect(handleAxios.mock.calls.some((c) => c[0] === "/to-do/update")).toBe(false);
+            expect(window.location.pathname).toBe("/to-do/update/todo-1");
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("ÉRINTETLEN szerkesztőt nem ment és nem is navigál el", async () => {
+        vi.useFakeTimers();
+        try {
+            window.history.pushState({}, "", "/to-do/update/todo-1");
+            renderRoutes();
+            await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+            handleAxios.mockClear();
+
+            await act(async () => { await vi.advanceTimersByTimeAsync(10 * 60 * 1000); });
+
+            // Nincs mentenivaló: a felhasználót hagyjuk a szerkesztőben — a 15 perces
+            // tétlenségi kijelentkezés majd a szokott módon jön.
+            expect(handleAxios.mock.calls.some((c) => c[0] === "/to-do/update")).toBe(false);
+            expect(window.location.pathname).toBe("/to-do/update/todo-1");
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+});
+
+/* A KIJELENTKEZÉSKORI mentés a leváláskor még ÉRVÉNYES tokent zárványolja: a
+   removeCookie a hívás pillanatára már törli az élőt, tehát token nélkül a mentés
+   401-gyel elveszne. A handleAxios ötödik paramétere ez a felülíró token. */
+describe("Save — a leváláskori mentés zárványolt tokennel megy", () => {
+    it("az unmount-mentés EXPLICIT tokent ad át a hívásnak", async () => {
+        window.history.pushState({}, "", "/to-do/update/todo-1");
+        const view = renderRoutes();
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
+
+        await userEvent.type(screen.getByPlaceholderText("Cím"), " ma");
+        handleAxios.mockClear();
+        view.unmount();
+
+        const call = handleAxios.mock.calls.find((c) => c[0] === "/to-do/update");
+        // Az ötödik argumentum a felülíró token (az auth-mock TEST_TOKEN-t ad).
+        expect(call?.[4]).toBe(TEST_TOKEN);
     });
 });

@@ -2,6 +2,7 @@ import axios from "axios";
 import {useCallback, useEffect, useMemo, useRef} from "react";
 import {useCookies} from "react-cookie";
 import {AuthContext} from "./auth-context";
+import {ACTIVITY_EVENTS} from "../activityEvents";
 
 /* Bejelentkezés és szerverhívás egy helyen.
 
@@ -39,10 +40,8 @@ const IDLE_CHECK_MS = 60 * 1000;
    hibával elszáll, és lefut a hiba-ág. */
 const REQUEST_TIMEOUT_MS = 15 * 1000;
 
-/* Ezek jelzik, hogy a gép előtt vagy. A passive: true azt ígéri a böngészőnek,
-   hogy nem akadályozzuk meg az alapértelmezett viselkedést — enélkül minden
-   görgetésnél meg kellene várnia a kódunkat, ami akadozást okozna. */
-const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "wheel"];
+// Mi számít aktivitásnak: a lista (és a passive: true indoka) az activityEvents.js-ben —
+// a szerkesztők autosave-órája UGYANEZT a halmazt figyeli.
 
 export function AuthProvider({children}) {
     const [cookies, setCookie, removeCookie] = useCookies(["user"]);

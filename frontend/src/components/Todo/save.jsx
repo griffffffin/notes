@@ -15,7 +15,10 @@ import {useTheme} from "../../contexts/theme-context";
 import {useAuth} from "../../contexts/auth-context";
 import {TODO_COLORS} from "../../todoColors";
 import {logRequestError} from "../../log";
-import {Tooltip as ReactTooltip} from "react-tooltip";
+import {fieldAnchor} from "../Editor/fieldAnchor";
+import ValidationTooltip from "../Editor/validationTooltip";
+import {useEscapeSubmit} from "../Editor/useEscapeSubmit";
+import {useIdleTimer} from "../Editor/useIdleTimer";
 
 /* Változatlan-e az űrlap ahhoz képest, amit a szerver adott? */
 const isUnchanged = (current, loaded) =>
@@ -51,7 +54,7 @@ export default function Save(props) {
     const [lastOrder, setLastOrder] = useState(null);
     const [isCategoryAngleClicked, setIsCategoryAngleClicked] = useState(false);
     const navigate = useNavigate();
-    const {handleAxios} = useAuth();
+    const {handleAxios, token} = useAuth();
     const formRef = useRef(null);
     /* A kötelező mezők SAJÁT hibabuborékja a natív böngésző-buborék helyett (azt
        nem lehet stílusozni). null = nincs hiba; egyébként {anchor, name}: a hibás
@@ -217,32 +220,24 @@ export default function Save(props) {
         : (!title.trim() && !category.trim() && Object.keys(todo.tasks ?? {}).length === 0);
     isDirtyRef.current = !isPristine();
 
+    /* Van-e CSENDBEN mentendő munka? A két néma mentési útvonal (leváláskori mentés
+       kijelentkezéskor, illetve a tétlenségi autosave) UGYANEZT a három feltételt
+       nézi: a mentés/törlés még nem intézte el a távozást, a kötelező mezők megvannak,
+       és tényleg változott valami.
+
+       A blocker SZÁNDÉKOSAN nem ezt használja: ott a hiányzó kötelező mező nem "nincs
+       mit menteni", hanem HIBA — hibabuborékot kap és a szerkesztőben maradunk. Itt
+       nincs kinek visszajelezni, ezért a hiányos munkát csendben eldobjuk. (Az
+       idézet-szerkesztőben ugyanez a függvény, ugyanezzel a névvel — a harmadik
+       szerkesztőnél a két mentési útvonal közös hookba kerül.) */
+    const hasSilentWork = () =>
+        !leftViaForm.current && isTitleValid && isCategoryValid && !isPristine();
+
     /* A useBlocker DATA ROUTERT kér (l. routes.jsx). shouldBlock: akkor blokkoljuk a
        navigációt, ha van mentenivaló (dirty) ÉS nem a mentés/törlés maga navigál
        (leftViaForm). Üres deps-szel stabil, de refekből olvas, így friss állapotot lát. */
     const shouldBlock = useCallback(() => !leftViaForm.current && isDirtyRef.current, []);
     const blocker = useBlocker(shouldBlock);
-
-    /* A kötelező mező hibabuborékjának horgonya: a mező placeholderének KÖZEPÉRE
-       (a szöveg félszélességét canvasszal mérve, a bal padding után), place=bottom-mal,
-       így a nyila a placeholder alá esik, nem a hosszú input közepére. A név a
-       placeholderből, kis kezdőbetűvel — új mezőnél magától helyes a felirat. */
-    const fieldOf = (selector) => {
-        const el = document.querySelector(selector);
-        const r = el.getBoundingClientRect();
-        const cs = getComputedStyle(el);
-        const ctx = document.createElement("canvas").getContext("2d");
-        ctx.font = cs.font || `${cs.fontSize} ${cs.fontFamily}`;
-        const half = ctx.measureText(el.placeholder).width / 2;
-        return {
-            anchor: selector,
-            name: el.placeholder.toLowerCase(),
-            pos: {
-                x: r.left + (parseFloat(cs.paddingLeft) || 0) + half,
-                y: r.top + (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.fontSize) || 16),
-            },
-        };
-    };
 
     /* A NAVIGÁCIÓ-ELKAPÓ mentés magja: a blocker akkor billen "blocked"-ba, ha van
        mentenivaló ÉS navigálni próbálnak (Tovább, Escape, logó, "+", Vissza gomb,
@@ -258,8 +253,12 @@ export default function Save(props) {
 
         // A cím az első, aztán a kategória — a hiányzó mezőnél a saját hibabuborékot
         // mutatjuk (a nem stílusozható natív helyett), és maradunk.
-        if (!isTitleValid) { setValidation(fieldOf("#createColumn")); blocker.reset(); return; }
-        if (!isCategoryValid) { setValidation(fieldOf("input[placeholder='Kategória']")); blocker.reset(); return; }
+        if (!isTitleValid) { setValidation(fieldAnchor("#createColumn")); blocker.reset(); return; }
+        if (!isCategoryValid) {
+            setValidation(fieldAnchor("input[placeholder='Kategória']"));
+            blocker.reset();
+            return;
+        }
         setValidation(null);
 
         // Innentől mentünk; a mentés sikeréig NEM navigálunk. leftViaForm: az unmount-
@@ -302,22 +301,48 @@ export default function Save(props) {
 
     /* A LEVÁLÁSKORI (unmount) mentés — a KIJELENTKEZÉSre, ami NEM router-navigáció
        (a removeCookie React-újrarendert vált ki), ezért a blocker nem látja. Ilyenkor
-       ugyanaz az ellenőrző+mentő logika fut le, csak navigáció nélkül. A closure-t
-       minden renderben frissítjük, hogy az unmount a LEGFRISSEBB állapotot mentse.
-       Nem mentünk, ha a form érintetlen vagy egy kötelező mező hiányzik — és ha a
-       blocker/Törlés már elintézte a távozást (leftViaForm), akkor sem. */
+       CSENDES mentés történik: navigáció és visszajelzés nélkül, mert nincs hova
+       "maradni" és nincs kinek szólni. A closure-t minden renderben frissítjük, hogy
+       az unmount a LEGFRISSEBB állapotot mentse — és hogy a legutóbbi render (még
+       érvényes) `token`-jét zárványolja: a kijelentkezés a hívás pillanatára már
+       törli az ÉLŐ tokent, ezért azt EXPLICIT átadjuk a handleAxios-nak, különben a
+       mentés token nélkül, 401-gyel elveszne. */
     saveOnLeaveRef.current = () => {
-        if (leftViaForm.current) return;
-        if (isPristine() || !(isTitleValid && isCategoryValid)) return;
+        if (!hasSilentWork()) return;
         const data = currentData();
         if (isUpdate) data["id"] = todoId;
+        // A zárványolt `token` (nem az élő tokenRef): kijelentkezéskor az élő már null.
         handleAxios(url, data, (response) => {
             if (response.status === 200) props.handleCategoryChange();
-        }, logRequestError);
+        }, logRequestError, token);
     };
 
     // A fenti mentés a szerkesztő LEVÁLÁSAKOR (pl. kijelentkezés) fut le, egyszer.
     useEffect(() => () => saveOnLeaveRef.current(), []);
+
+    /* Az AUTOSAVE (tétlenség után) — mint a leváláskori mentés, de siker UTÁN a
+       listára navigál (kilép a szerkesztőből). Az órát a közös useIdleTimer adja;
+       a késleltetés szándékosan kisebb, mint az auth 15 perces kijelentkezése, így
+       az otthagyott munka még ÉRVÉNYES tokennel mentődik el.
+
+       A mentés itt az ÉLŐ tokennel megy (10 percnél még érvényes) — a zárványolt
+       token csak a leváláskori ágnak kell, ahol a kijelentkezés már törölte. */
+    useIdleTimer(() => {
+        // Nincs mentenivaló (érintetlen vagy hiányos): NEM navigálunk el — hagyjuk a
+        // felhasználót, a 15 perces tétlenségi kijelentkezés majd a szokott módon jön.
+        if (!hasSilentWork()) return;
+        /* A mentés MEGKEZDÉSE előtt jelöljük: a rákövetkező leválás (navigáció →
+           unmount) NE mentsen újra (create-nél nehogy duplikáljon). Hibánál
+           visszavonjuk, hogy egy későbbi távozás újrapróbálja. */
+        leftViaForm.current = true;
+        const data = currentData();
+        if (isUpdate) data["id"] = todoId;
+        handleAxios(url, data, () => {
+            props.handleLinkClicked();
+            props.handleCategoryChange();
+            navigate("/to-do");
+        }, (error) => { leftViaForm.current = false; logRequestError(error); });
+    });
 
     /* A színre már nem kell várni (a témából indul, nem egy kérés hozza), csak
        a sorszám-korlátra — szerkesztéskor ráadásul a betöltött to-do mezőire. */
@@ -328,19 +353,8 @@ export default function Save(props) {
         } else setIsLoading(false);
     }, [isUpdate, lastOrder, title, isTitleValid, category, isCategoryValid]);
 
-    /* Escape a szerkesztőben = mentés + vissza a főoldalra, pontosan úgy, ahogy a
-       "Tovább" gomb: a formot sütjük el (requestSubmit), így a handleSubmit
-       (leaveEditor → a blocker ellenőriz+ment, ha kell) ugyanúgy lefut. Kivétel:
-       ha a törlés-modal nyitva van, az Escape AZT zárja (natív <dialog>). */
-    useEffect(() => {
-        const onKeyDown = (event) => {
-            if (event.key === "Escape" && !document.querySelector("dialog[open]")) {
-                formRef.current?.requestSubmit();
-            }
-        };
-        window.addEventListener("keydown", onKeyDown);
-        return () => window.removeEventListener("keydown", onKeyDown);
-    }, []);
+    // Escape = mentés + vissza, a "Tovább" gombbal azonos úton (l. useEscapeSubmit).
+    useEscapeSubmit(formRef);
 
     return (
         isLoading ? <Spinner class="min-vh-75"/> :
@@ -388,21 +402,9 @@ export default function Save(props) {
                     </div>
                 </div>
 
-                {/* Kötelező-mező hibabuborék a natív böngésző-buborék helyett, a
-                    "Sorszám" tooltip stílusában (lap-háttér, kiemelőszínű keret és
-                    szöveg). A tooltipet a placeholder KÖZEPÉRE horgonyozzuk (a fieldOf
-                    által mért position), place=bottom-mal, így a nyila a placeholder
-                    alá esik, nem a hosszú input közepére. A szöveg névelője a mezőnév
-                    kezdőbetűjéből adódik: magánhangzó → "Az", egyébként "A". */}
-                <ReactTooltip id="validation-tooltip" isOpen={validation !== null}
-                              position={validation?.pos} place="bottom"
-                              disableStyleInjection={true} border="1px solid var(--theme-accent)"
-                              style={{zIndex: 20, backgroundColor: "var(--theme-page-bg)",
-                                  color: "var(--theme-accent)"}}>
-                    {validation &&
-                        `${/^[aáeéiíoóöőuúüű]/i.test(validation.name) ? "Az" : "A"} ` +
-                        `${validation.name} kitöltése kötelező.`}
-                </ReactTooltip>
+                {/* Kötelező-mező hibabuborék (l. Editor/validationTooltip): a kinézet,
+                    a pozicionálás és a magyar névelő-szabály ott, egy helyen él. */}
+                <ValidationTooltip id="validation-tooltip" validation={validation}/>
 
             </form>
     );

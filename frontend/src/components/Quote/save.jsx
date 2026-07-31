@@ -10,27 +10,16 @@ import {useAuth} from "../../contexts/auth-context";
 import {useTheme} from "../../contexts/theme-context";
 import {useQuoteAccent} from "./useQuoteAccent";
 import {logRequestError} from "../../log";
-import {Tooltip as ReactTooltip} from "react-tooltip";
+import {fieldAnchor} from "../Editor/fieldAnchor";
+import ValidationTooltip from "../Editor/validationTooltip";
+import {useEscapeSubmit} from "../Editor/useEscapeSubmit";
+import {useIdleTimer} from "../Editor/useIdleTimer";
 
 /* Az új idézet alap betűmérete SZÁZALÉKBAN — szándékosan a Szerző-mező méretével
    egyezik (a .caveat szabály 155%-a), hogy a szerkesztőben az idézet és a szerző
    egy méretűnek induljon, és a lista is így mutassa. A "Betűméret"-stepperrel
    idézetenként átállítható; a mező nélküli régi idézetek is ekkorák. */
 const DEFAULT_FONT_SIZE = 155;
-
-/* A szerkesztő autosave-e ennyi TÉTLENSÉG után ment és visz vissza a listára.
-   SZÁNDÉKOSAN kevesebb, mint az auth 15 perces tétlenségi kijelentkezése (auth.jsx
-   IDLE_LIMIT_MS): így az otthagyott, mentetlen munka még ÉRVÉNYES tokennel elmentődik,
-   mielőtt a session lejár. Fontos: a mentés utáni navigáció NEM aktivitás és NEM hív
-   /refresh-t, tehát ez a 15 perces órát NEM indítja újra — a tétlenségi kijelentkezés a
-   menetrend szerint (a valódi utolsó aktivitástól) következik be. */
-const AUTOSAVE_IDLE_MS = 10 * 60 * 1000;
-
-/* A tétlenség-figyelő események — SZÁNDÉKOSAN ugyanaz a halmaz, mint az auth
-   idle-detektálásáé (auth.jsx ACTIVITY_EVENTS): az autosave akkor süljön el, amikor a
-   felhasználó tényleg ELSÉTÁLT (semmi input), ugyanúgy mérve, mint a tétlenségi
-   kijelentkezés. Ha ott bővül a lista, itt is bővítendő. */
-const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "wheel"];
 
 /* Az idézet-szerkesztő (create és update). A to-do save.jsx VÉKONYABB mása: az
    idézet-textarea + szerző-input + a KÖZÖS Order sorszám-választó (a to-doból),
@@ -106,6 +95,18 @@ export default function QuoteSave(props) {
     };
     isDirtyRef.current = !isPristine(normalizeBold(quote));
 
+    /* Van-e CSENDBEN mentendő munka? A két néma mentési útvonal (leváláskori mentés
+       kijelentkezéskor, illetve a 10 perces autosave) UGYANEZT a három feltételt
+       nézi: a mentés/törlés még nem intézte el a távozást, az idézet érvényes, és
+       tényleg változott valami.
+
+       A blocker SZÁNDÉKOSAN nem ezt használja: ott az üres idézet nem "nincs mit
+       menteni", hanem HIBA — hibabuborékot kap és a szerkesztőben maradunk. Itt
+       nincs kinek visszajelezni (nincs képernyő, ahol maradni lehetne), ezért a
+       hiányos munkát csendben eldobjuk. */
+    const hasSilentWork = () =>
+        !leftViaForm.current && isQuoteValid && !isPristine(normalizeBold(quote));
+
     /* A useBlocker DATA ROUTERT kér (l. routes.jsx). shouldBlock: akkor blokkoljuk a
        navigációt, ha van mentenivaló (dirty) ÉS nem a mentés/törlés maga navigál
        (leftViaForm). A függvény üres deps-szel stabil, de refekből olvas, így a friss
@@ -173,19 +174,8 @@ export default function QuoteSave(props) {
         } else setIsLoading(false);
     }, [isUpdate, lastOrder, quote, isQuoteValid]);
 
-    /* Escape = mentés + vissza, pontosan úgy, ahogy a "Tovább": a formot sütjük
-       el (requestSubmit), így a handleSubmit ugyanúgy lefut (leaveEditor → a blocker
-       ellenőriz+ment, ha kell). Kivétel: ha a törlés-modal nyitva van, az Escape
-       AZT zárja (natív <dialog>). */
-    useEffect(() => {
-        const onKeyDown = (event) => {
-            if (event.key === "Escape" && !document.querySelector("dialog[open]")) {
-                formRef.current?.requestSubmit();
-            }
-        };
-        window.addEventListener("keydown", onKeyDown);
-        return () => window.removeEventListener("keydown", onKeyDown);
-    }, []);
+    // Escape = mentés + vissza, a "Tovább" gombbal azonos úton (l. useEscapeSubmit).
+    useEscapeSubmit(formRef);
 
     /* A textarea magassága a TARTALOMHOZ nő, görgetősáv helyett (scrollbar tilos):
        előbb "auto"-ra állítjuk, hogy a böngésző a rows=4 alsó korláttal mérjen,
@@ -304,28 +294,22 @@ export default function QuoteSave(props) {
     }, [quote, isLoading, autoGrow, scrollCaretIntoView]);
 
 
-    /* A hibabuborékot a mező placeholderének KÖZEPÉRE horgonyozzuk: a szöveg
-       félszélességét a mező saját fontjával mérjük (canvas), a bal/felső padding
-       után. Így a buborék nyila a placeholder alá esik, nem a nagy mező közepére. */
-    const fieldOf = (selector, name) => {
-        const el = document.querySelector(selector);
-        const r = el.getBoundingClientRect();
-        const cs = getComputedStyle(el);
-        const ctx = document.createElement("canvas").getContext("2d");
-        ctx.font = cs.font || `${cs.fontSize} ${cs.fontFamily}`;
-        const half = ctx.measureText(el.placeholder).width / 2;
-        return {
-            // A hibaszöveg NEVE külön adható meg: a placeholder "Idézet szövege",
-            // de az üzenet rövidebb ("Az idézet kitöltése kötelező."). A pozíciót
-            // továbbra is a placeholder szélessége adja.
-            anchor: selector,
-            name: name ?? el.placeholder.toLowerCase(),
-            pos: {
-                x: r.left + (parseFloat(cs.paddingLeft) || 0) + half,
-                y: r.top + (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.fontSize) || 16),
-            },
-        };
-    };
+    /* A MENTENDŐ ADAT — mindhárom mentési útvonal (blocker, leváláskori mentés,
+       autosave) PONTOSAN ezt küldi; csak a hívás KÖRÜLI viselkedés tér el (hova
+       navigál, melyik tokent használja, mit tesz hibánál), ezért maga a mentés
+       szándékosan NEM közös. Egy új mező (pl. címke) így egy helyen kerül be.
+
+       A félkövér-markereket MENTÉSKOR normalizáljuk: a `**`-ok flip-flopját tiszta
+       bold-futamokra oldjuk fel (a tárolt és a `loaded` érték is normalizált).
+
+       useCallback: a blocker-effekt függőségi listájában ez az EGY érték áll a hat
+       nyers state helyett, így az effekt csak akkor fut újra, ha a payload tényleg
+       változhatott. */
+    const buildPayload = useCallback(() => {
+        const data = {quote: normalizeBold(quote), author: author, order: order, fontSize: fontSize};
+        if (isUpdate) data["id"] = quoteId;
+        return data;
+    }, [quote, author, order, fontSize, isUpdate, quoteId]);
 
     /* A NAVIGÁCIÓ-ELKAPÓ mentés magja: a blocker akkor billen "blocked"-ba, ha van
        mentenivaló ÉS navigálni próbálnak (Tovább, Escape, logó, "+", Vissza gomb,
@@ -341,17 +325,15 @@ export default function QuoteSave(props) {
 
         // Megkezdett, de az idézet üres: a saját hibabuborékot mutatjuk, és maradunk.
         // A szerző OPCIONÁLIS, azt nem kérjük számon.
-        if (!isQuoteValid) { setValidation(fieldOf("#quoteField", "idézet")); blocker.reset(); return; }
+        // A hibaszöveg neve külön: a placeholder "Idézet szövege", az üzenet rövidebb
+        // ("Az idézet kitöltése kötelező."); a pozíciót a placeholder szélessége adja.
+        if (!isQuoteValid) { setValidation(fieldAnchor("#quoteField", "idézet")); blocker.reset(); return; }
         setValidation(null);
 
         // Innentől mentünk; a mentés sikeréig NEM navigálunk. leftViaForm: az unmount-
         // mentés már ne fusson újra a proceed utáni leváláskor.
         leftViaForm.current = true;
-        // A félkövér-markereket MENTÉSKOR normalizáljuk: a `**`-ok flip-flopját tiszta
-        // bold-futamokra oldjuk fel (a tárolt/loaded érték is normalizált).
-        const data = {quote: normalizeBold(quote), author: author, order: order, fontSize: fontSize};
-        if (isUpdate) data["id"] = quoteId;
-        handleAxios(url, data, (response) => {
+        handleAxios(url, buildPayload(), (response) => {
             if (response.status === 200) { props.handleLinkClicked(); blocker.proceed(); }
             else { leftViaForm.current = false; blocker.reset(); }
         }, (error) => {
@@ -360,7 +342,7 @@ export default function QuoteSave(props) {
             logRequestError(error);
             blocker.reset();
         });
-    }, [blocker, isQuoteValid, quote, author, order, fontSize, isUpdate, quoteId, url, handleAxios, props]);
+    }, [blocker, isQuoteValid, buildPayload, url, handleAxios, props]);
 
     /* A Tovább gomb (és az Escape) már csak NAVIGÁL — az ellenőrzést+mentést a
        fenti blocker intézi, ha van mentenivaló. Érintetlen űrlapnál a blocker nem
@@ -390,55 +372,30 @@ export default function QuoteSave(props) {
        tehát 15 percnél már nincs mentetlen szerkesztő. (Kivétel: ha az autosave hálózati
        hibán elbukik, marad az eredeti korlát — 15 percnél a token lejárt, nem menthető.) */
     saveOnLeaveRef.current = () => {
-        if (leftViaForm.current) return;
-        const cleanedQuote = normalizeBold(quote);
-        if (isPristine(cleanedQuote) || !isQuoteValid) return;
-        const data = {quote: cleanedQuote, author: author, order: order, fontSize: fontSize};
-        if (isUpdate) data["id"] = quoteId;
+        if (!hasSilentWork()) return;
         // A zárványolt `token` (nem az élő tokenRef): kijelentkezéskor az élő már null.
-        handleAxios(url, data, () => {}, logRequestError, token);
+        handleAxios(url, buildPayload(), () => {}, logRequestError, token);
     };
 
     // A fenti mentés a szerkesztő LEVÁLÁSAKOR (kézi kijelentkezés) fut le, egyszer.
     useEffect(() => () => saveOnLeaveRef.current(), []);
 
-    /* Az autosave (AUTOSAVE_IDLE_MS tétlenség) — mint a leváláskori mentés, de siker
-       UTÁN a listára navigál (kilép a szerkesztőből). A closure-t minden renderben
-       frissítjük, hogy az óra a LEGFRISSEBB állapotot mentse. A mentés az ÉLŐ tokennel
-       megy (10 percnél még érvényes); leváláskori zárványolt token itt nem kell. */
-    const autosaveRef = useRef(() => {});
-    autosaveRef.current = () => {
-        if (leftViaForm.current) return;
-        const cleanedQuote = normalizeBold(quote);
+    /* Az AUTOSAVE (tétlenség után) — mint a leváláskori mentés, de siker UTÁN a listára
+       navigál (kilép a szerkesztőből). Az órát a közös useIdleTimer adja: minden
+       aktivitás újraindítja, tehát gépelés közben sosem sül el, és az auth 15 perces
+       óráját sem érinti (sem itt, sem a mentés utáni navigációnál nincs /refresh).
+       A mentés az ÉLŐ tokennel megy (10 percnél még érvényes), zárványolt itt nem kell. */
+    useIdleTimer(() => {
         // Nincs mentenivaló (érintetlen vagy érvénytelen): NEM navigálunk el — hagyjuk a
         // felhasználót, a 15 perces tétlenségi kijelentkezés majd a szokott módon jön.
-        if (isPristine(cleanedQuote) || !isQuoteValid) return;
-        const data = {quote: cleanedQuote, author: author, order: order, fontSize: fontSize};
-        if (isUpdate) data["id"] = quoteId;
+        if (!hasSilentWork()) return;
         /* A mentés MEGKEZDÉSE előtt jelöljük: a rákövetkező leválás (navigáció → unmount)
            NE mentsen újra (create-nél nehogy duplikáljon — ezért nem kell külön
            create→update váltás). Hibánál visszavonjuk, hogy egy későbbi távozás újrapróbálja. */
         leftViaForm.current = true;
-        handleAxios(url, data, () => { props.handleLinkClicked(); navigate("/quotes"); },
+        handleAxios(url, buildPayload(), () => { props.handleLinkClicked(); navigate("/quotes"); },
             (error) => { leftViaForm.current = false; logRequestError(error); });
-    };
-
-    /* Az autosave-óra: AUTOSAVE_IDLE_MS tétlenség után elsüti a mentést. MINDEN aktivitás
-       újraindítja (aktív gépelés közben tehát sosem sül el). Csak a szerkesztő életére
-       szól (mount→unmount). Az auth 15 perces óráját nem érinti: sem itt, sem a mentés
-       utáni navigációnál nincs /refresh vagy aktivitás-jelzés. */
-    useEffect(() => {
-        let timer = setTimeout(() => autosaveRef.current(), AUTOSAVE_IDLE_MS);
-        const reset = () => {
-            clearTimeout(timer);
-            timer = setTimeout(() => autosaveRef.current(), AUTOSAVE_IDLE_MS);
-        };
-        ACTIVITY_EVENTS.forEach((name) => window.addEventListener(name, reset, {passive: true}));
-        return () => {
-            clearTimeout(timer);
-            ACTIVITY_EVENTS.forEach((name) => window.removeEventListener(name, reset));
-        };
-    }, []);
+    });
 
     return (
         isLoading ? <Spinner class="min-vh-75"/> :
@@ -487,7 +444,13 @@ export default function QuoteSave(props) {
                     </div>
 
                     <div className="d-grid">
-                        <SubmitButton isDisabled={false} isOutline={false} color={color} text="Tovább"/>
+                        {/* A Tovább TILTOTT, amíg a kötelező mező (az idézet szövege) üres —
+                            pontosan a to-do mintájára (Todo/save.jsx: isTitleValid &&
+                            isCategoryValid). A szerző OPCIONÁLIS, azt nem kérjük számon.
+                            A blocker üres-idézet ága ettől NEM válik feleslegessé: a logó,
+                            a "+", a Vissza gomb és a szekció-váltó továbbra is elindíthat
+                            navigációt üres mezővel — ott a hibabuborék + maradás jár. */}
+                        <SubmitButton isDisabled={!isQuoteValid} isOutline={false} color={color} text="Tovább"/>
 
                         {isUpdate &&
                             <DeleteAndModal handleLinkClicked={props.handleLinkClicked} color={color}
@@ -496,18 +459,10 @@ export default function QuoteSave(props) {
                     </div>
                 </div>
 
-                {/* Kötelező-mező hibabuborék a natív helyett, a "Sorszám" tooltip
-                    stílusában; a placeholder közepére horgonyozva. A névelő a mezőnév
-                    kezdőbetűjéből: magánhangzó → "Az" (pl. "Az idézet…"). */}
-                <ReactTooltip id="quote-validation-tooltip" isOpen={validation !== null}
-                              position={validation?.pos} place="bottom"
-                              disableStyleInjection={true} border="1px solid var(--theme-accent)"
-                              style={{zIndex: 20, backgroundColor: "var(--theme-page-bg)",
-                                  color: "var(--theme-accent)"}}>
-                    {validation &&
-                        `${/^[aáeéiíoóöőuúüű]/i.test(validation.name) ? "Az" : "A"} ` +
-                        `${validation.name} kitöltése kötelező.`}
-                </ReactTooltip>
+                {/* Kötelező-mező hibabuborék (l. Editor/validationTooltip). Külön id,
+                    mert a to-do szerkesztőé is él a lapon — az id-ütközést a
+                    react-tooltip nem tűrné. */}
+                <ValidationTooltip id="quote-validation-tooltip" validation={validation}/>
 
             </form>
     );
