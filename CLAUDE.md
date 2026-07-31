@@ -151,3 +151,10 @@ komponensek nagy része átkerül, csak az új backend és kategóriák köré b
   épül (betöltési sorrend, verziófüggő viselkedés, DOM-sorrend), tedd
   explicitté — konkrét érték + rövid komment a kényszerről. (Tanulság: a régi
   kód CSS-sorrend- és z-index-döntetlenekre épített, amik némán elromlottak.)
+- **`ELTÉRÉS`-komment**: ahol egy szekció (to-do, idézet, később film…) SZÁNDÉKOSAN
+  másképp működik, mint a párja, azt kommentben jelöljük, az `ELTÉRÉS` szóval
+  kezdve — így `grep "ELTÉRÉS"`-sel az összes tudatos elhajlás előkereshető.
+  Három kötelező eleme van: **mitől** tér el (a párja konkrét fájlneve), **miben**,
+  és **miért**. Indoka: két párhuzamos szekció között az olvasó nem tudja
+  megkülönböztetni a tudatos döntést az elfelejtett átvezetéstől — csak a komment
+  dönti el. (Ha az eltérésnek nincs jó indoka, az nem komment-, hanem javítás-kérdés.)
