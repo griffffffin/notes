@@ -13,6 +13,7 @@ const path = require("path");
 require("dotenv").config({path: path.join(__dirname, "../.env")});
 const Todo = require("../src/models/todo");
 const Quote = require("../src/models/quote");
+const {localDateString} = require("../src/localDate");
 
 const EXPORT_DIR = process.env.EXPORT_DIR || "/opt/backups/to-do/daily";
 // Kategóriánként ennyi LEGFRISSEBB exportfájlt tartunk meg, a többit töröljük.
@@ -51,8 +52,11 @@ async function exportCategory(category, startOfWindow, endOfWindow) {
         return;
     }
     const documents = await category.model.find(scope).sort("user order").lean();
+    /* A fájlnév dátuma a VIZSGÁLT nap, HELYI idő szerint (l. localDate.js). Az
+       ISO-alak itt egy napot visszalépne: a helyi éjfél UTC-ben az előző nap
+       22:00 (nyáron), amitől a mentés címkéje hazudna egy napot. */
     const file = path.join(EXPORT_DIR,
-        category.name + "-" + startOfWindow.toISOString().slice(0, 10) + ".json");
+        category.name + "-" + localDateString(startOfWindow) + ".json");
     // 0600: az export a felhasználó adatait tartalmazza — csak a tulajdonos olvashassa
     fs.writeFileSync(file, JSON.stringify(documents, null, 2) + "\n", {mode: 0o600});
     fs.chmodSync(file, 0o600);   // ha a fájl már létezett, a writeFileSync mode-ja nem érvényesül
