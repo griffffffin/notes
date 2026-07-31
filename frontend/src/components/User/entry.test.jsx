@@ -116,7 +116,13 @@ describe("Entry — regisztráció", () => {
 
 /* A bejelentkezés és a regisztráció UGYANAZT az Entry komponenst rendereli,
    csak más proppal — ezért a React alapból megtartaná a példányt a váltáskor.
-   Itt a valódi route-táblát rendereljük, mert a key épp abban él. */
+   Itt a valódi route-táblát rendereljük, mert a key épp abban él.
+
+   ELTÉRÉS a többi route-teszttől: ez NEM a közös test/renderRoutes segédet
+   használja, mert az a hitelesítést MOCKOLTNAK feltételezi (a lista- és
+   szerkesztő-tesztek kicserélik az auth-contextet). A ki-/bejelentkezés viszont
+   épp az AuthProvider valódi működése, ezért itt a teljes, valódi provider-fa
+   kell — a közös segéddel ezt a tesztet nem lehetne megírni. */
 describe("Bejelentkezés és regisztráció közti váltás", () => {
     function renderRoutes() {
         window.history.pushState({}, "", "/");

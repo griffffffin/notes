@@ -30,6 +30,6 @@ export default defineConfig({
     // tényleges megjelenítés. Gyors, és a logika teszteléséhez elég.
     environment: 'jsdom',
     globals: true,
-    setupFiles: './src/test/setup.js',
+    setupFiles: './src/test/setup.jsx',
   },
 })

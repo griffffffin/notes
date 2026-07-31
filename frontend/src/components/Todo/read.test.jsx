@@ -3,8 +3,8 @@ import {CookiesProvider} from "react-cookie";
 import {MemoryRouter} from "react-router-dom";
 import {beforeEach, describe, expect, it, vi} from "vitest";
 import Read from "./read";
-import Routes from "../routes";
 import {ThemeProvider} from "../../contexts/theme";
+import {renderRoutes} from "../../test/renderRoutes";
 
 /* A Context-mock ÁLLANDÓ objektumot adjon vissza: a komponens effektje a
    handleAxios azonosságára van felfüggesztve, így egy rendernként újra gyártott
@@ -31,9 +31,6 @@ vi.mock("@dnd-kit/core", async (importOriginal) => {
         },
     };
 });
-vi.mock("@fortawesome/react-fontawesome", () => ({
-    FontAwesomeIcon: ({icon, ...rest}) => <span data-icon={String(icon)} {...rest}/>,
-}));
 
 
 /* A sorszámok SZÁNDÉKOSAN nem 1,2,3: egy szűrt nézetben (kategória/szín) a
@@ -165,19 +162,6 @@ describe("Szűrő az URL-ből", () => {
        főleg nem egy örökké pörgő betöltő (a régi, navigációs state-re épülő kód
        F5-nél üres szűrőt küldött, amit a szerver elutasított, a spinner meg
        örökre pörgött). */
-    const renderRoutes = (path) => {
-        window.history.pushState({}, "", path);
-        return render(
-            <CookiesProvider>
-                <ThemeProvider>
-                    <Routes categories={[]} handleLinkClicked={vi.fn()} handleCategoryChange={vi.fn()}
-                            setIsColorAngleClicked={vi.fn()} isColorAngleClicked={false}
-                            setIsCategoryAngleClicked={vi.fn()} isCategoryAngleClicked={false}/>
-                </ThemeProvider>
-            </CookiesProvider>
-        );
-    };
-
     it("/to-do/category/:name a dekódolt name-mel szűrt kérést küld", async () => {
         handleAxios.mockImplementation((url, data, then) => {
             then({data: url === "/to-do" ? TODOS : []});

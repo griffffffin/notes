@@ -2,7 +2,6 @@ import {fireEvent, render, screen} from "@testing-library/react";
 import {describe, expect, it, vi} from "vitest";
 import MoreTask from "./moreTask";
 
-vi.mock("@fortawesome/react-fontawesome", () => ({FontAwesomeIcon: () => <span/>}));
 
 describe("MoreTask új listaelem", () => {
     it("az új listaelem a legnagyobb kulcs + 1 azonosítót kapja, és a taskOrder végére kerül", () => {

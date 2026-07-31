@@ -4,9 +4,6 @@ import {SortableContext} from "@dnd-kit/sortable";
 import {describe, expect, it, vi} from "vitest";
 import Task from "./task";
 
-/* Az ikon-mock: a valódi library.add(fas) mind az ~1600 ikont behúzná, amit a
-   Pi percekig transzformál. A pipa/húzás-logikához az ikon renderje nem kell. */
-vi.mock("@fortawesome/react-fontawesome", () => ({FontAwesomeIcon: () => <span/>}));
 
 /* A Task useSortable-t hív, ami a SortableContextre támaszkodik — ezért valódi
    DnD-kontextusba ágyazzuk. NEM húzunk: a checkbox/mező LOGIKÁJÁT vizsgáljuk,

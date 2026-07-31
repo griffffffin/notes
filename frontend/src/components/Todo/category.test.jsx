@@ -2,7 +2,6 @@ import {fireEvent, render, screen} from "@testing-library/react";
 import {describe, expect, it, vi} from "vitest";
 import Category from "./category";
 
-vi.mock("@fortawesome/react-fontawesome", () => ({FontAwesomeIcon: () => <span/>}));
 
 const setup = (overrides = {}) => {
     const props = {

@@ -9,9 +9,6 @@ import {ThemeProvider} from "../../contexts/theme";
 /* Az ikonokat data-icon attribútummá alakítjuk: a fill/kijelentkezés gombok
    csak ikont hordoznak (nincs szöveges nevük), így ez teszi őket kereshetővé.
    A valódi library.add(fas) ráadásul mind az ikont behúzná (lassú a Pi-n). */
-vi.mock("@fortawesome/react-fontawesome", () => ({
-    FontAwesomeIcon: ({icon, ...rest}) => <span data-icon={String(icon)} {...rest}/>,
-}));
 
 // A kijelentkezéshez a valódi AuthProvider helyett elég a logout kimockolása.
 const {logout} = vi.hoisted(() => ({logout: vi.fn()}));

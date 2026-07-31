@@ -16,7 +16,6 @@ vi.mock("@dnd-kit/core", async (importOriginal) => {
         },
     };
 });
-vi.mock("@fortawesome/react-fontawesome", () => ({FontAwesomeIcon: () => null}));
 
 const makeTodo = () => ({
     columns: {createColumn: {id: "createColumn", taskOrder: [10, 20, 30]}},

@@ -5,6 +5,24 @@ import "@testing-library/jest-dom/vitest";
 import {cleanup} from "@testing-library/react";
 import {afterEach, vi} from "vitest";
 
+/* Az ikon-könyvtár GLOBÁLIS cseréje egy egyszerű <span>-re.
+
+   Nem kényelmi kérdés: a valódi FontAwesome `library.add(fas)`-a mind az ~1600
+   ikont behúzza, amit a Pi percekig transzformál — emiatt a tesztek időtúllépéssel
+   szálltak el. Az ikonok kinézete amúgy sem tesztelhető jsdomban (nincs
+   megjelenítés), a JELENLÉTÜK viszont igen: a data-icon attribútum megőrzi, melyik
+   ikont kérte a komponens, így a rá épülő állítások (pl. a szem nyitott/csukott
+   állapota) továbbra is működnek.
+
+   Miért itt, és nem tesztfájlonként? Mert tíz tesztfájl írta le ugyanezt a három
+   sort, két kissé eltérő változatban — ez zaj, nem a tesztek tárgya. Ha egy jövőbeli
+   teszt mégis a VALÓDI könyvtárat kérné, a saját fájljában vi.unmock-olhatja.
+
+   (A fájl azért .jsx, mert JSX-et tartalmaz: a Vite csak .jsx-ben fordítja.) */
+vi.mock("@fortawesome/react-fontawesome", () => ({
+    FontAwesomeIcon: ({icon, ...rest}) => <span data-icon={String(icon)} {...rest}/>,
+}));
+
 /* A jsdom nem ismeri a matchMedia-t: nincs benne tényleges elrendezés, tehát
    nincs mihez képest eldöntenie, illeszkedik-e egy médialekérdezés. A
    böngészőben viszont szabványos API — nem a KÓD dolga védekezni a hiánya

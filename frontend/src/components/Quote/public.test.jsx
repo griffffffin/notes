@@ -1,10 +1,7 @@
-import {render, screen} from "@testing-library/react";
-import {CookiesProvider} from "react-cookie";
+import {screen} from "@testing-library/react";
 import {beforeEach, describe, expect, it, vi} from "vitest";
-import Routes from "../routes";
-import {ThemeProvider} from "../../contexts/theme";
+import {renderRoutes} from "../../test/renderRoutes";
 
-vi.mock("@fortawesome/react-fontawesome", () => ({FontAwesomeIcon: () => <span/>}));
 
 const QUOTE = {_id: "q-1", quote: "Megosztott idézet.", author: "Márai", order: 1};
 
@@ -13,19 +10,6 @@ const {handleAxios, auth} = vi.hoisted(() => {
     return {handleAxios: fn, auth: {isLoggedIn: true, handleAxios: fn}};
 });
 vi.mock("../../contexts/auth-context", () => ({useAuth: () => auth}));
-
-const renderRoutes = (path) => {
-    window.history.pushState({}, "", path);
-    return render(
-        <CookiesProvider>
-            <ThemeProvider>
-                <Routes categories={[]} handleLinkClicked={vi.fn()} handleCategoryChange={vi.fn()}
-                        setIsColorAngleClicked={vi.fn()} isColorAngleClicked={false}
-                        setIsCategoryAngleClicked={vi.fn()} isCategoryAngleClicked={false}/>
-            </ThemeProvider>
-        </CookiesProvider>
-    );
-};
 
 beforeEach(() => {
     handleAxios.mockReset();
