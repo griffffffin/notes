@@ -8,8 +8,11 @@ const serverError = require("../../serverError");
    írás-műveletek (create/update/delete/reorder) továbbra is auth + tulajdonos-
    ellenőrzés mögött vannak, tehát a megosztás CSAK olvasásra jó.
 
-   Nem létező idézetnél 404 (nem 403, mint a to-dónál): itt nincs mit rejteni,
-   az idézetek eleve nyilvánosan olvashatók.
+   ELTÉRÉS a többi olvasó-végponttól (Todo/readById.js, Quote/readForEdit.js): ott
+   a nem létező elem 403-at kap (a létezést sem áruljuk el idegennek), itt 404-et.
+   Azért más, mert itt nincs mit rejteni: ez a végpont eleve publikus, bárki
+   olvashatja bármelyik idézetet, akinek megvan az azonosítója — a "van ilyen, de
+   nem a tiéd" fogalma itt nem létezik.
 
    A válasz egy WHITELIST — csak a felsorolt mezők mennek ki, semmi más. Így a
    tulajdonos user-azonosítója és az időbélyegek (createdAt/updatedAt) SOSEM

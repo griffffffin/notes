@@ -2,6 +2,7 @@ const router = require("express").Router();
 const Quote = require("../../models/quote");
 const serverError = require("../../serverError");
 const escapeRegex = require("./escapeRegex");
+const {findOwnedList} = require("../../ownership");
 
 /* A keresés SZÖVEG-módjának találatai: azok a saját idézetek, amelyekben a
    keresett kifejezés RÉSZLETKÉNT (substring) szerepel az idézet SZÖVEGÉBEN VAGY a
@@ -16,7 +17,7 @@ const escapeRegex = require("./escapeRegex");
 module.exports = router.post("/", (request, response) => {
     const pattern = escapeRegex(request.body.term.trim());
     const regex = {$regex: pattern, $options: "i"};
-    Quote.find({user: request.userId, $or: [{quote: regex}, {author: regex}]}).sort("order")
+    findOwnedList(Quote, request.userId, {$or: [{quote: regex}, {author: regex}]})
         .then((quotes) => response.json(quotes))
         .catch((error) => serverError(response, error, "Quote.readSearch"));
 });

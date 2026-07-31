@@ -1,13 +1,12 @@
 const router = require("express").Router();
-const find = require("./functions/find");
+const Todo = require("../../models/todo");
+const serverError = require("../../serverError");
+const {lastOrder} = require("../../ordering");
 
-module.exports = router.post("/", ((request, response) =>
-    find({user: request.userId}, null, response, (todos) => {
-            let lastOrder = 0;
-            for (const [key] of Object.entries(todos)) {
-                const order = todos[key].order;
-                if (order > lastOrder) lastOrder = order;
-            }
-            response.json(lastOrder);
-        }
-    )));
+/* A felhasználó legnagyobb to-do sorszáma — a szerkesztő sorszám-választójának
+   felső korlátja. A számítás a közös ordering modulban él (indexre támaszkodó
+   sort + limit 1), ugyanaz, mint az idézeteknél. */
+module.exports = router.post("/", (request, response) =>
+    lastOrder(Todo, request.userId)
+        .then((order) => response.json(order))
+        .catch((error) => serverError(response, error, "Todo.readLastOrder")));

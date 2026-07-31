@@ -1,6 +1,12 @@
 const router = require("express").Router();
-const find = require("./functions/find");
+const Todo = require("../../models/todo");
+const serverError = require("../../serverError");
+const {findOwnedList} = require("../../ownership");
 
-module.exports = router.post("/", ((request, response) =>
-    find({user: request.userId, category: request.body.category},
-        "order", response, (todos) => response.json(todos))));
+/* A saját to-dók egy kategóriára szűrve (/to-do/category/:name) — az idézetek
+   szerző-szűrésének párja. A szűrő-értéket a validateCategoryFilter engedte át
+   stringként, tehát operátor nem juthat a lekérdezésbe. */
+module.exports = router.post("/", (request, response) =>
+    findOwnedList(Todo, request.userId, {category: request.body.category})
+        .then((todos) => response.json(todos))
+        .catch((error) => serverError(response, error, "Todo.readByCategory")));
