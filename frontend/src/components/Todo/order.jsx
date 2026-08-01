@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useRef} from "react";
 import {Tooltip as ReactTooltip} from "react-tooltip";
+import {TOOLTIP_MIDDLEWARES} from "../../tooltipMiddlewares";
 
 /* Ennyit vár a léptető két lépés között — ÉS ennyivel később mozdul a kattintásra
    is (a kattintás egyetlen lépése is ezen az időzítőn megy). EGY helyen áll, mert
@@ -128,8 +129,15 @@ export default function Order(props) {
                 react-tooltip alapértelmezett szürke háttere + fehér szövege
                 helyett: háttér a lap (--theme-page-bg), szöveg és keret a
                 kiemelőszín (--theme-accent). A színeket inline adjuk, mert a
-                react-tooltip a saját (injektálatlan) stílusát tenné rá. */}
+                react-tooltip a saját (injektálatlan) stílusát tenné rá.
+
+                A middlewares (l. tooltipMiddlewares.js) az egész appban közös: a
+                buborék KERESZTirányú kilógástól nem billenhet át oldalra, csak
+                elcsúszik. Ez a stepper a kártya JOBB széléhez tapad, tehát a
+                telefon jobb szélén ugyanaz fenyegetné, ami a hibabuborékot a
+                balon utolérte. */}
             <ReactTooltip id={tooltipId} place={props.tooltipPlace ?? "bottom"} clickable={true}
+                          middlewares={TOOLTIP_MIDDLEWARES}
                           disableStyleInjection={true}
                           border="1px solid var(--theme-accent)"
                           style={{zIndex: 10, backgroundColor: "var(--theme-page-bg)",

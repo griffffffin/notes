@@ -1,5 +1,6 @@
 import {Tooltip as ReactTooltip} from "react-tooltip";
 import {useTheme} from "../../../contexts/theme-context";
+import {TOOLTIP_MIDDLEWARES} from "../../../tooltipMiddlewares";
 
 export default function Tooltip() {
     const {color, colorHex, pageBackground} = useTheme();
@@ -18,8 +19,14 @@ export default function Tooltip() {
             is, ami nélkül a z-index hatástalan lenne (z-index csak pozicionált
             elemen működik).
             z-index 10: a react-tooltip alapértéke 1, ami a fókuszált input
-            (Bootstrap: 5) és a szem-gomb (6) alá esne. */}
+            (Bootstrap: 5) és a szem-gomb (6) alá esne.
+
+            A middlewares (l. tooltipMiddlewares.js) az egész appban közös: telefonon
+            se billenhessen át a buborék oldalra, csak csússzon beljebb. Ez a súgó ma
+            elfér (408 px-es nézetben mérve), de a szabály attól közös, hogy a szöveg
+            hosszabbra írása se törhesse el némán. */}
         <ReactTooltip id="tooltip" place="bottom" clickable={true} disableStyleInjection={true}
+                      middlewares={TOOLTIP_MIDDLEWARES}
                       border={"1px solid " + colorHex}
                       style={{backgroundColor: pageBackground, color: colorHex, zIndex: 10}}>
             A jelszó legalább <br/>8 karakter legyen.<br/>Kis-, nagybetűkből <br/>és számokból álljon.

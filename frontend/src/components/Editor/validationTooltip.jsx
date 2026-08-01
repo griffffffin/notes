@@ -1,4 +1,5 @@
 import {Tooltip as ReactTooltip} from "react-tooltip";
+import {TOOLTIP_MIDDLEWARES} from "../../tooltipMiddlewares";
 
 /* A magyar határozott névelő a mezőnév KEZDŐBETŰJÉBŐL: magánhangzó → "Az",
    egyébként "A". Az ékezetes magánhangzók is benne vannak (idézet, ábra, ütem…);
@@ -14,11 +15,16 @@ const STARTS_WITH_VOWEL = /^[aáeéiíoóöőuúüű]/i;
    visszatérési értéke ({anchor, name, pos}).
 
    Az `id` azért PROP, mert egy lapon több tooltip is élhet, és a react-tooltip
-   id-vel azonosítja őket — a to-do és az idézet-szerkesztő ezért külön id-t ad. */
+   id-vel azonosítja őket — a to-do és az idézet-szerkesztő ezért külön id-t ad.
+
+   A middlewares (l. tooltipMiddlewares.js) itt a LEGFONTOSABB: ez a buborék egy
+   PONTRA horgonyzik (a placeholder közepére), nem elemre, ezért telefon-szélességen
+   a bal képernyőszélhez kerül közel — a react-tooltip alapbeállításával ilyenkor
+   oldalra, a mezőre nyílt ki. */
 export default function ValidationTooltip({id, validation}) {
     return (
         <ReactTooltip id={id} isOpen={validation !== null}
-                      position={validation?.pos} place="bottom"
+                      position={validation?.pos} place="bottom" middlewares={TOOLTIP_MIDDLEWARES}
                       disableStyleInjection={true} border="1px solid var(--theme-accent)"
                       style={{zIndex: 20, backgroundColor: "var(--theme-page-bg)",
                           color: "var(--theme-accent)"}}>
