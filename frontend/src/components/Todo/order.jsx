@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useRef} from "react";
 import {Tooltip as ReactTooltip} from "react-tooltip";
 import {TOOLTIP_MIDDLEWARES} from "../../tooltipMiddlewares";
+import {useTooltipOpen, useTooltipToggle} from "../../tooltipRegistry";
 
 /* Ennyit vár a léptető két lépés között — ÉS ennyivel később mozdul a kattintásra
    is (a kattintás egyetlen lépése is ezen az időzítőn megy). EGY helyen áll, mert
@@ -20,6 +21,12 @@ export default function Order(props) {
     const min = props.min ?? 1;
     const step = props.step ?? 1;
     const tooltipId = props.tooltipId ?? "order-tooltip";
+    /* A súgó nyitottságát a lap KÖZÖS nyilvántartása mondja meg (l. tooltipRegistry):
+       egyszerre egy tooltip lehet nyitva, tehát ennek a megnyílása becsukja a
+       hibabuborékot és a másik stepper súgóját is. A könyvtár saját hover-eseményei
+       a toggle-ön át jutnak el a nyilvántartáshoz. */
+    const isTooltipOpen = useTooltipOpen(tooltipId);
+    const toggleTooltip = useTooltipToggle(tooltipId);
     /* A felső korlát: ha a hívó megadja a max propot (betűméret: 200), az; különben
        a sorszám-minta last+1-e. A `last` a MEGLÉVŐ elemek száma; az új elem eggyel
        több pozíciót nyit, így a legnagyobb VÁLASZTHATÓ sorszám last+1. (Az új to-do
@@ -138,6 +145,7 @@ export default function Order(props) {
                 balon utolérte. */}
             <ReactTooltip id={tooltipId} place={props.tooltipPlace ?? "bottom"} clickable={true}
                           middlewares={TOOLTIP_MIDDLEWARES}
+                          isOpen={isTooltipOpen} setIsOpen={toggleTooltip}
                           disableStyleInjection={true}
                           border="1px solid var(--theme-accent)"
                           style={{zIndex: 10, backgroundColor: "var(--theme-page-bg)",

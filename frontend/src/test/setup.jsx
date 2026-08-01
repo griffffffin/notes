@@ -44,5 +44,21 @@ if (typeof window !== "undefined" && !window.matchMedia) {
     });
 }
 
+/* A jsdom a ResizeObservert sem ismeri — ugyanabból az okból, mint a matchMediát:
+   nincs benne elrendezés, tehát nincs mit "átméretezni". A böngészőben viszont
+   szabványos API, és a react-tooltip a MEGNYITOTT buborékot ezzel tartja a
+   horgonyán (a floating-ui autoUpdate-je kéri). Enélkül minden olyan teszt
+   elszáll, amelyik ténylegesen kinyit egy tooltipet.
+
+   A pótlék szándékosan üres: figyel, de sosem jelez — jsdomban úgysem változna
+   semmi mérete, a tooltip pedig a megnyitáskori pozíciójában marad. */
+if (typeof globalThis.ResizeObserver === "undefined") {
+    globalThis.ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+    };
+}
+
 // Teszt után takarítunk: különben az előző teszt DOM-ja beleszólna a következőbe.
 afterEach(cleanup);

@@ -1,9 +1,13 @@
 import {Tooltip as ReactTooltip} from "react-tooltip";
 import {useTheme} from "../../../contexts/theme-context";
 import {TOOLTIP_MIDDLEWARES} from "../../../tooltipMiddlewares";
+import {useTooltipOpen, useTooltipToggle} from "../../../tooltipRegistry";
 
 export default function Tooltip() {
     const {color, colorHex, pageBackground} = useTheme();
+    // Egyszerre egy tooltip lehet nyitva a lapon (l. tooltipRegistry).
+    const isOpen = useTooltipOpen("tooltip");
+    const toggle = useTooltipToggle("tooltip");
 
     return (<>
         <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="currentColor" tabIndex="-1"
@@ -26,7 +30,7 @@ export default function Tooltip() {
             elfér (408 px-es nézetben mérve), de a szabály attól közös, hogy a szöveg
             hosszabbra írása se törhesse el némán. */}
         <ReactTooltip id="tooltip" place="bottom" clickable={true} disableStyleInjection={true}
-                      middlewares={TOOLTIP_MIDDLEWARES}
+                      middlewares={TOOLTIP_MIDDLEWARES} isOpen={isOpen} setIsOpen={toggle}
                       border={"1px solid " + colorHex}
                       style={{backgroundColor: pageBackground, color: colorHex, zIndex: 10}}>
             A jelszó legalább <br/>8 karakter legyen.<br/>Kis-, nagybetűkből <br/>és számokból álljon.
