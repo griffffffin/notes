@@ -7,7 +7,7 @@ import {setTooltipOpen, useTooltipOpen} from "../../tooltipRegistry";
 
 /* Meddig marad a "Másolva" visszajelzés a tooltipben. Elég hosszú, hogy a
    felhasználó elolvassa, elég rövid, hogy ne ragadjon ott. */
-const COPIED_FEEDBACK_MS = 1600;
+const COPIED_FEEDBACK_MS = 1200;
 
 const TOOLTIP_ID = "share-tooltip";
 
@@ -27,15 +27,15 @@ export default function ShareButton({author, quoteId}) {
        súgó hoverre. A hibaágnak is van szövege: a másolás megtagadható (szigorú
        böngésző-beállítás), és a néma kudarc rosszabb, mint a hír.
 
-       A state nem a puszta szöveg, hanem {text, nonce} — és ez a nonce nem
-       fölösleges dísz. Kétszer egymás után UGYANAZT a szöveget állítanánk be, amit
-       a React nem tekint változásnak: nem rajzol újra, tehát a lenti effekt sem
-       futna le, és a buborék nem nyílna ki újra. Márpedig közben becsukhatta más
-       (a "csak egy tooltip lehet nyitva" szabály: elég a sorszám-léptető fölé vinni
-       a kurzort) — ez volt a "néha nem reagál a gomb" hiba. A növekvő nonce-tól a
-       state MINDIG új, tehát az effekt mindig lefut. */
+       A state OBJEKTUM (szöveg + a buborék horgony-pontja), és ez nem csak
+       kényelem: minden kattintás ÚJ objektumot állít be, tehát a React biztosan
+       újrarajzol, és a lenti effekt is lefut. Puszta szövegnél a második
+       kattintás UGYANAZT az értéket állítaná be, amit a React nem tekint
+       változásnak — az effekt nem futna, és a buborék nem nyílna ki újra, pedig
+       közben becsukhatta más (a "csak egy tooltip lehet nyitva" szabály: elég a
+       sorszám-léptető fölé vinni a kurzort). Ez volt a "néha nem reagál a gomb"
+       hiba, ezért az objektum-alak itt KÖTELEZŐ, nem ízlés kérdése. */
     const [feedback, setFeedback] = useState(null);
-    const copyCount = useRef(0);
     const timer = useRef(null);
     const icon = useRef(null);
     const isTooltipOpen = useTooltipOpen(TOOLTIP_ID);
@@ -75,11 +75,8 @@ export default function ShareButton({author, quoteId}) {
            Ponttal a számításnak nincs mire várnia — a szerkesztő hibabuboréka is
            így működik, az elsőre is megjelenik. */
         const rect = icon.current.getBoundingClientRect();
-        // A nonce miatt a state minden kattintásra új — l. a fenti indoklást.
-        copyCount.current += 1;
         setFeedback({
             text: copied ? "Link másolva." : "Sikertelen másolás.",
-            nonce: copyCount.current,
             pos: {x: rect.left, y: rect.top + rect.height / 2},
         });
         clearTimeout(timer.current);
