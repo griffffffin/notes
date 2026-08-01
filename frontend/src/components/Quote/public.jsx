@@ -37,7 +37,7 @@ export default function QuotePublic() {
     if (!quote) return <Spinner class="min-vh-75"/>;
 
     return (
-        <div className={"col-11 col-sm-10 col-md-8 col-lg-7 col-xl-6 card mx-auto mt-3 " +
+        <div className={"col-11 col-sm-10 col-md-8 col-lg-7 col-xl-6 card mx-auto mt-2 " +
             "bg-transparent border-2 border-" + color}>
             {/* A törzsszöveg SORKIZÁRT (mint a szerkesztőben és a listában); a szerző
                 marad középen (l. a card-footer text-center-jét). A textAlign inline,
