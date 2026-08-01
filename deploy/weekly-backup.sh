@@ -10,11 +10,17 @@ BACKUP_DIR=/opt/backups/to-do/weekly
 RETENTION_DAYS=700
 FILE="$BACKUP_DIR/postgres-$(date +%F).sql.gz"
 
-# 0600: a dump a teljes adatbázist tartalmazza — csak a tulajdonos olvashassa
-umask 077
+# 0640: a dump a teljes adatbázist tartalmazza, ezért világra olvashatóvá SOHA nem
+# tesszük — a csoport viszont olvashatja. A $BACKUP_DIR setgid bitet visel (2750,
+# l. deploy/setup-backup-permissions.sh), így az itt születő fájlok nem a postgres
+# csoportját öröklik, hanem az olvasó-csoportot: ettől válik a mentés a belépő user
+# (és rajta át egy külső gépre másolás) számára elérhetővé, sudo nélkül. Ez nem ad
+# új jogot senkinek — a belépő fióknak amúgy is teljes sudo joga van —, csak a
+# másoláshoz nem kell kerülőút.
+umask 027
 
 pg_dump -d postgres | gzip > "$FILE"
-chmod 600 "$FILE"
+chmod 640 "$FILE"
 
 # Ép a mentés? (gzip-integritás + nem gyanúsan apró)
 if gzip -t "$FILE" && [ "$(stat -c%s "$FILE")" -gt 1024 ]; then
