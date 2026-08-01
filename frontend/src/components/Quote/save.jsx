@@ -235,6 +235,11 @@ export default function QuoteSave(props) {
         }
     }, []);
 
+    /* A hibabuborék elfelejtése — a buborékon kívüli kattintásra hívja a
+       ValidationTooltip. Stabil (üres deps), mert a tooltip ebből köti a
+       dokumentum-szintű figyelőjét. */
+    const dismissValidation = useCallback(() => setValidation(null), []);
+
     const handleQuoteChange = (event) => {
         setQuote(event.target.value);
         setIsQuoteValid(event.target.value.trim().length > 0);
@@ -485,8 +490,11 @@ export default function QuoteSave(props) {
 
                 {/* Kötelező-mező hibabuborék (l. Editor/validationTooltip). Külön id,
                     mert a to-do szerkesztőé is él a lapon — az id-ütközést a
-                    react-tooltip nem tűrné. */}
-                <ValidationTooltip id="quote-validation-tooltip" validation={validation}/>
+                    react-tooltip nem tűrné. Az onDismiss a buborékon KÍVÜLI
+                    kattintásra felejti el a hibát (a buborék így nem ragad a
+                    képernyőn, ha a felhasználó nem gépel tovább). */}
+                <ValidationTooltip id="quote-validation-tooltip" validation={validation}
+                                   onDismiss={dismissValidation}/>
 
             </form>
     );

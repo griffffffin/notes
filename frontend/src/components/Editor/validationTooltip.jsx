@@ -19,11 +19,15 @@ const STARTS_WITH_VOWEL = /^[aáeéiíoóöőuúüű]/i;
    Az `id` azért PROP, mert egy lapon több tooltip is élhet, és a react-tooltip
    id-vel azonosítja őket — a to-do és az idézet-szerkesztő ezért külön id-t ad.
 
+   Az `onDismiss` a szerkesztő "felejtsd el a hibát" művelete (a validation
+   nullázása) — a buborék ELTŰNTETÉSÉT ugyanis nem intézheti el magában: amíg a
+   szerkesztő hibásnak tudja a mezőt, a buborék újra kinyílna.
+
    A middlewares (l. tooltipMiddlewares.js) itt a LEGFONTOSABB: ez a buborék egy
    PONTRA horgonyzik (a placeholder közepére), nem elemre, ezért telefon-szélességen
    a bal képernyőszélhez kerül közel — a react-tooltip alapbeállításával ilyenkor
    oldalra, a mezőre nyílt ki. */
-export default function ValidationTooltip({id, validation}) {
+export default function ValidationTooltip({id, validation, onDismiss}) {
     const isOpen = useTooltipOpen(id);
 
     /* A buborék a szerkesztő KÁRTYÁJÁN belül marad (a fieldAnchor a mező űrlapját
@@ -38,6 +42,25 @@ export default function ValidationTooltip({id, validation}) {
     useEffect(() => {
         setTooltipOpen(id, validation !== null);
     }, [id, validation]);
+
+    /* BÁRHOVA kattintva eltűnik. Miért kell ez, ha a mező gépelésre amúgy is
+       nullázza a hibát? Mert a felhasználó nem feltétlenül gépel: ha csak
+       félretenné a buborékot, ne ragadjon a képernyőn.
+
+       Nincs "a buborékra kattintva maradjon" kivétel, és nem is lehet: a buborék
+       — az app többi tooltipjével egységesen — NEM clickable, tehát
+       `pointer-events: none`-t visel, és a rajta ejtett kattintás valójában az
+       ALATTA lévő mezőt éri. Ez egyben a kívánt viselkedés: egyetlen kattintás
+       eltünteti a hibajelzést ÉS a mezőbe teszi a kurzort.
+
+       pointerdown (nem click) és a CAPTURE fázisban: így akkor is elsül, ha a
+       megnyomott elem maga megállítja az esemény terjedését, és nem várunk az
+       elengedésig. */
+    useEffect(() => {
+        if (!isOpen || !onDismiss) return;
+        document.addEventListener("pointerdown", onDismiss, true);
+        return () => document.removeEventListener("pointerdown", onDismiss, true);
+    }, [isOpen, onDismiss]);
 
     return (
         <ReactTooltip id={id} isOpen={isOpen}

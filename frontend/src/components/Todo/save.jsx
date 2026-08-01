@@ -195,6 +195,11 @@ export default function Save(props) {
         else if (validation?.anchor?.includes("Kategória") && isCategoryValid) setValidation(null);
     }, [validation, isTitleValid, isCategoryValid]);
 
+    /* …és a buborékon KÍVÜLI kattintásra is: aki nem gépel tovább, csak félretenné
+       a hibajelzést, ne ragadjon a képernyőn. Stabil (üres deps), mert a tooltip
+       ebből köti a dokumentum-szintű figyelőjét. */
+    const dismissValidation = useCallback(() => setValidation(null), []);
+
     const handleColorAngleClick = useCallback(() => setIsColorAngleClicked(!isColorAngleClicked),
         [isColorAngleClicked]);
 
@@ -404,7 +409,8 @@ export default function Save(props) {
 
                 {/* Kötelező-mező hibabuborék (l. Editor/validationTooltip): a kinézet,
                     a pozicionálás és a magyar névelő-szabály ott, egy helyen él. */}
-                <ValidationTooltip id="validation-tooltip" validation={validation}/>
+                <ValidationTooltip id="validation-tooltip" validation={validation}
+                                   onDismiss={dismissValidation}/>
 
             </form>
     );

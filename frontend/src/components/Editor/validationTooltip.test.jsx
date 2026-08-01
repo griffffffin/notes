@@ -1,4 +1,4 @@
-import {afterEach, describe, expect, it} from "vitest";
+import {afterEach, describe, expect, it, vi} from "vitest";
 import {render, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ValidationTooltip from "./validationTooltip";
@@ -34,6 +34,22 @@ describe("ValidationTooltip", () => {
         await waitFor(() => expect(isShown(MESSAGE)).toBe(true));
     });
 
+    /* A buborék ne ragadjon a képernyőn: aki nem gépel tovább, csak félretenné,
+       egy kattintással megteheti. A szerkesztő ilyenkor "elfelejti" a hibát
+       (onDismiss → validation = null), különben a buborék újra kinyílna. */
+    it("bárhova kattintva elfelejteti a hibát", async () => {
+        const onDismiss = vi.fn();
+        render(<>
+            <button type="button">máshova</button>
+            <ValidationTooltip id="v" validation={validation} onDismiss={onDismiss}/>
+        </>);
+        await waitFor(() => expect(isShown(MESSAGE)).toBe(true));
+
+        await userEvent.click(screen.getByRole("button", {name: "máshova"}));
+
+        expect(onDismiss).toHaveBeenCalled();
+    });
+
     /* A buborék NEM nyeli el a kattintást — az app többi tooltipjével egységesen
        nem "clickable", tehát pointer-events: none van rajta, és a rajta ejtett
        kattintás az ALATTA lévő mezőt éri. A tényleges átkattintást jsdomban nem
@@ -45,6 +61,19 @@ describe("ValidationTooltip", () => {
         await waitFor(() => expect(isShown(MESSAGE)).toBe(true));
 
         expect(screen.getByText(MESSAGE).closest(".react-tooltip").className).not.toMatch(/clickable/);
+    });
+
+    // Amíg nincs hiba, semmit nem figyelünk — a kattintás nem szól a szerkesztőnek.
+    it("hiba nélkül a kattintás nem hív semmit", async () => {
+        const onDismiss = vi.fn();
+        render(<>
+            <button type="button">máshova</button>
+            <ValidationTooltip id="v" validation={null} onDismiss={onDismiss}/>
+        </>);
+
+        await userEvent.click(screen.getByRole("button", {name: "máshova"}));
+
+        expect(onDismiss).not.toHaveBeenCalled();
     });
 
     /* Egyszerre egy buborék: a léptető súgójának megnyílása elteszi a hibabuborékot,
