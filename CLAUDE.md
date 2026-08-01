@@ -120,6 +120,12 @@ komponensek nagy része átkerül, csak az új backend és kategóriák köré b
   pg_dump gzippel); ~100 heti retenció (`RETENTION_DAYS=700`); cél: `/opt/backups/to-do/weekly/`
 - Mindkét timer `Persistent=true`: kimaradt futást bepótol. A retenció csak akkor
   töröl régit, ha a legfrissebb mentés bizonyítottan ép/nem üres.
+- A két mentést KÉT KÜLÖNBÖZŐ user írja (a napit az app user-e, a hetit a
+  `postgres`), ezért a könyvtárak jogát egyszer be kell állítani:
+  `sudo deploy/setup-backup-permissions.sh`. Ez adja a `weekly/` mappára a setgid
+  bitet, ami nélkül a heti dump csak a `postgres` usernek olvasható — így nem
+  lehetne külső gépre lementeni. Idempotens; újra kell futtatni, ha a
+  mentés-könyvtárak valaha újra létrejönnek.
 
 ## Terítés (deployment)
 
