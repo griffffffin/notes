@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, it} from "vitest";
 import {computePosition, flip, offset, shift} from "@floating-ui/dom";
-import {TOOLTIP_MIDDLEWARES} from "./tooltipMiddlewares";
+import {TOOLTIP_MIDDLEWARES, tooltipMiddlewares} from "./tooltipMiddlewares";
 
 /* A tooltip IRÁNYÁT teszteljük telefon-szélességen — vagyis pontosan azt, ami
    élesben elromlott: a kötelező-mező hibabuborék a mező bal széléhez horgonyozva
@@ -93,5 +93,40 @@ describe("tooltip-pozicionálás telefon-szélességen", () => {
         const {placement} = await place(REACT_TOOLTIP_DEFAULTS);
 
         expect(placement).toBe("right");
+    });
+});
+
+/* A hibabuborék nem a képernyőhöz, hanem a szerkesztő KÁRTYÁJÁHOZ igazodik: kilógva
+   a kártya kiemelőszínű keretét takarta ki (a buborék háttere lapszínű). A kártya a
+   telefon-nézetben a szélesség ~90%-a, középre igazítva. */
+const CARD_LEFT = 20;
+const CARD_WIDTH = 368;
+
+describe("a hibabuborék a szerkesztő kártyáján belül marad", () => {
+    let card;
+
+    beforeEach(() => {
+        card = document.createElement("div");
+        const rect = {x: CARD_LEFT, y: 10, width: CARD_WIDTH, height: 300,
+            left: CARD_LEFT, top: 10, right: CARD_LEFT + CARD_WIDTH, bottom: 310};
+        card.getBoundingClientRect = () => rect;
+        for (const [prop, value] of [["clientWidth", CARD_WIDTH], ["clientHeight", 300],
+            ["offsetWidth", CARD_WIDTH], ["offsetHeight", 300]]) {
+            Object.defineProperty(card, prop, {value, configurable: true});
+        }
+        document.body.appendChild(card);
+    });
+
+    it("a kártyán belülre csúszik be, nem csak a képernyőre", async () => {
+        const {x} = await place(tooltipMiddlewares(card));
+
+        expect(x).toBeGreaterThanOrEqual(CARD_LEFT + 8);
+    });
+
+    // Határ nélkül ugyanez a képernyő széléig csúszna — vagyis KI a kártya keretén.
+    it("határ nélkül a kártya keretén kívülre kerülne", async () => {
+        const {x} = await place(TOOLTIP_MIDDLEWARES);
+
+        expect(x).toBeLessThan(CARD_LEFT);
     });
 });

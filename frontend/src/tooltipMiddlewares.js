@@ -35,9 +35,24 @@ import {flip, offset, shift} from "@floating-ui/dom";
    FONTOS: ha a middleware-eket kézzel adjuk meg, a react-tooltip `offset` PROPJA
    hatástalanná válik (az alapértelmezett listát cseréljük le, amiben az offset is
    benne volt) — ezért szerepel itt is a 10 px, a könyvtár alapértékével egyezően.
-   Ha valahol más térköz kellene, az offset(...) értékét kell ott felülírni. */
-export const TOOLTIP_MIDDLEWARES = [
-    offset(10),
-    flip({crossAxis: false, fallbackAxisSideDirection: "none"}),
-    shift({padding: 8}),
-];
+   Ha valahol más térköz kellene, az offset(...) értékét kell ott felülírni.
+
+   A `boundary` az a doboz, amin BELÜL a buboréknak maradnia kell. Megadás nélkül ez
+   a képernyő; a szerkesztő hibabuboréka viszont a szerkesztő-KÁRTYÁT kapja meg
+   határnak, mert kilógva a kártya kiemelőszínű keretét takarta ki (a buborék
+   háttere lapszínű, tehát a keretvonalon egy fekete/fehér rés maradt).
+
+   A határt SZÁNDÉKOSAN csak a shift kapja meg, a flip nem: a buborék nem fér el
+   függőlegesen a kártyán belül, tehát a flip a kártyához mérve fölöslegesen
+   billegtetné az irányt. Az IRÁNY a képernyőhöz igazodik, a becsúsztatás a
+   kártyához. */
+export function tooltipMiddlewares(boundary) {
+    return [
+        offset(10),
+        flip({crossAxis: false, fallbackAxisSideDirection: "none"}),
+        shift({padding: 8, ...(boundary ? {boundary} : {})}),
+    ];
+}
+
+// A határ nélküli (képernyőhöz igazodó) alapkészlet — a tooltipek többsége ezt kapja.
+export const TOOLTIP_MIDDLEWARES = tooltipMiddlewares();

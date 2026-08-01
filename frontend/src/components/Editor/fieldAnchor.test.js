@@ -58,4 +58,21 @@ describe("fieldAnchor", () => {
         // top (jsdom: 0) + paddingTop (4) + fontSize (jsdom alap: 16) = 20
         expect(fieldAnchor("#field").pos.y).toBe(20);
     });
+
+    /* A buborék HATÁRA a mezőt tartó űrlap (= a szerkesztő kártyája): ezen belül
+       marad, hogy ne takarja ki a kártya keretét. */
+    it("a határ a mezőt tartalmazó űrlap", () => {
+        const form = document.createElement("form");
+        document.body.appendChild(form);
+        form.appendChild(addField({placeholder: "Cím"}));
+
+        expect(fieldAnchor("#field").boundary).toBe(form);
+    });
+
+    // Űrlapon kívüli mezőnél nincs határ — marad a képernyő (a floating-ui alapja).
+    it("űrlap nélkül nincs határ", () => {
+        addField({placeholder: "Cím"});
+
+        expect(fieldAnchor("#field").boundary).toBeUndefined();
+    });
 });

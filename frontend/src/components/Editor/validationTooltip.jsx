@@ -1,5 +1,6 @@
+import {useMemo} from "react";
 import {Tooltip as ReactTooltip} from "react-tooltip";
-import {TOOLTIP_MIDDLEWARES} from "../../tooltipMiddlewares";
+import {tooltipMiddlewares} from "../../tooltipMiddlewares";
 
 /* A magyar határozott névelő a mezőnév KEZDŐBETŰJÉBŐL: magánhangzó → "Az",
    egyébként "A". Az ékezetes magánhangzók is benne vannak (idézet, ábra, ütem…);
@@ -22,9 +23,15 @@ const STARTS_WITH_VOWEL = /^[aáeéiíoóöőuúüű]/i;
    a bal képernyőszélhez kerül közel — a react-tooltip alapbeállításával ilyenkor
    oldalra, a mezőre nyílt ki. */
 export default function ValidationTooltip({id, validation}) {
+    /* A buborék a szerkesztő KÁRTYÁJÁN belül marad (a fieldAnchor a mező űrlapját
+       adja határnak) — enélkül kilógna, és lapszínű hátterével kitakarná a kártya
+       keretét. useMemo: a react-tooltip a middleware-lista cseréjekor újraszámol,
+       tehát nem adhatunk neki minden renderben új tömböt. */
+    const middlewares = useMemo(() => tooltipMiddlewares(validation?.boundary), [validation?.boundary]);
+
     return (
         <ReactTooltip id={id} isOpen={validation !== null}
-                      position={validation?.pos} place="bottom" middlewares={TOOLTIP_MIDDLEWARES}
+                      position={validation?.pos} place="bottom" middlewares={middlewares}
                       disableStyleInjection={true} border="1px solid var(--theme-accent)"
                       style={{zIndex: 20, backgroundColor: "var(--theme-page-bg)",
                           color: "var(--theme-accent)"}}>
