@@ -37,7 +37,8 @@ export default function Tooltip() {
         <ReactTooltip id="tooltip" place="bottom" disableStyleInjection={true}
                       middlewares={TOOLTIP_MIDDLEWARES} isOpen={isOpen} setIsOpen={toggle}
                       border={"1px solid " + colorHex}
-                      style={{backgroundColor: pageBackground, color: colorHex, zIndex: 10}}>
+                      style={{backgroundColor: pageBackground, color: colorHex, zIndex: 10,
+                          userSelect: "none"}}>
             A jelszó legalább <br/>8 karakter legyen.<br/>Kis-, nagybetűkből <br/>és számokból álljon.
         </ReactTooltip>
     </>);

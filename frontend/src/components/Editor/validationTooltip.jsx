@@ -67,7 +67,7 @@ export default function ValidationTooltip({id, validation, onDismiss}) {
                       position={validation?.pos} place="bottom" middlewares={middlewares}
                       disableStyleInjection={true} border="1px solid var(--theme-accent)"
                       style={{zIndex: 20, backgroundColor: "var(--theme-page-bg)",
-                          color: "var(--theme-accent)"}}>
+                          color: "var(--theme-accent)", userSelect: "none"}}>
             {validation &&
                 `${STARTS_WITH_VOWEL.test(validation.name) ? "Az" : "A"} ` +
                 `${validation.name} kitöltése kötelező.`}

@@ -154,7 +154,8 @@ export default function Order(props) {
                           disableStyleInjection={true}
                           border="1px solid var(--theme-accent)"
                           style={{zIndex: 10, backgroundColor: "var(--theme-page-bg)",
-                                  color: "var(--theme-accent)", fontSize: "60%"}}>
+                                  color: "var(--theme-accent)", fontSize: "60%",
+                                  userSelect: "none"}}>
                 {props.tooltip ?? "Sorszám"}
             </ReactTooltip>
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor"

@@ -110,7 +110,8 @@ export default function ShareButton({author, quoteId}) {
                       middlewares={TOOLTIP_MIDDLEWARES} disableStyleInjection={true}
                       border="1px solid var(--theme-accent)"
                       style={{zIndex: 10, backgroundColor: "var(--theme-page-bg)",
-                          color: "var(--theme-accent)", fontSize: "0.9rem"}}>
+                          color: "var(--theme-accent)", fontSize: "0.9rem",
+                          userSelect: "none"}}>
             {feedback?.text}
         </ReactTooltip>
     </>);
