@@ -11,6 +11,14 @@ on:
     branches: [main]
   pull_request:
 
+# Gyors egymásutánban több push esetén a régebbi, még futó ellenőrzés eredménye
+# már senkit nem érdekel (úgyis a legfrissebb commit számít), de a futók számára
+# szabott keretet fogyasztja. A "group" ágankénti sorbanállót képez, a
+# "cancel-in-progress" pedig az újabb indulásakor megszakítja az előzőt.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   frontend:
     runs-on: ubuntu-latest
