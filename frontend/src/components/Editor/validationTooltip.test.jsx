@@ -34,6 +34,19 @@ describe("ValidationTooltip", () => {
         await waitFor(() => expect(isShown(MESSAGE)).toBe(true));
     });
 
+    /* A buborék NEM nyeli el a kattintást — az app többi tooltipjével egységesen
+       nem "clickable", tehát pointer-events: none van rajta, és a rajta ejtett
+       kattintás az ALATTA lévő mezőt éri. A tényleges átkattintást jsdomban nem
+       lehet ellenőrizni (nincs elrendezés, és a könyvtár CSS-e sem fut le), a
+       react-tooltip viszont osztályban is jelöli a kattinthatóságot — ezt fogjuk
+       meg, hogy egy visszacsúszó `clickable` ne maradjon némán a kódban. */
+    it("a buborék nem kattintható felület", async () => {
+        render(<ValidationTooltip id="v" validation={validation}/>);
+        await waitFor(() => expect(isShown(MESSAGE)).toBe(true));
+
+        expect(screen.getByText(MESSAGE).closest(".react-tooltip").className).not.toMatch(/clickable/);
+    });
+
     /* Egyszerre egy buborék: a léptető súgójának megnyílása elteszi a hibabuborékot,
        hogy ne takarják egymást. A léptetőt VALÓDI komponensként rendereljük — a
        szabály attól ér valamit, hogy a két külön komponens tényleg tud egymásról. */

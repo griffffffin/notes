@@ -28,8 +28,13 @@ export default function Tooltip() {
             A middlewares (l. tooltipMiddlewares.js) az egész appban közös: telefonon
             se billenhessen át a buborék oldalra, csak csússzon beljebb. Ez a súgó ma
             elfér (408 px-es nézetben mérve), de a szabály attól közös, hogy a szöveg
-            hosszabbra írása se törhesse el némán. */}
-        <ReactTooltip id="tooltip" place="bottom" clickable={true} disableStyleInjection={true}
+            hosszabbra írása se törhesse el némán.
+
+            clickable NINCS (szándékosan, mint a léptető-súgókon): a buborék puszta
+            felirat, nincs rajta mit megnyomni, viszont RÁLÓG az alatta lévő
+            jelszó-mezőre. Kattinthatóként elnyelné az oda szánt kattintást; így a
+            kattintás átmegy rajta, és a mezőbe kerül a kurzor. */}
+        <ReactTooltip id="tooltip" place="bottom" disableStyleInjection={true}
                       middlewares={TOOLTIP_MIDDLEWARES} isOpen={isOpen} setIsOpen={toggle}
                       border={"1px solid " + colorHex}
                       style={{backgroundColor: pageBackground, color: colorHex, zIndex: 10}}>

@@ -143,7 +143,12 @@ export default function Order(props) {
                 elcsúszik. Ez a stepper a kártya JOBB széléhez tapad, tehát a
                 telefon jobb szélén ugyanaz fenyegetné, ami a hibabuborékot a
                 balon utolérte. */}
-            <ReactTooltip id={tooltipId} place={props.tooltipPlace ?? "bottom"} clickable={true}
+            {/* clickable NINCS (szándékosan): a súgó puszta felirat, nincs rajta mit
+                megnyomni, viszont RÁLÓG a szomszédaira — a "Betűméret" buborék felfelé
+                nyílva pontosan a fölötte ülő megosztás-gombra esik. Kattinthatóként
+                elnyelné az oda szánt kattintást (mérve 2026-08-01: a gomb "néha nem
+                reagált"), így viszont a kattintás átmegy rajta. */}
+            <ReactTooltip id={tooltipId} place={props.tooltipPlace ?? "bottom"}
                           middlewares={TOOLTIP_MIDDLEWARES}
                           isOpen={isTooltipOpen} setIsOpen={toggleTooltip}
                           disableStyleInjection={true}
