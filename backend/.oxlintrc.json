@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // ELTÉRÉS a frontend/.oxlintrc.json-tól: itt nincs "react" plugin (nincs
+  // komponens és nincs hook), viszont van "node", "import" és "promise" — a
+  // backend jellemző hibái (rossz modul-útvonal, elnyelt Promise, nem létező
+  // core modul) ezekkel foghatók el. Az oxlint alapértelmezett plugin-listáját
+  // a mező MEGADÁSA felülírja, nem bővíti, ezért az itt megtartott "oxc" és
+  // "unicorn" is fel van sorolva.
+  "plugins": ["oxc", "unicorn", "node", "import", "promise"],
+  "rules": {
+    "no-unused-vars": "error"
+  }
+}

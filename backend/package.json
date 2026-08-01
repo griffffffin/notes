@@ -5,6 +5,7 @@
     "start": "node src/app.js",
     "dev": "node --watch src/app.js",
     "test": "node --test \"src/**/*.test.js\"",
+    "lint": "oxlint",
     "knip": "knip"
   },
   "dependencies": {
@@ -18,6 +19,7 @@
   },
   "devDependencies": {
     "knip": "^6.29.0",
+    "oxlint": "^1.76.0",
     "supertest": "^7.2.2"
   }
 }

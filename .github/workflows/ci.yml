@@ -45,6 +45,7 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
+      - run: npm run lint           # oxlint — saját szabálykészlet, l. backend/.oxlintrc.json
       - run: npm run knip
       # node --test: a tesztek saját Express appot építenek és a Mongoose-modelleket
       # mockolják, ezért ADATBÁZIS NÉLKÜL is lefutnak — a CI-nek nem kell FerretDB.
