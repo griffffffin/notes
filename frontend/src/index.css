@@ -471,6 +471,18 @@ form.card > .input-group:first-child > :last-child {
     border-top-right-radius: 27px !important;
 }
 
+/* …és ugyanez EGGYEL BELJEBB. Az idézet-szerkesztőben a sor jobb szélén már nem
+   közvetlenül a sorszám-toolbar áll, hanem egy ÁTLÁTSZÓ oszlop (.editor-side-column:
+   felül a sorszám-toolbar, alul a megosztás-gomb, l. Quote/save.jsx). A fenti szabály
+   így az átlátszó oszlopot kerekítené le — azon nem látszik semmi —, a fekete/fehér
+   hátterű toolbar viszont szögletes sarokkal takarná ki a card ívét. Ezért az oszlop
+   ELSŐ elemét (a toolbart) igazítjuk a card sarkához.
+
+   Miért nem overflow: hidden az oszlopon? Mert az a benne élő tooltipet is levágná. */
+form.card > .input-group:first-child > .editor-side-column > :first-child {
+    border-top-right-radius: 27px !important;
+}
+
 /* Az idézet-szerkesztő szövegmezője (Quote/save.jsx). A szöveg és a placeholder is
    felül, balra zárt. A magasság a tartalomhoz nő (autoGrow a save.jsx-ben a
    scrollHeight-re állítja), ezért a görgetősávot elrejtjük és a kézi átméretezőt is

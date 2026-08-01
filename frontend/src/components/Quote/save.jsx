@@ -3,6 +3,7 @@ import {useBlocker, useLocation, useNavigate, useParams} from "react-router-dom"
 import Spinner from "../spinner";
 import SubmitButton from "../Button/submitButton";
 import AuthorInput from "./authorInput";
+import ShareButton from "./shareButton";
 import Order, {STEP_DELAY_MS} from "../Todo/order";
 import DeleteAndModal from "../Todo/deleteAndModal";
 import {toggleBold, normalizeBold} from "./bold";
@@ -414,7 +415,30 @@ export default function QuoteSave(props) {
                               placeholder="Idézet szövege" rows="4" autoFocus
                               style={{"--quote-fs": fontSize + "%"}}
                               className={"form-control card-header caveat no-focus bg-transparent ms-1 text-" + color}/>
-                    <Order current={order} setOrder={setOrder} last={lastOrder} color={color}/>
+                    {/* A szövegmező MELLETT (nem alatta) egy jobbra igazított oszlop:
+                        legfelül a sorszám-léptető, LEGALUL a megosztás-gomb. A
+                        justify-content-between nyomja az ikont a sor aljára, így
+                        közvetlenül a card-body első sorában ülő BETŰMÉRET-léptető
+                        FÖLÉ kerül (a két léptető közé), miközben végig a szövegmező
+                        mellett marad. A pe-2 a léptetőével azonos jobb térköz, tehát
+                        az ikon pontosan a "+" gombok fölé esik. A flex-shrink-0 kell,
+                        hogy az oszlop telefonon se zsugorodjon a szövegmező javára.
+
+                        Az editor-side-column NEM dísz-osztály: az index.css ebből
+                        tudja, hogy a card jobb felső ívét most az oszlop ELSŐ eleme
+                        (a sorszám-toolbar) örökölje — enélkül a fekete hátterű
+                        toolbar szögletes sarka kitakarná a card lekerekítését. */}
+                    <div className="editor-side-column d-flex flex-column align-items-end justify-content-between flex-shrink-0">
+                        <Order current={order} setOrder={setOrder} last={lastOrder} color={color}/>
+                        {/* Csak update-nél: a publikus cím az idézet azonosítójára
+                            épül, ami create-nél még nem létezik. */}
+                        {/* Nincs alsó térköz (pb): az ikon a sor legaljára ül, hogy
+                            minél közelebb legyen az alatta következő betűméret-"+"-hoz.
+                            A pe-2 marad, az adja a "+" gombokkal EGY VONALBA eső jobb szélt. */}
+                        {isUpdate && <div className="pe-2 text-theme">
+                            <ShareButton author={author} quoteId={quoteId}/>
+                        </div>}
+                    </div>
                 </div>
 
                 {/* pb-3 (nem py-1): a legalsó gomb — create-nél a "Tovább",
