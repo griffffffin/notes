@@ -30,9 +30,14 @@ export default function SortableCardGrid({
     return (
         /* mt-3: a navbar és az ELSŐ kártyasor közötti levegő. Ez a rácson ül, nem a
            kártyán — a kártyáknak SEMMILYEN függőleges margójuk nincs (l. sortableCard),
-           a sorok közti térközt a .todo-grid row-gapje adja (index.css). Így az utolsó
-           sor alatt nincs térköz: a lista alja a kártyák aljánál végződik. */
-        <div className="container-fluid mt-3">
+           a sorok közti térközt a .todo-grid row-gapje adja (index.css).
+
+           pb-1: egy csepp levegő az UTOLSÓ sor alatt is, hogy a legalsó kártya kerete
+           ne érjen a lap aljához. Miért padding és nem margó (mb-1), pedig az azonos
+           méret? Mert az utolsó elem alsó MARGÓJA összeolvadhat a szülőjével
+           (margin collapsing), és akkor nem növelné a görgethető magasságot — a
+           térköz némán elmaradna. A belső térköz (padding) sosem olvad össze. */
+        <div className="container-fluid mt-3 pb-1">
             <DndContext sensors={sensors} collisionDetection={closestCenter}
                         onDragStart={handleDragStart} onDragEnd={handleDragEnd}
                         modifiers={MODIFIERS}
