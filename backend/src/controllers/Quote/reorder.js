@@ -17,7 +17,7 @@ module.exports = router.post("/", (request, response) => {
             /* A változatlan sorszám itt KÜLÖN ág (szemben az /update-tel): a húzás
                gyakran ér véget ugyanazon a helyen, és arra a saját, beszédes válasz
                jár — fölösleges írás nélkül. */
-            if (order === quote.order) return response.json("A sorrend változatlan.");
+            if (order === quote.order) return response.json("Sorrend változatlan.");
 
             return shiftForMove(Quote, request.userId, quote.order, order)
                 .then(() => Quote.findByIdAndUpdate(id, {order: order, updatedAt: new Date()},

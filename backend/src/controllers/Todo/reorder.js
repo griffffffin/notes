@@ -22,7 +22,7 @@ module.exports = router.post("/", (request, response) => {
             /* A változatlan sorszám itt KÜLÖN ág (szemben az /update-tel): a húzás
                gyakran ér véget ugyanazon a helyen, és arra a saját, beszédes válasz
                jár — fölösleges írás nélkül. */
-            if (order === todo.order) return response.json("A sorrend változatlan.");
+            if (order === todo.order) return response.json("Sorrend változatlan.");
 
             return shiftForMove(Todo, request.userId, todo.order, order)
                 .then(() => Todo.findByIdAndUpdate(id, {order: order, updatedAt: new Date()},
