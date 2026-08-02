@@ -28,6 +28,16 @@ CURL_TIMEOUT=10
 # újraindítás-ciklusba kergetne, ami csak a naplót szemeteli.
 RESTART_COOLDOWN=600
 
+# Frissen indult appot nem vizsgálunk: az Express felállása, a .env beolvasása és
+# az adatbázis-kapcsolat együtt néhány másodperc, ez alatt a /health még nem felel.
+# A timer OnBootSec=2min-je csak a BOOT utáni indulást fedi le — egy kézi
+# újraindítást (nálunk minden élesítés az) nem, tehát a percenkénti próba simán
+# beleeshet az indulásba. Enélkül a szonda egy egészséges, épp induló appot ver
+# agyon egy fölösleges újraindítással, és riasztó levelet is küld róla; ez 2026-08-01
+# és 08-02 folyamán valóban megtörtént. Ára: egy tényleg induláskor elhaló app
+# felfedezése egy körrel (egy perccel) később derül ki — ezt megéri.
+START_GRACE=60
+
 # A /run tmpfs: rebootkor ürül, tehát újraindulás után az első hiba azonnal
 # kaphat újraindítást, és az értesítés is újraindul tiszta lappal.
 STATE_DIR="/run"
@@ -89,6 +99,29 @@ send_mail() {
 # mellett), nincs mit ellenőrizni: nem a mi dolgunk elindítani, amit valaki
 # vagy valami tudatosan leállított.
 if ! systemctl is-active --quiet "$SERVICE"; then
+    exit 0
+fi
+
+# Mióta fut az app? MONOTON órából számoljuk (a systemd ezt is közli), nem a
+# fali óra időbélyegéből: az utóbbi óraátállításkor vagy NTP-ugráskor negatív
+# vagy óriási kort adna, és a szonda vagy örökre hallgatna, vagy fölöslegesen
+# újraindítana. A /proc/uptime ugyanannak a monoton órának a mai állása.
+service_age() {
+    started_us=$(systemctl show -p ActiveEnterTimestampMonotonic --value "$SERVICE" 2>/dev/null)
+    # Ha a systemd nem tud indulási időt mondani (üres, 0 vagy nem szám), akkor a
+    # türelmi idővel PONT egyenlő kort adunk vissza: az alábbi "-lt" így hamis
+    # lesz, tehát inkább vizsgálunk. A türelmi idő kényelmi szolgáltatás — ha nem
+    # tudjuk megalapozni, ne az életjel vesszen el miatta.
+    case "$started_us" in
+        ''|0|*[!0-9]*) echo "$START_GRACE"; return;;
+    esac
+    now_us=$(awk '{printf "%d", $1 * 1000000}' /proc/uptime)
+    echo $(( (now_us - started_us) / 1000000 ))
+}
+
+age=$(service_age)
+if [ "$age" -lt "$START_GRACE" ]; then
+    log "Az app ${age}s-e indult (türelmi idő: ${START_GRACE}s) — ezt a kört kihagyom."
     exit 0
 fi
 
