@@ -31,5 +31,17 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/test/setup.jsx',
+    /* A vitest alapértelmezett 5 másodperces ESET-határa ezen a gépen kevés.
+       A tesztfájlok a Pi négy magján PÁRHUZAMOSAN futnak, és a legnehezebb
+       eseteink (teljes szerkesztő-render + karakterenként szimulált gépelés)
+       magukban is 2-3 másodpercesek — terhelés alatt ez átcsúszik 5 fölé, és a
+       futás időtúllépéssel bukik, holott a kód hibátlan. Ez a fajta bukás a
+       legrosszabb helyen jön elő: a CI-ben, egy tőle független változtatás
+       ürügyén, és a hibaüzenete semmit nem árul el arról, mi a valódi baj.
+
+       15 s bőven a leglassabb valós esetünk fölött van, de VÉGES: egy tényleg
+       beragadt teszt (elmaradt await, sosem teljesülő promise) továbbra is
+       elhasal — csak nem fagyasztja be a futást. */
+    testTimeout: 15000,
   },
 })
