@@ -15,7 +15,13 @@ const Todos = require("../src/models/todos");
 const Quotes = require("../src/models/quotes");
 const {localDateString} = require("../src/localDate");
 
-const EXPORT_DIR = process.env.EXPORT_DIR || "/opt/backups/to-dos/daily";
+/* FIGYELEM: ez egy VALÓDI, a gépen létező könyvtár neve, nem kódbeli azonosító —
+   átnevezni csak a gépen lévő könyvtárral EGYÜTT szabad. (Egy többesszámosító
+   refaktor egyszer "to-dos"-ra írta át, amitől a napi mentés némán kimaradt: a
+   szolgáltatás elhasalt, de ezt csak a journal tudta.) A testvére a heti mentés
+   könyvtára a deploy/weekly-backup.sh-ban — a kettő közös gyökerét a
+   backupPaths.test.js őrzi. */
+const EXPORT_DIR = process.env.EXPORT_DIR || "/opt/backups/to-do/daily";
 // Kategóriánként ennyi LEGFRISSEBB exportfájlt tartunk meg, a többit töröljük.
 const RETENTION_COUNT = 10;
 
