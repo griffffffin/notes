@@ -18,7 +18,7 @@
     src: url("/fonts/Caveat-VariableFont_wght.ttf") format("truetype");
 }
 
-/* A logó (to-do + quotes közös) kézírás-fontja. Variable font (wght-tengely),
+/* A logó (To-dos + Quotes közös) kézírás-fontja. Variable font (wght-tengely),
    mint a Caveat — a .logo súlyát a font-weight állítja. */
 @font-face {
     font-family: "DancingScript";
@@ -220,7 +220,7 @@ textarea.form-control::placeholder {
     font-family: "CaveatSemiBold", sans-serif !important;
 }
 
-/* A Quotes logó — és KIZÁRÓLAG az — Dancing Scriptet visel (a to-do logó marad
+/* A Quotes logó — és KIZÁRÓLAG az — Dancing Scriptet visel (a To-dos logó marad
    CaveatSemiBold; a Dancing Script sehol máshol nem szerepel). Variable font, a
    súlyt a font-weight adja: a Regular a CaveatSemiBold-hoz képest vékony.
 
@@ -312,7 +312,7 @@ div.caveat:not(.form-control) {
    A betű a kiemelőszín KONTRASZT-párját kapja (ugyanaz, ami a színes gombokon a
    feliraté) — enélkül a sötét téma sárga kijelölésén a fehér szöveg
    olvashatatlan lenne. A két érték együtt jön a THEMES táblából, tehát a
-   kategóriánkénti témák is magukkal hozzák majd. */
+   szekciónkénti témák is magukkal hozzák majd. */
 ::selection {
     background-color: var(--theme-accent);
     color: var(--theme-accent-contrast);
@@ -362,7 +362,7 @@ div.caveat:not(.form-control) {
 
    SZÁNDÉKOSAN nem tüntetjük el: a sáv két dolgot közöl, amit semmi más nem
    pótol (van még tartalom, és hol tartasz benne), ráadásul fogantyú is, amivel
-   egérrel a lista közepére lehet rántani. Egy 10 000 elemes kategóriában ez
+   egérrel a lista közepére lehet rántani. Egy 10 000 elemes szekcióban ez
    nem dekoráció.
 
    Miért KÉT külön szabály? Mert a kettő kizárja egymást: ha a szabványos
