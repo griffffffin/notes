@@ -23,7 +23,7 @@ const {localDateString} = require("../src/localDate");
    backupPaths.test.js őrzi. */
 const EXPORT_DIR = process.env.EXPORT_DIR || "/opt/backups/notes/daily";
 // Szekciónként ennyi LEGFRISSEBB exportfájlt tartunk meg, a többit töröljük.
-const RETENTION_COUNT = 10;
+const RETENTION_COUNT = 30;
 
 /* A mentendő szekciók: a fájlnév-előtag és a Mongoose-modell. A sort "user
    order" mindegyiknél működik (mindnek van user + order mezője), és determinista
@@ -100,7 +100,7 @@ function retainSection(section) {
         console.log(`[${section.name}] A legfrissebb export üres vagy hibás — retenciós törlés kihagyva.`);
         return;
     }
-    // A 10 legfrissebbet megtartjuk (a lista elején), a többit töröljük.
+    // A RETENTION_COUNT legfrissebbet megtartjuk (a lista elején), a többit töröljük.
     for (const file of files.slice(RETENTION_COUNT)) {
         fs.unlinkSync(file.path);
         console.log(`[${section.name}] Régi export törölve: ${file.name}`);

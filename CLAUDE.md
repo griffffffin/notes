@@ -122,7 +122,9 @@ elmaradt átvezetés.
 ## Biztonsági mentés (KÉSZ, 2026-07-11)
 
 - Napi **JSON**-export éjfélkor (`notes-export.timer` → `backend/scripts/daily-export.js`);
-  az ELŐZŐ napot vizsgálja, csak ha volt módosítás; 30 napi retenció;
+  az ELŐZŐ napot vizsgálja, csak ha volt módosítás; retenció: szekciónként a 30
+  legfrissebb FÁJL (`RETENTION_COUNT`) — nem 30 nap, mert módosítás nélküli napon
+  nem születik fájl, így 30 mentés ennél hosszabb időszakot is átfoghat;
   cél: `/opt/backups/notes/daily/`
 - Heti teljes mentés vasárnap 01:00 (`notes-backup.timer` → `deploy/weekly-backup.sh`,
   pg_dump gzippel); ~100 heti retenció (`RETENTION_DAYS=700`); cél: `/opt/backups/notes/weekly/`
