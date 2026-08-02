@@ -1,7 +1,7 @@
-# Telepítés: sudo cp deploy/to-do.service /etc/systemd/system/ &&
-#            sudo systemctl daemon-reload && sudo systemctl enable --now to-do
+# Telepítés: sudo cp deploy/notes.service /etc/systemd/system/ &&
+#            sudo systemctl daemon-reload && sudo systemctl enable --now notes
 [Unit]
-Description=To-do app (Express API + static frontend)
+Description=Notes app (Express API + static frontend)
 After=network.target ferretdb.service
 Wants=ferretdb.service
 

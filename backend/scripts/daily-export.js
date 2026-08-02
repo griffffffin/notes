@@ -1,4 +1,4 @@
-/* Napi JSON-export — éjfélkor fut (todo-export.timer), ezért az ELŐZŐ napot
+/* Napi JSON-export — éjfélkor fut (notes-export.timer), ezért az ELŐZŐ napot
    vizsgálja: csak akkor ír fájlt (az előző nap dátumával), ha aznap volt
    módosítás. JSON, mert az adat beágyazott (tasks, később alsorok) — ezt a
    CSV nem viszi hűen. Régi exportot csak akkor töröl, ha van nála frissebb,

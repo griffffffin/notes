@@ -1,5 +1,5 @@
 [Unit]
-Description=To-do health probe (logs, and restarts the app if it stops answering)
+Description=Notes health probe (logs, and restarts the app if it stops answering)
 # Ha a /opt nincs feloldva, ez a szkript nem is létezik. A ConditionPathExists
 # hatására a systemd ilyenkor CSENDBEN kihagyja a futást — nem hibaként jelenti,
 # tehát a timer nem szemeteli tele a naplót minden percben, amíg a kötet zárva van.

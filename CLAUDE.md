@@ -13,6 +13,13 @@ history és a dokumentáció bemutatható minőségű kell legyen.
 **Fontos**: nem újraírás, hanem port — a régi design (CSS/Bootstrap) és a
 komponensek nagy része átkerül, csak az új backend és kategóriák köré bővül.
 
+**Az app neve `Notes`** (2026-08-01 óta): a to-do mára egy szekció a több közül,
+a régi név szűk lett. Ez a névváltás lépésenként megy — a kód és a systemd-unitok
+már `notes` nevűek, a fájlrendszer-útvonalak (`/opt/to-do`, `/opt/backups/to-do`)
+és az adatbázis neve viszont SZÁNDÉKOSAN még a régiek, mert azok mozdítása a
+futó gépet és az élő adatot érinti. Ahol lentebb `to-do` szerepel útvonalként,
+az tényállítás, nem elmaradt átvezetés.
+
 ## Régi projekt (referencia, portoláshoz)
 
 - Backend: https://github.com/griffffffin/to-do-backend
@@ -47,12 +54,12 @@ komponensek nagy része átkerül, csak az új backend és kategóriák köré b
   Fenyegetésmodell: ellopott, **kikapcsolt** gép — a lemezről az adat nem
   olvasható ki. Az OS maga titkosítatlan (nincs benne személyes adat).
 - **A kulcs SEHOL nincs a gépen** — ezért a `/opt` bootkor NEM csatolódik, és a
-  rá épülő szolgáltatások (postgres, ferretdb, todo) auto-indítása
+  rá épülő szolgáltatások (postgres, ferretdb, notes) auto-indítása
   le van tiltva. Reboot után kézzel kell feloldani:
   `sudo unlock-opt` (a szkript a `a gépen élő telepített szkript` verziózott mása;
   bekéri a LUKS-jelszót, csatol, majd elindítja a szolgáltatásokat).
   A verziózott szkript CSAK a projekt saját láncát ismeri (postgres, ferretdb,
-  to-do) — hogy a publikus repó ne dokumentálja, mi fut még ezen a gépen. A
+  notes) — hogy a publikus repó ne dokumentálja, mi fut még ezen a gépen. A
   teljes, gépspecifikus lista az `egy gépspecifikus, nem verziózott beállítófájl`-ban él
   (`SERVICE_LIST`, `STATUS_SERVICE_LIST`), ami NEM verziókezelt; ha új
   /opt-os szolgáltatás jön, oda kell felvenni.
@@ -113,10 +120,10 @@ komponensek nagy része átkerül, csak az új backend és kategóriák köré b
 
 ## Biztonsági mentés (KÉSZ, 2026-07-11)
 
-- Napi **JSON**-export éjfélkor (`to-do-export.timer` → `backend/scripts/daily-export.js`);
+- Napi **JSON**-export éjfélkor (`notes-export.timer` → `backend/scripts/daily-export.js`);
   az ELŐZŐ napot vizsgálja, csak ha volt módosítás; 30 napi retenció;
   cél: `/opt/backups/to-do/daily/`
-- Heti teljes mentés vasárnap 01:00 (`to-do-backup.timer` → `deploy/weekly-backup.sh`,
+- Heti teljes mentés vasárnap 01:00 (`notes-backup.timer` → `deploy/weekly-backup.sh`,
   pg_dump gzippel); ~100 heti retenció (`RETENTION_DAYS=700`); cél: `/opt/backups/to-do/weekly/`
 - Mindkét timer `Persistent=true`: kimaradt futást bepótol. A retenció csak akkor
   töröl régit, ha a legfrissebb mentés bizonyítottan ép/nem üres.
@@ -129,7 +136,7 @@ komponensek nagy része átkerül, csak az új backend és kategóriák köré b
 
 ## Terítés (deployment)
 
-- ÉLES: az app systemd service-ként fut (`to-do.service`, a `deploy/` mappából
+- ÉLES: az app systemd service-ként fut (`notes.service`, a `deploy/` mappából
   telepítve) — az Express a 3001-es porton az API-t ÉS a buildelt frontendet is
   kiszolgálja (SPA-fallbackkel); bootkor indul, hibánál újraindul.
 - Éles buildnél a frontend relatív URL-lel hívja az API-t (`.env.production`),

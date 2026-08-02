@@ -1,5 +1,5 @@
 [Unit]
-Description=To-do daily JSON export
+Description=Notes daily JSON export
 
 [Service]
 Type=oneshot

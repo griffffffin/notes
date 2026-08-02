@@ -2,7 +2,7 @@
 # Az app életjelének ellenőrzése: percenként megkérdezi a /health végpontot,
 # baj esetén naplóz, e-mailt küld, és (ritkítva) újraindítja a service-t.
 #
-# MIÉRT KELL, ha a to-do.service-ben ott a Restart=always?
+# MIÉRT KELL, ha a notes.service-ben ott a Restart=always?
 # Mert a systemd csak azt látja, FUT-e a folyamat. Azt nem, hogy "fut, de nem
 # válaszol" (befagyott esemény-ciklus) vagy "fut, de az adatbázist nem éri el".
 # Ezekben az esetekben a Restart=always néma marad, miközben az app
@@ -15,11 +15,11 @@
 # attól romlott el.
 #
 # A kimenet a journalba megy (a systemd a service stdout-ját odairányítja):
-#   journalctl -u to-do-health.service
+#   journalctl -u notes-health.service
 
 set -uo pipefail
 
-SERVICE="to-do.service"
+SERVICE="notes.service"
 HEALTH_URL="http://127.0.0.1:3001/health"
 CURL_TIMEOUT=10
 
@@ -31,11 +31,11 @@ RESTART_COOLDOWN=600
 # A /run tmpfs: rebootkor ürül, tehát újraindulás után az első hiba azonnal
 # kaphat újraindítást, és az értesítés is újraindul tiszta lappal.
 STATE_DIR="/run"
-LAST_RESTART_FILE="$STATE_DIR/to-do-health.last-restart"
+LAST_RESTART_FILE="$STATE_DIR/notes-health.last-restart"
 # Ennek a LÉTEZÉSE jelzi, hogy a mostani hibáról MÁR küldtünk levelet. Enélkül
 # percenként érkezne ugyanaz az üzenet, amíg a baj tart — egy éjszaka alatt
 # több száz levél, amitől a következő valódi riasztás elveszne a zajban.
-NOTIFIED_FILE="$STATE_DIR/to-do-health.notified"
+NOTIFIED_FILE="$STATE_DIR/notes-health.notified"
 
 # Az SMTP-adatok egy gitignore-olt env-fájlból jönnek (600-as jogok, a
 # titkosított köteten) — verziókezelésbe soha nem kerülnek. A fájl a szkript
@@ -100,8 +100,8 @@ if [ "$code" = "200" ]; then
     # Enélkül sosem tudnád meg, hogy vége a bajnak — csak azt, hogy volt.
     if [ -e "$NOTIFIED_FILE" ]; then
         log "Az app újra válaszol."
-        if send_mail "To-do: az app újra rendben van" \
-"$(date '+%Y-%m-%d %H:%M:%S') — a to-do app újra válaszol az életjelre.
+        if send_mail "Notes: az app újra rendben van" \
+"$(date '+%Y-%m-%d %H:%M:%S') — a Notes app újra válaszol az életjelre.
 
 Gép: $(hostname)
 Végpont: $HEALTH_URL"; then
@@ -142,7 +142,7 @@ if [ -e "$NOTIFIED_FILE" ]; then
     exit 0
 fi
 
-if send_mail "To-do: az app nem válaszol" \
+if send_mail "Notes: az app nem válaszol" \
 "$(date '+%Y-%m-%d %H:%M:%S') — ${reason}.
 
 ${restart_note}
@@ -151,9 +151,9 @@ Gép: $(hostname)
 Végpont: $HEALTH_URL
 
 Amit érdemes megnézni:
-  systemctl status to-do.service
+  systemctl status notes.service
   systemctl status ferretdb.service
-  journalctl -u to-do-health.service -n 50
+  journalctl -u notes-health.service -n 50
   mount | grep /opt        (fel van-e oldva a titkosított kötet)
 
 Erről a hibáról ez az EGYETLEN levél; a következőt akkor kapod, ha az app

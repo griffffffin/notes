@@ -1,5 +1,5 @@
 [Unit]
-Description=To-do weekly full database backup (pg_dump)
+Description=Notes weekly full database backup (pg_dump)
 
 [Service]
 Type=oneshot

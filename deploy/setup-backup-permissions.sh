@@ -3,8 +3,8 @@
 # és joggal. Root-jogot igényel, mert két KÜLÖNBÖZŐ user ír ide, és a fájlok
 # tulajdonosát csak a root tudja rendezni:
 #
-#   daily/   a napi JSON-exportot az alkalmazás user-e írja (to-do-export.service)
-#   weekly/  a heti pg_dumpot a 'postgres' user írja (to-do-backup.service)
+#   daily/   a napi JSON-exportot az alkalmazás user-e írja (notes-export.service)
+#   weekly/  a heti pg_dumpot a 'postgres' user írja (notes-backup.service)
 #
 # A weekly mappa a setgid bitet (2750) kapja, így az ott születő fájlok nem a
 # postgres csoportját öröklik, hanem a megadott olvasó-csoportot. E nélkül a heti
