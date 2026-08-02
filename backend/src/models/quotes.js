@@ -66,4 +66,9 @@ const quoteSchema = new Schema({
 quoteSchema.index({user: 1, order: 1});
 quoteSchema.index({user: 1, author: 1});
 
-module.exports = mongoose.model("Quotes", quoteSchema);
+const Quotes = mongoose.model("Quotes", quoteSchema);
+
+// Nyilatkozat a napi exportnak — a fájlnév-előtag jelentése a todos.js-ben.
+Quotes.exportName = "quotes";
+
+module.exports = Quotes;

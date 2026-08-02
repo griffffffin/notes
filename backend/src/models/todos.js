@@ -87,4 +87,19 @@ const todoSchema = new Schema({
 todoSchema.index({user: 1, order: 1});
 todoSchema.index({user: 1, category: 1, order: 1});
 
-module.exports = mongoose.model("Todos", todoSchema);
+const Todos = mongoose.model("Todos", todoSchema);
+
+/* NYILATKOZAT a napi exportnak (scripts/exportSections.js): ezt a szekciót
+   menteni kell, és a fájljai ezzel az előtaggal készülnek (to-dos-2026-08-02.json).
+   Minden modellnek DÖNTENIE kell magáról — a nyilatkozat nélküli modelltől az
+   export hibára fut, mert a felejtés különben néma adatvesztés lenne.
+
+   Az előtag a szekció EMBERI, URL-beli alakja ("to-dos", mint a /to-dos útvonal),
+   nem a Mongo-collectioné (az `todos`, kötőjel nélkül — a Mongoose adja). A kettő
+   SZÁNDÉKOSAN tér el: a fájlnevet ember olvassa egy visszaállításnál. Az előtag
+   egyben a retenció csoportosítója, ezért megváltoztatásakor a MÁR MEGLÉVŐ
+   fájlokat is át kell nevezni — különben a régi nevűek kiesnek a retencióból, és
+   örökre ott maradnának. */
+Todos.exportName = "to-dos";
+
+module.exports = Todos;
