@@ -93,12 +93,12 @@ function retainSection(section) {
 }
 
 (async () => {
-    /* A felderítés a kapcsolat ELŐTT: ha egy modell nem nyilatkozik magáról, az
-       export inkább el se induljon. A hívás az IIFE-n BELÜL van, hogy a hibát a
-       lenti catch formázza (egy modul-szintű dobás nyers stack trace-t írna a
-       journalba). */
-    const sections = discoverSections();
-    console.log(`Mentendő szekciók: ${sections.map((section) => section.name).join(", ")}`);
+    /* A felderítés a kapcsolat ELŐTT fut, de a hibái NEM állítják meg a mentést:
+       ami nyilatkozott, azt lementjük, és a hibás/hiányzó nyilatkozatokkal a
+       futás VÉGÉN szállunk el (l. lentebb). Egy elfelejtett nyilatkozat így nem
+       viszi magával a többi szekció aznapi mentését. */
+    const {sections, errors} = discoverSections();
+    console.log(`Mentendő szekciók: ${sections.map((section) => section.name).join(", ") || "egy sem"}`);
 
     await mongoose.connect(process.env.DATABASE);
     console.log(EXPORT_USER_ID ? "Szűkítve egy felhasználóra." : "Minden felhasználó adata (nincs EXPORT_USER_ID).");
@@ -113,6 +113,15 @@ function retainSection(section) {
     }
 
     await mongoose.disconnect();
+
+    /* A hibák a MENTÉSEK UTÁN buknak ki, de ki kell bukniuk: a nem-nulla kilépési
+       kódtól a systemd hibás futásként naplózza a notes-export.service-t, tehát a
+       hiányzó nyilatkozat nem tűnik el csak azért, mert a többi szekció mentése
+       sikerült. Ez a "hangos, de nem pusztító" viselkedés lényege. */
+    if (errors.length > 0) {
+        for (const message of errors) console.error("Export hiba:", message);
+        process.exit(1);
+    }
 })().catch((error) => {
     console.error("Export hiba:", error.message);
     process.exit(1);

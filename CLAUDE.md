@@ -128,9 +128,10 @@ elmaradt átvezetés.
   cél: `/opt/backups/notes/daily/`
 - **A mentendő szekciók a MODELLEKBŐL derülnek ki**, nincs kézi lista: minden
   modell nyilatkozik magáról (`Model.exportName = "to-dos"`, illetve `null` a
-  `users`-nél, mert jelszó-hash). A nyilatkozat nélküli modelltől az export
-  HIBÁRA fut (`backend/scripts/exportSections.js`), a kaput CI-teszt őrzi —
-  új szekció így nem maradhat ki némán a mentésből.
+  `users`-nél, mert jelszó-hash). A nyilatkozat nélküli modell HIBA
+  (`backend/scripts/exportSections.js`): a szkript a nyilatkozó szekciókat
+  lementi, majd nem-nulla kóddal lép ki — hangos, de nem viszi magával a működő
+  mentéseket. A kaput CI-teszt őrzi, így új szekció nem maradhat ki némán.
 - Heti teljes mentés vasárnap 01:00 (`notes-backup.timer` → `deploy/weekly-backup.sh`,
   pg_dump gzippel); ~100 heti retenció (`RETENTION_DAYS=700`); cél: `/opt/backups/notes/weekly/`
 - Mindkét timer `Persistent=true`: kimaradt futást bepótol. A retenció csak akkor

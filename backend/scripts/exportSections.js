@@ -13,11 +13,15 @@
        Model.exportName = "to-dos";   // mentendő szekció, ez a fájlnév-előtagja
        Model.exportName = null;       // soha ne exportáld (l. users.js)
 
-   A nyilatkozat nélküli modelltől ez a felderítő HIBÁT DOB. A felejtés így nem
-   néma kihagyás, hanem hangos elszállás — és mivel a szekció felvételekor a
-   modellt amúgy is meg kell írni, a nyilatkozat pont ott van, ahol az ember
-   éppen gépel. A kaput a scripts/exportSections.test.js tartja: a hiba nem
-   éjjel egykor, a journalban jelentkezik, hanem a commitnál, pirosan. */
+   A nyilatkozat nélküli modell HIBA — a felejtés így nem néma kihagyás, hanem
+   hangos elszállás —, de a hiba CSAK A SAJÁT szekcióját ejti ki: a többi
+   szekció mentése aznap éjjel akkor is elkészül, a szkript pedig utána lép ki
+   nem-nulla kóddal. A hangos hibának nem szabad járulékos kárt okoznia.
+
+   Mivel a szekció felvételekor a modellt amúgy is meg kell írni, a nyilatkozat
+   pont ott van, ahol az ember éppen gépel. A kaput a
+   scripts/exportSections.test.js tartja: a hiba nem éjjel egykor, a journalban
+   jelentkezik, hanem a commitnál, pirosan. */
 const fs = require("fs");
 const path = require("path");
 
@@ -67,34 +71,56 @@ function declaredSection(file, model) {
     return {file, name, model};
 }
 
-/* A nyilatkozatok összegyűjtése egy [fájlnév, modell] listából. A felderítéstől
-   (fs) SZÁNDÉKOSAN külön: így a teszt az összes hibaágat kitalált modellekkel,
-   ideiglenes fájlok nélkül végig tudja járni. */
+/* A nyilatkozatok összegyűjtése egy [fájlnév, modell] listából: a mentendő
+   szekciók ÉS a hibák, egyszerre. Nem dob — a hívó dolga, mit kezd velük.
+
+   Miért nem dob? Mert egy nyilatkozat nélküli új modell miatt nem szabad
+   elmaradnia a to-dók és az idézetek aznapi mentésének is. A hiba hangos marad
+   (a szkript nem-nulla kóddal lép ki, a journalban ott a magyarázat), csak nem
+   visz magával működő mentéseket.
+
+   A felderítéstől (fs) SZÁNDÉKOSAN külön: így a teszt az összes hibaágat
+   kitalált modellekkel, ideiglenes fájlok nélkül végig tudja járni. */
 function sectionsFrom(entries) {
-    const sections = [];
+    const declared = [];
+    const errors = [];
+
     for (const [file, model] of entries) {
-        const section = declaredSection(file, model);
-        if (section) sections.push(section);
+        /* A validáló dobással jelez (egy hiba = egy kimondott ok, olvasható kód),
+           itt viszont fel KELL fogni: a rossz modell után a többinek sorra kell
+           kerülnie. */
+        try {
+            const section = declaredSection(file, model);
+            if (section) declared.push(section);
+        } catch (error) {
+            errors.push(error.message);
+        }
     }
 
     /* Két szekció azonos előtaggal ugyanabba a fájlba írna (a későbbi felülírná a
        korábbit), és a retenciójuk is összekeveredne — az egyik szekció friss
-       mentése törölné a másik régijét. */
-    for (const section of sections) {
-        const twin = sections.find((other) => other !== section && other.name === section.name);
-        if (twin) {
-            throw new Error(`Két modell ugyanazt a fájlnév-előtagot kéri ("${section.name}"): ` +
-                `${section.file} és ${twin.file}. Egy előtag egy szekcióé.`);
-        }
+       mentése törölné a másik régijét. Ilyenkor EGYIKET SEM exportáljuk: az egyik
+       adata így is, úgy is kimaradna, de legalább nem keveredik el egy olyan
+       fájlban, aminek a neve mást ígér. */
+    const claimants = new Map();
+    for (const section of declared) {
+        claimants.set(section.name, [...(claimants.get(section.name) ?? []), section.file]);
     }
+    const contested = [...claimants].filter(([, files]) => files.length > 1);
+    for (const [name, files] of contested) {
+        errors.push(`Több modell kéri ugyanazt a fájlnév-előtagot ("${name}"): ` +
+            `${files.join(", ")}. Egy előtag egy szekcióé.`);
+    }
+    const contestedNames = new Set(contested.map(([name]) => name));
+    const sections = declared.filter((section) => !contestedNames.has(section.name));
 
     /* Nulla szekció nem "nincs mit menteni", hanem majdnem biztosan hiba (rossz
-       mappa, elmaradt telepítés): a szkript némán, sikeresen lefutna, és soha
-       nem születne mentés. */
-    if (sections.length === 0) {
-        throw new Error("Egyetlen mentendő szekciót sem találtam — minden modell null-t mond magáról?");
+       mappa, elmaradt telepítés): a szkript némán, sikeresen lefutna, és soha nem
+       születne mentés. Csak akkor mondjuk ki, ha más hiba nem magyarázza már. */
+    if (sections.length === 0 && errors.length === 0) {
+        errors.push("Egyetlen mentendő szekciót sem találtam — minden modell null-t mond magáról?");
     }
-    return sections;
+    return {sections, errors};
 }
 
 /* A modell-mappa átfésülése. A tesztfájlok kimaradnak, a sorrend pedig ábécé
