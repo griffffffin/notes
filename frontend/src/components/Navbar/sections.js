@@ -1,5 +1,5 @@
 /* A szekciók: az alkalmazás felső szintű területei, mindegyik SAJÁT collectionnel
-   (to-do, idézetek, később film, jegyzet). A bővítés ide ír majd új sort. Az első
+   (to-dos, idézetek, később film, jegyzet). A bővítés ide ír majd új sort. Az első
    egyben a fallback (ismeretlen úton).
 
    FONTOS a szóhasználat: ez a "szekció" NEM azonos a to-do SAJÁT, szekción belüli
