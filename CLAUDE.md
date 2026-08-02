@@ -126,6 +126,11 @@ elmaradt átvezetés.
   legfrissebb FÁJL (`RETENTION_COUNT`) — nem 30 nap, mert módosítás nélküli napon
   nem születik fájl, így 30 mentés ennél hosszabb időszakot is átfoghat;
   cél: `/opt/backups/notes/daily/`
+- **A mentendő szekciók a MODELLEKBŐL derülnek ki**, nincs kézi lista: minden
+  modell nyilatkozik magáról (`Model.exportName = "to-dos"`, illetve `null` a
+  `users`-nél, mert jelszó-hash). A nyilatkozat nélküli modelltől az export
+  HIBÁRA fut (`backend/scripts/exportSections.js`), a kaput CI-teszt őrzi —
+  új szekció így nem maradhat ki némán a mentésből.
 - Heti teljes mentés vasárnap 01:00 (`notes-backup.timer` → `deploy/weekly-backup.sh`,
   pg_dump gzippel); ~100 heti retenció (`RETENTION_DAYS=700`); cél: `/opt/backups/notes/weekly/`
 - Mindkét timer `Persistent=true`: kimaradt futást bepótol. A retenció csak akkor
