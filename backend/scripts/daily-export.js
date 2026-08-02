@@ -4,9 +4,9 @@
    CSV nem viszi hűen. Régi exportot csak akkor töröl, ha van nála frissebb,
    nem üres mentés.
 
-   MINDEN kategóriát ment, nem csak a to-dót: kategóriánként KÜLÖN fájlba
-   (todos-DATE.json, quotes-DATE.json…), külön módosítás-vizsgálattal és
-   retencióval. Egy új kategória bevétele így egyetlen sor a CATEGORIES-ben. */
+   MINDEN szekciót ment, nem csak a to-dót: szekciónként KÜLÖN fájlba
+   (to-dos-DATE.json, quotes-DATE.json…), külön módosítás-vizsgálattal és
+   retencióval. Egy új szekció bevétele így egyetlen sor a CATEGORIES-ben. */
 const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
@@ -25,11 +25,18 @@ const EXPORT_DIR = process.env.EXPORT_DIR || "/opt/backups/to-do/daily";
 // Kategóriánként ennyi LEGFRISSEBB exportfájlt tartunk meg, a többit töröljük.
 const RETENTION_COUNT = 10;
 
-/* A mentendő kategóriák: a fájlnév-előtag és a Mongoose-modell. A sort "user
+/* A mentendő szekciók: a fájlnév-előtag és a Mongoose-modell. A sort "user
    order" mindegyiknél működik (mindnek van user + order mezője), és determinista
-   sorrendet ad, hogy a napi fájlok diffelhetők legyenek. */
+   sorrendet ad, hogy a napi fájlok diffelhetők legyenek.
+
+   A név a szekció EMBERI, URL-beli alakja ("to-dos", mint a /to-dos útvonal),
+   nem a Mongo-collectioné (az `todos`, kötőjel nélkül — a Mongoose adja). A
+   kettő SZÁNDÉKOSAN tér el: a fájlnevet ember olvassa egy visszaállításnál.
+   Az előtag egyben a retenció csoportosítója is, ezért megváltoztatásakor a MÁR
+   MEGLÉVŐ fájlokat is át kell nevezni — különben a régi nevűek kiesnek a
+   retencióból, és örökre ott maradnának. */
 const CATEGORIES = [
-    {name: "todos", model: Todos},
+    {name: "to-dos", model: Todos},
     {name: "quotes", model: Quotes},
 ];
 
@@ -74,7 +81,7 @@ async function exportCategory(category, startOfWindow, endOfWindow) {
    nem üres JSON-tömb (legalább egy elemmel): üres/hibás friss mentés ne
    tüntethesse el a még adatot őrző régieket. A szűrés a kategória fájlnév-
    előtagjára megy, hogy a kategóriák retenciója NE keveredjen (a quotes friss
-   mentése ne törölhessen régi todos-fájlt). */
+   mentése ne törölhessen régi to-dos-fájlt). */
 function retainCategory(category) {
     const prefix = category.name + "-";
     const files = fs.readdirSync(EXPORT_DIR)
