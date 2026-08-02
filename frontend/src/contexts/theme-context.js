@@ -8,7 +8,7 @@ import {createContext, useContext} from "react";
 /* A témák ADATKÉNT, saját (hex) színekkel — nem a Bootstrap-paletta nevei.
    A Provider CSS-változókként (--theme-*) teszi ki őket a <html>-re, a
    stílusokat az index.css .text-theme / .btn-theme / ... osztályai olvassák
-   belőlük. Új téma (pl. kategóriánként) = új bejegyzés ebben a táblában.
+   belőlük. Új téma (pl. szekciónként) = új bejegyzés ebben a táblában.
    A pageBackground-ot a "themeBackground" sütibe is kiírjuk: az index.html
    boot-szkriptje ezt olvassa, és még a stíluslapok előtt kifesti vele a lapot
    (fehér villanás ellen) — így nem kell a színt két helyen karbantartani. */

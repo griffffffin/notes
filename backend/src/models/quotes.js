@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
 /* Az idézetek külön collectionben élnek, nem a to-dók közé keverve (a projekt
-   adatmodell-elve: kategóriánként külön tábla). A séma a to-do VÉKONYABB mása:
+   adatmodell-elve: szekciónként külön tábla). A séma a to-do VÉKONYABB mása:
    nincs szín, százalék, listaelem — egy idézetnek szövege és (opcionálisan)
    szerzője van. */
 const quoteSchema = new Schema({

@@ -15,7 +15,7 @@ const MODIFIERS = [restrictToList];
 const AUTO_SCROLL_THRESHOLD = {x: 0, y: 0.35};
 const AUTO_SCROLL_ACCELERATION = 25;
 
-/* A húzható kártyarács — kategóriától független VÁZ. A kártya TARTALMÁT a hívó
+/* A húzható kártyarács — szekciótól független VÁZ. A kártya TARTALMÁT a hívó
    adja a renderCard render-proppal (a to-do kártyája más, mint az idézeté), az
    átrendezés LOGIKÁJA a useSortableCards hookban van.
 

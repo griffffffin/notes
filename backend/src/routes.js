@@ -55,9 +55,9 @@ router.use(auth);
    kijelentkezés lényege. */
 router.use("/refresh", usersRefresh);
 
-/* A to-do minden végpontja a /to-dos névtér alatt — így a további kategóriák
+/* A to-do minden végpontja a /to-dos névtér alatt — így a további szekciók
    (pl. /quotes) ütközés nélkül kapják a saját "create", "id", "update"
-   végpontjaikat. A user- és auth-útvonalak (login, refresh) kategóriától
+   végpontjaikat. A user- és auth-útvonalak (login, refresh) szekciótól
    függetlenek, ezért fentebb NEM kerülnek prefix alá. */
 const todosRouter = require("express").Router();
 

@@ -6,7 +6,7 @@
 
    MINDEN szekciót ment, nem csak a to-dót: szekciónként KÜLÖN fájlba
    (to-dos-DATE.json, quotes-DATE.json…), külön módosítás-vizsgálattal és
-   retencióval. Egy új szekció bevétele így egyetlen sor a CATEGORIES-ben. */
+   retencióval. Egy új szekció bevétele így egyetlen sor a SECTIONS-ben. */
 const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
@@ -22,7 +22,7 @@ const {localDateString} = require("../src/localDate");
    könyvtára a deploy/weekly-backup.sh-ban — a kettő közös gyökerét a
    backupPaths.test.js őrzi. */
 const EXPORT_DIR = process.env.EXPORT_DIR || "/opt/backups/notes/daily";
-// Kategóriánként ennyi LEGFRISSEBB exportfájlt tartunk meg, a többit töröljük.
+// Szekciónként ennyi LEGFRISSEBB exportfájlt tartunk meg, a többit töröljük.
 const RETENTION_COUNT = 10;
 
 /* A mentendő szekciók: a fájlnév-előtag és a Mongoose-modell. A sort "user
@@ -35,15 +35,15 @@ const RETENTION_COUNT = 10;
    Az előtag egyben a retenció csoportosítója is, ezért megváltoztatásakor a MÁR
    MEGLÉVŐ fájlokat is át kell nevezni — különben a régi nevűek kiesnek a
    retencióból, és örökre ott maradnának. */
-const CATEGORIES = [
+const SECTIONS = [
     {name: "to-dos", model: Todos},
     {name: "quotes", model: Quotes},
 ];
 
 /* Kinek az adatait mentjük. Az azonosító a .env-ből jön, NEM a kódból:
 
-   Egy ObjectId nem a program része, hanem EZ a gép EZ a telepítése — ugyanaz a
-   kategória, mint az IP-cím, ami szintén nincs a repóban. A repo publikus lesz:
+   Egy ObjectId nem a program része, hanem EZ a gép EZ a telepítése — ugyanolyan
+   gépfüggő adat, mint az IP-cím, ami szintén nincs a repóban. A repo publikus lesz:
    egy odaírt azonosító a szemlélőnek semmit nem mond, és hazudna abban a
    pillanatban, amikor a fiókot újra kellene hozni.
 
@@ -53,37 +53,37 @@ const CATEGORIES = [
 const EXPORT_USER_ID = process.env.EXPORT_USER_ID || null;
 const scope = EXPORT_USER_ID ? {user: EXPORT_USER_ID} : {};
 
-/* Egy kategória exportja az előző napra: csak akkor ír fájlt, ha a saját
+/* Egy szekció exportja az előző napra: csak akkor ír fájlt, ha a saját
    táblájában volt aznapi módosítás. A szűkítés a countDocuments-ben IS kell,
    nem csak a find-ban: enélkül egy MÁSIK fiók módosítása indítana exportot a mi
    változatlan adatunkról — nap mint nap ugyanaz a fájl, más néven. */
-async function exportCategory(category, startOfWindow, endOfWindow) {
-    const changed = await category.model.countDocuments(
+async function exportSection(section, startOfWindow, endOfWindow) {
+    const changed = await section.model.countDocuments(
         {...scope, updatedAt: {$gte: startOfWindow, $lt: endOfWindow}});
     if (changed === 0) {
-        console.log(`[${category.name}] Az előző napon nem volt módosítás — nincs export.`);
+        console.log(`[${section.name}] Az előző napon nem volt módosítás — nincs export.`);
         return;
     }
-    const documents = await category.model.find(scope).sort("user order").lean();
+    const documents = await section.model.find(scope).sort("user order").lean();
     /* A fájlnév dátuma a VIZSGÁLT nap, HELYI idő szerint (l. localDate.js). Az
        ISO-alak itt egy napot visszalépne: a helyi éjfél UTC-ben az előző nap
        22:00 (nyáron), amitől a mentés címkéje hazudna egy napot. */
     const file = path.join(EXPORT_DIR,
-        category.name + "-" + localDateString(startOfWindow) + ".json");
+        section.name + "-" + localDateString(startOfWindow) + ".json");
     // 0600: az export a felhasználó adatait tartalmazza — csak a tulajdonos olvashassa
     fs.writeFileSync(file, JSON.stringify(documents, null, 2) + "\n", {mode: 0o600});
     fs.chmodSync(file, 0o600);   // ha a fájl már létezett, a writeFileSync mode-ja nem érvényesül
-    console.log(`[${category.name}] ${documents.length} dokumentum exportálva: ${file}`);
+    console.log(`[${section.name}] ${documents.length} dokumentum exportálva: ${file}`);
 }
 
-/* Retenció EGY kategóriára: a RETENTION_COUNT legfrissebb fájlt tartjuk meg, a
-   többit töröljük — DE csak akkor, ha a kategória legfrissebb mentése érvényes,
+/* Retenció EGY szekcióra: a RETENTION_COUNT legfrissebb fájlt tartjuk meg, a
+   többit töröljük — DE csak akkor, ha a szekció legfrissebb mentése érvényes,
    nem üres JSON-tömb (legalább egy elemmel): üres/hibás friss mentés ne
-   tüntethesse el a még adatot őrző régieket. A szűrés a kategória fájlnév-
-   előtagjára megy, hogy a kategóriák retenciója NE keveredjen (a quotes friss
+   tüntethesse el a még adatot őrző régieket. A szűrés a szekció fájlnév-
+   előtagjára megy, hogy a szekciók retenciója NE keveredjen (a quotes friss
    mentése ne törölhessen régi to-dos-fájlt). */
-function retainCategory(category) {
-    const prefix = category.name + "-";
+function retainSection(section) {
+    const prefix = section.name + "-";
     const files = fs.readdirSync(EXPORT_DIR)
         .filter((name) => name.startsWith(prefix) && name.endsWith(".json"))
         .map((name) => ({name, path: path.join(EXPORT_DIR, name)}))
@@ -97,13 +97,13 @@ function retainCategory(category) {
     } catch { newestHasData = false; }
 
     if (!newestHasData) {
-        console.log(`[${category.name}] A legfrissebb export üres vagy hibás — retenciós törlés kihagyva.`);
+        console.log(`[${section.name}] A legfrissebb export üres vagy hibás — retenciós törlés kihagyva.`);
         return;
     }
     // A 10 legfrissebbet megtartjuk (a lista elején), a többit töröljük.
     for (const file of files.slice(RETENTION_COUNT)) {
         fs.unlinkSync(file.path);
-        console.log(`[${category.name}] Régi export törölve: ${file.name}`);
+        console.log(`[${section.name}] Régi export törölve: ${file.name}`);
     }
 }
 
@@ -115,9 +115,9 @@ function retainCategory(category) {
     endOfWindow.setHours(0, 0, 0, 0);
     const startOfWindow = new Date(endOfWindow.getTime() - 24 * 60 * 60 * 1000);
 
-    for (const category of CATEGORIES) {
-        await exportCategory(category, startOfWindow, endOfWindow);
-        retainCategory(category);
+    for (const section of SECTIONS) {
+        await exportSection(section, startOfWindow, endOfWindow);
+        retainSection(section);
     }
 
     await mongoose.disconnect();

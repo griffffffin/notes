@@ -73,7 +73,7 @@ const todoSchema = new Schema({
 
 /* Indexek. Index nélkül az adatbázisnak MINDEN dokumentumot végig kell néznie,
    hogy eldöntse, melyik illeszkedik — ez pár tucat elemnél észrevehetetlen, a
-   tervezett ~10 000 elemes kategóriáknál viszont minden oldalbetöltés az egész
+   tervezett ~10 000 elemes szekcióknál viszont minden oldalbetöltés az egész
    collection átfésülése. Az index olyan, mint a könyv tárgymutatója: rendezett
    másolat a kulcsokról, amiben az adatbázis egyenesen a találatokhoz ugrik.
 

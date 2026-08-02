@@ -5,13 +5,13 @@ Ez a fájl útmutatást ad a Claude Code-nak ehhez a projekthez.
 ## Projekt célja
 
 Egy 2022-es szakdolgozat-projekt (React + Express + MongoDB to-do app) **portolása**
-Raspberry Pi 4B-re, MongoDB helyett FerretDB-vel, és bővítése több-kategóriás
+Raspberry Pi 4B-re, MongoDB helyett FerretDB-vel, és bővítése több-szekciós
 rendszerré (to-do-n túl: filmek, sorozatok, idézetek, jegyzetek, könyvek, egyéb
 könyvjelzők). Portfólió-darab újbóli webfejlesztői álláskereséshez — a kód, a git
 history és a dokumentáció bemutatható minőségű kell legyen.
 
 **Fontos**: nem újraírás, hanem port — a régi design (CSS/Bootstrap) és a
-komponensek nagy része átkerül, csak az új backend és kategóriák köré bővül.
+komponensek nagy része átkerül, csak az új backend és szekciók köré bővül.
 
 **Az app neve `Notes`** (2026-08-01 óta): a to-do mára egy szekció a több közül,
 a régi név szűk lett. Ez a névváltás lépésenként ment — a kód, a systemd-unitok,
@@ -103,13 +103,13 @@ elmaradt átvezetés.
   szűrt nézet).
 - URL-struktúra: egy domain, szekciónkénti route-ok (`/movies/comedy`, `/series`,
   `/books`, `/thoughts`, stb.)
-- Ismert kategóriák eddig: movies (cím, évszám, genre), quotes (szerző, idézet
+- Ismert szekciók eddig: movies (cím, évszám, genre), quotes (szerző, idézet
   szövege) - a többi (jegyzetek, sorozatok, könyvek, egyéb könyvjelzők) mezői
   menet közben tisztázandók.
-- A legtöbb kategória-oldalra NEM kell kategória-/színválasztó és percentage
+- A legtöbb szekció-oldalra NEM kell kategória-/színválasztó és percentage
   (ezek a to-do sajátjai) — még nem implementálandó, csak tervezési tény.
-- Skálakövetelmény: egyes kategóriákban (pl. könyvjelzők) akár ~10 000 elem —
-  a kategória-nézetekhez szerveroldali lapozás/keresés és indexek kellenek,
+- Skálakövetelmény: egyes szekciókban (pl. könyvjelzők) akár ~10 000 elem —
+  a szekció-nézetekhez szerveroldali lapozás/keresés és indexek kellenek,
   a "mindent letölt és egyben renderel" minta ott nem játszik.
 
 ## Migrációs buktatók

@@ -19,12 +19,12 @@ const MOUSE_DRAG_START_PX = 8;
    határ dönti el, melyik rendezési stratégia helyes (a SortableCardGrid-ben). */
 const SINGLE_COLUMN_QUERY = "(max-width: 575.98px)";
 
-/* Egy húzással átrendezhető kártyalista LOGIKÁJA — kategóriától független. A
+/* Egy húzással átrendezhető kártyalista LOGIKÁJA — szekciótól független. A
    to-do és az idézet lista ugyanezt a betöltés+húzás gépezetet használja; csak a
    végpont (`url`, `reorderUrl`), a `filter` és a kártya TARTALMA tér el (az
    utóbbi a SortableCardGrid render-propja).
 
-   A kártyák azonosítója egységesen a MongoDB `_id` (mindkét kategóriában az), a
+   A kártyák azonosítója egységesen a MongoDB `_id` (mindkét szekcióban az), a
    sorrend pedig az `order` mező — a húzás ezekre épül. */
 export function useSortableCards({url, filter, reorderUrl, handleAxios}) {
     const [cards, setCards] = useState();
