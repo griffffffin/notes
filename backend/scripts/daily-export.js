@@ -6,13 +6,13 @@
 
    MINDEN szekciót ment, nem csak a to-dót: szekciónként KÜLÖN fájlba
    (to-dos-DATE.json, quotes-DATE.json…), külön módosítás-vizsgálattal és
-   retencióval. Egy új szekció bevétele így egyetlen sor a SECTIONS-ben. */
+   retencióval. Hogy MELYIK szekciókat, azt nem itt soroljuk fel: a modellek
+   mondják meg magukról (exportSections.js). */
 const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
 require("dotenv").config({path: path.join(__dirname, "../.env")});
-const Todos = require("../src/models/todos");
-const Quotes = require("../src/models/quotes");
+const {discoverSections} = require("./exportSections");
 const {localDateString} = require("../src/localDate");
 
 /* FIGYELEM: ez egy VALÓDI, a gépen létező könyvtár neve, nem kódbeli azonosító —
@@ -24,21 +24,6 @@ const {localDateString} = require("../src/localDate");
 const EXPORT_DIR = process.env.EXPORT_DIR || "/opt/backups/notes/daily";
 // Szekciónként ennyi LEGFRISSEBB exportfájlt tartunk meg, a többit töröljük.
 const RETENTION_COUNT = 30;
-
-/* A mentendő szekciók: a fájlnév-előtag és a Mongoose-modell. A sort "user
-   order" mindegyiknél működik (mindnek van user + order mezője), és determinista
-   sorrendet ad, hogy a napi fájlok diffelhetők legyenek.
-
-   A név a szekció EMBERI, URL-beli alakja ("to-dos", mint a /to-dos útvonal),
-   nem a Mongo-collectioné (az `todos`, kötőjel nélkül — a Mongoose adja). A
-   kettő SZÁNDÉKOSAN tér el: a fájlnevet ember olvassa egy visszaállításnál.
-   Az előtag egyben a retenció csoportosítója is, ezért megváltoztatásakor a MÁR
-   MEGLÉVŐ fájlokat is át kell nevezni — különben a régi nevűek kiesnek a
-   retencióból, és örökre ott maradnának. */
-const SECTIONS = [
-    {name: "to-dos", model: Todos},
-    {name: "quotes", model: Quotes},
-];
 
 /* Kinek az adatait mentjük. Az azonosító a .env-ből jön, NEM a kódból:
 
@@ -108,6 +93,13 @@ function retainSection(section) {
 }
 
 (async () => {
+    /* A felderítés a kapcsolat ELŐTT: ha egy modell nem nyilatkozik magáról, az
+       export inkább el se induljon. A hívás az IIFE-n BELÜL van, hogy a hibát a
+       lenti catch formázza (egy modul-szintű dobás nyers stack trace-t írna a
+       journalba). */
+    const sections = discoverSections();
+    console.log(`Mentendő szekciók: ${sections.map((section) => section.name).join(", ")}`);
+
     await mongoose.connect(process.env.DATABASE);
     console.log(EXPORT_USER_ID ? "Szűkítve egy felhasználóra." : "Minden felhasználó adata (nincs EXPORT_USER_ID).");
 
@@ -115,7 +107,7 @@ function retainSection(section) {
     endOfWindow.setHours(0, 0, 0, 0);
     const startOfWindow = new Date(endOfWindow.getTime() - 24 * 60 * 60 * 1000);
 
-    for (const section of SECTIONS) {
+    for (const section of sections) {
         await exportSection(section, startOfWindow, endOfWindow);
         retainSection(section);
     }
