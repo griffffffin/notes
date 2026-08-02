@@ -3,7 +3,7 @@
    egyben a fallback (ismeretlen úton).
 
    FONTOS a szóhasználat: ez a "szekció" NEM azonos a to-do SAJÁT, szekción belüli
-   "category" mezőjével (a színes chipek, /to-do/category/:name). Az egy elemek
+   "category" mezőjével (a színes chipek, /to-dos/category/:name). Az egy elemek
    osztályozása egy szekción belül; ez itt maga a tartalomtípus. A két szint
    szándékosan külön nevet kap, hogy a kód ne mossa össze őket.
 
@@ -11,11 +11,11 @@
    exportáljon (Vite fast-refresh, react/only-export-components), és a "+" gomb
    (logoAndCreate) is innen vehesse a currentSection-t. */
 const SECTIONS = [
-    {path: "/to-do", label: "To-do"},
+    {path: "/to-dos", label: "To-dos"},
     {path: "/quotes", label: "Quotes"},
 ];
 
-// Az aktuális szekció az URL ELSŐ szegmenséből (/to-do/category/... → /to-do).
+// Az aktuális szekció az URL ELSŐ szegmenséből (/to-dos/category/... → /to-dos).
 export function currentSection(pathname) {
     return SECTIONS.find((section) => pathname.startsWith(section.path)) ?? SECTIONS[0];
 }
@@ -37,7 +37,7 @@ export function rememberSection(path) {
 }
 
 // A gyökér-átirányítás célja: az emlékezett szekció, első alkalommal az első
-// (SECTIONS[0], ma a to-do).
+// (SECTIONS[0], ma a to-dos).
 export function lastSectionPath() {
     return localStorage.getItem(LAST_SECTION_KEY) ?? SECTIONS[0].path;
 }

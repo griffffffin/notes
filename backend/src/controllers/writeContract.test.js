@@ -57,20 +57,20 @@ function mockModel(existing) {
 const SECTIONS = [
     {
         name: "to-do",
-        modelPath: require.resolve("../models/todo"),
+        modelPath: require.resolve("../models/todos"),
         existing: {_id: newId(), user: OWNER, title: "Lista", order: 5},
         createBody: {user: STRANGER, title: "Új", category: "otthon", color: "warning",
             order: 1, tasks: {}, taskOrder: []},
     },
     {
         name: "idézet",
-        modelPath: require.resolve("../models/quote"),
+        modelPath: require.resolve("../models/quotes"),
         existing: {_id: newId(), user: OWNER, quote: "Idézet", order: 5},
         createBody: {user: STRANGER, quote: "Új idézet", author: "Szerző", order: 1},
     },
 ];
 
-const userModelPath = require.resolve("../models/user");
+const userModelPath = require.resolve("../models/users");
 require.cache[userModelPath] = {
     id: userModelPath, filename: userModelPath, loaded: true,
     exports: {findById: async (id) => String(id) === OWNER ? {_id: id, name: "teszt"} : null},
@@ -87,14 +87,14 @@ for (const section of SECTIONS) {
 const auth = require("../middleware/auth");
 const controllers = {
     "to-do": {
-        create: require("./Todo/create"),
-        update: require("./Todo/update"),
-        reorder: require("./Todo/reorder"),
+        create: require("./Todos/create"),
+        update: require("./Todos/update"),
+        reorder: require("./Todos/reorder"),
     },
     "idézet": {
-        create: require("./Quote/create"),
-        update: require("./Quote/update"),
-        reorder: require("./Quote/reorder"),
+        create: require("./Quotes/create"),
+        update: require("./Quotes/update"),
+        reorder: require("./Quotes/reorder"),
     },
 };
 

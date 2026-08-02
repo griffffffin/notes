@@ -6,8 +6,8 @@
    szomszédokat nem tolnánk el vele együtt. A három művelet MINDIG ugyanaz — a
    szekciók korábban külön-külön írták le, összesen tizenkét helyen.
 
-   A modell PARAMÉTER (nem import): így ugyanez a modul szolgálja ki a Todo-t, a
-   Quote-ot és minden jövőbeli szekciót, feltéve, hogy van {user, order} mezőjük
+   A modell PARAMÉTER (nem import): így ugyanez a modul szolgálja ki a Todos-t, a
+   Quotes-ot és minden jövőbeli szekciót, feltéve, hogy van {user, order} mezőjük
    — és van rájuk {user: 1, order: 1} index, amire ezek a szűrők épülnek.
 
    Az updatedAt-et MINDEN eltolt dokumentumon frissítjük. Ez szándékos: a napi

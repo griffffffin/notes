@@ -74,9 +74,9 @@ export default function Entry(props) {
                 /* A süti beállítása átbillenti az isLoggedIn-t, a router
                    újrarenderel a belépett route-táblával — és MOST NEM navigálunk
                    kézzel: így ha a user login nélkül egy védett címet nyitott meg
-                   (pl. /to-do/update/:id vagy /quotes/:id), belépés után OTT marad,
+                   (pl. /to-dos/update/:id vagy /quotes/:id), belépés után OTT marad,
                    nem dobjuk a főoldalra. A /login és /signup címeket a belépett
-                   tábla "*" ága magától a /to-do listára irányítja át. */
+                   tábla "*" ága magától a /to-dos listára irányítja át. */
                 login(response.data);
             }, (error) => {
                 logRequestError(error);

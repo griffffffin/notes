@@ -15,7 +15,7 @@
    tudja meg, létezik-e az azonosító. Ez a különbségtétel-mentesség az, ami az
    azonosító-próbálgatással való felderítést értelmetlenné teszi.
 
-   A user mező SZÖVEGKÉNT tárolódik (l. models/todo.js indoklása), a
+   A user mező SZÖVEGKÉNT tárolódik (l. models/todos.js indoklása), a
    request.userId is szöveg — ezért egyszerű !== hasonlítható. */
 const findOwned = (Model, id, userId) =>
     Model.findById(id).then((document) => (document && document.user === userId) ? document : null);
@@ -31,7 +31,7 @@ const findOwned = (Model, id, userId) =>
 
    A rendezés MINDIG a sorszám: ez a lista tartós, húzással állított sorrendje, és
    minden nézetben ugyanaz kell legyen. A {user: 1, order: 1} index pontosan ezt a
-   kérdést szolgálja ki (l. models/todo.js). */
+   kérdést szolgálja ki (l. models/todos.js). */
 const findOwnedList = (Model, userId, filter = {}) =>
     Model.find({...filter, user: userId}).sort("order");
 

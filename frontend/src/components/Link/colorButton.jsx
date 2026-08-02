@@ -3,7 +3,7 @@ import ColorButton from "../Button/colorButton";
 
 export default function LinkColorButton(props) {
     return (
-        <Link to={"/to-do/color/" + encodeURIComponent(props.color)} tabIndex="-1">
+        <Link to={"/to-dos/color/" + encodeURIComponent(props.color)} tabIndex="-1">
             <ColorButton color={props.color} class="mx-2 float-end" onClick={props.onClick}/>
         </Link>
     );

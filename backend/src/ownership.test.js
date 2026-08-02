@@ -36,7 +36,7 @@ test("nem létező elemre ugyanaz a null — a létezést sem áruljuk el", asyn
    irányba dőljön.
 
    FIGYELEM — ez a teszt NEM őrzi a `user` mező típusváltását. Ha a mező valaha
-   ObjectId lenne (ma szöveg, l. models/todo.js), a szigorú === mindig hamisat
+   ObjectId lenne (ma szöveg, l. models/todos.js), a szigorú === mindig hamisat
    adna, azaz MINDENKI 403-at kapna a sajátjára — és ez a teszt ATTÓL MÉG ZÖLD
    MARADNA, hiszen épp a típuseltérés elutasítását állítja. A típusváltás tehát
    ennek a tesztnek ÉS az ownership.js összehasonlításának EGYÜTTES átírását

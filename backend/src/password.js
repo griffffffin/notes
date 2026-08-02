@@ -12,7 +12,7 @@ const bcrypt = require("bcrypt");
    ismeretlen névnél azonnal válaszolnánk, létező névnél pedig megvárnánk a
    bcrypt ~130 ms-át, a válaszidőből kiderülne, létezik-e a fiók — hiába azonos a
    hibaüzenet. Ezért ismeretlen névnél is lefuttatunk egy összehasonlítást, EZZEL
-   a hash-sel (l. controllers/User/login.js).
+   a hash-sel (l. controllers/Users/login.js).
 
    KRITIKUS, hogy az álca-hash UGYANAZZAL a költségtényezővel készüljön, mint a
    valódi jelszavaké — különben a két ág mérhetően eltérő ideig futna, és épp azt

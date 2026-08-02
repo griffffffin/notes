@@ -1,5 +1,5 @@
 import {Link} from "react-router-dom";
-import {renderBold} from "../Quote/bold";
+import {renderBold} from "../Quotes/bold";
 
 /* A kártya idézet-szövege, ami a szerkesztőre visz — a to-do LinkTodoUpdate
    párja, ezért VALÓDI link (állapotsor, új lapon megnyitás, képernyőolvasó). A
@@ -12,7 +12,7 @@ export default function LinkQuoteUpdate(props) {
             {/* pre-wrap: a mentett sortöréseket megtartja (több soros idézet több
                 sorban), a hosszú sorokat viszont tördeli. A `**…**` markert a
                 renderBold félkövérré alakítja (a szerkesztőben nyersen látszik). */}
-            {/* --quote-fs: a per-idézet betűméret (l. Quote/save.jsx Betűméret-stepper);
+            {/* --quote-fs: a per-idézet betűméret (l. Quotes/save.jsx Betűméret-stepper);
                 a .caveat szabály ebből rajzol, hiányában a Szerző-mérettel egyező 155%.
                 textAlign: justify — sorkizárt, mint a szerkesztőben és a publikus nézetben. */}
             <div className={"card-body caveat text-" + props.color}

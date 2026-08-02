@@ -1,6 +1,6 @@
 import {useEffect, useState} from "react";
 import {useNavigate} from "react-router-dom";
-import AuthorInput from "../Quote/authorInput";
+import AuthorInput from "../Quotes/authorInput";
 import {useAuth} from "../../contexts/auth-context";
 import {useTheme} from "../../contexts/theme-context";
 import {logRequestError} from "../../log";

@@ -2,7 +2,7 @@ import {Link} from "react-router-dom";
 import {useTheme} from "../../contexts/theme-context";
 
 /* Egy SZŰRT NÉZETRE mutató hivatkozás — a szekciók közös váza. Ma a to-do
-   kategóriája (/to-do/category/:name) és az idézet szerzője (/quotes/:author)
+   kategóriája (/to-dos/category/:name) és az idézet szerzője (/quotes/:author)
    használja; a következő szekció (film: műfaj) ugyanezt kapja.
 
    Miért VALÓDI link, és nem kattintás-kezelős doboz? Mert a böngésző így ismeri

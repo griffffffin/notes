@@ -1,6 +1,6 @@
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
-const User = require("../models/user");
+const Users = require("../models/users");
 
 /* Minden védett végpont előtt fut: az Authorization: Bearer <token> fejlécből
    ellenőrzi az aláírt JWT-t, és a benne igazolt user-azonosítót teszi a
@@ -32,7 +32,7 @@ module.exports = async (request, response, next) => {
 
     let user;
     try {
-        user = await User.findById(payload.id);
+        user = await Users.findById(payload.id);
     } catch {
         /* Itt az adatbázis mondott nemet, nem a felhasználó. Ezt SZÁNDÉKOSAN
            nem 401-gyel jelezzük: a kliens a 401-re kijelentkeztet, és egy múló

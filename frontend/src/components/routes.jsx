@@ -4,12 +4,12 @@ import {
 } from "react-router-dom";
 import Navbar from "./Navbar/navbar";
 import Entry from "./User/entry";
-import Save from "./Todo/save";
-import Read from "./Todo/read";
-import QuoteRead from "./Quote/read";
-import QuoteSearchResults from "./Quote/searchResults";
-import QuoteSave from "./Quote/save";
-import QuotePublic from "./Quote/public";
+import Save from "./Todos/save";
+import Read from "./Todos/read";
+import QuoteRead from "./Quotes/read";
+import QuoteSearchResults from "./Quotes/searchResults";
+import QuoteSave from "./Quotes/save";
+import QuotePublic from "./Quotes/public";
 import {lastSectionPath} from "./Navbar/sections";
 import {useAuth} from "../contexts/auth-context";
 
@@ -58,28 +58,28 @@ function AuthLayout() {
 
 /* Vékony wrapperek: a contextből olvassák az App friss propjait, és a meglévő
    oldal-komponenseknek adják tovább — azok interfésze nem változik. */
-function TodoReadRoute({url}) {
+function TodosReadRoute({url}) {
     const p = useRoutesProps();
     return <Read url={url} handleLinkClicked={p.handleLinkClicked}/>;
 }
 
-function TodoSaveRoute({isUpdate}) {
+function TodosSaveRoute({isUpdate}) {
     const p = useRoutesProps();
     return <Save isUpdate={isUpdate} handleLinkClicked={p.handleLinkClicked}
                  categories={p.categories} handleCategoryChange={p.handleCategoryChange}/>;
 }
 
-function QuoteReadRoute({url}) {
+function QuotesReadRoute({url}) {
     const p = useRoutesProps();
     return <QuoteRead url={url} handleLinkClicked={p.handleLinkClicked}/>;
 }
 
-function QuoteSearchRoute() {
+function QuotesSearchRoute() {
     const p = useRoutesProps();
     return <QuoteSearchResults handleLinkClicked={p.handleLinkClicked}/>;
 }
 
-function QuoteSaveRoute({isUpdate}) {
+function QuotesSaveRoute({isUpdate}) {
     const p = useRoutesProps();
     return <QuoteSave isUpdate={isUpdate} handleLinkClicked={p.handleLinkClicked}/>;
 }
@@ -95,30 +95,30 @@ const loggedInRoutes = createRoutesFromElements(
             jegyzik meg, melyikben jársz — useRememberSection). A tárolás
             részletei, a kulcs és az alapértelmezés a sections.js-ben, egy helyen. */}
         <Route path="/" element={<Navigate to={lastSectionPath()} replace/>}/>
-        <Route path="/to-do" element={<TodoReadRoute url="/to-do"/>}/>
-        <Route path="/to-do/create" element={<TodoSaveRoute key="create" isUpdate={false}/>}/>
+        <Route path="/to-dos" element={<TodosReadRoute url="/to-dos"/>}/>
+        <Route path="/to-dos/create" element={<TodosSaveRoute key="create" isUpdate={false}/>}/>
         {/* A szűrő és a szerkesztendő azonosító az URL-ben, nem a navigációs
             state-ben — így F5/direkt link sem törik el. */}
-        <Route path="/to-do/category/:name" element={<TodoReadRoute url="/to-do/category"/>}/>
-        <Route path="/to-do/color/:name" element={<TodoReadRoute url="/to-do/color"/>}/>
-        <Route path="/to-do/update/:id" element={<TodoSaveRoute key="update" isUpdate={true}/>}/>
+        <Route path="/to-dos/category/:name" element={<TodosReadRoute url="/to-dos/category"/>}/>
+        <Route path="/to-dos/color/:name" element={<TodosReadRoute url="/to-dos/color"/>}/>
+        <Route path="/to-dos/update/:id" element={<TodosSaveRoute key="update" isUpdate={true}/>}/>
         {/* Idézetek. A lista és a szerző-szűrt nézet ugyanaz a QuoteRead (a url-prop
             dönti, szűr-e); a create és az update ugyanaz a QuoteSave, külön key-vel.
             A statikus /quotes/create és /quotes/update rangban megelőzi a dinamikus
             /quotes/:author-t, így nem ütköznek. */}
-        <Route path="/quotes" element={<QuoteReadRoute url="/quotes"/>}/>
-        <Route path="/quotes/create" element={<QuoteSaveRoute key="quote-create" isUpdate={false}/>}/>
-        <Route path="/quotes/update/:id" element={<QuoteSaveRoute key="quote-update" isUpdate={true}/>}/>
+        <Route path="/quotes" element={<QuotesReadRoute url="/quotes"/>}/>
+        <Route path="/quotes/create" element={<QuotesSaveRoute key="quote-create" isUpdate={false}/>}/>
+        <Route path="/quotes/update/:id" element={<QuotesSaveRoute key="quote-update" isUpdate={true}/>}/>
         {/* A keresés szöveg-módú találata. A statikus "search" szegmens rangban
             megelőzi a dinamikus /quotes/:author-t ÉS a /quotes/:author/:id-t (a
             react-router a statikus szegmenst többre értékeli), ezért nem ütköznek. */}
-        <Route path="/quotes/search/:term" element={<QuoteSearchRoute/>}/>
-        <Route path="/quotes/:author" element={<QuoteReadRoute url="/quotes/author"/>}/>
+        <Route path="/quotes/search/:term" element={<QuotesSearchRoute/>}/>
+        <Route path="/quotes/:author" element={<QuotesReadRoute url="/quotes/author"/>}/>
         {/* Egy megosztott idézet publikus nézete. A bejelentkezett is megnyithatja
             (olvasásra); a kijelentkezett ágban ugyanez a route szerepel. */}
         <Route path="/quotes/:author/:id" element={<QuotePublic/>}/>
         {/* Ismeretlen út → a to-do listára (a régi "* → főlista" mintát megtartva). */}
-        <Route path="*" element={<Navigate to="/to-do" replace/>}/>
+        <Route path="*" element={<Navigate to="/to-dos" replace/>}/>
     </Route>
 );
 

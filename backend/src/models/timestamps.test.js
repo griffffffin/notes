@@ -10,13 +10,13 @@
    független a kapcsolattól. Új szekció felvételekor a modelljét ide kell írni. */
 const test = require("node:test");
 const assert = require("node:assert");
-const Todo = require("./todo");
-const Quote = require("./quote");
+const Todos = require("./todos");
+const Quotes = require("./quotes");
 
 // Érvényes törzs szekciónként — csak annyi mező, amennyi a séma required-jeit kielégíti.
 const MODELS = [
-    ["Todo", Todo, {user: "u1", title: "Cím", category: "otthon", color: "warning", order: 1, percentage: 0}],
-    ["Quote", Quote, {user: "u1", quote: "Idézet", order: 1}],
+    ["Todos", Todos, {user: "u1", title: "Cím", category: "otthon", color: "warning", order: 1, percentage: 0}],
+    ["Quotes", Quotes, {user: "u1", quote: "Idézet", order: 1}],
 ];
 
 for (const [name, Model, body] of MODELS) {

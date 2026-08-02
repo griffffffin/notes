@@ -1,7 +1,7 @@
 import {closestCenter, DndContext} from "@dnd-kit/core";
 import {rectSortingStrategy, SortableContext, verticalListSortingStrategy} from "@dnd-kit/sortable";
-import SortableCard from "../Todo/DragAndDrop/sortableCard";
-import {restrictToList} from "../Todo/DragAndDrop/restrictToList";
+import SortableCard from "../Todos/DragAndDrop/sortableCard";
+import {restrictToList} from "../Todos/DragAndDrop/restrictToList";
 
 // Állandó tömb: rendernként újat adva a DndContext fölöslegesen dolgozna.
 const MODIFIERS = [restrictToList];

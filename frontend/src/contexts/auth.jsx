@@ -64,7 +64,7 @@ export function AuthProvider({children}) {
     const logout = useCallback(() => removeCookie("user", {path: "/"}), [removeCookie]);
 
     /* Az `authToken` OPCIONÁLIS felülírás: alapból az ÉLŐ tokent (tokenRef) küldjük.
-       A kijelentkezéskori unmount-mentés (Quote/save.jsx) viszont a MÁR TÖRÖLT élő
+       A kijelentkezéskori unmount-mentés (Quotes/save.jsx) viszont a MÁR TÖRÖLT élő
        token helyett a leváláskor még érvényes, ZÁRVÁNYOLT tokent adja át — enélkül a
        mentés token nélkül, 401-gyel bukna (removeCookie már lefutott, tokenRef null). */
     const handleAxios = useCallback((url, data, then, catchError, authToken) => {

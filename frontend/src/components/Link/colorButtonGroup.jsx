@@ -2,7 +2,7 @@ import LinkColorButton from "./colorButton";
 import {TODO_COLORS} from "../../todoColors";
 
 /* A navbar szín-SZŰRŐJE: minden paletta-színre egy korong, ami a szín szerint
-   szűrt listára visz (/to-do/color/:name). A szerkesztő szín-VÁLASZTÓJA
+   szűrt listára visz (/to-dos/color/:name). A szerkesztő szín-VÁLASZTÓJA
    (Button/colorButtonGroup) ugyanebből a palettából épül — a színek listája
    egyetlen helyen él (todoColors.js), így egy új szín felvétele mindkét helyen
    magától megjelenik. (Eddig itt kézzel voltak felsorolva; a todoColors.js

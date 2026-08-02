@@ -11,11 +11,11 @@ const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
 require("dotenv").config({path: path.join(__dirname, "../.env")});
-const Todo = require("../src/models/todo");
-const Quote = require("../src/models/quote");
+const Todos = require("../src/models/todos");
+const Quotes = require("../src/models/quotes");
 const {localDateString} = require("../src/localDate");
 
-const EXPORT_DIR = process.env.EXPORT_DIR || "/opt/backups/to-do/daily";
+const EXPORT_DIR = process.env.EXPORT_DIR || "/opt/backups/to-dos/daily";
 // Kategóriánként ennyi LEGFRISSEBB exportfájlt tartunk meg, a többit töröljük.
 const RETENTION_COUNT = 10;
 
@@ -23,8 +23,8 @@ const RETENTION_COUNT = 10;
    order" mindegyiknél működik (mindnek van user + order mezője), és determinista
    sorrendet ad, hogy a napi fájlok diffelhetők legyenek. */
 const CATEGORIES = [
-    {name: "todos", model: Todo},
-    {name: "quotes", model: Quote},
+    {name: "todos", model: Todos},
+    {name: "quotes", model: Quotes},
 ];
 
 /* Kinek az adatait mentjük. Az azonosító a .env-ből jön, NEM a kódból:

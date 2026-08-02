@@ -34,7 +34,7 @@ describe("quoteSearchState — hol jelenjen meg a kereső és mi a kezdőérték
     });
 
     it("nem-quotes úton NEM jelenik meg", () => {
-        expect(quoteSearchState("/to-do").show).toBe(false);
-        expect(quoteSearchState("/to-do/category/otthon").show).toBe(false);
+        expect(quoteSearchState("/to-dos").show).toBe(false);
+        expect(quoteSearchState("/to-dos/category/otthon").show).toBe(false);
     });
 });

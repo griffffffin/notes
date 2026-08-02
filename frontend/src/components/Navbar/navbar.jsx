@@ -16,7 +16,7 @@ export default function Navbar(props) {
        téma-váltó mindenhol marad. A useLocation itt működik: a Navbar a Routeren
        BELÜL renderelődik. */
     const pathname = useLocation().pathname;
-    const isTodo = currentSection(pathname).path === "/to-do";
+    const isTodo = currentSection(pathname).path === "/to-dos";
     /* A kereső CSAK a Quotes read-oldalain (lista, szerző-szűrt, találat) jelenik
        meg, és a mező kezdőértékét is az URL adja — l. quoteSearchState. */
     const search = quoteSearchState(pathname);

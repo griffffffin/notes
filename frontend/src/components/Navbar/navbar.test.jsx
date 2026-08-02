@@ -67,7 +67,7 @@ describe("Navbar szűrő-kapcsolók", () => {
 
         // A legördülőből az "otthon" a to-do kategória-szűrt nézetére visz.
         expect(screen.getByRole("link", {name: "otthon"}))
-            .toHaveAttribute("href", "/to-do/category/otthon");
+            .toHaveAttribute("href", "/to-dos/category/otthon");
     });
 
     it("a nyitott szín-legördülő az egyes színeket a szűrt útvonalukra linkeli", () => {
@@ -75,7 +75,7 @@ describe("Navbar szűrő-kapcsolók", () => {
 
         // A színeknek nincs szöveges nevük (csak színfolt), ezért a href alapján
         // ellenőrizzük: a "danger" a to-do szín-szűrt nézetére visz.
-        expect(document.querySelector('a[href="/to-do/color/danger"]')).toBeInTheDocument();
+        expect(document.querySelector('a[href="/to-dos/color/danger"]')).toBeInTheDocument();
     });
 });
 

@@ -3,8 +3,8 @@
    adatbázis: a szűrő intervalluma és az eltolás iránya a lista integritásának
    lelke (egy elrontott $gte/$gt lyukat vagy ütközést hagyna a sorszámokban).
 
-   Ez a modul-szintű háló szándékosan MEGKETTŐZI a controller-tesztek (Todo/,
-   Quote/ ordering.test.js) állításait: azok azt bizonyítják, hogy a VÉGPONTOK a
+   Ez a modul-szintű háló szándékosan MEGKETTŐZI a controller-tesztek (Todos/,
+   Quotes/ ordering.test.js) állításait: azok azt bizonyítják, hogy a VÉGPONTOK a
    helyes műveletet hívják, ez pedig azt, hogy a MŰVELET maga helyes — a kettő
    együtt fedi le a láncot, és egy jövőbeli szekció már ingyen kapja az utóbbit. */
 const test = require("node:test");

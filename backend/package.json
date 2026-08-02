@@ -1,5 +1,5 @@
 {
-  "name": "to-do-backend",
+  "name": "notes-backend",
   "private": true,
   "scripts": {
     "start": "node src/app.js",

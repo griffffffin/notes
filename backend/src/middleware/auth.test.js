@@ -2,7 +2,7 @@
    bárkit beengedett, aki mondott egy user-azonosítót — itt rögzítjük, hogy ez
    soha többé ne fordulhasson elő.
 
-   A tesztek NEM igényelnek adatbázist: a User modellt kicseréljük egy
+   A tesztek NEM igényelnek adatbázist: a Users modellt kicseréljük egy
    memóriabeli változatra, mielőtt az auth betöltené. */
 const test = require("node:test");
 const assert = require("node:assert");
@@ -19,7 +19,7 @@ const DELETED_USER = newId();
 
 // A require-gyorsítótár kulcsa a feloldott elérési út — azt írjuk felül az
 // auth betöltése ELŐTT, így az a mi példányunkat kapja.
-const modelPath = require.resolve("../models/user");
+const modelPath = require.resolve("../models/users");
 let databaseDown = false;
 
 require.cache[modelPath] = {

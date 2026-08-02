@@ -1,6 +1,6 @@
 /* A BETŰMÉRET tartománya KÉT helyen van kimondva, szándékosan:
 
-     - a Mongoose-sémán (models/quote.js: min/max) — ez az utolsó védvonal, ami
+     - a Mongoose-sémán (models/quotes.js: min/max) — ez az utolsó védvonal, ami
        akkor is véd, ha egy jövőbeli végpont megkerülné a middleware-t;
      - a bemenet-ellenőrzésben (validateQuote.js: MIN/MAX_FONTSIZE) — ez utasítja
        el a rossz kérést olvasható üzenettel, mielőtt az adatbázisig jutna.
@@ -16,11 +16,11 @@ const test = require("node:test");
 const assert = require("node:assert");
 const express = require("express");
 const request = require("supertest");
-const Quote = require("../models/quote");
+const Quotes = require("../models/quotes");
 const {validateQuoteBody} = require("./validateQuote");
 
 // A séma a forrás: innen olvassuk ki, mit enged meg a modell.
-const schemaOptions = Quote.schema.path("fontSize").options;
+const schemaOptions = Quotes.schema.path("fontSize").options;
 const MIN = schemaOptions.min;
 const MAX = schemaOptions.max;
 
@@ -54,7 +54,7 @@ test("a middleware elutasítja a séma tartományán KÍVÜLI értékeket", asyn
    fogadnia — és fordítva. A validateSync adatbázis nélkül fut. */
 test("a séma elfogadja a határértékeket, és elutasítja a rajtuk kívülieket", () => {
     const validate = (fontSize) =>
-        new Quote({user: "u1", quote: "Idézet", order: 1, fontSize}).validateSync()?.errors.fontSize;
+        new Quotes({user: "u1", quote: "Idézet", order: 1, fontSize}).validateSync()?.errors.fontSize;
 
     assert.strictEqual(validate(MIN), undefined);
     assert.strictEqual(validate(MAX), undefined);

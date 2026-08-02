@@ -209,14 +209,14 @@ describe("Sikeres belépés utáni cím", () => {
         await userEvent.click(submitButton());
 
         /* Regisztráció után a belépett nézetbe kell jutni. Az Entry a gyökérre
-           navigál, amit a route-tábla a to-do listára (/to-do) irányít át — így
+           navigál, amit a route-tábla a to-do listára (/to-dos) irányít át — így
            a /signup címen semmiképp nem maradhatunk. */
-        await waitFor(() => expect(window.location.pathname).toBe("/to-do"));
+        await waitFor(() => expect(window.location.pathname).toBe("/to-dos"));
     });
 
     it("login nélkül megnyitott védett címen belépés után OTT marad, nem a főoldalon", async () => {
         // Login nélkül egy védett, szűrt címet nyitunk meg (nem /login, nem /signup).
-        window.history.pushState({}, "", "/to-do/category/otthon");
+        window.history.pushState({}, "", "/to-dos/category/otthon");
         render(
             <CookiesProvider>
                 <ThemeProvider>
@@ -233,8 +233,8 @@ describe("Sikeres belépés utáni cím", () => {
         await userEvent.click(submitButton());
 
         /* Belépés után a router a MEGNYITOTT címre renderel (az Entry már nem
-           navigál kézzel), tehát a szűrt nézetben maradunk — nem a /to-do
+           navigál kézzel), tehát a szűrt nézetben maradunk — nem a /to-dos
            főoldalra dobjuk a felhasználót. */
-        await waitFor(() => expect(window.location.pathname).toBe("/to-do/category/otthon"));
+        await waitFor(() => expect(window.location.pathname).toBe("/to-dos/category/otthon"));
     });
 });

@@ -93,7 +93,7 @@ textarea.form-control::placeholder {
         margin-left: 0.25rem !important;
         margin-right: 0.25rem !important;
     }
-    /* A To-do felirat↔"+" (ps-3) és a kijelentkezés↔kapcsoló (a signout az egy
+    /* A To-dos felirat↔"+" (ps-3) és a kijelentkezés↔kapcsoló (a signout az egy
        svg, nem button — ezt itt NEM szűkítjük) gépihez hasonló távolságú marad.
        A helyet a color-gomb és a Kategória közti köz (button.pe-2) + a container
        margói adják. */
@@ -224,16 +224,16 @@ textarea.form-control::placeholder {
    CaveatSemiBold; a Dancing Script sehol máshol nem szerepel). Variable font, a
    súlyt a font-weight adja: a Regular a CaveatSemiBold-hoz képest vékony.
 
-   A Dancing Script azonos font-méretnél MAGASABB betűket rajzol, mint a To-do
+   A Dancing Script azonos font-méretnél MAGASABB betűket rajzol, mint a To-dos
    CaveatSemiBold-ja (canvas-méréssel a cap-magasság 72 vs 65). Hogy a felirat
-   MAGASSÁGA egyezzen a To-doéval (az a mérvadó), a Quotes logót annak display-5
+   MAGASSÁGA egyezzen a To-doséval (az a mérvadó), a Quotes logót annak display-5
    méretének 0.9-szeresére skálázzuk. A képlet a Bootstrap .display-5 reszponzív
    méretét tükrözi (calc + 1200px töréspont), szorozva az aránnyal — ha a Bootstrap
    ezt egyszer megváltoztatja, ez a két érték is állítandó. */
 .logo-quotes {
     font-family: "DancingScript", cursive !important;
     /* A DancingScript variable font wght-tengelye 400–700; 700-on visszük, hogy
-       a súlya a To-do CaveatSemiBold-jához közelítsen — 600-on vékonyabbnak
+       a súlya a To-dos CaveatSemiBold-jához közelítsen — 600-on vékonyabbnak
        hatott nála. (SemiBold static vágat nincs a fájlból, de a variable font a
        900-at is adja, mint a Caveatnál a .caveat strong.) */
     font-weight: 900 !important;
@@ -251,7 +251,7 @@ textarea.form-control::placeholder {
     font-size: 155% !important;
 }
 
-/* A MEGJELENÍTETT idézet/to-do szöveg (az idézet-kártyák törzse és a to-do
+/* A MEGJELENÍTETT idézet/to-dos szöveg (az idézet-kártyák törzse és a to-do
    task-sorai) mind <div> — ezekre a lenti `div.caveat:not(.form-control)` szabály
    illik, ami engedi a per-idézet betűméretet (--quote-fs). A beviteli mezők
    (Szerző-input, "új task", a to-do kategória-mező) <input>-ek: rájuk a `div.caveat`
@@ -268,7 +268,7 @@ textarea.form-control::placeholder {
    ghost-text elcsúszna. A kizárással az overlay is a 155%-os <input>-hez tapad. */
 div.caveat:not(.form-control) {
     /* A méret a --quote-fs CSS-változóból jön (idézet-kártya, publikus nézet, a
-       Quote/save.jsx Betűméret-steppere állítja), hiányában 155%. Így a per-idézet
+       Quotes/save.jsx Betűméret-steppere állítja), hiányában 155%. Így a per-idézet
        betűméret akkor is felülírja a !important-os szabályt, ha inline van megadva
        (az inline érték a változóba megy, nem a font-size-ba). A to-do task-sorai
        nem állítanak --quote-fs-t, ezért náluk a 155%-os fallback marad. */
@@ -473,7 +473,7 @@ form.card > .input-group:first-child > :last-child {
 
 /* …és ugyanez EGGYEL BELJEBB. Az idézet-szerkesztőben a sor jobb szélén már nem
    közvetlenül a sorszám-toolbar áll, hanem egy ÁTLÁTSZÓ oszlop (.editor-side-column:
-   felül a sorszám-toolbar, alul a megosztás-gomb, l. Quote/save.jsx). A fenti szabály
+   felül a sorszám-toolbar, alul a megosztás-gomb, l. Quotes/save.jsx). A fenti szabály
    így az átlátszó oszlopot kerekítené le — azon nem látszik semmi —, a fekete/fehér
    hátterű toolbar viszont szögletes sarokkal takarná ki a card ívét. Ezért az oszlop
    ELSŐ elemét (a toolbart) igazítjuk a card sarkához.
@@ -483,7 +483,7 @@ form.card > .input-group:first-child > .editor-side-column > :first-child {
     border-top-right-radius: 27px !important;
 }
 
-/* Az idézet-szerkesztő szövegmezője (Quote/save.jsx). A szöveg és a placeholder is
+/* Az idézet-szerkesztő szövegmezője (Quotes/save.jsx). A szöveg és a placeholder is
    felül, balra zárt. A magasság a tartalomhoz nő (autoGrow a save.jsx-ben a
    scrollHeight-re állítja), ezért a görgetősávot elrejtjük és a kézi átméretezőt is
    levesszük — így SOSEM jelenik meg scrollbar. */
