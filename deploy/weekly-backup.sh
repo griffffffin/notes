@@ -4,7 +4,7 @@
 # vasárnap hajnali 1-kor, postgres userként (peer auth a unix socketen).
 # Régi mentést csak akkor töröl, ha a friss mentés épnek bizonyult.
 set -eu
-BACKUP_DIR=/opt/backups/to-do/weekly
+BACKUP_DIR=/opt/backups/notes/weekly
 # 700 nap = 100 hét: kb. ennyi heti dumpot tartunk meg (a mentés heti egy, tehát a
 # nap-alapú retenció ~100 fájlt hagy meg), a régebbieket töröljük.
 RETENTION_DAYS=700

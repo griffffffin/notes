@@ -14,11 +14,11 @@ history és a dokumentáció bemutatható minőségű kell legyen.
 komponensek nagy része átkerül, csak az új backend és kategóriák köré bővül.
 
 **Az app neve `Notes`** (2026-08-01 óta): a to-do mára egy szekció a több közül,
-a régi név szűk lett. Ez a névváltás lépésenként megy — a kód és a systemd-unitok
-már `notes` nevűek, a fájlrendszer-útvonalak (`/opt/to-do`, `/opt/backups/to-do`)
-és az adatbázis neve viszont SZÁNDÉKOSAN még a régiek, mert azok mozdítása a
-futó gépet és az élő adatot érinti. Ahol lentebb `to-do` szerepel útvonalként,
-az tényállítás, nem elmaradt átvezetés.
+a régi név szűk lett. Ez a névváltás lépésenként megy — a kód, a systemd-unitok
+és a mentés-gyökér (`/opt/backups/notes`) már `notes` nevűek, a telepítési
+útvonal (`/opt/to-do`) és az adatbázis neve viszont SZÁNDÉKOSAN még a régiek,
+mert azok mozdítása a futó gépet, illetve az élő adatot érinti. Ahol lentebb
+`to-do` szerepel útvonalként, az tényállítás, nem elmaradt átvezetés.
 
 ## Régi projekt (referencia, portoláshoz)
 
@@ -122,9 +122,9 @@ az tényállítás, nem elmaradt átvezetés.
 
 - Napi **JSON**-export éjfélkor (`notes-export.timer` → `backend/scripts/daily-export.js`);
   az ELŐZŐ napot vizsgálja, csak ha volt módosítás; 30 napi retenció;
-  cél: `/opt/backups/to-do/daily/`
+  cél: `/opt/backups/notes/daily/`
 - Heti teljes mentés vasárnap 01:00 (`notes-backup.timer` → `deploy/weekly-backup.sh`,
-  pg_dump gzippel); ~100 heti retenció (`RETENTION_DAYS=700`); cél: `/opt/backups/to-do/weekly/`
+  pg_dump gzippel); ~100 heti retenció (`RETENTION_DAYS=700`); cél: `/opt/backups/notes/weekly/`
 - Mindkét timer `Persistent=true`: kimaradt futást bepótol. A retenció csak akkor
   töröl régit, ha a legfrissebb mentés bizonyítottan ép/nem üres.
 - A két mentést KÉT KÜLÖNBÖZŐ user írja (a napit az app user-e, a hetit a

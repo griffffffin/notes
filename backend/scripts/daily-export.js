@@ -21,7 +21,7 @@ const {localDateString} = require("../src/localDate");
    szolgáltatás elhasalt, de ezt csak a journal tudta.) A testvére a heti mentés
    könyvtára a deploy/weekly-backup.sh-ban — a kettő közös gyökerét a
    backupPaths.test.js őrzi. */
-const EXPORT_DIR = process.env.EXPORT_DIR || "/opt/backups/to-do/daily";
+const EXPORT_DIR = process.env.EXPORT_DIR || "/opt/backups/notes/daily";
 // Kategóriánként ennyi LEGFRISSEBB exportfájlt tartunk meg, a többit töröljük.
 const RETENTION_COUNT = 10;
 

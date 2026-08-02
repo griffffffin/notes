@@ -19,7 +19,7 @@
 # umaskot tudja beállítani, a csoportot nem.
 set -e
 
-BACKUP_ROOT=/opt/backups/to-do
+BACKUP_ROOT=/opt/backups/notes
 DB_USER=postgres
 
 if [ "$(id -u)" -ne 0 ]; then
