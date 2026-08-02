@@ -12,9 +12,8 @@
    pont akkor derül ki, amikor már kellene.
 
    A teszt SZÁNDÉKOSAN nem rögzíti, mi a gyökér NEVE — csak azt, hogy a három
-   fájl ugyanazt mondja. Így az átnevezés továbbra is megengedett (a /opt/to-do →
-   /opt/notes költözésnél kelleni is fog), de csak akkor, ha mindhárom helyen
-   megtörténik. */
+   fájl ugyanazt mondja. Így az átnevezés továbbra is megengedett, de csak akkor,
+   ha mindhárom helyen megtörténik. */
 const test = require("node:test");
 const assert = require("node:assert");
 const fs = require("node:fs");

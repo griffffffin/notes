@@ -14,11 +14,12 @@ history és a dokumentáció bemutatható minőségű kell legyen.
 komponensek nagy része átkerül, csak az új backend és kategóriák köré bővül.
 
 **Az app neve `Notes`** (2026-08-01 óta): a to-do mára egy szekció a több közül,
-a régi név szűk lett. Ez a névváltás lépésenként megy — a kód, a systemd-unitok
-és a mentés-gyökér (`/opt/backups/notes`) már `notes` nevűek, a telepítési
-útvonal (`/opt/to-do`) és az adatbázis neve viszont SZÁNDÉKOSAN még a régiek,
-mert azok mozdítása a futó gépet, illetve az élő adatot érinti. Ahol lentebb
-`to-do` szerepel útvonalként, az tényállítás, nem elmaradt átvezetés.
+a régi név szűk lett. Ez a névváltás lépésenként ment — a kód, a systemd-unitok,
+a mentés-gyökér (`/opt/backups/notes`) és a telepítési útvonal (`/opt/notes`) már
+`notes` nevűek. Egyedül **az adatbázis neve maradt SZÁNDÉKOSAN a régi** (`to-do`),
+mert annak mozdítása az élő adatot érinti: külön menetben, dumppal jön. Ahol
+lentebb `to-do` szerepel, az vagy a to-do SZEKCIÓ, vagy az adatbázis neve — nem
+elmaradt átvezetés.
 
 ## Régi projekt (referencia, portoláshoz)
 
@@ -30,7 +31,7 @@ mert azok mozdítása a futó gépet, illetve az élő adatot érinti. Ahol lent
 
 ## Hardver / környezet
 
-- Raspberry Pi 4B, 4 mag, 7.6GB RAM, Ubuntu (kernel 6.8), `/opt/to-do` alatt fut a projekt
+- Raspberry Pi 4B, 4 mag, 7.6GB RAM, Ubuntu (kernel 6.8), `/opt/notes` alatt fut a projekt
 - Node.js v22.22.1
 - FerretDB **v2.7.0** systemd service-ként fut (`ferretdb.service`,
   `/usr/bin/ferretdb`), a `127.0.0.1:27017` címen figyel. Háttértár:
