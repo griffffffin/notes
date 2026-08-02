@@ -1,7 +1,7 @@
 # Telepítés: sudo cp deploy/notes-health.service deploy/notes-health.timer /etc/systemd/system/ &&
 #            sudo systemctl daemon-reload && sudo systemctl enable --now notes-health.timer
 #
-# A health-check.sh-t NEM kell másolni: a service a /opt/to-do/deploy-ból
+# A health-check.sh-t NEM kell másolni: a service a /opt/notes/deploy-ból
 # futtatja, ahol a hozzá tartozó health.env (SMTP-adatok) is van. Így a szkript
 # módosítása azonnal érvényes, nem kell újratelepíteni.
 [Unit]

@@ -3,6 +3,6 @@ Description=Notes daily JSON export
 
 [Service]
 Type=oneshot
-WorkingDirectory=/opt/to-do/backend
+WorkingDirectory=/opt/notes/backend
 ExecStart=/usr/bin/node scripts/daily-export.js
 User=ubuntu
