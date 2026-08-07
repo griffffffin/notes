@@ -1,4 +1,5 @@
-import FilterLink from "./filterLink";
+import FilterLink, {type FilterLinkProps} from "./filterLink";
+import type {Todo} from "../../types/api";
 
 /* Egy kategória-hivatkozás. KÉT helyen jelenik meg: a to-do kártya láblécében ÉS
    a navbar kategória-legördülőjében. A link VÁZÁT (kódolás, szín, megjelenés) a
@@ -6,7 +7,13 @@ import FilterLink from "./filterLink";
 
    A szűrő az URL-ben utazik (/to-dos/category/:name): MELYIK kategóriát kérje le a
    lista. Így F5/direkt link után is áll — szemben a régi navigációs state-tel. */
-export default function Category(props) {
+type LinkCategoryProps = Omit<FilterLinkProps, "to" | "value"> & {
+    /* A szerződésből származtatva (nem külön `string`): ha a to-do kategóriája
+       valaha alakot vált, ez a link magától követi. */
+    category: Todo["category"];
+};
+
+export default function Category(props: LinkCategoryProps) {
     return <FilterLink to="/to-dos/category/" value={props.category} onClick={props.onClick}
                        color={props.color} class={props.class}/>;
 }

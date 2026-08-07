@@ -1,5 +1,6 @@
+import type {MouseEventHandler} from "react";
 import {Link} from "react-router-dom";
-import {useTheme} from "../../contexts/theme-context";
+import {useTheme, type BootstrapColor} from "../../contexts/theme-context";
 
 /* Egy SZŰRT NÉZETRE mutató hivatkozás — a szekciók közös váza. Ma a to-do
    kategóriája (/to-dos/category/:name) és az idézet szerzője (/quotes/:author)
@@ -25,7 +26,24 @@ import {useTheme} from "../../contexts/theme-context";
    (useSortableCards): a felengedéskor érkező kattintást elnyeli, ha közben húzás
    történt, így a lista átrendezése nem navigál el. A navbarban ez nem fenyeget,
    mert ott nincs húzás. */
-export default function FilterLink({to, value, onClick, color, class: className}) {
+/* Exportált, mert a rá épülő szekció-linkek (LinkAuthor, LinkCategory) a saját
+   propjaikat EBBŐL származtatják: ők csak a `to`-t és a `value`-t töltik ki, a
+   többit változatlanul adják tovább. Így ha a váz egyszer új propot kap, nem kell
+   három fájlban átvezetni — és nem is csúszhatnak el egymástól. */
+export type FilterLinkProps = {
+    /* Az útvonal ELŐTAGJA, per-jellel a végén ("/quotes/"), amihez a kódolt érték
+       hozzáfűződik. Nem a kész cím, mert a kódolás itt történik. */
+    to: string;
+    /* A szűrés értéke — egyben a link látható szövege: a kategória, illetve a
+       szerző neve. */
+    value: string;
+    onClick: MouseEventHandler<HTMLAnchorElement>;
+    /* Ha elmarad, a téma színe érvényes (l. a fenti magyarázatot). */
+    color?: BootstrapColor;
+    class: string;
+};
+
+export default function FilterLink({to, value, onClick, color, class: className}: FilterLinkProps) {
     const theme = useTheme();
 
     return (

@@ -1,4 +1,6 @@
+import type {MouseEventHandler} from "react";
 import {Link} from "react-router-dom";
+import type {Todo} from "../../types/api";
 
 /* A kártya tartalma, ami a szerkesztőre visz — ezért VALÓDI link.
 
@@ -12,7 +14,20 @@ import {Link} from "react-router-dom";
    navigációja nem indul el. A jelző SZÁNDÉKOSAN a rácson ül és nem itt: az a
    kattintás nem feltétlenül azon a kártyán landol, amit húztunk — a szomszédra
    is eshet, ha a lista közben átrendeződött alatta. */
-export default function TodoUpdate(props) {
+type LinkTodoUpdateProps = {
+    todo: Todo;
+    handleLinkClicked: MouseEventHandler<HTMLAnchorElement>;
+};
+
+export default function TodoUpdate(props: LinkTodoUpdateProps) {
+    /* A listaelemek KÉT mezőből állnak össze: a sorrend (taskOrder) és a tartalom
+       (tasks). A szerződés szerint MINDKETTŐ hiányozhat — listaelem nélküli to-do
+       teljesen érvényes. Eddig csak a sorrend meglétét néztük, a tartalomét nem:
+       ha egy to-dón sorrend van, tartalom viszont nincs (megszakadt mentés, kézi
+       adatjavítás), a `tasks[order].done` futásidejű hibával vitte volna az egész
+       listát. A típusellenőrzés hozta elő; a két mezőt együtt kell vizsgálni. */
+    const {tasks, taskOrder} = props.todo;
+
     return (
         /* Az azonosító az URL-ben utazik (/update/:id) a szerkesztőnek; enélkül a
            route (:id kötelező) nem is illeszkedne, a "*"-ág a listára dobna vissza.
@@ -25,12 +40,12 @@ export default function TodoUpdate(props) {
                 {props.todo.title}
             </div>
             <div className="card-body py-1">
-                {props.todo.taskOrder != null && props.todo.taskOrder.map((order) =>
+                {tasks != null && taskOrder != null && taskOrder.map((order) =>
                     <div key={order.toString()}>
-                        <div className={props.todo.tasks[order].done ?
+                        <div className={tasks[order].done ?
                             "text-decoration-line-through caveat text-" + props.todo.color :
                             "caveat text-" + props.todo.color}>
-                            {props.todo.tasks[order].content}
+                            {tasks[order].content}
                         </div>
                     </div>)}
             </div>

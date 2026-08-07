@@ -25,6 +25,11 @@
    észre. Ezért itt csak az áll, aminek MA van olvasója; a többi akkor születik
    meg, amikor az őt használó modul átkerül TypeScriptre. */
 
+/* A to-do színe nem szabad szöveg, hanem a paletta egy neve — a hálózati alak
+   itt szűkebb, mint a séma `String`-je, és ezt a todoColors.test.js kapuja
+   tartja igazként (a backend COLORS-listája ugyanaz a hat név). */
+import type {TodoColor} from "../todoColors";
+
 /* Az azonosítók a Mongo ObjectId-jai, a JSON-ban 24 karakteres hexa STRINGKÉNT.
    Külön névvel, mert a kódban sok string van, és ez a néhány közülük olyan, amit
    sosem gyártunk magunk, csak továbbadunk. */
@@ -68,6 +73,54 @@ export type Quote = {
     /* Per-idézet betűméret SZÁZALÉKBAN, a body méretéhez képest. A sémában van
        alapértéke (155), tehát a válaszban mindig szerepel. */
     fontSize: number;
+    createdAt: IsoDate;
+    updatedAt: IsoDate;
+};
+
+/* Egy listaelem a to-do kártyán. Nem exportált: kifelé ma senki nem kér külön
+   task-ot, a `Todo` mezői viszont ezzel mondják ki az alakjukat. (Ugyanaz a
+   szabály, mint az IsoDate-nél.) */
+type Task = {
+    /* A tárolási KULCS szövegként — a `tasks` objektum ugyanezzel a számmal
+       indexel, csak ott számként. A kettősség öröklött (a régi kód parseInt-elt
+       oda-vissza); a húzható lista ezért normalizál `toString()`-gel, mielőtt a
+       dnd-kit-nek adja (l. Todos/DragAndDrop/task.jsx). */
+    id: string;
+    content: string;
+    done: boolean;
+};
+
+/* A listaelemek NEM tömbben állnak, hanem szám-kulcsú objektumban: a sorrendet
+   külön a `taskOrder` tömb tartja. Így az átrendezés csak a sorrend-tömböt írja
+   át, a tartalmakhoz nem nyúl — és egy elem törlése sem tolja el a többi
+   azonosítóját. */
+type Tasks = Record<number, Task>;
+
+export type Todo = {
+    _id: Id;
+    /* A TULAJDONOS azonosítója szövegként — az okát a backend/src/models/todos.js
+       fejti ki (a jogosultság-ellenőrzés szöveget hasonlít a tokenből jövő
+       szöveggel). Ugyanaz a döntés, mint az idézeteknél. */
+    user: Id;
+    title: string;
+    /* MINDKETTŐ opcionális: a séma nem teszi kötelezővé őket, és egy listaelemek
+       nélküli to-do teljesen érvényes (csak cím és kategória). A `?` teszi
+       láthatóvá, hogy a hiányukat kezelni KELL — a kártya ezért ellenőrzi a
+       taskOrder meglétét, mielőtt végigmenne rajta. */
+    tasks?: Tasks;
+    taskOrder?: number[];
+    /* A to-do saját osztályozása a szekción belül (a szekció-szintű `section`-től
+       külön — l. CLAUDE.md szótár). Szabad szöveg, a felhasználó találja ki. */
+    category: string;
+    /* NEM `string`: a backend validáló middleware-e (validateTodo.js COLORS) csak
+       a hat paletta-nevet engedi be, és hogy a két lista tényleg egyezik, azt a
+       todoColors.test.js kapuja őrzi. Enélkül a szűkítés csak reményteli hit
+       volna a szerverről; így ellenőrzött állítás. */
+    color: TodoColor;
+    /* A kipipált listaelemek aránya, 0–100. A szerver számolja és tárolja, a
+       kártya csak kiírja. */
+    percentage: number;
+    order: number;
     createdAt: IsoDate;
     updatedAt: IsoDate;
 };

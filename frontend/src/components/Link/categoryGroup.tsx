@@ -1,4 +1,6 @@
 import LinkCategory from "./category";
+import type {FilterLinkProps} from "./filterLink";
+import type {Todo} from "../../types/api";
 
 /* A kattintható terület CSAK a kategória szövege, nem a teljes sor szélessége.
 
@@ -12,7 +14,14 @@ import LinkCategory from "./category";
    van, tehát kattintható felület lenne — pontosan az, amit el akarunk kerülni.
    A margó kívül esik, így a látvány marad, a találati felület mégis a szövegre
    szűkül. */
-export default function CategoryGroup(props) {
+export type CategoryGroupProps = {
+    /* A felhasználó ÖSSZES kategóriája (a navbar legördülője), nem egy to-dóé —
+       ezért tömb a `Todo["category"]`-ból. */
+    categories: Todo["category"][];
+    onClick: FilterLinkProps["onClick"];
+};
+
+export default function CategoryGroup(props: CategoryGroupProps) {
     return (
         <div className="d-flex flex-column align-items-end pe-5">
             {props.categories.map((category) =>
