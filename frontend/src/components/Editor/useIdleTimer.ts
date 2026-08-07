@@ -2,7 +2,7 @@ import {useEffect, useRef} from "react";
 import {ACTIVITY_EVENTS, AUTOSAVE_IDLE_MS} from "../../idle";
 
 /* Az alapértelmezett késleltetés (AUTOSAVE_IDLE_MS) és a kijelentkezéshez való
-   viszonya az idle.js-ben van, a másik órával egy helyen — a kettő csak együtt
+   viszonya az idle.ts-ben van, a másik órával egy helyen — a kettő csak együtt
    értelmezhető. Amit itt érdemes tudni: a mentés utáni navigáció NEM aktivitás
    és NEM hív /refresh-t, tehát ez az óra a 15 perces kijelentkezést NEM tolja el;
    az a valódi utolsó aktivitástól számítva jár le.
@@ -15,7 +15,7 @@ import {ACTIVITY_EVENTS, AUTOSAVE_IDLE_MS} from "../../idle";
    mert az óra EGYSZER indul (üres deps), a callback viszont a szerkesztő
    állapotát olvassa — ref nélkül az első render elavult értékeit mentené el. Így
    a hívó egyszerűen egy friss closure-t ad át, és nem kell ismernie a trükköt. */
-export function useIdleTimer(onIdle, delayMs = AUTOSAVE_IDLE_MS) {
+export function useIdleTimer(onIdle: () => void, delayMs: number = AUTOSAVE_IDLE_MS): void {
     const onIdleRef = useRef(onIdle);
     onIdleRef.current = onIdle;
 

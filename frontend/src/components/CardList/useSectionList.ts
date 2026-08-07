@@ -1,4 +1,5 @@
 import {useSortableCards} from "./useSortableCards";
+import type {SortableCard} from "./useSortableCards";
 import {useAuth} from "../../contexts/auth-context";
 import {useRememberSection} from "../Navbar/useRememberSection";
 
@@ -16,10 +17,21 @@ import {useRememberSection} from "../Navbar/useRememberSection";
 
    A visszaadott `grid` a húzás-vezérlés együttese (érzékelők, esemény-kezelők,
    oszlopszám) — egyben adjuk tovább a CardListView-nak, hogy a hívónak ne kelljen
-   ismernie a darabjait. */
-export function useSectionList({url, filter, reorderUrl, section}) {
+   ismernie a darabjait.
+
+   A `<T>` végigfut a hívótól a useSortableCards-ig: a nézet megmondja, milyen
+   kártyákat vár (Todo, Quote…), és a `cards` pontosan azt adja vissza. A hook maga
+   egyikről sem tud semmit — csak annyit, hogy van `_id`-je és `order`-e. */
+export function useSectionList<T extends SortableCard>(
+    {url, filter, reorderUrl, section}: {
+        url: string;
+        filter?: Record<string, unknown> | null;
+        reorderUrl: string;
+        section: string;
+    },
+) {
     const {handleAxios} = useAuth();
-    const {cards, isLoading, ...grid} = useSortableCards({url, filter, reorderUrl, handleAxios});
+    const {cards, isLoading, ...grid} = useSortableCards<T>({url, filter, reorderUrl, handleAxios});
 
     // A gyökér-átirányítás ide tér vissza: a szűrt nézetek is a szekció GYÖKERÉT
     // jegyzik meg, nem az éppen aktív szűrőt.

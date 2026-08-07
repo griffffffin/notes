@@ -11,7 +11,7 @@ import {rememberSection} from "./sections";
 
    A mountoláskor egyszer fut (üres deps), és szándékosan nem figyeli a path
    változását: a szekción belüli navigáció úgyis új mountot hoz. */
-export function useRememberSection(path) {
+export function useRememberSection(path: string): void {
     useEffect(() => {
         rememberSection(path);
     }, [path]);

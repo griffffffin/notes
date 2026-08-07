@@ -12,7 +12,7 @@ import {useTheme, ACCENT_RED, QUOTES_LIGHT_ACCENT} from "../../contexts/theme-co
    nézet beállítása ugyanabban a React-commitban fut → batchelődik, tehát a globális kék
    nem villan fel köztük. Témaváltáskor (isLight változik) az effekt újrafut, és a helyes
    értéket állítja be. */
-export function useQuoteAccent(showRed = false) {
+export function useQuoteAccent(showRed = false): void {
     const {setAccentOverride, isChecked: isLight} = useTheme();
     useEffect(() => {
         setAccentOverride(showRed ? ACCENT_RED : (isLight ? QUOTES_LIGHT_ACCENT : null));

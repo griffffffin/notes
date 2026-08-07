@@ -1,7 +1,10 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {MouseSensor, TouchSensor, useSensor, useSensors} from "@dnd-kit/core";
+import type {DragEndEvent} from "@dnd-kit/core";
 import {arrayMove} from "@dnd-kit/sortable";
 import {logRequestError} from "../../log";
+import type {HandleAxios} from "../../contexts/auth-context";
+import type {Id} from "../../types/api";
 
 /* Ujjal ennyit kell a kártyán tartani, mire a húzás elindul. Ez választja szét a
    GÖRGETÉST a húzástól: enélkül minden felfelé simítás megfogná a kártyát. A
@@ -19,6 +22,23 @@ const MOUSE_DRAG_START_PX = 8;
    határ dönti el, melyik rendezési stratégia helyes (a SortableCardGrid-ben). */
 const SINGLE_COLUMN_QUERY = "(max-width: 575.98px)";
 
+/* Amit egy kártyától MEGKÖVETELÜNK — és pontosan csak azt. A hook nem tudja (és
+   nem is akarja tudni), hogy to-dót vagy idézetet rendezünk: neki két dolog kell,
+   az azonosító a húzáshoz és a sorszám az átrendezéshez. A `T extends SortableCard`
+   ezt mondja ki: bármi jöhet, ami legalább ennyit tud, és a hívó a SAJÁT teljes
+   típusát kapja vissza a `cards`-ban — nem egy megcsonkított alakot. */
+export type SortableCard = {_id: Id; order: number};
+
+type SortableCardsOptions = {
+    url: string;
+    /* A szűrő szekció-specifikus (kategória, szín, szerző, keresőkifejezés), ezért a
+       hívó adja. MEMOIZÁLVA kell érkeznie: egy rendernként újragyártott
+       objektum-literál a betöltő effektet végtelen ciklusba vinné. */
+    filter?: Record<string, unknown> | null;
+    reorderUrl: string;
+    handleAxios: HandleAxios;
+};
+
 /* Egy húzással átrendezhető kártyalista LOGIKÁJA — szekciótól független. A
    to-do és az idézet lista ugyanezt a betöltés+húzás gépezetet használja; csak a
    végpont (`url`, `reorderUrl`), a `filter` és a kártya TARTALMA tér el (az
@@ -26,8 +46,10 @@ const SINGLE_COLUMN_QUERY = "(max-width: 575.98px)";
 
    A kártyák azonosítója egységesen a MongoDB `_id` (mindkét szekcióban az), a
    sorrend pedig az `order` mező — a húzás ezekre épül. */
-export function useSortableCards({url, filter, reorderUrl, handleAxios}) {
-    const [cards, setCards] = useState();
+export function useSortableCards<T extends SortableCard>(
+    {url, filter, reorderUrl, handleAxios}: SortableCardsOptions,
+) {
+    const [cards, setCards] = useState<T[]>();
     const [isLoading, setIsLoading] = useState(true);
 
     /* Versenyhelyzet ellen. Ez az effekt egy betöltésen belül többször is
@@ -38,7 +60,8 @@ export function useSortableCards({url, filter, reorderUrl, handleAxios}) {
        cleanup false-ra állítja; csak a LEGUTÓBBI kérés írhat. */
     useEffect(() => {
         let active = true;
-        handleAxios(url, filter ?? {}, (response) => {
+        // A <T[]> a válasz VÁRT alakja: innentől a response.data a hívó kártyatípusa.
+        handleAxios<T[]>(url, filter ?? {}, (response) => {
             if (active) setCards(response.data);
         }, (error) => {
             if (!active) return;
@@ -62,7 +85,7 @@ export function useSortableCards({url, filter, reorderUrl, handleAxios}) {
 
     useEffect(() => {
         const query = window.matchMedia(SINGLE_COLUMN_QUERY);
-        const update = (event) => setIsSingleColumn(event.matches);
+        const update = (event: MediaQueryListEvent) => setIsSingleColumn(event.matches);
         query.addEventListener("change", update);
         return () => query.removeEventListener("change", update);
     }, []);
@@ -102,7 +125,7 @@ export function useSortableCards({url, filter, reorderUrl, handleAxios}) {
        viselkedését nem — a böngésző emiatt teljes oldalbetöltéssel ment a linkre.
        Ezt CSAK a preventDefault állítja meg. */
     useEffect(() => {
-        const swallowClickAfterDrag = (event) => {
+        const swallowClickAfterDrag = (event: MouseEvent) => {
             if (!draggedSincePress.current) return;
             draggedSincePress.current = false;
             event.preventDefault();
@@ -112,9 +135,13 @@ export function useSortableCards({url, filter, reorderUrl, handleAxios}) {
         return () => document.removeEventListener("click", swallowClickAfterDrag, true);
     }, []);
 
-    const handleDragEnd = useCallback((event) => {
+    const handleDragEnd = useCallback((event: DragEndEvent) => {
         const {active, over} = event;
         if (!over || active.id === over.id) return;
+        /* A lista hiánya itt elvi lehetetlenség (kártyák nélkül nincs mit húzni),
+           de a fordító nem tudhatja: a `cards` a betöltésig `undefined`. A korai
+           visszatérés kimondja azt, ami eddig hallgatólagos feltevés volt. */
+        if (!cards) return;
 
         const from = cards.findIndex((card) => card._id === active.id);
         const to = cards.findIndex((card) => card._id === over.id);

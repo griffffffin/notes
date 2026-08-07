@@ -1,4 +1,5 @@
 import {useEffect} from "react";
+import type {RefObject} from "react";
 
 /* Escape a szerkesztőben = ugyanaz, mint a "Tovább" gomb: a formot sütjük el
    (requestSubmit), így a form saját onSubmit-ja fut le — a mentést/kilépést tehát
@@ -9,10 +10,13 @@ import {useEffect} from "react";
    bezárása egyszerre mentene és lépne ki a szerkesztőből.
 
    A figyelő a WINDOW-on ül (nem a formon): az Escape akkor is működjön, ha a fókusz
-   épp nincs a mezőkön (pl. a felhasználó a lapra kattintott). */
-export function useEscapeSubmit(formRef) {
+   épp nincs a mezőkön (pl. a felhasználó a lapra kattintott).
+
+   A ref típusa `HTMLFormElement | null`-t enged, mert a React a `useRef(null)`-lal
+   létrehozott refet csak a felépülés UTÁN köti az elemhez — a `?.` ezért marad. */
+export function useEscapeSubmit(formRef: RefObject<HTMLFormElement | null>): void {
     useEffect(() => {
-        const onKeyDown = (event) => {
+        const onKeyDown = (event: KeyboardEvent) => {
             if (event.key === "Escape" && !document.querySelector("dialog[open]")) {
                 formRef.current?.requestSubmit();
             }
