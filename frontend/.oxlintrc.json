@@ -3,6 +3,14 @@
   "plugins": ["react", "oxc"],
   "rules": {
     "react/rules-of-hooks": "error",
+    /* HIBA, nem figyelmeztetés. A szabály alapból is fut, de warning szinten — az
+       oxlint pedig warningra nem lép ki nem-nulla kóddal, tehát a CI zölden
+       átengedné. Márpedig a hiányzó függőség pont a projekt tiltólistás
+       hibaosztálya: az effekt egy ELAVULT closure-t őriz, semmi nem hibázik, a
+       callback csak a régi értékkel dolgozik tovább. (Lemérve 2026-08-07: egy
+       szándékosan kihagyott függőség "1 warning, 0 error" — a CI átengedte.)
+       A szigorítás ára nulla volt: a kód akkor 0 ilyet tartalmazott. */
+    "react/exhaustive-deps": "error",
     "react/only-export-components": ["warn", { "allowConstantExport": true }]
   }
 }
