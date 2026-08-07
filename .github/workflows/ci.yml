@@ -36,6 +36,11 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci                 # tiszta, lockfile-hű telepítés (nem "install")
       - run: npm run lint           # oxlint — hibára bukik, a meglévő warningokra nem
+      # A TÍPUS-KAPU. Külön lépés, és SZÁNDÉKOSAN a build előtt: a `vite build`
+      # a típushibás kódot is lefordítja (az esbuild kitörli a típusokat, de nem
+      # ellenőrzi őket — lemérve: két típushibával is 0 kilépési kóddal futott le).
+      # A tsc --noEmit az EGYETLEN, ami tényleg megnézi.
+      - run: npm run typecheck
       - run: npm run knip           # keresztfájlos halott kód → exit 1 = bukás
       - run: npm test               # vitest (jsdom, DB nem kell)
       - run: npm run build          # a build maga is elhasal, ha valami törött

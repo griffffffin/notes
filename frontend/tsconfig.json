@@ -1,0 +1,58 @@
+{
+  /* A TypeScript BEÁLLÍTÁSAI — nem fordítunk vele, csak ELLENŐRZÜNK.
+
+     Fontos, hogy tiszta legyen a munkamegosztás: a kódból a JavaScriptet a Vite
+     (benne az esbuild) gyártja, az pedig a típusannotációkat CSAK KITÖRLI, nem
+     nézi meg. Vagyis a `vite build` típushibás kódot is boldogan lefordít. A
+     valódi kapu az `npm run typecheck` (tsc --noEmit) és annak CI-lépése —
+     enélkül a .ts kiterjesztés díszlet lenne. */
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    /* "bundler": az importokat a Vite oldja fel, ezért itt is az ő szabályai
+       szerint keressük a fájlokat (kiterjesztés nélküli importok, package.json
+       "exports" mezője). A backend majd "nodenext"-et kap: ott a Node old fel. */
+    "moduleResolution": "bundler",
+    // A JSX-et a React 19 automatikus futásideje fordítja — nem kell minden
+    // fájl tetejére `import React`.
+    "jsx": "react-jsx",
+
+    "strict": true,
+    /* Nem írunk ki semmit: a fordítás a Vite dolga. (Ez egyben feltétele
+       az allowImportingTsExtensions-nek, amit majd a backend használ.) */
+    "noEmit": true,
+
+    /* EZ A KETTŐ ADJA A FOKOZATOSSÁGOT — nem a szigor lazítása:
+       allowJs: a .js/.jsx és a .ts/.tsx fájlok egymás mellett élhetnek, tehát
+       az átállás fájlonként haladhat;
+       checkJs: a még át nem írt JavaScript fájlokba NE kössön bele (különben az
+       első naptól több ezer hibát látnánk, és megszokásból figyelmen kívül
+       hagynánk őket).
+       Az átállás ZÁRÓKÖVE az allowJs: false lesz: onnantól egy .js fájl a
+       src-ben fordítási hiba, tehát nem lehet észrevétlenül visszaszivárogni. */
+    "allowJs": true,
+    "checkJs": false,
+
+    /* Az esbuild FÁJLONKÉNT fordít, a többi fájl ismerete nélkül. Ez a kapcsoló
+       megtiltja azt, amit ilyen módon nem lehet helyesen lefordítani — így nem
+       írhatunk olyat, amit a tsc megért, a tényleges build viszont elront. */
+    "isolatedModules": true,
+    /* Kötelezővé teszi az `import type {X} from "..."` alakot a típus-importokra.
+       Haszna futásidejű: a fordító így BIZTOSAN tudja, hogy azt a sort ki kell
+       törölni — nem marad utána import egy olyan névre, ami futásidőben nem
+       létezik. */
+    "verbatimModuleSyntax": true,
+
+    /* A node_modules .d.ts fájljait ne hitelesítsük újra: nem a mi kódunk, nem
+       tudunk mit kezdeni a hibáival, viszont sokat lassít. */
+    "skipLibCheck": true,
+
+    /* Globális típusok, amiket sehol nem importálunk, mégis kellenek:
+       vite/client — az `import.meta.env` (VITE_BACKEND) típusa;
+       vitest/globals — a `describe`/`test`/`expect` a tesztfájlokban (a
+       vite.config.js `globals: true` beállítása miatt nem importáljuk őket). */
+    "types": ["vite/client", "vitest/globals"]
+  },
+  "include": ["src"]
+}
