@@ -16,6 +16,8 @@
    modell-mappára fut, mert a felejtés pont ott történik. */
 const test = require("node:test");
 const assert = require("node:assert");
+const fs = require("fs");
+const path = require("path");
 const {discoverSections, sectionsFrom} = require("./exportSections");
 const Users = require("../src/models/users");
 
@@ -42,6 +44,38 @@ test("a valódi modellek MINDEGYIKE dönt magáról (ez a kapu)", () => {
     for (const section of sections) {
         assert.ok(section.name.length > 0, `${section.file}: üres fájlnév-előtag`);
         assert.ok(section.model, `${section.name}: nincs modell a szekció mellett`);
+    }
+});
+
+/* A fenti teszt egy egész hibaosztályt NEM lát, és pont a legcsendesebbet: azt
+   állítja, hogy a MEGTALÁLT szekciók rendben vannak, azt nem, hogy melyeket
+   kellett volna megtalálni. Ha a felderítő szűrője elcsúszik a valóságtól (mert
+   pl. csak ".js"-t ismer, a modell viszont már ".ts"), a hiányzó szekcióról
+   NINCS hibaüzenet: a felderítő nem tud a létezéséről, tehát nincs mit
+   panaszolnia. A `sections` rövidebb lesz, `errors` üres marad, a szkript
+   sikeresen lefut — és egy egész szekció adata kimarad a mentésből.
+
+   Ez a teszt zárja a rést azzal, hogy a MAPPÁT kérdezi, nem a felderítőt: a
+   fájllistát SZÁNDÉKOSAN másképp állítja elő (minden nem-teszt fájl), mint a
+   vizsgált kód. Két független szabály, aminek egyeznie kell — ha széttartanak,
+   ez pirosra vált. Egy közös segédfüggvényt használva a teszt együtt tévedne a
+   kóddal, és pont azt nem venné észre, amiért íródott. */
+test("a modell-mappa MINDEN fájlja elszámol magával", () => {
+    const modelsDirectory = path.join(__dirname, "../src/models");
+    const files = fs.readdirSync(modelsDirectory)
+        .filter((file) => !file.includes(".test."))
+        .sort();
+
+    assert.ok(files.length > 0, "üres a modell-mappa — rossz útvonalon keresünk?");
+
+    const {sections} = discoverSections();
+    for (const file of files) {
+        // A kimondottan nem-mentendő modell (users: jelszó-hash) szabályosan hiányzik.
+        if (require(path.join(modelsDirectory, file)).exportName === null) continue;
+        assert.ok(sections.some((section) => section.file === file),
+            `${file}: a modell-mappában ott van, a felderítő mégsem találta meg. ` +
+            "Ez NÉMA adatvesztés: a szekció adata kimaradna a napi mentésből, " +
+            "hibaüzenet nélkül. Nézd meg a felderítő fájlszűrőjét (isModelFile).");
     }
 });
 

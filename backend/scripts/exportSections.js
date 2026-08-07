@@ -45,7 +45,7 @@ function declaredSection(file, model) {
     if (!Object.hasOwn(model, "exportName")) {
         throw new Error(`${file}: a modell nem mondja meg, kell-e menteni. ` +
             "Írd a modell mellé: Model.exportName = \"<fájlnév-előtag>\" (mentendő szekció), " +
-            "vagy Model.exportName = null (soha ne exportáld, pl. users).");
+            "vagy Model.exportName = null (soha ne exportáld).");
     }
 
     const name = model.exportName;
@@ -123,12 +123,28 @@ function sectionsFrom(entries) {
     return {sections, errors};
 }
 
-/* A modell-mappa átfésülése. A tesztfájlok kimaradnak, a sorrend pedig ábécé
-   szerint rögzített, hogy a szkript naplója futásról futásra ugyanaz legyen (a
-   readdir sorrendje fájlrendszerfüggő). */
+/* Modellfájl-e. A kiterjesztés MINDKÉT alakot elfogadja (.js és .ts), mert a
+   TypeScript-átállás alatt a mappa hosszú ideig VEGYES lesz.
+
+   Miért nem elég a ".js": ha a szűrő csak azt ismerné, egy már átírt quotes.ts-t
+   nem találna meg — és ez a hiba a legrosszabb fajta volna. Nem üresen futna
+   (arra a fenti "egyetlen szekciót sem találtam" ág figyel), hanem RÉSZLEGESEN:
+   a még .js-ben lévő szekciókat lementené, hibát nem jelezne, kilépési kódja 0
+   maradna. Vagyis a szolgáltatás zöld, a mentés hiányos — pontosan az a néma
+   kimaradás, ami ellen ez az egész gépezet készült.
+
+   A tesztfájlok és a típusdeklarációk (.d.ts — csak típus, futásidejű exportja
+   nincs) kimaradnak. */
+function isModelFile(file) {
+    return /\.[jt]s$/.test(file) && !/\.test\.[jt]s$/.test(file) && !file.endsWith(".d.ts");
+}
+
+/* A modell-mappa átfésülése. A sorrend ábécé szerint rögzített, hogy a szkript
+   naplója futásról futásra ugyanaz legyen (a readdir sorrendje
+   fájlrendszerfüggő). */
 function discoverSections(directory = MODELS_DIR) {
     const files = fs.readdirSync(directory)
-        .filter((file) => file.endsWith(".js") && !file.endsWith(".test.js"))
+        .filter(isModelFile)
         .sort();
     return sectionsFrom(files.map((file) => [file, require(path.join(directory, file))]));
 }
