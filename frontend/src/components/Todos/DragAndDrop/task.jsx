@@ -85,7 +85,7 @@ export default function Task(props) {
                 ikonon túl, hogy ujjal (telefonon) könnyű legyen eltalálni. A
                 nagyobb ikon (size=lg) pedig láthatóbbá teszi. */}
             <span {...listeners} className="ps-2 pe-1 py-1" style={{touchAction: "none", cursor: "grab"}}>
-                <FontAwesomeIcon icon="fa-solid fa-bars" size="lg" className={"text-" + props.color}/>
+                <FontAwesomeIcon icon={["fas", "bars"]} size="lg" className={"text-" + props.color}/>
             </span>
         </div>
     );

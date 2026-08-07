@@ -13,8 +13,12 @@ import {logRequestError} from "../log";
    mert egy egészben átadott objektumból a tree-shaking nem tudja kiszűrni a
    használatlant. Nevesített importoknál a Rollup pontosan látja, mi kell.
 
-   FONTOS: ha új ikont kezdesz használni a kódban (icon="fa-solid fa-…"), ide
-   is fel KELL venni, különben némán üresen jelenik meg. A használt ikonok:
+   FONTOS: ha új ikont kezdesz használni a kódban (icon={["fas", "…"]}), ide
+   is fel KELL venni, különben némán üresen jelenik meg. (Az ikon-hivatkozás
+   alakja a TÍPUS miatt [prefix, név] tömb, nem a "fa-solid fa-…" osztálynév-
+   szöveg: a FontAwesome futásideje mindkettőt érti, de csak a tömbösnél
+   ellenőrzött az ikon NEVE — az elgépelt névre így fordítási hiba jön, nem
+   üres hely a felületen.) A használt ikonok:
    angle-down/up (nyilak), bars (húzófogantyú), fill + fill-drip (színválasztó
    zárt/nyitott), paint-roller (téma), plus (hozzáadás), right-from-bracket
    (kijelentkezés). */

@@ -398,7 +398,7 @@ export default function Save(props) {
                                             onDelete={() => { leftViaForm.current = true; }}/>}
 
                         <NoFocusButton onClick={handleColorAngleClick} class="pb-0" color={color}
-                                       text={<FontAwesomeIcon icon="fa-solid fa-paint-roller" size="xl"
+                                       text={<FontAwesomeIcon icon={["fas", "paint-roller"]} size="xl"
                                                               className={isColorAngleClicked ?
                                                                   "fa-flip-vertical py-1 text-" + color :
                                                                   "py-1 text-" + color}/>}/>

@@ -22,7 +22,7 @@ export default function MoreTask(props) {
     return (
         <div className="input-group">
             <div className="input-group-text bg-transparent no-focus">
-                <FontAwesomeIcon icon="fa-solid fa-plus" className={"text-" + props.color}/>
+                <FontAwesomeIcon icon={["fas", "plus"]} className={"text-" + props.color}/>
             </div>
             <NoFocusInput value={moreTask} onChange={handleMoreTaskChange} placeholder="Listaelem" autoFocus={false}
                           required={false} color={props.color} class="caveat ms-0 ps-0"/>
