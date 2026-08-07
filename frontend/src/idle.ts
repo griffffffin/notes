@@ -24,7 +24,12 @@
    fordulhat elő, hogy a képernyő kijelentkezettnek látszik, miközben a lemásolt
    süti a szerveren még működik. Az a kötés két CSOMAG között van, tehát azt csak
    komment tartja — ha ez az érték változik, a backendét is állítani kell. */
-export const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "wheel"];
+
+/* Az `as const` itt nem formaság: nélküle a lista típusa `string[]` lenne, vele
+   a hat KONKRÉT eseménynév. A haszna a felhasználási helyen (contexts/auth.jsx)
+   fog látszani: a `window.addEventListener` típusa ismeri az eseményneveket, így
+   egy elgépelt "mousemoove" fordításkor bukik, nem csendben soha nem tüzelve. */
+export const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "wheel"] as const;
 
 // Ennyi tétlenség után jelentkeztet ki az auth (contexts/auth.jsx).
 export const IDLE_LOGOUT_MS = 15 * 60 * 1000;

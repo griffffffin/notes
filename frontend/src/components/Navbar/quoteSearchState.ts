@@ -9,10 +9,14 @@
    "Anonymous" jelölőt is beleértve), találatnál a keresett kifejezés, a teljes
    listán üres.
 
-   Külön (nem-komponens) fájl, mint a sections.js — így a navbar egy sima
+   Külön (nem-komponens) fájl, mint a sections.ts — így a navbar egy sima
    segédfüggvényt importál, és a Vite fast-refresh sem esik el a
    react/only-export-components miatt. */
-export function quoteSearchState(pathname) {
+
+// Egyelőre nem exportált típus — l. a sections.ts-ben ugyanezt az indoklást.
+type QuoteSearchState = {show: boolean; term: string};
+
+export function quoteSearchState(pathname: string): QuoteSearchState {
     const segments = pathname.split("/").filter(Boolean);
     if (segments[0] !== "quotes") return {show: false, term: ""};
 

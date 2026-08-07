@@ -6,7 +6,14 @@
    egy új szín felvétele tehát két fájl összehangolt szerkesztését kívánta,
    és semmi nem jelezte volna, ha az egyik kimarad.
 
-   A kulcsok sorrendje egyben a színválasztó gombok sorrendje. */
+   A kulcsok sorrendje egyben a színválasztó gombok sorrendje.
+
+   Az `as const` a TypeScript "vedd szó szerint" jelzése. Nélküle a fordító a
+   mezőket egyszerű `string`-nek általánosítaná, és a paletta nem tudna semmit
+   önmagáról: egy `TODO_COLORS["primry"]` elgépelés is átmenne. Vele a típus a
+   HAT konkrét kulcs és a hozzájuk tartozó konkrét hex — ebből a színválasztó
+   majd `keyof typeof TODO_COLORS`-szal származtathatja a megengedett neveket,
+   ahelyett hogy külön felsorolná őket (a fenti kettősség modern alakja). */
 export const TODO_COLORS = {
     primary: "#0d6efd",
     info: "#0dcaf0",
@@ -14,4 +21,4 @@ export const TODO_COLORS = {
     danger: "#dc3545",
     warning: "#ffc107",
     success: "#198754",
-};
+} as const;

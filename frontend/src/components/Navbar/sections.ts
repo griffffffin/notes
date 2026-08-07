@@ -10,13 +10,20 @@
    Külön (nem-komponens) fájlban, hogy a sectionSwitcher.jsx csak komponenst
    exportáljon (Vite fast-refresh, react/only-export-components), és a "+" gomb
    (logoAndCreate) is innen vehesse a currentSection-t. */
-const SECTIONS = [
+
+/* A típus egyelőre NEM exportált: kifelé még senki nem kéri (a fogyasztói .jsx-ek),
+   a `currentSection` visszatérési értékét pedig a fordító magától is ismeri. Amint
+   egy .tsx komponens néven akarja nevezni, exportálttá válik — addig a knip halott
+   exportként jelentené. L. a src/types/api.ts növekedési szabályát. */
+type Section = {path: string; label: string};
+
+const SECTIONS: Section[] = [
     {path: "/to-dos", label: "To-dos"},
     {path: "/quotes", label: "Quotes"},
 ];
 
 // Az aktuális szekció az URL ELSŐ szegmenséből (/to-dos/category/... → /to-dos).
-export function currentSection(pathname) {
+export function currentSection(pathname: string): Section {
     return SECTIONS.find((section) => pathname.startsWith(section.path)) ?? SECTIONS[0];
 }
 
@@ -32,7 +39,7 @@ export function currentSection(pathname) {
    a to-do nyílna. */
 const LAST_SECTION_KEY = "lastSection";
 
-export function rememberSection(path) {
+export function rememberSection(path: string): void {
     localStorage.setItem(LAST_SECTION_KEY, path);
 }
 
@@ -44,9 +51,13 @@ export function rememberSection(path) {
    váltás után a régi érték egy nem létező útra irányítana. A `*` route ugyan
    visszadobná a főlistára, de csak egy fölösleges ugrás árán — és ha egyszer egy
    szekció megszűnik, ugyanez a csapda újra elsülne. Ismeretlen érték esetén
-   tehát az első szekcióra esünk vissza, mintha még sosem jártál volna itt. */
-export function lastSectionPath() {
+   tehát az első szekcióra esünk vissza, mintha még sosem jártál volna itt.
+
+   A `stored` típusa `string | null` (a localStorage nem talált kulcsra null-t ad).
+   Az `isKnown` ág ezt szűkíti le stringre: ha a tárolt érték szerepel a listában,
+   akkor nem lehet null — a fordító ezt az összefüggést magától követi. */
+export function lastSectionPath(): string {
     const stored = localStorage.getItem(LAST_SECTION_KEY);
-    const isKnown = SECTIONS.some((section) => section.path === stored);
-    return isKnown ? stored : SECTIONS[0].path;
+    const known = SECTIONS.find((section) => section.path === stored);
+    return known ? known.path : SECTIONS[0].path;
 }
