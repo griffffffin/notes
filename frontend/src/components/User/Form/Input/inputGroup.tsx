@@ -1,8 +1,19 @@
 import RoundedPillInput from "../../../Input/roundedPillInput";
-import PasswordGroup from "./Password/passwordGroup";
+import PasswordGroup, {type PasswordGroupProps} from "./Password/passwordGroup";
 import {useTheme} from "../../../../contexts/theme-context";
 
-export default function InputGroup(props) {
+/* A teljes űrlap-belső: cím, felhasználónév, és alatta a jelszó-csoport. A
+   jelszóhoz tartozó propokat változatlanul adja tovább, ezért azok típusa a
+   PasswordGroup-ból származik — EGY kivétellel: az `isPasswordVisible` itt más
+   néven fut (lentebb `isVisible`-ként megy tovább), mert ezen a szinten a "mi
+   látszik" kérdés a jelszóra vonatkozik, nem a csoportra. */
+type InputGroupProps = Omit<PasswordGroupProps, "isVisible"> & {
+    isPasswordVisible: PasswordGroupProps["isVisible"];
+    name: string;
+    handleNameChange: PasswordGroupProps["handlePasswordChange"];
+};
+
+export default function InputGroup(props: InputGroupProps) {
     const {isChecked} = useTheme();
 
     return (<>

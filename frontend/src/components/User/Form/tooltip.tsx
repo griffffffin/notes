@@ -10,7 +10,10 @@ export default function Tooltip() {
     const toggle = useTooltipToggle("tooltip");
 
     return (<>
-        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="currentColor" tabIndex="-1"
+        {/* A tabIndex SZÁM, nem szöveg (l. Button/submitButtonGroup.tsx): a -1 azt
+            jelenti, hogy az ikon Tab-bal nem érhető el — a súgó tartalma amúgy is
+            ott áll a jelszó-szabályban, nem billentyűzet-navigáció célpontja. */}
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="currentColor" tabIndex={-1}
              className={"bi bi-info-circle no-focus mb-1 text-" + color} data-tooltip-id="tooltip"
              viewBox="0 0 16 16">
             <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>

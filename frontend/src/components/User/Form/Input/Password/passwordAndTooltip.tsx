@@ -1,3 +1,4 @@
+import type {ChangeEventHandler, MouseEventHandler} from "react";
 import Tooltip from "../../tooltip";
 import RoundedPillInput from "../../../../Input/roundedPillInput";
 import NoFocusButton from "../../../../Button/noFocusButton";
@@ -9,7 +10,17 @@ import {useTheme} from "../../../../../contexts/theme-context";
    8 kB, lásd vite.config.js), így nincs értük külön letöltés, és nem villannak
    be későn. A nyitott szem svgo-val 24 kB → 6,4 kB lett. */
 
-export default function PasswordAndTooltip(props) {
+export type PasswordAndTooltipProps = {
+    /* Melyik nézet: belépéskor NINCS jelszó-szabály-súgó (a meglévő jelszót nem
+       kell szabályhoz igazítani), regisztrációkor van. */
+    isLogin: boolean;
+    isVisible: boolean;
+    value: string;
+    handleChange: ChangeEventHandler<HTMLInputElement>;
+    handleClick: MouseEventHandler<HTMLButtonElement>;
+};
+
+export default function PasswordAndTooltip(props: PasswordAndTooltipProps) {
     const {isChecked} = useTheme();
 
     return (<>

@@ -1,3 +1,4 @@
+import type {ChangeEventHandler, MouseEventHandler} from "react";
 import RoundedPillInput from "../../../../Input/roundedPillInput";
 import NoFocusButton from "../../../../Button/noFocusButton";
 import closedEye from "../../../../../assets/icons/password/closed_eye.svg";
@@ -8,7 +9,20 @@ import {useTheme} from "../../../../../contexts/theme-context";
    8 kB, lásd vite.config.js), így nincs értük külön letöltés, és nem villannak
    be későn. A nyitott szem svgo-val 24 kB → 6,4 kB lett. */
 
-export default function PasswordConfirm(props) {
+/* A jelszó-mezők propjai KÉT néven futnak (itt onChange/onClick, a párjában
+   handleChange/handleClick) — örökölt következetlenség, nem szándék. A típusok
+   ezért nem oszthatók meg a kettő között; ha egyszer egységesítjük a neveket,
+   akkor egy közös típus is elég lesz. */
+export type PasswordConfirmProps = {
+    /* Látszik-e a jelszó nyílt szöveggel (a szem-ikon állítja). Egyetlen forrásból
+       jön az egész űrlapon (Entry), hogy a két mező EGYSZERRE váltson. */
+    isVisible: boolean;
+    value: string;
+    onChange: ChangeEventHandler<HTMLInputElement>;
+    onClick: MouseEventHandler<HTMLButtonElement>;
+};
+
+export default function PasswordConfirm(props: PasswordConfirmProps) {
     const {isChecked} = useTheme();
 
     return (<>

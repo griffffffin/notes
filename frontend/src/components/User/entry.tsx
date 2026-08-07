@@ -1,10 +1,18 @@
-import {useCallback, useEffect, useState} from "react";
+import {useCallback, useEffect, useState, type ChangeEvent, type FormEvent} from "react";
 import InputGroup from "./Form/Input/inputGroup";
 import SubmitButtonGroup from "../Button/submitButtonGroup";
 import {useAuth} from "../../contexts/auth-context";
 import {logRequestError} from "../../log";
+import {responseStatus} from "../../httpError";
+import type {AuthToken} from "../../types/api";
 
-export default function Entry(props) {
+/* Ugyanaz a komponens szolgálja ki a belépést és a regisztrációt — a különbséget
+   EGYETLEN zászló hordozza, nem két majdnem egyforma fájl. */
+type EntryProps = {
+    isLogin: boolean;
+};
+
+export default function Entry(props: EntryProps) {
     const [isLoginError, setIsLoginError] = useState(false);
     const [isSignUpError, setIsSignUpError] = useState(false);
     const [name, setName] = useState("");
@@ -40,13 +48,13 @@ export default function Entry(props) {
         setIsSignUpError(false);
     }, []);
 
-    const handleNameChange = useCallback((event) => {
+    const handleNameChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
         if (isLoginError || isSignUpError) clearError();
         setName(event.target.value);
         setIsNameValid(event.target.value.length > 0);
     }, [isLoginError, isSignUpError, clearError]);
 
-    const handlePasswordChange = useCallback((event) => {
+    const handlePasswordChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
         if (isLoginError || isSignUpError) clearError();
         setPassword(event.target.value);
         if (isLogin) setIsPasswordValid(event.target.value.length >= 8);
@@ -56,7 +64,7 @@ export default function Entry(props) {
         }
     }, [isLoginError, isSignUpError, clearError, isLogin, passwordConfirm]);
 
-    const handlePasswordConfirmChange = useCallback((event) => {
+    const handlePasswordConfirmChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
         if (isLoginError || isSignUpError) clearError();
         setPasswordConfirm(event.target.value);
         setIsPasswordConfirmValid(event.target.value === password);
@@ -68,9 +76,13 @@ export default function Entry(props) {
             setIsDisabled(!(isNameValid && isPasswordValid && isPasswordConfirmValid)),
         [isLogin, isNameValid, isPasswordValid, isPasswordConfirmValid]);
 
-    const handleSubmit = useCallback((event) => {
+    const handleSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        handleAxios(url, {name: name, password: password}, (response) => {
+        /* A <AuthToken> megmondja, MIT várunk a szervertől: a válasz törzse maga az
+           aláírt JWT, csupasz szövegként. Enélkül a `response.data` `unknown`
+           volna, és a `login()` nem fogadná el — a típus-paraméter tehát nem
+           díszítés, hanem itt dől el, hogy a szerződést betartjuk-e. */
+        handleAxios<AuthToken>(url, {name: name, password: password}, (response) => {
                 /* A süti beállítása átbillenti az isLoggedIn-t, a router
                    újrarenderel a belépett route-táblával — és MOST NEM navigálunk
                    kézzel: így ha a user login nélkül egy védett címet nyitott meg
@@ -85,9 +97,14 @@ export default function Entry(props) {
                    Korábban a "foglalt" szóra kerestünk rá az üzenetben — az
                    üzenet átfogalmazása vagy fordítása némán elrontotta volna ezt
                    az ágat, és semmi nem jelezte volna. */
+                /* A hibaág paramétere `unknown` (JavaScriptben bármit el lehet
+                   dobni), ezért nem lehet csak úgy `error.response?.status`-t írni.
+                   A `responseStatus` VALÓDI alak-vizsgálatot végez (l. httpError.ts),
+                   nem `as`-szal állítja, hogy Axios-hiba — így a fenti 409-es teszt
+                   sima `{response:{status:409}}` objektuma is átmegy rajta. */
                 if (isLogin) {
                     setIsLoginError(true);
-                } else if (error.response?.status === 409) {
+                } else if (responseStatus(error) === 409) {
                     setIsSignUpError(true);
                 }
             }
