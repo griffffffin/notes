@@ -178,6 +178,21 @@ elmaradt átvezetés.
   épül (betöltési sorrend, verziófüggő viselkedés, DOM-sorrend), tedd
   explicitté — konkrét érték + rövid komment a kényszerről. (Tanulság: a régi
   kód CSS-sorrend- és z-index-döntetlenekre épített, amik némán elromlottak.)
+- **Az `as` NEM ellenőrzés.** A TypeScript `as` (és a `querySelector<T>`-stílusú
+  típusparaméter, meg a `!` non-null jel) nem vizsgál semmit: közli a fordítóval,
+  hogy higgyen nekünk. Ha az érték mégis más alakú, senki nem szól — vagyis egy
+  `as`-szal pont azt a néma hibát engedjük vissza, ami ellen a típusok vannak.
+  Ahol egy ismeretlen (`unknown`) érték alakjától függ a viselkedés, oda **valódi
+  futásidejű ellenőrzés** kell: `typeof` / `in` / `instanceof`, saját típusőr
+  függvényben, teszttel. (Példa: `src/httpError.ts` — a 401-kiléptetés és a
+  hibanaplózás alak-vizsgálata; korábban két külön `as` állította ugyanezt.)
+  Az `as const` KIVÉTEL: az nem állítás egy értékről, hanem a literál típus
+  megőrzése, és a fordító ellenőrzi.
+- **Kezdőérték ≠ típus.** Ahol egy `useState`, `useRef` vagy modul-szintű változó
+  `null`-lal (vagy üres tömbbel) indul, ott a típus KIMONDOTTAN járjon mellé
+  (`useState<AccentOverride | null>(null)`). A fordító különben a kezdőértékből
+  következtet, és a változót örökre `null`-ra szűkíti. Ez hangos hiba (az első
+  értékadás elhasal), de a szabály elébe megy.
 - **`ELTÉRÉS`-komment**: ahol egy szekció (to-do, idézet, később film…) SZÁNDÉKOSAN
   másképp működik, mint a párja, azt kommentben jelöljük, az `ELTÉRÉS` szóval
   kezdve — így `grep "ELTÉRÉS"`-sel az összes tudatos elhajlás előkereshető.
