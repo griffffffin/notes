@@ -1,4 +1,5 @@
 import {createContext, useContext} from "react";
+import type {TodoColor} from "../todoColors";
 
 /* A téma megosztható, NEM komponens részei: a téma-adatok (THEMES), a context és
    a useTheme hook. Külön fájlban a ThemeProvider komponenstől, hogy a theme.tsx
@@ -80,11 +81,26 @@ export type Theme = {
     color: "theme";
     colorHex: string;
     pageBackground: string;
-    todoDefaultColor: string;
+    /* Nem `string`: a fenti THEMES-táblában a to-do paletta EGY NEVE áll ("warning",
+       "primary"), és a szerkesztő ezt teszi az új kártyára kezdőszínként. A szűk
+       típus így ugyanazt mondja ki, amit a fenti komment eddig csak kért. */
+    todoDefaultColor: TodoColor;
     isChecked: boolean;
     handleCheckedChange: () => void;
     setAccentOverride: (override: AccentOverride | null) => void;
 };
+
+/* Amit egy komponens "szín"-ként kaphat, ha Bootstrap-osztálynevet fűz belőle
+   ("text-" + color, "btn-" + color, "border-" + color): vagy a téma sajátja
+   ("theme", amit az index.css .text-theme / .btn-theme szabályai festenek a
+   CSS-változókból), vagy a to-do paletta egy neve. Harmadik lehetőség nincs.
+
+   Azért itt lakik és nem a todoColors.ts-ben, mert a két fele közül az egyiket
+   EZ a fájl mondja ki — így az import iránya is helyes marad (a téma ismeri a
+   palettát, a paletta nem tud a témáról). Ugyanez a típus áll a gombokon, a
+   beviteli mezőkön és a szűrő-linkeken: ahol három helyen ugyanaz az unió
+   jelent meg, ott már névre van szüksége. */
+export type BootstrapColor = TodoColor | Theme["color"];
 
 export const ThemeContext = createContext<Theme | null>(null);
 

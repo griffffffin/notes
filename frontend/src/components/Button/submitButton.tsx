@@ -1,4 +1,19 @@
-export default function SubmitButton(props) {
+import type {MouseEventHandler} from "react";
+import type {BootstrapColor} from "../../contexts/theme-context";
+
+type SubmitButtonProps = {
+    type?: "submit" | "button";
+    onClick?: MouseEventHandler<HTMLButtonElement>;
+    isDisabled: boolean;
+    isOutline: boolean;
+    /* Kétféle szín kerülhet ide: a téma sajátja (a belépő és a mentő űrlapok
+       gombjai) vagy a to-do paletta egy neve (a kártya-szerkesztő, és a törlés-
+       modal piros gombja). */
+    color: BootstrapColor;
+    text: string;
+};
+
+export default function SubmitButton(props: SubmitButtonProps) {
     return (
         // A type alapból "submit" (belépő/mentő űrlapok), de felülírható: a
         // törlés-modal gombjai "button"-ok, különben a körülvevő Save-űrlapot is

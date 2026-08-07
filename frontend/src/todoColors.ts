@@ -22,3 +22,27 @@ export const TODO_COLORS = {
     warning: "#ffc107",
     success: "#198754",
 } as const;
+
+/* A paletta HAT neve mint típus — az `as const` ígéretének beváltása. Innentől a
+   `color` prop nem akármilyen szöveg: egy elgépelt "primry" a fordításnál elbukik,
+   nem a felületen (ahol csak annyi látszana, hogy a kártya színtelen marad, mert a
+   "btn-primry" Bootstrap-osztály nem létezik). */
+export type TodoColor = keyof typeof TODO_COLORS;
+
+/* Miért nem elég az `Object.keys(TODO_COLORS)`? Mert annak típusa `string[]`, és
+   ez SZÁNDÉKOS a TypeScriptben: egy objektumnak futásidőben lehet több mezője,
+   mint amennyit a típusa kimond (pl. ha máshonnan kapott értéket adnánk át), így
+   a kulcsokról a fordító nem állíthatja biztosan, hogy csak a hat név lehet.
+
+   A kézenfekvő megoldás egy `as TodoColor[]` cast volna — de az CSAK ÁLLÍTÁS,
+   nem ellenőrzés (l. CLAUDE.md), tehát pont azt a néma hibát engedné vissza,
+   ami ellen a típus van. Helyette egy VALÓDI futásidejű vizsgálat áll itt: az
+   `in` operátor megnézi, tényleg szerepel-e a kulcs a palettában. A `value is
+   TodoColor` visszatérési típus a "típusőr" jelölése — ettől a `filter` nem
+   `string[]`-et, hanem `TodoColor[]`-t ad vissza.
+
+   A sorrend a TODO_COLORS sorrendje marad (a `filter` nem rendez át) — erre a
+   színválasztó és a navbar szín-szűrője is épít. */
+const isTodoColor = (value: string): value is TodoColor => value in TODO_COLORS;
+
+export const TODO_COLOR_NAMES = Object.keys(TODO_COLORS).filter(isTodoColor);
