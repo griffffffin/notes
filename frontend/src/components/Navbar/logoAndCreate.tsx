@@ -4,14 +4,30 @@ import {currentSection} from "./sections";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {useTheme} from "../../contexts/theme-context";
 
-export default function LogoAndCreate(props) {
+type LogoAndCreateProps = {
+    /* Be van-e lépve a felhasználó. Két dolgot dönt el: kap-e a logó
+       kattintás-kezelőt, és megjelenik-e mellette a "+". */
+    isVisible: boolean;
+    isCreateVisible: boolean;
+    /* Navigáló kattintáskor futtatandó takarítás (a navbar legördülőinek
+       becsukása). Eseményt nem használ, ezért paraméter nélküli. */
+    handleLinkClicked: () => void;
+};
+
+export default function LogoAndCreate(props: LogoAndCreateProps) {
     const {color} = useTheme();
     const location = useLocation();
 
     return (
         <div className="d-grid pb-1">
             <div className="input-group align-items-center">
-                <SectionSwitcher onClick={props.isVisible && props.handleLinkClicked}/>
+                {/* `isVisible ? kezelő : undefined`, és NEM `isVisible && kezelő`:
+                    az `&&` hamis ágon `false`-t adna át kattintás-kezelőnek, amire a
+                    React külön hibát is naplóz dev módban ("Expected onClick listener
+                    to be a function, instead got `false`"). Eddig némán elment,
+                    mert a JavaScript nem nézte meg — a típus most kimondja: itt
+                    vagy függvény van, vagy semmi. */}
+                <SectionSwitcher onClick={props.isVisible ? props.handleLinkClicked : undefined}/>
                 {props.isCreateVisible &&
                     /* Link, és nem kattintás-kezelős ikon: a "+" egy OLDALRA visz
                        (/create), nem műveletet végez — ahogy mellette a logó is
@@ -32,7 +48,7 @@ export default function LogoAndCreate(props) {
                             is jött, összesen 2rem; ezt felezzük (az ms-sm-3-at elvéve),
                             így ≥576px-en is 1rem marad a távolság. */}
                         <FontAwesomeIcon className={"create-plus pt-1 ps-3 text-" + color}
-                                         icon="fa-solid fa-plus" size="xl"/>
+                                         icon={["fas", "plus"]} size="xl"/>
                     </Link>
                 }
             </div>

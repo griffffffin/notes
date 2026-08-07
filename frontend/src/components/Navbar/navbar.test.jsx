@@ -48,7 +48,7 @@ describe("Navbar szűrő-kapcsolók", () => {
         const props = setup();
 
         // A szín-gomb csak a kitöltés-ikont hordozza; a data-icon teszi kereshetővé.
-        await userEvent.click(document.querySelector('[data-icon="fa-solid fa-fill"]'));
+        await userEvent.click(document.querySelector('[data-icon="fas fill"]'));
 
         expect(props.setIsColorClicked).toHaveBeenCalledWith(true);
         expect(props.setIsCategoryClicked).toHaveBeenCalledWith(false);
@@ -57,7 +57,7 @@ describe("Navbar szűrő-kapcsolók", () => {
     it("a kijelentkezés ikon a logout-ot hívja", async () => {
         setup();
 
-        await userEvent.click(document.querySelector('[data-icon="fa-solid fa-right-from-bracket"]'));
+        await userEvent.click(document.querySelector('[data-icon="fas right-from-bracket"]'));
 
         expect(logout).toHaveBeenCalled();
     });

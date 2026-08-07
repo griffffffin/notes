@@ -7,6 +7,7 @@ import {useTheme} from "../../contexts/theme-context";
 import sun from "../../assets/icons/switch/sun.png";
 import moon from "../../assets/icons/switch/moon.png";
 
+// Propok nélkül: mindent a téma-contextből vesz (ez a kapcsoló MAGA a téma-váltó).
 export default function Switch() {
     const {colorHex, isChecked, handleCheckedChange} = useTheme();
 

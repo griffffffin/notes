@@ -19,8 +19,12 @@ import {afterEach, vi} from "vitest";
    teszt mégis a VALÓDI könyvtárat kérné, a saját fájljában vi.unmock-olhatja.
 
    (A fájl azért .jsx, mert JSX-et tartalmaz: a Vite csak .jsx-ben fordítja.) */
+/* Az ikon a [prefix, név] alakban érkezik (l. lentebb), ezért szóközzel fűzzük
+   össze: a data-icon így "fas plus" lesz, nem a tömb vessző-elválasztott
+   String()-alakja. A tesztek erre az alakra keresnek. */
 vi.mock("@fortawesome/react-fontawesome", () => ({
-    FontAwesomeIcon: ({icon, ...rest}) => <span data-icon={String(icon)} {...rest}/>,
+    FontAwesomeIcon: ({icon, ...rest}) =>
+        <span data-icon={Array.isArray(icon) ? icon.join(" ") : String(icon)} {...rest}/>,
 }));
 
 /* A jsdom nem ismeri a matchMedia-t: nincs benne tényleges elrendezés, tehát

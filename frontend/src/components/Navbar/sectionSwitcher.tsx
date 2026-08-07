@@ -4,7 +4,13 @@ import {currentSection} from "./sections";
 
 /* A logó felirata az AKTUÁLIS szekció, és a saját főoldalára visz. Szekciók
    között egyelőre URL-ben váltunk (nincs legördülő). */
-export default function SectionSwitcher(props) {
+type SectionSwitcherProps = {
+    /* Opcionális: kijelentkezve a logó csak dísz (nincs mit becsukni a kattintásra),
+       ilyenkor a hívó nem ad kezelőt. */
+    onClick?: () => void;
+};
+
+export default function SectionSwitcher(props: SectionSwitcherProps) {
     const {color} = useTheme();
     const current = currentSection(useLocation().pathname);
 

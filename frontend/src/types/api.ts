@@ -77,6 +77,20 @@ export type Quote = {
     updatedAt: IsoDate;
 };
 
+/* A /quotes/search-mode VÁLASZA: a szerver dönti el, hogy a beírt kifejezés
+   SZERZŐ-e (ekkor a szerző-szűrt nézetre megyünk) vagy szöveg (ekkor a találati
+   listára) — l. backend/src/controllers/Quotes/readSearchMode.js.
+
+   DISZKRIMINÁLT UNIÓ: nem egy `{mode, author?}` objektum, hanem KÉT alak, amit a
+   `mode` mező különböztet meg. Ez a különbség nem elméleti: a szerző CSAK az
+   "author" ágon létezik, és a fordító pontosan ezt kényszeríti ki — a
+   `data.author` sor csak a `data.mode === "author"` vizsgálat UTÁN fordul le. Egy
+   közös, opcionális mezős alaknál az `encodeURIComponent(undefined)` némán az
+   "undefined" szót tenné az URL-be. */
+export type SearchMode =
+    | {mode: "author"; author: string}
+    | {mode: "text"};
+
 /* Egy listaelem a to-do kártyán. Nem exportált: kifelé ma senki nem kér külön
    task-ot, a `Todo` mezői viszont ezzel mondják ki az alakjukat. (Ugyanaz a
    szabály, mint az IsoDate-nél.) */

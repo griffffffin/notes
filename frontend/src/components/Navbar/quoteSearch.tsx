@@ -1,9 +1,10 @@
-import {useEffect, useState} from "react";
+import {useEffect, useState, type ChangeEvent} from "react";
 import {useNavigate} from "react-router-dom";
 import AuthorInput from "../Quotes/authorInput";
 import {useAuth} from "../../contexts/auth-context";
 import {useTheme} from "../../contexts/theme-context";
 import {logRequestError} from "../../log";
+import type {SearchMode} from "../../types/api";
 
 /* A Quotes-navbar keresője (a "+" és a kijelentkezés között, középen). A ghost-
    text szerző-ajánlást a szerkesztővel KÖZÖS AuthorInput adja (onSubmit móddal:
@@ -13,7 +14,18 @@ import {logRequestError} from "../../log";
    backend readSearchMode-ját), és aszerint navigálunk: szerző-mód → a szerző-
    szűrt nézetre (/quotes/:author, a TÁROLT írásmóddal), szöveg-mód → a találatra
    (/quotes/search/:term). Így minden URL önmagában, F5 után is konzisztens. */
-export default function QuoteSearch(props) {
+type QuoteSearchProps = {
+    /* A mező kezdőértéke, az URL-ből számolva (l. quoteSearchState) — nem a
+       kereső találja ki, hanem a cím mondja meg, mi van beírva. */
+    initialTerm: string;
+    /* Opcionális: a navbar legördülőinek becsukása navigálás előtt. Ahol nincs mit
+       becsukni, ott elmarad — ezért hívjuk `?.()`-tel. */
+    handleLinkClicked?: () => void;
+    /* Fókuszba került-e a mező. Mobilon a sáv ilyenkor átveszi a navbart. */
+    onFocusChange: (isFocused: boolean) => void;
+};
+
+export default function QuoteSearch(props: QuoteSearchProps) {
     const {handleAxios} = useAuth();
     const {color} = useTheme();
     const navigate = useNavigate();
@@ -42,7 +54,10 @@ export default function QuoteSearch(props) {
             navigate("/quotes/Anonymous");
             return;
         }
-        handleAxios("/quotes/search-mode", {term: trimmed}, (response) => {
+        /* A <SearchMode> nem csak megnevezi a választ: a diszkriminált unió miatt a
+           `response.data.author` sor CSAK a mode-vizsgálat ága alatt fordul le
+           (l. types/api.ts). */
+        handleAxios<SearchMode>("/quotes/search-mode", {term: trimmed}, (response) => {
             props.handleLinkClicked?.();
             if (response.data.mode === "author")
                 navigate("/quotes/" + encodeURIComponent(response.data.author));
@@ -54,7 +69,11 @@ export default function QuoteSearch(props) {
     return (
         // Az igazítást (commitolt kifejezés középen/unfókuszáltan, gépeléskor balra)
         // és a fókusz-alapú ghost-ot maga az AuthorInput intézi kereső módban.
-        <AuthorInput value={term} onChange={(event) => setTerm(event.target.value)}
+        /* Az AuthorInput még .jsx, tehát a propjai típusát nem ismerjük — a
+           `event` ezért kap kimondott típust (különben `any` lenne, amit a
+           `noImplicitAny` helyesen visszautasít). Az AuthorInput átírásakor ez
+           az annotáció elhagyható lesz. */
+        <AuthorInput value={term} onChange={(event: ChangeEvent<HTMLInputElement>) => setTerm(event.target.value)}
                      onSubmit={runSearch} onFocusChange={props.onFocusChange}
                      placeholder="Keresés..." wrapperClass="w-100"
                      class={"caveat text-" + color}/>

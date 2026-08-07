@@ -6,9 +6,23 @@ import {quoteSearchState} from "./quoteSearchState";
 import QuoteSearch from "./quoteSearch";
 import ColorCategoryAndSignOut from "./colorCategoryAndSignOut";
 import Switch from "./switch";
-import CategoryAndColorGroup from "../Link/categoryAndColorGroup";
+import CategoryAndColorGroup, {type CategoryAndColorGroupProps} from "../Link/categoryAndColorGroup";
 
-export default function Navbar(props) {
+type NavbarProps = {
+    /* Be van-e lépve a felhasználó. Kijelentkezve (pl. megosztott idézet nézete) a
+       navbar szinte üres: csak a téma-váltó marad. */
+    isVisible: boolean;
+    handleLinkClicked: () => void;
+    /* A szín- és kategória-legördülő NYITOTTSÁGA a hívónál (app.tsx) él, mert a
+       lista-nézetnek is tudnia kell róla — a navbar csak billenti. */
+    isColorClicked: boolean;
+    setIsColorClicked: (isClicked: boolean) => void;
+    isCategoryClicked: boolean;
+    setIsCategoryClicked: (isClicked: boolean) => void;
+    categories: CategoryAndColorGroupProps["categories"];
+};
+
+export default function Navbar(props: NavbarProps) {
     /* A szín- és kategória-választó a to-do SAJÁTJA (kártyaszín, kategória-szűrés);
        más SZEKCIÓBAN — pl. idézetek — nincs értelme, ezért csak a to-do útjain
        jelenik meg. (A "kategória" itt a to-do belső, elemekre vonatkozó mezője; a
