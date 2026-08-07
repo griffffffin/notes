@@ -1,8 +1,10 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useState} from "react";
+import type {ReactNode} from "react";
 import {useCookies} from "react-cookie";
 import {THEMES, ThemeContext} from "./theme-context";
+import type {AccentOverride, Theme} from "./theme-context";
 
-export function ThemeProvider({children}) {
+export function ThemeProvider({children}: {children: ReactNode}) {
     const [cookies, setCookie] = useCookies(["backgroundColor", "themeBackground"]);
     // A kapcsoló bekapcsolva = világos téma. A kezdőérték a sütiből jön, hogy
     // ne kelljen egy fölösleges rendert várni rá.
@@ -16,7 +18,10 @@ export function ThemeProvider({children}) {
        Az EFFEKTÍV kiemelőszín ezért az override, ha van, különben a témáé; így a
        --theme-accent-re épülő MINDEN elem (navbar, scrollbar, gombok, toggle-
        ragyogás, kártyák) EGYÜTT vált, mindkét témában. */
-    const [accentOverride, setAccentOverride] = useState(null);
+    /* A típus KIMONDVA: a `null` kezdőértékből a fordító azt hinné, hogy ez a
+       state örökre null marad, és minden későbbi beállítást hibának venne. Ez a
+       "szűk kezdőérték" csapdája — ugyanaz, mint a tooltipRegistry openId-jénél. */
+    const [accentOverride, setAccentOverride] = useState<AccentOverride | null>(null);
     const accent = accentOverride?.accent ?? theme.accent;
     const focusBorder = accentOverride?.focusBorder ?? theme.focusBorder;
     const focusRing = accentOverride?.focusRing ?? theme.focusRing;
@@ -64,7 +69,7 @@ export function ThemeProvider({children}) {
            pixel margó, amit a böngésző hol erre, hol arra kerekítene. (Mérve
            2026-07-17: 5 px-es kép a 6 px-es gombon 0,45 px-et csúszott a hüvelyk
            tengelyéhez képest — a felső nyíl jobbra, az alsó balra.) */
-        const arrow = (path) => `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'` +
+        const arrow = (path: string) => `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'` +
             ` viewBox='0 0 10 10'%3E%3Cpath d='${path}' fill='${accent.replace("#", "%23")}'` +
             ` stroke='${accent.replace("#", "%23")}' stroke-width='1'` +
             ` stroke-linejoin='round'/%3E%3C/svg%3E")`;
@@ -114,7 +119,9 @@ export function ThemeProvider({children}) {
             `<circle cx="50" cy="26.2" r="6.2" fill="${darkHalf}"/>` +
             `<circle cx="50" cy="73.8" r="6.2" fill="${brightHalf}"/>` +
             `<circle cx="50" cy="50" r="49.3" fill="none" stroke="${accent}" stroke-width="5.4"/></svg>`);
-        const link = document.querySelector("link[rel=icon]");
+        /* A querySelector általános `Element`-et ad, aminek nincs `href` mezője —
+           a típusparaméter mondja ki, hogy ez a <link> elem. */
+        const link = document.querySelector<HTMLLinkElement>("link[rel=icon]");
         if (link) link.href = favicon;
     }, [theme, accent, focusBorder, focusRing]);
 
@@ -136,7 +143,7 @@ export function ThemeProvider({children}) {
         setCookie("themeBackground", theme.pageBackground, {path: "/"});
     }, [theme, setCookie]);
 
-    const value = useMemo(() => ({
+    const value: Theme = useMemo(() => ({
         // Bootstrap-stílusú osztálynév-végződés: a komponensek "text-" + color
         // formában fűzik — a "theme" végződéshez az index.css saját osztályai
         // tartoznak (.text-theme, .btn-theme, ...), CSS-változókból színezve.

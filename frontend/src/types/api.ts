@@ -41,6 +41,15 @@ export type Id = string;
    az időbélyegeket, exportálttá válik. */
 type IsoDate = string;
 
+/* A bejelentkezés, a regisztráció és a token-megújítás VÁLASZA maga az aláírt
+   JWT, csupasz stringként — nem {token: "…"} burkolóban. Saját néven, mert a
+   puszta `string` semmit nem mondana arról, mit tartunk a kezünkben: ez az az
+   érték, amitől a szerver tudja, ki vagy.
+
+   (Ez a típus az F1-ben még kimaradt, mert akkor egyetlen olvasója sem volt; most
+   az auth-context.ts és az auth.tsx kéri. Pontosan így nő ez a fájl.) */
+export type AuthToken = string;
+
 export type Quote = {
     _id: Id;
     /* A TULAJDONOS azonosítója, szövegként (nem ObjectId-ref — az okát a

@@ -1,7 +1,11 @@
 import axios from "axios";
+import type {AxiosResponse} from "axios";
 import {useCallback, useEffect, useMemo, useRef} from "react";
+import type {ReactNode} from "react";
 import {useCookies} from "react-cookie";
 import {AuthContext} from "./auth-context";
+import type {Auth} from "./auth-context";
+import type {AuthToken} from "../types/api";
 import {ACTIVITY_EVENTS, IDLE_LOGOUT_MS} from "../idle";
 
 /* Bejelentkezés és szerverhívás egy helyen.
@@ -14,7 +18,7 @@ import {ACTIVITY_EVENTS, IDLE_LOGOUT_MS} from "../idle";
    401-nél (lejárt vagy érvénytelen token) a süti törlődik, így az app
    automatikusan visszavált a bejelentkező képernyőre. */
 
-/* A tétlenségi kijelentkezés határa (IDLE_LOGOUT_MS) az idle.js-ben van, a
+/* A tétlenségi kijelentkezés határa (IDLE_LOGOUT_MS) az idle.ts-ben van, a
    szerkesztők autosave-órájával EGY helyen: a kettő viszonya (az autosave
    hamarabb sül el) az, ami a mentetlen munkát megvédi. Az érték emellett
    SZÁNDÉKOSAN egyezik a token szerveroldali élettartamával (backend/src/token.js:
@@ -41,18 +45,18 @@ const IDLE_CHECK_MS = 60 * 1000;
    hibával elszáll, és lefut a hiba-ág. */
 const REQUEST_TIMEOUT_MS = 15 * 1000;
 
-// Mi számít aktivitásnak: a lista (és a passive: true indoka) az activityEvents.js-ben —
+// Mi számít aktivitásnak: a lista (és a passive: true indoka) az idle.ts-ben —
 // a szerkesztők autosave-órája UGYANEZT a halmazt figyeli.
 
-export function AuthProvider({children}) {
+export function AuthProvider({children}: {children: ReactNode}) {
     const [cookies, setCookie, removeCookie] = useCookies(["user"]);
-    const token = cookies.user ?? null;
+    const token: AuthToken | null = cookies.user ?? null;
     /* A friss tokent egy refben is tartjuk, hogy a handleAxios NE függjön tőle.
        Enélkül a token 5 percenkénti megújulása minden alkalommal új handleAxios-
        referenciát gyártana, amitől a rá épülő effektek (pl. a lista lekérése a
        read.jsx-ben) fölöslegesen újrafutnának. A refből a hívás PILLANATÁBAN
        mindig a legfrissebb tokent olvassuk, tehát a fejléc így is helyes. */
-    const tokenRef = useRef(token);
+    const tokenRef = useRef<AuthToken | null>(token);
     tokenRef.current = token;
     /* Refek és nem state-ek: másodpercenként sokszor frissülnek, és senki nem
        jeleníti meg őket — state-ként minden egérmozdulat újrarajzolná az egész
@@ -60,22 +64,48 @@ export function AuthProvider({children}) {
     const lastActivity = useRef(Date.now());
     const lastRefresh = useRef(Date.now());
 
-    const login = useCallback((newToken) => setCookie("user", newToken, {path: "/"}), [setCookie]);
+    const login = useCallback((newToken: AuthToken) => setCookie("user", newToken, {path: "/"}), [setCookie]);
     const logout = useCallback(() => removeCookie("user", {path: "/"}), [removeCookie]);
 
     /* Az `authToken` OPCIONÁLIS felülírás: alapból az ÉLŐ tokent (tokenRef) küldjük.
        A kijelentkezéskori unmount-mentés (Quotes/save.jsx) viszont a MÁR TÖRÖLT élő
        token helyett a leváláskor még érvényes, ZÁRVÁNYOLT tokent adja át — enélkül a
-       mentés token nélkül, 401-gyel bukna (removeCookie már lefutott, tokenRef null). */
-    const handleAxios = useCallback((url, data, then, catchError, authToken) => {
+       mentés token nélkül, 401-gyel bukna (removeCookie már lefutott, tokenRef null).
+
+       A `<T,>` a hívó által megadott VÁLASZTÍPUS (l. auth-context.ts). A vessző nem
+       elírás: .tsx fájlban a puszta `<T>` JSX-címkének látszana, a vessző oszlatja
+       el a kétértelműséget. */
+    const handleAxios = useCallback(<T,>(
+        url: string,
+        data: unknown,
+        then: (response: AxiosResponse<T>) => void,
+        catchError: (error: unknown) => void,
+        authToken?: string,
+    ): Promise<void> => {
         const bearer = authToken ?? tokenRef.current;
-        return axios.post(import.meta.env.VITE_BACKEND + url, data, {
+        return axios.post<T>(import.meta.env.VITE_BACKEND + url, data, {
             timeout: REQUEST_TIMEOUT_MS,
             headers: bearer ? {Authorization: "Bearer " + bearer} : undefined,
         })
             .then(then)
-            .catch((error) => {
-                if (error.response?.status === 401) removeCookie("user", {path: "/"});
+            /* A hibaág típusa `unknown`, mert bármi ideérhet: hálózati hiba,
+               időtúllépés, VAGY a fenti `then`-ben dobott kivétel.
+
+               A 401 felismerése SZÁNDÉKOSAN az ALAKRA néz (van-e response.status),
+               nem arra, hogy ki dobta. Az `axios.isAxiosError(error)` típusőr
+               kézenfekvőnek látszik, és a fordítónak szebb is volna — de az
+               SZŰKÍTENE a mai viselkedésen: csak az igazi AxiosError-példányokat
+               ismeri el, a "401-es választ leíró" egyszerű objektumokat nem. Ez
+               nem elmélet, a saját tesztünk bukott el tőle (auth.test.jsx,
+               "401-es válasznál kilépteti a felhasználót"): ott a hívás egy sima
+               `{response: {status: 401}}`-gyel utasít el, és a kiléptetés elmaradt.
+
+               A típus-átállásnak nem szabad viselkedést változtatnia, ezért marad
+               az alak-vizsgálat; a `as` csak a fordítónak szóló közlés, futásidőben
+               az `?.` láncok ugyanúgy elviselik, ha a mezők nincsenek ott. */
+            .catch((error: unknown) => {
+                const status = (error as {response?: {status?: number}} | null | undefined)?.response?.status;
+                if (status === 401) removeCookie("user", {path: "/"});
                 catchError(error);
             });
     }, [removeCookie]);
@@ -90,7 +120,7 @@ export function AuthProvider({children}) {
             lastActivity.current = Date.now();
             if (Date.now() - lastRefresh.current < REFRESH_EVERY_MS) return;
             lastRefresh.current = Date.now();
-            axios.post(import.meta.env.VITE_BACKEND + "/refresh", {},
+            axios.post<AuthToken>(import.meta.env.VITE_BACKEND + "/refresh", {},
                 {headers: {Authorization: "Bearer " + token}})
                 .then((response) => setCookie("user", response.data, {path: "/"}))
                 /* A néma bukás szándékos: ez háttérmunka, amiről a felhasználó
@@ -111,7 +141,10 @@ export function AuthProvider({children}) {
         };
     }, [token, setCookie, logout]);
 
-    const value = useMemo(() => ({
+    /* A típus KIMONDVA (`: Auth`), nem csak következtetve: így ha a context
+       szerződése bővül vagy változik, a hiba ITT jelentkezik — nem valamelyik
+       távoli fogyasztónál, ahol a hiányzó mező már csak `undefined`-ként látszana. */
+    const value: Auth = useMemo(() => ({
         token,
         isLoggedIn: Boolean(token),
         login,

@@ -1,7 +1,7 @@
 import {createContext, useContext} from "react";
 
 /* A téma megosztható, NEM komponens részei: a téma-adatok (THEMES), a context és
-   a useTheme hook. Külön fájlban a ThemeProvider komponenstől, hogy a theme.jsx
+   a useTheme hook. Külön fájlban a ThemeProvider komponenstől, hogy a theme.tsx
    csak komponenst exportáljon — így a Vite fast-refresh (HMR) megbízhatóan
    frissít (react/only-export-components). */
 
@@ -11,7 +11,12 @@ import {createContext, useContext} from "react";
    belőlük. Új téma (pl. szekciónként) = új bejegyzés ebben a táblában.
    A pageBackground-ot a "themeBackground" sütibe is kiírjuk: az index.html
    boot-szkriptje ezt olvassa, és még a stíluslapok előtt kifesti vele a lapot
-   (fehér villanás ellen) — így nem kell a színt két helyen karbantartani. */
+   (fehér villanás ellen) — így nem kell a színt két helyen karbantartani.
+
+   Az `as const` itt egy konkrét hibát is kizár: a `todoDefaultColor` így nem
+   akármilyen szöveg, hanem a "warning" és a "primary" — vagyis a to-do paletta
+   (todoColors.ts) VALÓDI nevei. Egy elgépelt szín némán hatástalan Bootstrap-
+   osztályt adna ("border-warnign"), amit csak a kártya színe árulna el. */
 export const THEMES = {
     dark: {
         cookieValue: "black",                   // a meglévő süti-értékek maradnak
@@ -33,6 +38,16 @@ export const THEMES = {
         focusRing: "rgba(11, 94, 215, 0.35)",
         todoDefaultColor: "primary",
     },
+} as const;
+
+/* A szekció-akcentus HÁROM színe mindig együtt jár: a kiemelőszín és a hozzá
+   illő input-fókusz keret/ragyogás. Külön típus, mert a Provider state-je és a
+   context függvénye is ezt az együttest kezeli — ha egy negyedik szín is kellene
+   (pl. hover), itt bővül, és minden felhasználója együtt mozdul. */
+export type AccentOverride = {
+    accent: string;
+    focusBorder: string;
+    focusRing: string;
 };
 
 /* Szekció-akcentus felülírás (setAccentOverride, l. ThemeProvider): egy nézet a téma
@@ -41,7 +56,7 @@ export const THEMES = {
    mindkét témában. Az első ilyen a szerző-szűrt idézet-nézet PIROSA (a nap-ikon
    színe); a név ÁLTALÁNOS, mert más szekciók/nézetek is kaphatnak sajátot. A focus-*
    a piroshoz igazított input-fókusz-keret/-ragyogás. */
-export const ACCENT_RED = {
+export const ACCENT_RED: AccentOverride = {
     accent: "#db1937",
     focusBorder: "#f1a7b3",
     focusRing: "rgba(219, 25, 55, 0.4)",
@@ -52,15 +67,28 @@ export const ACCENT_RED = {
    ezért ez CSAK a világos érték; a sötétnél a szekció-override null (l. useQuoteAccent).
    Ez a szekciónkénti világos/sötét színrendszer első példánya (később más szekciók is
    kaphatnak sajátot). A focus-* a tintához igazított input-fókusz-keret/-ragyogás. */
-export const QUOTES_LIGHT_ACCENT = {
+export const QUOTES_LIGHT_ACCENT: AccentOverride = {
     accent: "#284ec0",
     focusBorder: "#9eafe3",
     focusRing: "rgba(40, 78, 192, 0.35)",
 };
 
-export const ThemeContext = createContext(null);
+/* Amit a context ad. A `color: "theme"` szándékosan a KONKRÉT szó, nem akármilyen
+   string: a komponensek Bootstrap-stílusban fűzik hozzá ("text-" + color), és az
+   index.css-ben pontosan a .text-theme / .btn-theme osztályok léteznek. */
+export type Theme = {
+    color: "theme";
+    colorHex: string;
+    pageBackground: string;
+    todoDefaultColor: string;
+    isChecked: boolean;
+    handleCheckedChange: () => void;
+    setAccentOverride: (override: AccentOverride | null) => void;
+};
 
-export function useTheme() {
+export const ThemeContext = createContext<Theme | null>(null);
+
+export function useTheme(): Theme {
     const theme = useContext(ThemeContext);
     if (!theme) throw new Error("useTheme csak <ThemeProvider> alatt használható.");
     return theme;
