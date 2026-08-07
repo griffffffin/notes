@@ -1,3 +1,5 @@
+import type {Id, Quote} from "../../types/api";
+
 /* Egy idézet PUBLIKUS (megosztható) címe — ugyanaz az útvonal, amit a
    routes.jsx a /quotes/:author/:id route-on kiszolgál, és amit kijelentkezve is
    meg lehet nyitni.
@@ -20,7 +22,12 @@
    használatlan exportként (knip). */
 const ANONYMOUS_AUTHOR = "Anonymous";
 
-export function publicQuoteUrl(origin, author, id) {
+/* Az `author` SZÁNDÉKOSAN a Quote típusából származik (`Quote["author"]`), nem
+   egy odaírt `string | undefined`: így ha a modellben egyszer kötelezővé válik a
+   szerző, ez a függvény azonnal együtt mozdul vele — nem kell észben tartani,
+   hogy itt is át kell írni. Ez az egyik fő haszna a szerződés-fájlnak: EGY helyen
+   van kimondva, mi micsoda. */
+export function publicQuoteUrl(origin: string, author: Quote["author"], id: Id): string {
     const authorSegment = author?.trim() ? author : ANONYMOUS_AUTHOR;
     return `${origin}/quotes/${encodeURIComponent(authorSegment)}/${encodeURIComponent(id)}`;
 }
