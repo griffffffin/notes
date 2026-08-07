@@ -15,7 +15,7 @@
 
    Visszatérési érték: `true`, ha a másolás sikerült. A hívó ebből tudja, mutathat-e
    visszajelzést. */
-export async function copyToClipboard(text) {
+export async function copyToClipboard(text: string): Promise<boolean> {
     if (navigator.clipboard?.writeText) {
         try {
             await navigator.clipboard.writeText(text);
@@ -39,7 +39,7 @@ export async function copyToClipboard(text) {
        jelöl ki semmit egy readonly mezőben;
      - a korábbi kijelölés és a korábbi FÓKUSZ visszaállítása: a szerkesztőben
        épp gépelhet a felhasználó — a másolás ne lopja el a kurzort a szövegből. */
-function copyBySelection(text) {
+function copyBySelection(text: string): boolean {
     const field = document.createElement("textarea");
     field.value = text;
     field.setAttribute("readonly", "");
@@ -48,9 +48,18 @@ function copyBySelection(text) {
     field.style.opacity = "0";
     document.body.appendChild(field);
 
-    const previousFocus = document.activeElement;
+    /* A `document.activeElement` típusa `Element | null` — az általános elem
+       viszont nem tud fókuszálni, csak a HTML-elem (az SVG-nek pl. nincs
+       focus()-a). A szűkítés ezért kimondott: a fókuszált elem nálunk mindig egy
+       űrlapmező vagy gomb. A hívás így is óvatos marad (`?.focus?.`), tehát ha
+       mégsem az lenne, ugyanúgy nem történik semmi, mint eddig. */
+    const previousFocus = document.activeElement as HTMLElement | null;
     const selection = document.getSelection();
-    const previousRange = selection?.rangeCount > 0 ? selection.getRangeAt(0) : null;
+    /* A `?? 0` a szigorú mód hozadéka: a `selection?.rangeCount > 0` alak nem
+       fordul, mert a bal oldal `undefined` is lehet, és az `undefined > 0`
+       összehasonlítás értelmetlen. A futásidejű eredmény ugyanaz (az undefined
+       összehasonlítása is hamis), csak most ki van mondva. */
+    const previousRange = (selection?.rangeCount ?? 0) > 0 ? selection?.getRangeAt(0) : null;
 
     field.focus({preventScroll: true});
     field.select();
@@ -64,8 +73,8 @@ function copyBySelection(text) {
 
     field.remove();
     if (previousRange) {
-        selection.removeAllRanges();
-        selection.addRange(previousRange);
+        selection?.removeAllRanges();
+        selection?.addRange(previousRange);
     }
     previousFocus?.focus?.({preventScroll: true});
     return copied;

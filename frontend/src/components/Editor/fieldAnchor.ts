@@ -23,13 +23,44 @@
 
    Visszaadott alak: {anchor, name, pos, boundary} — a `validation` state pontosan
    ez, ezt várja a ValidationTooltip. */
-export function fieldAnchor(selector, name) {
-    const el = document.querySelector(selector);
+
+/* A horgonyzott mező csak olyan elem lehet, aminek VAN placeholdere: input vagy
+   textarea. A `querySelector` típusparamétere ezt mondja ki — enélkül az általános
+   `Element`-et adná vissza, aminek a fordító szerint nincs `placeholder` mezője. */
+type AnchoredField = HTMLInputElement | HTMLTextAreaElement;
+
+// Nem exportált, mint a többi levélmodulnál: a hívók még .jsx-ek, a
+// ValidationTooltip átírásakor válik majd exportálttá (l. src/types/api.ts).
+type FieldAnchor = {
+    anchor: string;
+    name: string;
+    boundary: HTMLFormElement | undefined;
+    pos: {x: number; y: number};
+};
+
+export function fieldAnchor(selector: string, name?: string): FieldAnchor {
+    const el = document.querySelector<AnchoredField>(selector);
+    /* A szigorú mód itt döntést kényszerít: a querySelector `null`-t is adhat.
+       A viselkedés VÁLTOZATLAN — eddig is kivétellel állt meg (a null-on hívott
+       getBoundingClientRect TypeError-t dobott) —, csak most megnevezi, mi a baj.
+       A hívók a beküldés pillanatában, egy kirajzolt űrlapon hívják, tehát ez a
+       hiba fejlesztői elgépelést jelent (rossz szelektor), nem futásidejű esetet. */
+    if (!el) throw new Error(`fieldAnchor: nincs ilyen mező a lapon: ${selector}`);
+
     const r = el.getBoundingClientRect();
     const cs = getComputedStyle(el);
     const ctx = document.createElement("canvas").getContext("2d");
-    ctx.font = cs.font || `${cs.fontSize} ${cs.fontFamily}`;
-    const half = ctx.measureText(el.placeholder).width / 2;
+    /* A 2D-kontextus elvileg `null` is lehet (a böngésző megtagadhatja, és a
+       jsdom sem ad valódit). Ilyenkor a fél szélesség 0: a buborék a mező bal
+       széléhez kerül a placeholder közepe helyett — pontatlanabb, de működik.
+       Kivételt dobni ezért nem érdemes: a hiba a POZÍCIÓ finomsága, nem a
+       hibajelzés maga, amiért az egész buborék létezik. */
+    let half = 0;
+    if (ctx) {
+        ctx.font = cs.font || `${cs.fontSize} ${cs.fontFamily}`;
+        half = ctx.measureText(el.placeholder).width / 2;
+    }
+
     return {
         anchor: selector,
         name: name ?? el.placeholder.toLowerCase(),
