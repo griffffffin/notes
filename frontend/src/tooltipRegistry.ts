@@ -16,14 +16,18 @@ import {useCallback, useSyncExternalStore} from "react";
    (globális) állapot — ezért a tesztek a resetTooltips()-szal állítják alaphelyzetbe,
    nehogy az egyik teszt nyitva hagyott buborékja átszivárogjon a következőbe. */
 
-let openId = null;
-const listeners = new Set();
+/* A típus KIMONDOTTAN `string | null`, nem csak `null`-ból következtetve: e nélkül
+   a fordító a kezdőértékből azt hinné, hogy ez a változó örökre null marad, és a
+   nyitáskori értékadást hibának venné. Ez a "szűk kezdőérték" csapdája — az egyik
+   leggyakoribb első TypeScript-meglepetés. */
+let openId: string | null = null;
+const listeners = new Set<() => void>();
 
 const emit = () => {
     for (const listener of listeners) listener();
 };
 
-const subscribe = (listener) => {
+const subscribe = (listener: () => void) => {
     listeners.add(listener);
     return () => listeners.delete(listener);
 };
@@ -32,13 +36,13 @@ const subscribe = (listener) => {
    ez az exportált alak a useSyncExternalStore-nak és a teszteknek kell — utóbbiak
    így a NYITOTTSÁGOT tudják ellenőrizni anélkül, hogy a react-tooltip DOM-beli
    megjelenítésére kellene hagyatkozniuk (az jsdomban nem hű). */
-export const getOpenTooltipId = () => openId;
+export const getOpenTooltipId = (): string | null => openId;
 
 /* Egy tooltip nyitása/zárása. Nyitáskor a korábban nyitott MAGÁTÓL becsukódik
    (az érték csak egy azonosítót tud tárolni). Záráskor csak akkor nullázunk, ha
    tényleg a hívó volt nyitva — különben egy távozó buborék becsukná az épp
    megnyílt másikat (a react-tooltip a "bezárás" eseményét késleltetve is küldheti). */
-export function setTooltipOpen(id, isOpen) {
+export function setTooltipOpen(id: string, isOpen: boolean): void {
     const next = isOpen ? id : (openId === id ? null : openId);
     if (next === openId) return;
     openId = next;
@@ -46,7 +50,7 @@ export function setTooltipOpen(id, isOpen) {
 }
 
 // Nyitva van-e ÉPPEN ez a tooltip? A komponens ebből kapja az isOpen propját.
-export function useTooltipOpen(id) {
+export function useTooltipOpen(id: string): boolean {
     return useSyncExternalStore(subscribe, getOpenTooltipId) === id;
 }
 
@@ -54,12 +58,12 @@ export function useTooltipOpen(id) {
    nyitó/záró eseményei (hover, fókusz, egérelhagyás) ezen át jutnak el a
    nyilvántartáshoz. Stabil, mert a react-tooltip a prop változására újraköti a
    figyelőit. */
-export function useTooltipToggle(id) {
-    return useCallback((isOpen) => setTooltipOpen(id, isOpen), [id]);
+export function useTooltipToggle(id: string) {
+    return useCallback((isOpen: boolean) => setTooltipOpen(id, isOpen), [id]);
 }
 
 // Csak tesztekhez: a modulszintű állapot alaphelyzetbe.
-export function resetTooltips() {
+export function resetTooltips(): void {
     openId = null;
     emit();
 }

@@ -1,4 +1,5 @@
 import {flip, offset, shift} from "@floating-ui/dom";
+import type {Boundary} from "@floating-ui/dom";
 
 /* A tooltipek POZICIONÁLÓ szabályai — EGY helyen, mert mind a négy tooltipünk
    (kötelező-mező hibabuborék, sorszám-stepper, betűméret-stepper, jelszó-súgó)
@@ -42,11 +43,16 @@ import {flip, offset, shift} from "@floating-ui/dom";
    határnak, mert kilógva a kártya kiemelőszínű keretét takarta ki (a buborék
    háttere lapszínű, tehát a keretvonalon egy fekete/fehér rés maradt).
 
+   A típusa a floating-ui SAJÁT `Boundary`-je, nem egy odaírt `Element`: a
+   könyvtár ennél többet is elfogad (elem-lista, téglalap, "clippingAncestors"),
+   és ha ez egyszer bővül, a mi aláírásunk együtt mozdul vele. A `?` azért kell,
+   mert a lenti alapkészlet argumentum nélkül hívja.
+
    A határt SZÁNDÉKOSAN csak a shift kapja meg, a flip nem: a buborék nem fér el
    függőlegesen a kártyán belül, tehát a flip a kártyához mérve fölöslegesen
    billegtetné az irányt. Az IRÁNY a képernyőhöz igazodik, a becsúsztatás a
    kártyához. */
-export function tooltipMiddlewares(boundary) {
+export function tooltipMiddlewares(boundary?: Boundary) {
     return [
         offset(10),
         flip({crossAxis: false, fallbackAxisSideDirection: "none"}),

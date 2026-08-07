@@ -1,3 +1,5 @@
+import type {Modifier} from "@dnd-kit/core";
+
 /* A kártya ne hagyhassa el a listát.
 
    Miért kell: a húzott kártya CSS-eltolással mozog, az eltolt elem pedig
@@ -15,8 +17,15 @@
    szélességét, tehát vízszintesen nincs hova mozdulnia.
 
    Az auto-görgetést NEM akadályozza: a sor a képernyőnél magasabb, tehát a
-   kártya bőven kilóghat a látható rész fölé/alá — csak a listán túlra nem. */
-export const restrictToList = ({transform, draggingNodeRect, containerNodeRect}) => {
+   kártya bőven kilóghat a látható rész fölé/alá — csak a listán túlra nem.
+
+   A `Modifier` a dnd-kit saját típusa, és többet ad, mint a paraméterek
+   megnevezése: a könyvtár EBBŐL tudja, hogy a függvényünk a helyén van. Ha a
+   dnd-kit egyszer megváltoztatja a módosítók alakját (más mezőnevek, más
+   visszatérési érték), az frissítéskor fordítási hibaként jön elő — nem pedig
+   úgy, hogy a húzás csendben már nem korlátozódik, és a kártya megint
+   elszabadul. Pontosan az a fajta néma elromlás, ami ezt a fájlt megszülte. */
+export const restrictToList: Modifier = ({transform, draggingNodeRect, containerNodeRect}) => {
     if (!draggingNodeRect || !containerNodeRect) return transform;
     const limited = {...transform};
 
