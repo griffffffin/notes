@@ -193,6 +193,30 @@ elmaradt átvezetés.
   (`useState<AccentOverride | null>(null)`). A fordító különben a kezdőértékből
   következtet, és a változót örökre `null`-ra szűkíti. Ez hangos hiba (az első
   értékadás elhasal), de a szabály elébe megy.
+- **A NÉMÁN ELROMLÓ MINTÁK — ellenőrizendők, valahányszor a kód ilyet érint.**
+  Ezek nem elméleti kockázatok: mindegyik előfordult már itt, vagy egy audit
+  találta meg. Közös bennük, hogy semmi nem hibázik — csak az eredmény rossz.
+  Új kód írásakor és felülvizsgálatkor ezekre külön rá kell nézni:
+  1. **Kétoldali kötés, amit csak komment tart.** Ha egy érték a frontendben és a
+     backendben is szerepel (token-lejárat, jelszó-szabály, tartományok,
+     alapértékek), semmilyen eszköz nem látja az elcsúszásukat. Kell hozzá
+     szerződés-teszt: `backend/src/frontendContract.test.js` a minta — az
+     ÉRTÉKET nem rögzíti, csak az egyezést.
+  2. **Az auth-határ.** A `routes.js`-ben az `router.use(auth)` FÖLÉ került új
+     útvonal azonnal publikus, némán. Őre: `backend/src/authBoundary.test.js`
+     (forrás-sorrend + viselkedés). A `PUBLIC_ROUTES` lista bővítése indokkal jár.
+  3. **Versenyhelyzet a betöltő effektekben.** Két párhuzamos válasz fordított
+     sorrendben is visszaérhet, és a RÉGI felülírhatja a frisset. Minta a
+     `useSortableCards.ts` `active`-jelzője; minden `handleAxios`-t hívó effektnek
+     kell ilyen, ha újra tud futni (változó paraméter, pl. `:id`).
+  4. **Bedrótozott kiterjesztés és útvonal.** Fájlokat kiterjesztés szerint szűrő
+     kód (`.js`) a TS-átállás alatt NÉMÁN kihagy fájlokat — l.
+     `scripts/exportSections.js`. Fájlra hivatkozó tesztek kiterjesztés nélkül
+     oldják fel a nevet.
+  5. **Kézzel szinkronizált másolat.** Ami két helyen él (systemd-unit az
+     `/etc`-ben és a `deploy/`-ban, env-kulcs a kódban és az `.env.example`-ben),
+     az el fog csúszni. Ha nem lehet egy példány, akkor ellenőrzés kell rá — a
+     unitokat a napi Pi-állapotellenőrzés hasonlítja össze.
 - **`ELTÉRÉS`-komment**: ahol egy szekció (to-do, idézet, később film…) SZÁNDÉKOSAN
   másképp működik, mint a párja, azt kommentben jelöljük, az `ELTÉRÉS` szóval
   kezdve — így `grep "ELTÉRÉS"`-sel az összes tudatos elhajlás előkereshető.
