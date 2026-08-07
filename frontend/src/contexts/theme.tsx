@@ -119,10 +119,12 @@ export function ThemeProvider({children}: {children: ReactNode}) {
             `<circle cx="50" cy="26.2" r="6.2" fill="${darkHalf}"/>` +
             `<circle cx="50" cy="73.8" r="6.2" fill="${brightHalf}"/>` +
             `<circle cx="50" cy="50" r="49.3" fill="none" stroke="${accent}" stroke-width="5.4"/></svg>`);
-        /* A querySelector általános `Element`-et ad, aminek nincs `href` mezője —
-           a típusparaméter mondja ki, hogy ez a <link> elem. */
-        const link = document.querySelector<HTMLLinkElement>("link[rel=icon]");
-        if (link) link.href = favicon;
+        /* A querySelector általános `Element`-et ad, aminek nincs `href` mezője.
+           A `querySelector<HTMLLinkElement>` alak csak ÁLLÍTANÁ, hogy link elem —
+           az `instanceof` meg is nézi. A `if (link)` amúgy is kellett, tehát ez
+           nem plusz sor, csak erősebb feltétel. */
+        const link = document.querySelector("link[rel=icon]");
+        if (link instanceof HTMLLinkElement) link.href = favicon;
     }, [theme, accent, focusBorder, focusRing]);
 
     /* Sima useEffect (a festés UTÁN fut) — SZÁNDÉKOSAN, két okból is.

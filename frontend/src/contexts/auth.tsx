@@ -7,6 +7,7 @@ import {AuthContext} from "./auth-context";
 import type {Auth} from "./auth-context";
 import type {AuthToken} from "../types/api";
 import {ACTIVITY_EVENTS, IDLE_LOGOUT_MS} from "../idle";
+import {responseStatus} from "../httpError";
 
 /* Bejelentkezés és szerverhívás egy helyen.
 
@@ -89,23 +90,11 @@ export function AuthProvider({children}: {children: ReactNode}) {
         })
             .then(then)
             /* A hibaág típusa `unknown`, mert bármi ideérhet: hálózati hiba,
-               időtúllépés, VAGY a fenti `then`-ben dobott kivétel.
-
-               A 401 felismerése SZÁNDÉKOSAN az ALAKRA néz (van-e response.status),
-               nem arra, hogy ki dobta. Az `axios.isAxiosError(error)` típusőr
-               kézenfekvőnek látszik, és a fordítónak szebb is volna — de az
-               SZŰKÍTENE a mai viselkedésen: csak az igazi AxiosError-példányokat
-               ismeri el, a "401-es választ leíró" egyszerű objektumokat nem. Ez
-               nem elmélet, a saját tesztünk bukott el tőle (auth.test.jsx,
-               "401-es válasznál kilépteti a felhasználót"): ott a hívás egy sima
-               `{response: {status: 401}}`-gyel utasít el, és a kiléptetés elmaradt.
-
-               A típus-átállásnak nem szabad viselkedést változtatnia, ezért marad
-               az alak-vizsgálat; a `as` csak a fordítónak szóló közlés, futásidőben
-               az `?.` láncok ugyanúgy elviselik, ha a mezők nincsenek ott. */
+               időtúllépés, VAGY a fenti `then`-ben dobott kivétel. A 401 felismerése
+               az ALAKRA néz, nem arra, ki dobta — az indoklás és a hozzá tartozó
+               valódi (nem `as`-os) ellenőrzés a httpError.ts-ben. */
             .catch((error: unknown) => {
-                const status = (error as {response?: {status?: number}} | null | undefined)?.response?.status;
-                if (status === 401) removeCookie("user", {path: "/"});
+                if (responseStatus(error) === 401) removeCookie("user", {path: "/"});
                 catchError(error);
             });
     }, [removeCookie]);

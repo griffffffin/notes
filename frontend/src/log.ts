@@ -15,23 +15,13 @@
    A NEM elkapott hibákat ez nem érinti: azokat a böngésző írja ki, nem mi —
    ezért marad értelme az éles source mapnek (vite.config.js). */
 
+import {errorDetail} from "./httpError";
+
 export const logDev = (...args: unknown[]): void => {
     if (import.meta.env.DEV) console.log(...args);
 };
 
-/* A kérés-hibák egységes alakja. A szerver a válasz törzsében küldi az üzenetet;
-   ha a kérés el sem jutott odáig (hálózati hiba), csak a message van meg.
-
-   A paraméter `unknown`, mert a JavaScriptben BÁRMIT el lehet dobni — egy catch-ág
-   nem ígérhet Error-t. Az `unknown` a TypeScript "még nem tudom, mi ez" típusa: a
-   fordító addig nem enged hozzányúlni, amíg meg nem mondjuk, minek nézzük.
-
-   Itt egyetlen, szűk állítást teszünk (a lenti `as`): "ha van response.data vagy
-   message mezője, azok ilyen alakúak". Ez NEM ellenőrzés, csak a fordítónak szóló
-   közlés — de a futásidejű viselkedés pontosan a régi marad, mert az `?.` láncok
-   eleve elviselik, ha a mezők nincsenek ott. A cast tehát nem söpör el semmit: a
-   három ág (szerver-üzenet → hálózati üzenet → maga az érték) ugyanaz. */
-export const logRequestError = (error: unknown): void => {
-    const known = error as {response?: {data?: unknown}; message?: unknown} | null | undefined;
-    logDev(known?.response?.data ?? known?.message ?? error);
-};
+/* A kérés-hibák egységes alakja: a szerver üzenete, annak híján a hiba saját
+   üzenete. A kiválasztás VALÓDI alak-ellenőrzéssel megy (httpError.ts) — korábban
+   egy `as` cast állította ugyanezt bizonyíték nélkül. */
+export const logRequestError = (error: unknown): void => logDev(errorDetail(error));

@@ -38,14 +38,23 @@ type FieldAnchor = {
     pos: {x: number; y: number};
 };
 
+function elementFor(selector: string): AnchoredField | null {
+    const found = document.querySelector(selector);
+    return found instanceof HTMLInputElement || found instanceof HTMLTextAreaElement ? found : null;
+}
+
 export function fieldAnchor(selector: string, name?: string): FieldAnchor {
-    const el = document.querySelector<AnchoredField>(selector);
-    /* A szigorú mód itt döntést kényszerít: a querySelector `null`-t is adhat.
-       A viselkedés VÁLTOZATLAN — eddig is kivétellel állt meg (a null-on hívott
-       getBoundingClientRect TypeError-t dobott) —, csak most megnevezi, mi a baj.
+    /* A `querySelector<AnchoredField>` alakja kényelmes volna, de az csak ÁLLÍTÁS:
+       a típusparaméter nem ellenőriz semmit, csak közli a fordítóval, mit talált.
+       Az `instanceof` valóban megnézi — és mivel a null-eset ellenőrzését úgyis el
+       kell végezni, ez ingyen jön hozzá.
+
+       A viselkedés VÁLTOZATLAN: eddig is kivétellel állt meg (a null-on hívott
+       getBoundingClientRect TypeError-t dobott), csak most megnevezi, mi a baj.
        A hívók a beküldés pillanatában, egy kirajzolt űrlapon hívják, tehát ez a
        hiba fejlesztői elgépelést jelent (rossz szelektor), nem futásidejű esetet. */
-    if (!el) throw new Error(`fieldAnchor: nincs ilyen mező a lapon: ${selector}`);
+    const el: AnchoredField | null = elementFor(selector);
+    if (!el) throw new Error(`fieldAnchor: nincs ilyen (szöveges) mező a lapon: ${selector}`);
 
     const r = el.getBoundingClientRect();
     const cs = getComputedStyle(el);

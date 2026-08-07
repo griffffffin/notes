@@ -50,10 +50,11 @@ function copyBySelection(text: string): boolean {
 
     /* A `document.activeElement` típusa `Element | null` — az általános elem
        viszont nem tud fókuszálni, csak a HTML-elem (az SVG-nek pl. nincs
-       focus()-a). A szűkítés ezért kimondott: a fókuszált elem nálunk mindig egy
-       űrlapmező vagy gomb. A hívás így is óvatos marad (`?.focus?.`), tehát ha
-       mégsem az lenne, ugyanúgy nem történik semmi, mint eddig. */
-    const previousFocus = document.activeElement as HTMLElement | null;
+       focus()-a). Az `instanceof` VALÓDI ellenőrzés, nem állítás: ha a fókusz
+       történetesen nem HTML-elemen áll, itt derül ki, és nem próbálunk
+       visszaadni neki olyat, amit nem tud. */
+    const active = document.activeElement;
+    const previousFocus = active instanceof HTMLElement ? active : null;
     const selection = document.getSelection();
     /* A `?? 0` a szigorú mód hozadéka: a `selection?.rangeCount > 0` alak nem
        fordul, mert a bal oldal `undefined` is lehet, és az `undefined > 0`
@@ -76,6 +77,6 @@ function copyBySelection(text: string): boolean {
         selection?.removeAllRanges();
         selection?.addRange(previousRange);
     }
-    previousFocus?.focus?.({preventScroll: true});
+    previousFocus?.focus({preventScroll: true});
     return copied;
 }
