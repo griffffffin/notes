@@ -50,22 +50,18 @@ elmaradt átvezetés.
 
 ## Lemeztitkosítás (KÉSZ, 2026-07-12)
 
-- A teljes `/opt` egy **LUKS2-titkosított köteten** él (fájl-alapú konténer a
-  rendszerlemezen; a Postgres adatkönyvtára is ide költözött: `a titkosított köteten`).
-  Fenyegetésmodell: ellopott, **kikapcsolt** gép — a lemezről az adat nem
-  olvasható ki. Az OS maga titkosítatlan (nincs benne személyes adat).
-- **A kulcs SEHOL nincs a gépen** — ezért a `/opt` bootkor NEM csatolódik, és a
-  rá épülő szolgáltatások (postgres, ferretdb, notes) auto-indítása
-  le van tiltva. Reboot után kézzel kell feloldani:
-  `sudo unlock-opt` (a szkript a `a gépen élő telepített szkript` verziózott mása;
-  bekéri a LUKS-jelszót, csatol, majd elindítja a szolgáltatásokat).
-  A verziózott szkript CSAK a projekt saját láncát ismeri (postgres, ferretdb,
-  notes) — hogy a publikus repó ne dokumentálja, mi fut még ezen a gépen. A
-  teljes, gépspecifikus lista az `egy gépspecifikus, nem verziózott beállítófájl`-ban él
-  (`SERVICE_LIST`, `STATUS_SERVICE_LIST`), ami NEM verziókezelt; ha új
-  /opt-os szolgáltatás jön, oda kell felvenni.
+- A teljes `/opt` — tehát az app, az adatbázis adatkönyvtára és a mentések is —
+  **titkosított köteten** él. Fenyegetésmodell: ellopott, **kikapcsolt** gép; a
+  lemezről az adat nem olvasható ki. Az OS maga titkosítatlan (nincs benne
+  személyes adat).
+- **A kulcs SEHOL nincs a gépen**, ezért a kötet bootkor nem csatolódik, és a rá
+  épülő szolgáltatások auto-indítása le van tiltva. Reboot után kézzel kell
+  feloldani (`sudo unlock-opt`) — a szkript a gépen él, **szándékosan nem a
+  repóban**: gépspecifikus üzemeltetés, amit rajta kívül senki nem tud
+  használni, viszont pontosan leírná ennek a gépnek a belső elrendezését.
+  Ugyanez az elv, amiért a mentés-lehúzó szkriptek is a repón kívül vannak.
 - **Fejlesztéskor figyelj**: feloldás nélkül a `/opt` üres könyvtárnak látszik —
-  az sshfs-mount is üreset csatolna.
+  az sshfs-mount is üreset csatolna. Nem hibaüzenetet kapsz, hanem semmit.
 
 ## Munkakörnyezet / elérés
 
