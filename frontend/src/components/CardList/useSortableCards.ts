@@ -173,3 +173,18 @@ export function useSortableCards<T extends SortableCard>(
         handleDragStart, handleDragEnd, handlePointerDownCapture,
     };
 }
+
+/* A húzás-vezérlés együttese: amit a hook a kártyák MELLETT ad vissza, és ami
+   érintetlenül jut el a rácsig (a hívó csak továbbadja, `grid` néven).
+
+   SZÁRMAZTATOTT típus, nem kézzel írt mezőlista. Ha a hook egy új vezérlővel
+   bővül, ez magától követi; egy kézzel másolt alak viszont némán elcsúszna tőle,
+   és a rács egy sosem érkező propot várna (l. CLAUDE.md, "kézzel szinkronizált
+   másolat").
+
+   A behelyettesített `SortableCard` itt tetszőleges: a vezérlők EGYIKE SEM függ a
+   kártya konkrét típusától — a húzás azonosítókkal dolgozik. Egyedül a `cards`
+   függ tőle, azt pedig épp kihagyjuk, ahogy a betöltés-jelzőt is (mindkettőt
+   külön propként kapja a nézet). */
+export type CardGridControls =
+    Omit<ReturnType<typeof useSortableCards<SortableCard>>, "cards" | "isLoading">;
