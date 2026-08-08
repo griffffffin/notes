@@ -19,12 +19,27 @@ import {afterEach, vi} from "vitest";
    teszt mégis a VALÓDI könyvtárat kérné, a saját fájljában vi.unmock-olhatja.
 
    (A fájl azért .jsx, mert JSX-et tartalmaz: a Vite csak .jsx-ben fordítja.) */
-/* Az ikon a [prefix, név] alakban érkezik (l. lentebb), ezért szóközzel fűzzük
-   össze: a data-icon így "fas plus" lesz, nem a tömb vessző-elválasztott
-   String()-alakja. A tesztek erre az alakra keresnek. */
+/* A pótlék a VALÓDI FontAwesome kimenetét utánozza, nem egy saját alakot: a
+   könyvtár KÉT attribútumot tesz ki az <svg>-re (fontawesome-svg-core:
+   `'data-prefix': prefix, 'data-icon': iconName`), tehát a data-icon CSAK az
+   ikon neve, a készlet külön mezőben áll.
+
+   Ezt korábban elrontottuk: a mock a [prefix, név] tömböt szóközzel fűzte össze,
+   így `data-icon="fas plus"` lett — olyan alak, amit az éles alkalmazás SOSEM
+   állít elő —, a szelektorok pedig ehhez igazodtak. Egy mock akkor ér valamit,
+   ha a valóság helyett áll be; ha saját szabályt talál ki, a tesztek azt a
+   szabályt rögzítik, nem a viselkedést. (Következmény: a fenti javaslat — hogy
+   egy teszt vi.unmock-olhatja és a valódi könyvtárat kérheti — a régi alakkal
+   azonnal elbukott volna minden ikon-szelektoron.)
+
+   A rendezés a hívási alakot követi: `icon={["fas", "plus"]}` a mai, ellenőrzött
+   forma; a csupasz szöveges alak (`icon="plus"`) prefix nélkül marad, mert a
+   valódi könyvtár is az alapértelmezett készletet használná rá. */
 vi.mock("@fortawesome/react-fontawesome", () => ({
-    FontAwesomeIcon: ({icon, ...rest}) =>
-        <span data-icon={Array.isArray(icon) ? icon.join(" ") : String(icon)} {...rest}/>,
+    FontAwesomeIcon: ({icon, ...rest}) => {
+        const [prefix, name] = Array.isArray(icon) ? icon : [undefined, String(icon)];
+        return <span data-prefix={prefix} data-icon={name} {...rest}/>;
+    },
 }));
 
 /* A jsdom nem ismeri a matchMedia-t: nincs benne tényleges elrendezés, tehát

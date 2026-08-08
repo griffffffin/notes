@@ -82,7 +82,7 @@ describe("Save útvonalai", () => {
         await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
 
         // Onnan a navbar "+" gombjával az új to-do űrlapra.
-        await userEvent.click(document.querySelector('[data-icon="fas plus"]'));
+        await userEvent.click(document.querySelector('[data-icon="plus"]'));
 
         await waitFor(() => expect(window.location.pathname).toBe("/to-dos/create"));
         expect(screen.getByPlaceholderText("Cím")).toHaveValue("");
