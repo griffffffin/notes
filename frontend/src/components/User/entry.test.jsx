@@ -8,6 +8,12 @@ import {AuthProvider} from "../../contexts/auth";
 import {ThemeProvider} from "../../contexts/theme";
 import Entry from "./entry";
 import Routes from "../routes";
+/* A VÁRT SZÖVEGET a forrásból vesszük, nem gépeljük be újra. Ugyanaz az elv,
+   amiért a 409-es teszt a státuszkódra asszertál és nem a mondatra: a felirat
+   átfogalmazása a felhasználónak szóló döntés, nem viselkedésváltozás — attól
+   egyetlen teszt sem válhat pirossá. Amit itt vizsgálunk, az az, hogy MELYIK
+   esetet ismerte fel a felület. */
+import {ENTRY_ERROR_MESSAGES} from "./entryError";
 
 /* A login/regisztrációs űrlap viselkedése. A jelszó-szabály és a "Tovább" gomb
    tiltása a felhasználó első találkozása az appal — ha ez elromlik, senki nem
@@ -174,18 +180,79 @@ describe("Bejelentkezés és regisztráció közti váltás", () => {
     });
 
     it("a bejelentkezési hiba nem jön át a regisztrációs űrlapra", async () => {
-        axios.post = vi.fn(() => Promise.reject({response: {status: 401, data: "Hibás jelszó"}}));
+        /* 400, nem 401: EZT küldi a szerver a rossz azonosítókra (login.js
+           BAD_LOGIN_STATUS). A 401 nála mást jelent — lejárt tokent —, és a
+           handleAxios globálisan kiléptet rá; a fixtúra korábban ezt a másik
+           esetet játszotta meg, csak épp nem látszott, mert a felület akkor még
+           minden hibára ugyanazt írta ki. */
+        axios.post = vi.fn(() => Promise.reject({response: {status: 400, data: "Hibás jelszó"}}));
         renderRoutes();
 
         await userEvent.type(screen.getByLabelText("Felhasználónév"), "anna");
         await userEvent.type(screen.getByLabelText("Jelszó"), "Teszt1234");
         await userEvent.click(submitButton());
-        expect(await screen.findByText(/hibás/i)).toBeVisible();
+        expect(await screen.findByText(ENTRY_ERROR_MESSAGES.credentials)).toBeVisible();
 
         await userEvent.click(screen.getByRole("button", {name: "Fiók létrehozása"}));
 
         expect(await screen.findByLabelText("Jelszó megerősítése")).toBeInTheDocument();
-        expect(screen.queryByText(/hibás/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(ENTRY_ERROR_MESSAGES.credentials)).not.toBeInTheDocument();
+    });
+});
+
+/* A HIBÁS ÁGAK — ez a két teszt egy valódi, kijavított hibapárt őriz.
+
+   A belépés korábban MINDEN hibára azt írta ki, hogy rossz a név vagy a jelszó:
+   a leállt szerver is így jelent meg, és a felhasználó a jelszavát kezdte
+   keresni. A regisztráció pont fordítva: a 409-en kívül semmire nem szólt, tehát
+   egy 500-as válasz után a képernyőn SEMMI nem történt — némán elveszett a
+   beküldés. A kettő ugyanannak a hiánynak a két vége. */
+describe("Entry — hibaüzenetek", () => {
+    async function fillAndSubmitLogin() {
+        await userEvent.type(screen.getByLabelText("Felhasználónév"), "anna");
+        await userEvent.type(screen.getByLabelText("Jelszó"), "Teszt1234");
+        await userEvent.click(submitButton());
+    }
+
+    it("belépésnél a hálózati hiba NEM a jelszóra fogja", async () => {
+        /* Hálózati hibánál és időtúllépésnél NINCS `response` az objektumon —
+           ezért nincs státuszkód sem, és pont ez különbözteti meg a szerver
+           szerződéses "nem"-jétől. */
+        axios.post = vi.fn(() => Promise.reject(new Error("Network Error")));
+        renderEntry({isLogin: true});
+        await fillAndSubmitLogin();
+
+        expect(await screen.findByText(ENTRY_ERROR_MESSAGES.request)).toBeVisible();
+        expect(screen.queryByText(ENTRY_ERROR_MESSAGES.credentials)).not.toBeInTheDocument();
+    });
+
+    it("belépésnél a 400 marad a 'hibás név vagy jelszó'", async () => {
+        axios.post = vi.fn(() => Promise.reject({response: {status: 400, data: "bármi"}}));
+        renderEntry({isLogin: true});
+        await fillAndSubmitLogin();
+
+        expect(await screen.findByText(ENTRY_ERROR_MESSAGES.credentials)).toBeVisible();
+    });
+
+    it("regisztrációnál a szerverhiba sem marad némán", async () => {
+        axios.post = vi.fn(() => Promise.reject({response: {status: 500, data: "Sikertelen regisztráció."}}));
+        renderEntry({isLogin: false});
+        await userEvent.type(screen.getByLabelText("Felhasználónév"), "anna");
+        await userEvent.type(screen.getByLabelText("Jelszó"), "Teszt1234");
+        await userEvent.type(screen.getByLabelText("Jelszó megerősítése"), "Teszt1234");
+        await userEvent.click(submitButton());
+
+        expect(await screen.findByText(ENTRY_ERROR_MESSAGES.request)).toBeVisible();
+    });
+
+    it("a hibaüzenet az első leütésre eltűnik", async () => {
+        axios.post = vi.fn(() => Promise.reject({response: {status: 400, data: "bármi"}}));
+        renderEntry({isLogin: true});
+        await fillAndSubmitLogin();
+        expect(await screen.findByText(ENTRY_ERROR_MESSAGES.credentials)).toBeVisible();
+
+        await userEvent.type(screen.getByLabelText("Felhasználónév"), "b");
+        expect(screen.queryByText(ENTRY_ERROR_MESSAGES.credentials)).not.toBeInTheDocument();
     });
 });
 

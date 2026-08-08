@@ -4,6 +4,7 @@ import SubmitButtonGroup from "../Button/submitButtonGroup";
 import {useAuth} from "../../contexts/auth-context";
 import {logRequestError} from "../../log";
 import {responseStatus} from "../../httpError";
+import {ENTRY_ERROR_MESSAGES, entryError, type EntryError} from "./entryError";
 import type {AuthToken} from "../../types/api";
 
 /* Ugyanaz a komponens szolgálja ki a belépést és a regisztrációt — a különbséget
@@ -13,8 +14,9 @@ type EntryProps = {
 };
 
 export default function Entry(props: EntryProps) {
-    const [isLoginError, setIsLoginError] = useState(false);
-    const [isSignUpError, setIsSignUpError] = useState(false);
+    /* A típus KIMONDVA, nem a `null` kezdőértékből következtetve — különben a
+       fordító örökre `null`-ra szűkítené (l. CLAUDE.md, "kezdőérték ≠ típus"). */
+    const [error, setError] = useState<EntryError | null>(null);
     const [name, setName] = useState("");
     const [isNameValid, setIsNameValid] = useState(false);
     const [password, setPassword] = useState("");
@@ -41,34 +43,33 @@ export default function Entry(props: EntryProps) {
        felirat elférjen. (A régi kód a beírás-kezelőkből mindig "mb-5"-öt tett
        ide, a signup induló "mb-3"-a helyett is — az első leütésre megugrott a
        lap. Származtatva ez a féloldalasság nem tud előfordulni.) */
-    const mb = (isLoginError || isSignUpError) ? "mb-4" : (isLogin ? "mb-5" : "mb-3");
+    const mb = error ? "mb-4" : (isLogin ? "mb-5" : "mb-3");
 
-    const clearError = useCallback(() => {
-        setIsLoginError(false);
-        setIsSignUpError(false);
-    }, []);
+    /* A hibafelirat a legelső leütésre eltűnik: aki javítani kezd, ne a régi
+       hibaüzenetet nézze közben. Az `if` őr a fölösleges rendert spórolja meg. */
+    const clearError = useCallback(() => setError(null), []);
 
     const handleNameChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-        if (isLoginError || isSignUpError) clearError();
+        if (error) clearError();
         setName(event.target.value);
         setIsNameValid(event.target.value.length > 0);
-    }, [isLoginError, isSignUpError, clearError]);
+    }, [error, clearError]);
 
     const handlePasswordChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-        if (isLoginError || isSignUpError) clearError();
+        if (error) clearError();
         setPassword(event.target.value);
         if (isLogin) setIsPasswordValid(event.target.value.length >= 8);
         else {
             setIsPasswordValid(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/.test(event.target.value));
             setIsPasswordConfirmValid(event.target.value === passwordConfirm);
         }
-    }, [isLoginError, isSignUpError, clearError, isLogin, passwordConfirm]);
+    }, [error, clearError, isLogin, passwordConfirm]);
 
     const handlePasswordConfirmChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-        if (isLoginError || isSignUpError) clearError();
+        if (error) clearError();
         setPasswordConfirm(event.target.value);
         setIsPasswordConfirmValid(event.target.value === password);
-    }, [isLoginError, isSignUpError, clearError, password]);
+    }, [error, clearError, password]);
 
     const handleEyeClick = useCallback(() => setIsPasswordVisible(!isPasswordVisible), [isPasswordVisible]);
 
@@ -90,23 +91,29 @@ export default function Entry(props: EntryProps) {
                    nem dobjuk a főoldalra. A /login és /signup címeket a belépett
                    tábla "*" ága magától a /to-dos listára irányítja át. */
                 login(response.data);
-            }, (error) => {
-                logRequestError(error);
-                /* A döntés STÁTUSZKÓDON áll, nem a hibaüzenet szövegén: a 409
-                   (Conflict) a szerver szerződéses válasza a névütközésre.
+                /* A paraméter neve `requestError`, nem `error`: a komponens
+                   állapotát hívják `error`-nak, és az árnyékolás itt pont a
+                   fontos helyen zavarna össze (melyiket adjuk a naplónak?). */
+            }, (requestError) => {
+                logRequestError(requestError);
+                /* A döntés STÁTUSZKÓDON áll, nem a hibaüzenet szövegén: a
+                   szerver szerződése a kód (409 = névütközés), nem a mondat.
                    Korábban a "foglalt" szóra kerestünk rá az üzenetben — az
                    üzenet átfogalmazása vagy fordítása némán elrontotta volna ezt
-                   az ágat, és semmi nem jelezte volna. */
-                /* A hibaág paramétere `unknown` (JavaScriptben bármit el lehet
+                   az ágat, és semmi nem jelezte volna.
+
+                   A hibaág paramétere `unknown` (JavaScriptben bármit el lehet
                    dobni), ezért nem lehet csak úgy `error.response?.status`-t írni.
                    A `responseStatus` VALÓDI alak-vizsgálatot végez (l. httpError.ts),
-                   nem `as`-szal állítja, hogy Axios-hiba — így a fenti 409-es teszt
-                   sima `{response:{status:409}}` objektuma is átmegy rajta. */
-                if (isLogin) {
-                    setIsLoginError(true);
-                } else if (responseStatus(error) === 409) {
-                    setIsSignUpError(true);
-                }
+                   nem `as`-szal állítja, hogy Axios-hiba — így a tesztek sima
+                   `{response:{status:409}}` objektuma is átmegy rajta.
+
+                   Hogy melyik kódból melyik üzenet lesz, az az entryError.ts-ben
+                   él, egyetlen táblázatban — itt csak azt mondjuk ki, hogy MINDEN
+                   hiba kap választ. Ez a lényegi javítás: eddig a belépés minden
+                   hibát rossz jelszónak mondott, a regisztráció pedig a 409-en
+                   kívül semmit nem jelzett. */
+                setError(entryError(isLogin, responseStatus(requestError)));
             }
         );
     }, [isLogin, url, name, password, login, handleAxios]);
@@ -121,7 +128,7 @@ export default function Entry(props: EntryProps) {
                             password={password} handlePasswordChange={handlePasswordChange}
                             passwordConfirm={passwordConfirm}
                             handlePasswordConfirmChange={handlePasswordConfirmChange}
-                            isSignUpError={isSignUpError} isLoginError={isLoginError}/>
+                            errorMessage={error && ENTRY_ERROR_MESSAGES[error]}/>
                 {/* A jelszó-ürítés a linkről elmaradhat: a routes.jsx külön key-t
                     ad a két nézetnek, így a váltás új példányt hoz, üres mezőkkel. */}
                 <SubmitButtonGroup isDisabled={isDisabled} isLogin={isLogin}/>

@@ -32,6 +32,6 @@ export default function InputGroup(props: InputGroupProps) {
                        password={props.password} handlePasswordChange={props.handlePasswordChange}
                        passwordConfirm={props.passwordConfirm}
                        handlePasswordConfirmChange={props.handlePasswordConfirmChange}
-                       isSignUpError={props.isSignUpError} isLoginError={props.isLoginError}/>
+                       errorMessage={props.errorMessage}/>
     </>);
 }

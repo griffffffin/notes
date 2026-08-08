@@ -16,8 +16,8 @@ export type PasswordGroupProps = {
     handlePasswordChange: PasswordAndTooltipProps["handleChange"];
     passwordConfirm: string;
     handlePasswordConfirmChange: PasswordAndTooltipProps["handleChange"];
-    isSignUpError: boolean;
-    isLoginError: boolean;
+    /* Kész hibaüzenet vagy semmi — a szöveg az entryError.ts-ben dől el. */
+    errorMessage: string | null;
 };
 
 export default function PasswordGroup(props: PasswordGroupProps) {
@@ -30,8 +30,8 @@ export default function PasswordGroup(props: PasswordGroupProps) {
                                 handleClick={props.handleClick}/>
             <PasswordConfirmAndErrorLabel isLogin={props.isLogin}
                                           value={props.passwordConfirm} handleChange={props.handlePasswordConfirmChange}
-                                          handleClick={props.handleClick} isSignUpError={props.isSignUpError}
-                                          isLoginError={props.isLoginError} isVisible={props.isVisible}/>
+                                          handleClick={props.handleClick} errorMessage={props.errorMessage}
+                                          isVisible={props.isVisible}/>
         </div>
     );
 }

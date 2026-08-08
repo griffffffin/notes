@@ -86,6 +86,36 @@ test("a jelszó-szabály betűre azonos a két oldalon", () => {
         "A regisztráció jelszó-szabálya eltér a két oldalon: a felület mást enged át, mint amit a szerver elfogad.");
 });
 
+/* A HIBA-STÁTUSZKÓDOK. A belépő űrlap immár nem "minden hibára ugyanazt" írja ki,
+   hanem a STÁTUSZKÓD alapján dönt — ezzel viszont két szám átkerült a csomaghatár
+   mindkét oldalára, és onnantól némán el tud csúszni. Ha a backend a sikertelen
+   belépést egy nap 401-re írja át, a felület nem hibázik: csak "nem sikerült
+   elérni a szervert"-et mond a rossz jelszóra. Semmi nem jelezné.
+
+   Miért épp ez a két kód? Mert CSAK ez a kettő hordoz külön üzenetet a felületen;
+   minden más a közös "valami elromlott" ágra esik, ott nincs mit elrontani. */
+test("a sikertelen belépés státusza egyezik a felület 'hibás jelszó' ágával", () => {
+    const backend = declared("backend/src/controllers/Users/login",
+        /BAD_LOGIN_STATUS\s*=\s*(\d+)/, "a sikertelen belépés státusza");
+    const frontend = declared("frontend/src/components/User/entryError",
+        /BAD_LOGIN_STATUS\s*=\s*(\d+)/, "a 'hibás név vagy jelszó' ág státusza");
+
+    assert.strictEqual(Number(backend), Number(frontend),
+        `A szerver ${backend}-t ad a rossz jelszóra, a felület ${frontend}-re írja ki a "hibás név vagy jelszó" ` +
+        "üzenetet. Elcsúszva a valódi ok helyett általános hibaüzenetet látna a felhasználó.");
+});
+
+test("a névütközés státusza egyezik a felület 'foglalt név' ágával", () => {
+    const backend = declared("backend/src/controllers/Users/create",
+        /NAME_TAKEN_STATUS\s*=\s*(\d+)/, "a névütközés státusza");
+    const frontend = declared("frontend/src/components/User/entryError",
+        /NAME_TAKEN_STATUS\s*=\s*(\d+)/, "a 'foglalt név' ág státusza");
+
+    assert.strictEqual(Number(backend), Number(frontend),
+        `A szerver ${backend}-t ad a foglalt névre, a felület ${frontend}-re számít. ` +
+        "Elcsúszva a regisztráció általános hibát mutatna, és a felhasználó nem tudná, hogy nevet kell váltania.");
+});
+
 test("a betűméret tartománya egyezik a szerkesztő stepperével", () => {
     /* A backend oldalán a SÉMÁT olvassuk, nem a middleware-t — a kettő egyezését a
        middleware/fontSizeRange.test.js már őrzi. Így a lánc teljes:
