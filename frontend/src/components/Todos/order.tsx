@@ -1,5 +1,7 @@
 import {useCallback, useEffect, useRef} from "react";
 import {Tooltip as ReactTooltip} from "react-tooltip";
+import type {PlacesType} from "react-tooltip";
+import type {MouseEvent, TouchEvent} from "react";
 import {TOOLTIP_MIDDLEWARES} from "../../tooltipMiddlewares";
 import {useTooltipOpen, useTooltipToggle} from "../../tooltipRegistry";
 
@@ -9,7 +11,32 @@ import {useTooltipOpen, useTooltipToggle} from "../../tooltipRegistry";
    némán elcsúszhatnának egymástól. */
 export const STEP_DELAY_MS = 100;
 
-export default function Order(props) {
+/* A FELSŐ KORLÁT kétféleképpen adható meg, és pontosan az egyik kell — ezt a
+   típus is kimondja (nem két, egymástól függetlenül elhagyható opcionális mező).
+   A sorszám-stepper a meglévő elemek számát (`last`) adja, amiből a komponens
+   számol (last+1); a betűméret-stepper közvetlenül a `max`-ot. Ha mindkettő
+   opcionális `number?` volna, a "egyiket se adom meg" hívás lefordulna, és a
+   korlát némán NaN-ná válna. */
+type OrderRange =
+    | {last: number; max?: undefined}
+    | {max: number; last?: undefined};
+
+type OrderProps = OrderRange & {
+    /* A megjelenített érték és a beállítója. A setter szűk típusú (`(value) =>
+       void`): ez a komponens mindig kész számot ad át, sosem frissítő függvényt. */
+    current: number;
+    setOrder: (value: number) => void;
+    min?: number;
+    step?: number;
+    stepDelay?: number;
+    tooltip?: string;
+    tooltipId?: string;
+    /* A react-tooltip saját elhelyezés-típusa (nem szabad string): így egy
+       elgépelt "topp" fordítási hiba, nem néma alapértelmezés. */
+    tooltipPlace?: PlacesType;
+};
+
+export default function Order(props: OrderProps) {
     /* Alapértékek a SORSZÁM-használathoz (to-do + idézet): 1-től, egyesével,
        "Sorszám" tooltip lefelé. A per-idézet BETŰMÉRET-stepper ugyanezt a
        komponenst használja: a léptetés (kattintás/nyomva tartás, ütem) SZÁNDÉKOSAN
@@ -32,7 +59,7 @@ export default function Order(props) {
        több pozíciót nyit, így a legnagyobb VÁLASZTHATÓ sorszám last+1. (Az új to-do
        alapból az ELSŐ helyre, 1-re kerül — l. a save.jsx useState(1)-ét; a stepper
        viszont felengedi egészen a végére, last+1-re is. L. az order-tesztet.) */
-    const max = props.max ?? (props.last + 1);
+    const max = props.max !== undefined ? props.max : props.last + 1;
     /* Két lépés közti idő ezredmásodpercben — ennyivel később mozdul a kattintás, és
        ennyi a nyomva tartás ismétlési üteme. Alap a STEP_DELAY_MS; a hívó felülírhatja
        (a betűméret-stepper feleannyit ad → dupla sebesség). */
@@ -40,7 +67,7 @@ export default function Order(props) {
 
     /* A nyomva tartás ismétlő-időzítője. Ref, mert a lenyomás és az elengedés közt
        kell életben tartani, és a változása NEM járhat újrarajzolással. */
-    const timer = useRef(null);
+    const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
     /* Lépett-e már a mostani lenyomás óta. Ez választja szét a KATTINTÁST a NYOMVA
        TARTÁSTÓL az elengedéskor: kattintásnál (még nem lépett) a függőben lévő
        EGYETLEN lépést hagyjuk lefutni; nyomva tartás után (már lépett) a soron
@@ -56,7 +83,7 @@ export default function Order(props) {
     const valueRef = useRef(props.current);
     valueRef.current = props.current;
 
-    const clamp = useCallback((value) => Math.min(max, Math.max(min, value)), [min, max]);
+    const clamp = useCallback((value: number) => Math.min(max, Math.max(min, value)), [min, max]);
 
     /* Elengedés — az egész ABLAKRA kötve (l. start), nem csak a gombra. Ez a hiba
        gyökér-javítása: ha az egeret a gombon KÍVÜL engedik fel (a gombról lecsúszva,
@@ -75,10 +102,17 @@ export default function Order(props) {
         }
     }, []);
 
-    const start = useCallback((event, direction) => {
-        // A szintetikus egéresemények kiiktatása touchnál (különben a touchstart utáni
-        // kései mousedown másodszor is indítana): a textarea fókusza is megmarad.
-        event.preventDefault?.();
+    /* A léptető gombjai <svg>-k, és MINDKÉT beviteli módot kiszolgálják: egérrel
+       mousedown, ujjal touchstart indítja őket. A két React-esemény külön típus,
+       de a kezelőnek csak a preventDefault kell — ezért unió. */
+    const start = useCallback((event: MouseEvent<SVGSVGElement> | TouchEvent<SVGSVGElement>,
+                              direction: number) => {
+        /* A szintetikus egéresemények kiiktatása touchnál (különben a touchstart utáni
+           kései mousedown másodszor is indítana): a textarea fókusza is megmarad.
+           (Itt korábban `preventDefault?.()` állt. A védőháló egy olyan hívóra
+           készült, aki csupasz objektumot ad át — a típus szerint ilyen nincs, és
+           az opcionális jel csak azt a látszatot keltette, hogy lehet.) */
+        event.preventDefault();
         if (timer.current) clearTimeout(timer.current);
         stepped.current = false;
         holding.current = true;
@@ -100,8 +134,10 @@ export default function Order(props) {
         timer.current = setTimeout(tick, stepDelay);
     }, [clamp, step, stepDelay, props, release]);
 
-    const handleMinusDown = useCallback((event) => start(event, -1), [start]);
-    const handlePlusDown = useCallback((event) => start(event, 1), [start]);
+    const handleMinusDown = useCallback((event: MouseEvent<SVGSVGElement> | TouchEvent<SVGSVGElement>) =>
+        start(event, -1), [start]);
+    const handlePlusDown = useCallback((event: MouseEvent<SVGSVGElement> | TouchEvent<SVGSVGElement>) =>
+        start(event, 1), [start]);
 
     // Leszereléskor: függőben lévő időzítő + window-figyelők eltakarítása.
     useEffect(() => release, [release]);
