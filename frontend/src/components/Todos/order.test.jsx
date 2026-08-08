@@ -10,7 +10,7 @@ vi.mock("react-tooltip", () => ({Tooltip: () => null}));
    meg kell játszanunk, különben a lépés sehol nem látszana. */
 function Parent({start = 8, last = 10}) {
     const [order, setOrder] = useState(start);
-    return <Order current={order} setOrder={setOrder} last={last} color="warning" colorHex="#ffc107"/>;
+    return <Order current={order} setOrder={setOrder} last={last}/>;
 }
 
 const minus = (container) => container.querySelector(".bi-dash-circle");

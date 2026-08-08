@@ -82,7 +82,7 @@ describe("ValidationTooltip", () => {
     it("egy másik tooltip megnyílása eltünteti a hibabuborékot", async () => {
         render(<>
             <ValidationTooltip id="v" validation={validation}/>
-            <Order current={1} setOrder={() => {}} last={3} color="theme"/>
+            <Order current={1} setOrder={() => {}} last={3}/>
         </>);
         await waitFor(() => expect(isShown(MESSAGE)).toBe(true));
 

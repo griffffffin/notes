@@ -13,7 +13,6 @@ import DeleteAndModal from "./deleteAndModal";
 import ColorButtonGroup from "../Button/colorButtonGroup";
 import {useTheme} from "../../contexts/theme-context";
 import {useAuth} from "../../contexts/auth-context";
-import {TODO_COLORS} from "../../todoColors";
 import {logRequestError} from "../../log";
 import {fieldAnchor} from "../Editor/fieldAnchor";
 import ValidationTooltip from "../Editor/validationTooltip";
@@ -62,11 +61,6 @@ export default function Save(props) {
        kezdőbetűvel). A névből áll össze az "A/Az <név> kitöltése kötelező." szöveg,
        így egy új mező (pl. idézet) esetén a felirat magától helyes lesz. */
     const [validation, setValidation] = useState(null);
-
-    /* A hex a színnévből egyértelműen adódik, tehát nem state: kiszámoljuk.
-       Korábban külön state volt, amit egy switch-es setter tartott szinkronban
-       — két forrás ugyanarra az egy adatra, ami el tud csúszni egymástól. */
-    const colorHex = TODO_COLORS[color] ?? "";
 
     /* isUpdate és url NEM state: a propból egyértelműen adódnak, tehát minden
        renderben kiszámolhatók. Korábban useEffect másolta őket state-be — így
@@ -371,7 +365,7 @@ export default function Save(props) {
                     <NoFocusInput id="createColumn" value={title} onChange={handleTitleChange} placeholder="Cím"
                                   autoComplete="off" autoFocus={true} required={true} color={color}
                                   class="card-header caveat ms-1"/>
-                    <Order current={order} setOrder={setOrder} last={lastOrder} color={color} colorHex={colorHex}/>
+                    <Order current={order} setOrder={setOrder} last={lastOrder}/>
                 </div>
 
                 <div className="card-body py-1">

@@ -434,7 +434,7 @@ export default function QuoteSave(props) {
                         (a sorszám-toolbar) örökölje — enélkül a fekete hátterű
                         toolbar szögletes sarka kitakarná a card lekerekítését. */}
                     <div className="editor-side-column d-flex flex-column align-items-end justify-content-between flex-shrink-0">
-                        <Order current={order} setOrder={setOrder} last={lastOrder} color={color}/>
+                        <Order current={order} setOrder={setOrder} last={lastOrder}/>
                         {/* Csak update-nél: a publikus cím az idézet azonosítójára
                             épül, ami create-nél még nem létezik. */}
                         {/* Nincs alsó térköz (pb): az ikon a sor legaljára ül, hogy
@@ -469,7 +469,7 @@ export default function QuoteSave(props) {
                                      placeholder="Szerző" class={"caveat ps-2 text-" + color}/>
                         <Order current={fontSize} setOrder={setFontSize} max={200} min={100}
                                stepDelay={STEP_DELAY_MS / 2}
-                               color={color} tooltip="Betűméret" tooltipPlace="top" tooltipId="fontsize-tooltip"/>
+                               tooltip="Betűméret" tooltipPlace="top" tooltipId="fontsize-tooltip"/>
                     </div>
 
                     <div className="d-grid">
