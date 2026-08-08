@@ -91,10 +91,11 @@ export type SearchMode =
     | {mode: "author"; author: string}
     | {mode: "text"};
 
-/* Egy listaelem a to-do kártyán. Nem exportált: kifelé ma senki nem kér külön
-   task-ot, a `Todo` mezői viszont ezzel mondják ki az alakjukat. (Ugyanaz a
-   szabály, mint az IsoDate-nél.) */
-type Task = {
+/* Egy listaelem a to-do kártyán. Ma már exportált: a szerkesztő munkapéldánya
+   (Todos/todoDraft.ts) ugyanezeket a listaelemeket tartja — ott a szerkesztés
+   közbeni alakról van szó, de a listaelem MAGA azonos a dróton érkezővel, és két
+   külön leírás elcsúszna egymástól. */
+export type Task = {
     /* A tárolási KULCS szövegként — a `tasks` objektum ugyanezzel a számmal
        indexel, csak ott számként. A kettősség öröklött (a régi kód parseInt-elt
        oda-vissza); a húzható lista ezért normalizál `toString()`-gel, mielőtt a
@@ -108,7 +109,7 @@ type Task = {
    külön a `taskOrder` tömb tartja. Így az átrendezés csak a sorrend-tömböt írja
    át, a tartalmakhoz nem nyúl — és egy elem törlése sem tolja el a többi
    azonosítóját. */
-type Tasks = Record<number, Task>;
+export type Tasks = Record<number, Task>;
 
 export type Todo = {
     _id: Id;

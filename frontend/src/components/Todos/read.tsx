@@ -3,12 +3,21 @@ import {useParams} from "react-router-dom";
 import TodoCard from "./card";
 import {useSectionList} from "../CardList/useSectionList";
 import CardListView from "../CardList/CardListView";
+import type {MouseEventHandler} from "react";
+import type {Todo} from "../../types/api";
+
+/* Ugyanaz a komponens szolgálja ki a szűretlen listát és a szűrt nézeteket — a
+   különbség az `url`-ben van (/to-dos, /to-dos/category, /to-dos/color). */
+type TodoReadProps = {
+    url: string;
+    handleLinkClicked: MouseEventHandler<HTMLAnchorElement>;
+};
 
 /* A to-do lista. A betöltés + húzás + szekció-emlékezet a useSectionList hookban,
    a megjelenítés (betöltő, üres nézet, rács) a CardListView-ban van — ugyanaz,
    amit az idézet-lista és a keresési találat is használ. Itt csak a
    to-do-SPECIFIKUS rész marad: a szűrő értelmezése és a kártya tartalma. */
-export default function Read(props) {
+export default function Read(props: TodoReadProps) {
     const {name} = useParams();
 
     /* A szűrő (kategória vagy szín) a :name URL-szegmensből jön. A user
@@ -26,7 +35,9 @@ export default function Read(props) {
         [name, props.url],
     );
 
-    const {cards, isLoading, grid} = useSectionList({
+    /* A `<Todo>` mondja meg, MILYEN kártyákat várunk — innen tudja a CardListView
+       és a renderCard is, hogy `todo.color`-t és `todo.category`-t olvashat. */
+    const {cards, isLoading, grid} = useSectionList<Todo>({
         url: props.url, filter, reorderUrl: "/to-dos/reorder", section: "/to-dos",
     });
 

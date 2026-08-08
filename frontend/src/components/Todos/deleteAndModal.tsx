@@ -3,8 +3,29 @@ import {useNavigate} from "react-router-dom";
 import Modal from "./modal";
 import {useAuth} from "../../contexts/auth-context";
 import {logRequestError} from "../../log";
+import type {Id} from "../../types/api";
+import type {BootstrapColor} from "../../contexts/theme-context";
 
-export default function DeleteAndModal(props) {
+/* A KÖTELEZŐ mezők azok, amiket mindkét szerkesztő ad; minden más opcionális,
+   mert vagy csak a to-dónak, vagy csak az idézetnek van értelme. Az `itemId` és a
+   `todoId` kettőssége öröklés: a to-do a régi nevet adja, az idézet az általánosat
+   (l. az alábbi ?? láncot). */
+type DeleteAndModalProps = {
+    handleLinkClicked: () => void;
+    color: BootstrapColor;
+    deleteUrl?: string;
+    listUrl?: string;
+    /* Az azonosító az URL-ből jön, ezért `undefined` is lehet; a gomb viszont csak
+       szerkesztés (update) közben jelenik meg, ahol az útvonal kötelezővé teszi. */
+    itemId?: Id | null;
+    todoId?: Id | null;
+    setIsCategoryClicked?: (isClicked: boolean) => void;
+    setIsColorClicked?: (isClicked: boolean) => void;
+    handleCategoryChange?: () => void;
+    onDelete?: () => void;
+};
+
+export default function DeleteAndModal(props: DeleteAndModalProps) {
     const [isModalShow, setIsModalShow] = useState(false);
     const navigate = useNavigate();
     const {handleAxios} = useAuth();

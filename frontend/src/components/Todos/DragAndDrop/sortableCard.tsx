@@ -1,5 +1,7 @@
 import {useSortable} from "@dnd-kit/sortable";
 import {CSS} from "@dnd-kit/utilities";
+import type {CSSProperties, ReactNode} from "react";
+import type {Id} from "../../../types/api";
 
 /* Egy húzható kártya a főoldalon.
 
@@ -9,10 +11,12 @@ import {CSS} from "@dnd-kit/utilities";
    aktiválási feltételei, és a húzás utáni kattintás elnyelése — utóbbi a
    dokumentumon ül, mert a dnd-kit már a rács fölött megállítja az eseményt (az
    indoklás ott van, a kezelőnél). */
-export default function SortableCard({id, children}) {
+export default function SortableCard({id, children}: {id: Id; children: ReactNode}) {
     const {attributes, listeners, setNodeRef, transform, transition, isDragging} = useSortable({id});
 
-    const style = {
+    /* A típus KIMONDVA, nem a `style` propból visszakövetkeztetve: így egy
+       elgépelt CSS-tulajdonság már itt, a definíciónál kiderül. */
+    const style: CSSProperties = {
         /* CSS.Translate, NEM CSS.Transform — a különbség látszik a képernyőn.
 
            A rendezési stratégia nem csak eltolást ad a kártyáknak, hanem

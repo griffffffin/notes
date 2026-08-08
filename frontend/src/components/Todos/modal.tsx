@@ -1,5 +1,16 @@
 import {useEffect, useRef} from "react";
 import SubmitButton from "../Button/submitButton";
+import type {MouseEvent} from "react";
+import type {BootstrapColor} from "../../contexts/theme-context";
+
+/* A szín kétféle lehet, mert a modal két szerkesztőt szolgál ki: a to-do a saját
+   paletta-színét adja, az idézet a témáét (l. deleteAndModal). */
+type ModalProps = {
+    isShow: boolean;
+    handleClose: () => void;
+    handleDelete: () => void;
+    color: BootstrapColor;
+};
 
 /* Törlés-megerősítő dialógus a natív <dialog> elemre építve (a react-bootstrap
    Modal helyett — azt az egész @restart/ui + dom-helpers + react-transition-group
@@ -14,8 +25,11 @@ import SubmitButton from "../Button/submitButton";
    .modal-content viseli — ugyanaz a szerkezet, amit a react-bootstrap generált,
    így a rá hangolt index.css-szabályok (.modal-content/-header/-body/-title,
    .btn-close) mind változatlanul érvényesek. */
-export default function Modal(props) {
-    const dialogRef = useRef(null);
+export default function Modal(props: ModalProps) {
+    /* A típus KIMONDVA, nem a `null` kezdőértékből következtetve — különben a
+       fordító örökre `null`-ra szűkítené a refet, és a `dialog.showModal()` sor
+       le sem fordulna. */
+    const dialogRef = useRef<HTMLDialogElement>(null);
 
     /* Az isShow prop vezérli a natív dialógust. A dialog.open guard a fölösleges
        dupla-hívást előzi: ha az ESC vagy a backdrop már bezárta, a rákövetkező
@@ -27,8 +41,16 @@ export default function Modal(props) {
             dialog.showModal();
             /* A biztonságos gombra (Vissza, a body első gombja) tesszük a fókuszt,
                nem a Törlésre — így egy véletlen Enter nem töröl. A showModal alapból
-               az első fókuszálható elemre (a bezáró X) tenné. */
-            dialog.querySelector(".modal-body button")?.focus();
+               az első fókuszálható elemre (a bezáró X) tenné.
+
+               A querySelector `Element`-et ad vissza, azon pedig nincs focus().
+               NEM `querySelector<HTMLButtonElement>`-tel és nem `as`-szal oldjuk
+               meg: az csak ÁLLÍTANÁ az alakot, ellenőrizni nem ellenőrizné (l.
+               CLAUDE.md). Az `instanceof` valódi futásidejű vizsgálat — ha a
+               szelektor egyszer mást talál (vagy semmit), itt csendben elmarad a
+               fókusz, ahogy eddig is az `?.` mellett. */
+            const safeButton = dialog.querySelector(".modal-body button");
+            if (safeButton instanceof HTMLElement) safeButton.focus();
         } else if (!props.isShow && dialog.open) dialog.close();
     }, [props.isShow]);
 
@@ -55,7 +77,7 @@ export default function Modal(props) {
     /* Backdrop-kattintás zárás: a ::backdrop-ra eső kattintás célpontja maga a
        <dialog> (a belső .modal-content elnyeli a rá esőt), így a tartalmon KÍVÜLI
        kattintás zár — pontosan úgy, ahogy a react-bootstrap is tette. */
-    const handleDialogClick = (event) => {
+    const handleDialogClick = (event: MouseEvent<HTMLDialogElement>) => {
         if (event.target === dialogRef.current) props.handleClose();
     };
 
