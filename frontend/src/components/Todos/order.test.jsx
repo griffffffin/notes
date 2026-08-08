@@ -103,6 +103,27 @@ describe("Order", () => {
         expect(screen.getByText("9")).toBeInTheDocument();
     });
 
+    /* A kattintás EGYETLEN lépése időzítőn ül (ezért nem dobjuk el elengedéskor —
+       l. az első tesztet). Ha viszont a komponens közben leválik (a szerkesztőből
+       kilépünk), akkor már nincs kinek lépni: a takarításnak ezt a függőben lévő
+       lépést is el KELL dobnia. Korábban a leszerelés ugyanazt a `release`-t hívta,
+       ami a kattintás időzítőjét szándékosan meghagyja — így az elárvultan
+       lefutott, és egy már nem létező szerkesztő setOrder-ét hívta. */
+    it("leszereléskor a függőben lévő lépés is elmarad", () => {
+        const setOrder = vi.fn();
+        const {container, unmount} = render(<Order current={8} setOrder={setOrder} last={10}/>);
+
+        fireEvent.mouseDown(minus(container));
+        act(() => vi.advanceTimersByTime(STEP_DELAY_MS / 2));   // a lépés még függőben
+        fireEvent.mouseUp(minus(container));
+        expect(setOrder).not.toHaveBeenCalled();
+
+        unmount();
+        act(() => vi.advanceTimersByTime(2000));
+
+        expect(setOrder).not.toHaveBeenCalled();
+    });
+
     it("az alsó határon (1) nem lép tovább lefelé", () => {
         const {container} = render(<Parent start={1}/>);
 

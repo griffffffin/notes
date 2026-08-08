@@ -139,8 +139,23 @@ export default function Order(props: OrderProps) {
     const handlePlusDown = useCallback((event: MouseEvent<SVGSVGElement> | TouchEvent<SVGSVGElement>) =>
         start(event, 1), [start]);
 
-    // Leszereléskor: függőben lévő időzítő + window-figyelők eltakarítása.
-    useEffect(() => release, [release]);
+    /* Leszereléskor: window-figyelők + MINDEN függőben lévő időzítő eltakarítása.
+
+       Ez SZÁNDÉKOSAN többet takarít, mint a `release`. Az elengedésnél a még
+       függőben lévő EGYETLEN lépést meg KELL tartani: a kattintás egy lépése is
+       időzítőn megy, tehát a felengedéskor eldobva a kattintás nem lépne semmit
+       (ezért van ott a `stepped.current &&` feltétel). Leszereléskor viszont
+       nincs kinek lépni — a komponens eltűnt, a `props.setOrder` egy már nem
+       létező szerkesztőé. Ma ez ártalmatlan (a React elnyeli), de öröklés volt,
+       nem szándék: eddig a cleanup egyszerűen a `release` volt, és vele az
+       elárvult időzítő is. */
+    useEffect(() => () => {
+        release();
+        if (timer.current) {
+            clearTimeout(timer.current);
+            timer.current = null;
+        }
+    }, [release]);
 
     /* A sorszám-toolbar a TÉMA színeit viseli (nem a to-do sajátját): a háttere a
        lap háttere (bg-theme-page), a szám és a gombok a kiemelőszínt (text-theme;
