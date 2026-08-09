@@ -24,12 +24,20 @@ export default function QuotePublic() {
     const [quote, setQuote] = useState<Quote | undefined>(undefined);
     const [notFound, setNotFound] = useState(false);
 
+    /* Versenyhelyzet-őr: a route :id-je változásakor az effekt újrafut, és két
+       párhuzamos válasz fordított sorrendben is visszaérhet — a RÉGI id válasza
+       felülírhatná a frisset. Az `active` zászló a leszereléskor (és minden
+       újrafutáskor) hamisra vált, így a lejárt kérés callbackje már nem ír state-et.
+       Minta: CardList/useSortableCards.ts. */
     useEffect(() => {
-        handleAxios<Quote>("/quotes/id", {id}, (response) => setQuote(response.data),
-            (error) => {
-                logRequestError(error);
-                setNotFound(true);
-            });
+        let active = true;
+        handleAxios<Quote>("/quotes/id", {id}, (response) => {
+            if (active) setQuote(response.data);
+        }, (error) => {
+            logRequestError(error);
+            if (active) setNotFound(true);
+        });
+        return () => { active = false; };
     }, [id, handleAxios]);
 
     // A "nincs ilyen idézet" üzenet 200%-os (a --quote-fs a .caveat 155%-át írja
