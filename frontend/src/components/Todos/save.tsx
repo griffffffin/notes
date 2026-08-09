@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from "react";
+import {useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent, type MouseEvent} from "react";
 import {useBlocker, useLocation, useNavigate, useParams} from "react-router-dom";
 import Spinner from "../spinner";
 import NoFocusInput from "../Input/noFocusInput";
@@ -14,13 +14,42 @@ import ColorButtonGroup from "../Button/colorButtonGroup";
 import {useTheme} from "../../contexts/theme-context";
 import {useAuth} from "../../contexts/auth-context";
 import {logRequestError} from "../../log";
-import {fieldAnchor} from "../Editor/fieldAnchor";
+import {fieldAnchor, type FieldAnchor} from "../Editor/fieldAnchor";
 import ValidationTooltip from "../Editor/validationTooltip";
 import {useEscapeSubmit} from "../Editor/useEscapeSubmit";
 import {useIdleTimer} from "../Editor/useIdleTimer";
+import {isTodoColor, type TodoColor} from "../../todoColors";
+import type {Todo, Tasks} from "../../types/api";
+import type {TodoDraft, SetTask, SetTaskOrder} from "./todoDraft";
+
+/* A szerkesztő és a szerver közti ÖSSZEHASONLÍTHATÓ pillanatkép: az a hat mező,
+   amit a "változott-e?" ellenőrzés néz. A `loadedTodo` ref ezt tárolja (a szerver
+   adta állapot), és a currentData() is ebbe az alakba gyűjti a jelenlegi mezőket. */
+type TodoSnapshot = {
+    title: string;
+    category: string;
+    color: TodoColor;
+    order: number;
+    tasks: Tasks;
+    taskOrder: number[];
+};
+
+/* A MENTENDŐ adat: a pillanatkép + update-nél a szerkesztett elem id-je. A három
+   mentési útvonal (blocker, leváláskori mentés, autosave) ezt küldi. */
+type TodoPayload = TodoSnapshot & {id?: string};
+
+/* A propokat a routes.tsx TodosSaveRoute wrapperje adja (a categoriest + a két
+   handlert az App-tól). A `handleLinkClicked`/`handleCategoryChange` paraméter
+   nélküli (l. app.tsx). */
+type SaveProps = {
+    isUpdate: boolean;
+    handleLinkClicked: () => void;
+    handleCategoryChange: () => void;
+    categories: string[];
+};
 
 /* Változatlan-e az űrlap ahhoz képest, amit a szerver adott? */
-const isUnchanged = (current, loaded) =>
+const isUnchanged = (current: TodoSnapshot, loaded: TodoSnapshot) =>
     current.title === loaded.title &&
     current.category === loaded.category &&
     current.color === loaded.color &&
@@ -28,7 +57,7 @@ const isUnchanged = (current, loaded) =>
     JSON.stringify(current.taskOrder) === JSON.stringify(loaded.taskOrder) &&
     JSON.stringify(current.tasks) === JSON.stringify(loaded.tasks);
 
-export default function Save(props) {
+export default function Save(props: SaveProps) {
     /* A to-do SAJÁT színe (a felhasználó választja kártyánként) — nem a témáé.
        A téma csak a KEZDŐÉRTÉKET adja, ezért useState-kezdőérték, nem effekt:
        effektként minden témaváltáskor újra lefutott, és szerkesztés közben
@@ -40,7 +69,7 @@ export default function Save(props) {
     const [title, setTitle] = useState("");
     const [isTitleValid, setIsTitleValid] = useState(false);
     const [order, setOrder] = useState(1);
-    const [todo, setTodo] = useState({
+    const [todo, setTodo] = useState<TodoDraft>({
         tasks: {},
         columns: {"createColumn": {id: "createColumn", taskOrder: []}},
         columnOrder: ["createColumn"]
@@ -50,17 +79,17 @@ export default function Save(props) {
     const [isDisabled, setIsDisabled] = useState(true);
     const {id} = useParams();
     const location = useLocation();
-    const [lastOrder, setLastOrder] = useState(null);
+    const [lastOrder, setLastOrder] = useState<number | null>(null);
     const [isCategoryAngleClicked, setIsCategoryAngleClicked] = useState(false);
     const navigate = useNavigate();
     const {handleAxios, token} = useAuth();
-    const formRef = useRef(null);
+    const formRef = useRef<HTMLFormElement>(null);
     /* A kötelező mezők SAJÁT hibabuborékja a natív böngésző-buborék helyett (azt
-       nem lehet stílusozni). null = nincs hiba; egyébként {anchor, name}: a hibás
-       mező CSS-szelektora (a tooltip horgonya) és a NEVE (a placeholderből, kis
+       nem lehet stílusozni). null = nincs hiba; egyébként a fieldAnchor visszatérése:
+       a hibás mező CSS-szelektora (a tooltip horgonya) és a NEVE (a placeholderből, kis
        kezdőbetűvel). A névből áll össze az "A/Az <név> kitöltése kötelező." szöveg,
        így egy új mező (pl. idézet) esetén a felirat magától helyes lesz. */
-    const [validation, setValidation] = useState(null);
+    const [validation, setValidation] = useState<FieldAnchor | null>(null);
 
     /* isUpdate és url NEM state: a propból egyértelműen adódnak, tehát minden
        renderben kiszámolhatók. Korábban useEffect másolta őket state-be — így
@@ -80,7 +109,7 @@ export default function Save(props) {
     /* A szerverről betöltött állapot — a beküldéskor ehhez mérjük, változott-e
        bármi. Ref és nem state: senki nem jeleníti meg, és a változása nem
        járhat újrarajzolással. */
-    const loadedTodo = useRef(null);
+    const loadedTodo = useRef<TodoSnapshot | null>(null);
     /* Igaz, ha a mentés MÁR elintézte a távozást (a blocker mentés+proceed ága, vagy a
        Törlés) — ilyenkor a leváláskori (unmount) mentés NEM fut le újra (create-nél
        nehogy duplán hozzon létre). A blocker shouldBlock-ja is ezt nézi: ha igaz, nem
@@ -107,19 +136,25 @@ export default function Save(props) {
         else navigate("/to-dos");
     }, [isUpdate, location.key, navigate]);
 
-    const handleColorChange = useCallback((event) => {
-        setColor(event.target.value);
+    /* A színválasztó gomb `value`-ja DOM-szinten sima string; az isTodoColor VALÓDI
+       futásidejű őr (nem `as`) szűkíti TodoColorra, mielőtt beállítjuk. A gombokat
+       a paletta rendereli, tehát az érték mindig érvényes — az őr a típust teszi
+       őszintévé (l. todoColors.ts). A currentTarget (nem target) a kezelőt viselő
+       gomb; a MouseEvent targetje csak EventTarget, azon nincs value. */
+    const handleColorChange = useCallback((event: MouseEvent<HTMLButtonElement>) => {
         setIsColorAngleClicked(false);
+        const value = event.currentTarget.value;
+        if (isTodoColor(value)) setColor(value);
     }, []);
 
-    const handleTitleChange = useCallback((event) => {
+    const handleTitleChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
         setTitle(event.target.value);
         setIsTitleValid(event.target.value.length > 0);
     }, []);
 
     useEffect(() => {
         if (todoId) {
-            handleAxios("/to-dos/id", {id: todoId}, (response) => {
+            handleAxios<Todo>("/to-dos/id", {id: todoId}, (response) => {
                 // Pillanatkép arról, AMIT a szerver adott — a beküldéskor ehhez
                 // hasonlítunk, hogy egy változatlan űrlap ne írjon feleslegesen.
                 loadedTodo.current = {
@@ -136,7 +171,10 @@ export default function Save(props) {
                 setOrder(response.data.order);
                 setTodo({
                     tasks: response.data.tasks ? response.data.tasks : {},
-                    columns: {"createColumn": {id: "createColumn", taskOrder: response.data.taskOrder}},
+                    // A taskOrder a Todo-n OPCIONÁLIS: hiányában üres tömb (a fenti
+                    // pillanatkép is így őrzi) — enélkül a draft taskOrder-je undefined
+                    // lenne, amin a húzható lista végigmenne.
+                    columns: {"createColumn": {id: "createColumn", taskOrder: response.data.taskOrder ?? []}},
                     columnOrder: ["createColumn"]
                 });
                 setCategory(response.data.category);
@@ -151,7 +189,7 @@ export default function Save(props) {
                 leaveEditor();
             });
         }
-        handleAxios("/to-dos/last/order", {},
+        handleAxios<number>("/to-dos/last/order", {},
             (response) => {
                 const lastOrder = response.data;
                 setLastOrder(lastOrder === 0 ? 0 : (isUpdate ? lastOrder - 1 : lastOrder));
@@ -159,7 +197,7 @@ export default function Save(props) {
             logRequestError);
     }, [isUpdate, todoId, handleAxios, leaveEditor]);
 
-    const setTask = useCallback((key, content, isDone) => {
+    const setTask = useCallback<SetTask>((key, content, isDone) => {
         return {
             ...todo, tasks: {
                 ...todo.tasks,
@@ -168,7 +206,7 @@ export default function Save(props) {
         }
     }, [todo]);
 
-    const setTaskOrder = useCallback((taskOrder) => {
+    const setTaskOrder = useCallback<SetTaskOrder>((taskOrder) => {
         return {
             ...todo, columns: {
                 ...todo.columns,
@@ -200,7 +238,7 @@ export default function Save(props) {
     /* Az AKTUÁLIS űrlap adata egy objektumban — a mentés és a "változott-e"
        ellenőrzés is ezt használja. A user-azonosítót NEM küldjük: a szerver a
        tokenből veszi (a régi app itt hitt a kliensnek — ez volt a fő gyengesége). */
-    const currentData = () => ({
+    const currentData = (): TodoPayload => ({
         title: title,
         tasks: todo.tasks,
         taskOrder: todo.columns["createColumn"].taskOrder,
@@ -232,7 +270,7 @@ export default function Save(props) {
     const hasSilentWork = () =>
         !leftViaForm.current && isTitleValid && isCategoryValid && !isPristine();
 
-    /* A useBlocker DATA ROUTERT kér (l. routes.jsx). shouldBlock: akkor blokkoljuk a
+    /* A useBlocker DATA ROUTERT kér (l. routes.tsx). shouldBlock: akkor blokkoljuk a
        navigációt, ha van mentenivaló (dirty) ÉS nem a mentés/törlés maga navigál
        (leftViaForm). Üres deps-szel stabil, de refekből olvas, így friss állapotot lát. */
     const shouldBlock = useCallback(() => !leftViaForm.current && isDirtyRef.current, []);
@@ -266,7 +304,7 @@ export default function Save(props) {
         // amúgy is figyel (title, todo, category…) — pontosan lefedjék a felhasznált
         // értékeket (exhaustive-deps).
         leftViaForm.current = true;
-        const data = {
+        const data: TodoPayload = {
             title: title,
             tasks: todo.tasks,
             taskOrder: todo.columns["createColumn"].taskOrder,
@@ -274,7 +312,7 @@ export default function Save(props) {
             color: color,
             order: order,
         };
-        if (isUpdate) data["id"] = todoId;
+        if (todoId) data.id = todoId;
         handleAxios(url, data, (response) => {
             if (response.status === 200) {
                 props.handleLinkClicked();
@@ -293,7 +331,7 @@ export default function Save(props) {
     /* A Tovább gomb (és az Escape) már csak NAVIGÁL — az ellenőrzést+mentést a
        fenti blocker intézi, ha van mentenivaló. Érintetlen űrlapnál a blocker nem
        blokkol, tehát egyszerűen visszalépünk. */
-    const handleSubmit = useCallback((event) => {
+    const handleSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         leaveEditor();
     }, [leaveEditor]);
@@ -309,7 +347,7 @@ export default function Save(props) {
     saveOnLeaveRef.current = () => {
         if (!hasSilentWork()) return;
         const data = currentData();
-        if (isUpdate) data["id"] = todoId;
+        if (todoId) data.id = todoId;
         // A zárványolt `token` (nem az élő tokenRef): kijelentkezéskor az élő már null.
         handleAxios(url, data, (response) => {
             if (response.status === 200) props.handleCategoryChange();
@@ -335,7 +373,7 @@ export default function Save(props) {
            visszavonjuk, hogy egy későbbi távozás újrapróbálja. */
         leftViaForm.current = true;
         const data = currentData();
-        if (isUpdate) data["id"] = todoId;
+        if (todoId) data.id = todoId;
         handleAxios(url, data, () => {
             props.handleLinkClicked();
             props.handleCategoryChange();
@@ -355,57 +393,61 @@ export default function Save(props) {
     // Escape = mentés + vissza, a "Tovább" gombbal azonos úton (l. useEscapeSubmit).
     useEscapeSubmit(formRef);
 
+    // A betöltő spinner az isLoading-ig; a `lastOrder === null` ág vele EGYÜTT igaz
+    // (az isLoading csak a sorszám-korlát beérkezte után lesz false), de kimondva a
+    // fordítónak is: innentől a lastOrder number, így az Order `last`-ja nem number|null.
+    if (isLoading || lastOrder === null) return <Spinner class="min-vh-75"/>;
+
     return (
-        isLoading ? <Spinner class="min-vh-75"/> :
-            <form ref={formRef} noValidate onSubmit={handleSubmit}
-                  className={"col-11 col-sm-10 col-md-8 col-lg-7 col-xl-6 card " +
-                "mx-auto mt-3 bg-transparent border-2 border-" + color}>
+        <form ref={formRef} noValidate onSubmit={handleSubmit}
+              className={"col-11 col-sm-10 col-md-8 col-lg-7 col-xl-6 card " +
+            "mx-auto mt-3 bg-transparent border-2 border-" + color}>
 
-                <div className="input-group">
-                    <NoFocusInput id="createColumn" value={title} onChange={handleTitleChange} placeholder="Cím"
-                                  autoComplete="off" autoFocus={true} required={true} color={color}
-                                  class="card-header caveat ms-1"/>
-                    <Order current={order} setOrder={setOrder} last={lastOrder}/>
+            <div className="input-group">
+                <NoFocusInput id="createColumn" value={title} onChange={handleTitleChange} placeholder="Cím"
+                              autoComplete="off" autoFocus={true} required={true} color={color}
+                              class="card-header caveat ms-1"/>
+                <Order current={order} setOrder={setOrder} last={lastOrder}/>
+            </div>
+
+            <div className="card-body py-1">
+
+                <DragAndDrop todo={todo} setTodo={setTodo} setTaskOrder={setTaskOrder} setTask={setTask}
+                             color={color}/>
+
+                <MoreTask todo={todo} setTodo={setTodo} setTask={setTask} color={color}/>
+
+                <div className="d-grid">
+
+                    <Category setCategory={setCategory} setIsValid={setIsCategoryValid}
+                              setIsAngleClicked={setIsCategoryAngleClicked} category={category} color={color}
+                              handleAngleClick={handleCategoryAngleClick} isAngleClicked={isCategoryAngleClicked}
+                              categories={props.categories}/>
+
+                    <SubmitButton isDisabled={isDisabled} isOutline={false} color={color} text="Tovább"/>
+
+                    {isUpdate &&
+                        <DeleteAndModal handleLinkClicked={props.handleLinkClicked}
+                                        setIsColorClicked={setIsColorAngleClicked} color={color} todoId={todoId}
+                                        setIsCategoryClicked={setIsCategoryAngleClicked}
+                                        handleCategoryChange={props.handleCategoryChange}
+                                        onDelete={() => { leftViaForm.current = true; }}/>}
+
+                    <NoFocusButton onClick={handleColorAngleClick} class="pb-0" color={color}
+                                   text={<FontAwesomeIcon icon={["fas", "paint-roller"]} size="xl"
+                                                          className={isColorAngleClicked ?
+                                                              "fa-flip-vertical py-1 text-" + color :
+                                                              "py-1 text-" + color}/>}/>
+                    {isColorAngleClicked && <ColorButtonGroup onClick={handleColorChange}/>}
+
                 </div>
+            </div>
 
-                <div className="card-body py-1">
+            {/* Kötelező-mező hibabuborék (l. Editor/validationTooltip): a kinézet,
+                a pozicionálás és a magyar névelő-szabály ott, egy helyen él. */}
+            <ValidationTooltip id="validation-tooltip" validation={validation}
+                               onDismiss={dismissValidation}/>
 
-                    <DragAndDrop todo={todo} setTodo={setTodo} setTaskOrder={setTaskOrder} setTask={setTask}
-                                 color={color}/>
-
-                    <MoreTask todo={todo} setTodo={setTodo} setTask={setTask} color={color}/>
-
-                    <div className="d-grid">
-
-                        <Category setCategory={setCategory} setIsValid={setIsCategoryValid}
-                                  setIsAngleClicked={setIsCategoryAngleClicked} category={category} color={color}
-                                  handleAngleClick={handleCategoryAngleClick} isAngleClicked={isCategoryAngleClicked}
-                                  categories={props.categories}/>
-
-                        <SubmitButton isDisabled={isDisabled} isOutline={false} color={color} text="Tovább"/>
-
-                        {isUpdate &&
-                            <DeleteAndModal handleLinkClicked={props.handleLinkClicked}
-                                            setIsColorClicked={setIsColorAngleClicked} color={color} todoId={todoId}
-                                            setIsCategoryClicked={setIsCategoryAngleClicked}
-                                            handleCategoryChange={props.handleCategoryChange}
-                                            onDelete={() => { leftViaForm.current = true; }}/>}
-
-                        <NoFocusButton onClick={handleColorAngleClick} class="pb-0" color={color}
-                                       text={<FontAwesomeIcon icon={["fas", "paint-roller"]} size="xl"
-                                                              className={isColorAngleClicked ?
-                                                                  "fa-flip-vertical py-1 text-" + color :
-                                                                  "py-1 text-" + color}/>}/>
-                        {isColorAngleClicked && <ColorButtonGroup onClick={handleColorChange}/>}
-
-                    </div>
-                </div>
-
-                {/* Kötelező-mező hibabuborék (l. Editor/validationTooltip): a kinézet,
-                    a pozicionálás és a magyar névelő-szabály ott, egy helyen él. */}
-                <ValidationTooltip id="validation-tooltip" validation={validation}
-                                   onDismiss={dismissValidation}/>
-
-            </form>
+        </form>
     );
 }

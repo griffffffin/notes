@@ -81,7 +81,10 @@ export function AuthProvider({children}: {children: ReactNode}) {
         data: unknown,
         then: (response: AxiosResponse<T>) => void,
         catchError: (error: unknown) => void,
-        authToken?: string,
+        // A felülíró token a szerkesztők ZÁRVÁNYOLT tokene, ami `AuthToken | null`
+        // (a legutóbbi render tokene). A `?? tokenRef.current` a null-t is elnyeli:
+        // nincs override → az élő tokent küldi. Ezért a null megengedett bemenet.
+        authToken?: AuthToken | null,
     ): Promise<void> => {
         const bearer = authToken ?? tokenRef.current;
         return axios.post<T>(import.meta.env.VITE_BACKEND + url, data, {

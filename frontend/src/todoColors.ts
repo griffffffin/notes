@@ -43,6 +43,6 @@ export type TodoColor = keyof typeof TODO_COLORS;
 
    A sorrend a TODO_COLORS sorrendje marad (a `filter` nem rendez át) — erre a
    színválasztó és a navbar szín-szűrője is épít. */
-const isTodoColor = (value: string): value is TodoColor => value in TODO_COLORS;
+export const isTodoColor = (value: string): value is TodoColor => value in TODO_COLORS;
 
 export const TODO_COLOR_NAMES = Object.keys(TODO_COLORS).filter(isTodoColor);

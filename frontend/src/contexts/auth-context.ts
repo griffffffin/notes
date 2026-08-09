@@ -36,7 +36,9 @@ export type HandleAxios = <T = unknown>(
     data: unknown,
     then: (response: AxiosResponse<T>) => void,
     catchError: (error: unknown) => void,
-    authToken?: string,
+    // A szerkesztők zárványolt tokene `AuthToken | null` (l. auth.tsx); a null
+    // megengedett: a hívott oldalon `?? tokenRef.current` fallback nyeli el.
+    authToken?: AuthToken | null,
 ) => Promise<void>;
 
 /* Amit a context ad: a munkamenet állapota és az egyetlen hívó. A `token` azért
