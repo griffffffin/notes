@@ -29,9 +29,10 @@
    `Element`-et adná vissza, aminek a fordító szerint nincs `placeholder` mezője. */
 type AnchoredField = HTMLInputElement | HTMLTextAreaElement;
 
-// Nem exportált, mint a többi levélmodulnál: a hívók még .jsx-ek, a
-// ValidationTooltip átírásakor válik majd exportálttá (l. src/types/api.ts).
-type FieldAnchor = {
+/* Exportált: a fogyasztójával EGYÜTT nő (mint a types/api.ts szerződés-típusai) —
+   a ValidationTooltip a `validation` propja típusához veszi, a két szerkesztő
+   (Todos/Quotes save) pedig a `validation` state-jéhez (`FieldAnchor | null`). */
+export type FieldAnchor = {
     anchor: string;
     name: string;
     boundary: HTMLFormElement | undefined;

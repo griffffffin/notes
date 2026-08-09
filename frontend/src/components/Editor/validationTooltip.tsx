@@ -2,6 +2,17 @@ import {useEffect, useMemo} from "react";
 import {Tooltip as ReactTooltip} from "react-tooltip";
 import {tooltipMiddlewares} from "../../tooltipMiddlewares";
 import {setTooltipOpen, useTooltipOpen} from "../../tooltipRegistry";
+import type {FieldAnchor} from "./fieldAnchor";
+
+/* Az `id` PROP (nem konstans): egy lapon több hibabuborék is élhet (a to-do és az
+   idézet-szerkesztőé), a react-tooltip id-vel különbözteti meg őket. A `validation`
+   a szerkesztő state-je: `null` = nincs hiba, egyébként a fieldAnchor visszatérése.
+   Az `onDismiss` a "felejtsd el a hibát" művelet (a validation nullázása). */
+type ValidationTooltipProps = {
+    id: string;
+    validation: FieldAnchor | null;
+    onDismiss: () => void;
+};
 
 /* A magyar határozott névelő a mezőnév KEZDŐBETŰJÉBŐL: magánhangzó → "Az",
    egyébként "A". Az ékezetes magánhangzók is benne vannak (idézet, ábra, ütem…);
@@ -13,21 +24,15 @@ const STARTS_WITH_VOWEL = /^[aáeéiíoóöőuúüű]/i;
    keret és szöveg. A pozíciót a fieldAnchor méri ki (a placeholder közepe),
    place=bottom-mal a nyíl a placeholder ALÁ esik.
 
-   A `validation` a szerkesztő state-je: null = nincs hiba, egyébként a fieldAnchor
-   visszatérési értéke ({anchor, name, pos}).
+   Az `onDismiss` a buborék ELTŰNTETÉSÉT azért nem intézheti el magában, mert amíg
+   a szerkesztő hibásnak tudja a mezőt (a `validation` nem null), a buborék újra
+   kinyílna — a hibát a szerkesztőnek kell "elfelejtenie".
 
-   Az `id` azért PROP, mert egy lapon több tooltip is élhet, és a react-tooltip
-   id-vel azonosítja őket — a to-do és az idézet-szerkesztő ezért külön id-t ad.
-
-   Az `onDismiss` a szerkesztő "felejtsd el a hibát" művelete (a validation
-   nullázása) — a buborék ELTŰNTETÉSÉT ugyanis nem intézheti el magában: amíg a
-   szerkesztő hibásnak tudja a mezőt, a buborék újra kinyílna.
-
-   A middlewares (l. tooltipMiddlewares.js) itt a LEGFONTOSABB: ez a buborék egy
+   A middlewares (l. tooltipMiddlewares) itt a LEGFONTOSABB: ez a buborék egy
    PONTRA horgonyzik (a placeholder közepére), nem elemre, ezért telefon-szélességen
    a bal képernyőszélhez kerül közel — a react-tooltip alapbeállításával ilyenkor
    oldalra, a mezőre nyílt ki. */
-export default function ValidationTooltip({id, validation, onDismiss}) {
+export default function ValidationTooltip({id, validation, onDismiss}: ValidationTooltipProps) {
     const isOpen = useTooltipOpen(id);
 
     /* A buborék a szerkesztő KÁRTYÁJÁN belül marad (a fieldAnchor a mező űrlapját
