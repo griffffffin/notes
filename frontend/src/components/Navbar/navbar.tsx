@@ -8,19 +8,27 @@ import ColorCategoryAndSignOut from "./colorCategoryAndSignOut";
 import Switch from "./switch";
 import CategoryAndColorGroup, {type CategoryAndColorGroupProps} from "../Link/categoryAndColorGroup";
 
-type NavbarProps = {
-    /* Be van-e lépve a felhasználó. Kijelentkezve (pl. megosztott idézet nézete) a
-       navbar szinte üres: csak a téma-váltó marad. */
-    isVisible: boolean;
-    handleLinkClicked: () => void;
-    /* A szín- és kategória-legördülő NYITOTTSÁGA a hívónál (app.tsx) él, mert a
-       lista-nézetnek is tudnia kell róla — a navbar csak billenti. */
-    isColorClicked: boolean;
-    setIsColorClicked: (isClicked: boolean) => void;
-    isCategoryClicked: boolean;
-    setIsCategoryClicked: (isClicked: boolean) => void;
-    categories: CategoryAndColorGroupProps["categories"];
-};
+/* A navbar KÉT alakja diszkriminált unió az `isVisible`-en. Kijelentkezve (pl.
+   megosztott idézet nézete) a navbar szinte üres: csak a téma-váltó marad, a
+   vezérlő-propoknak nincs értelmük — ezért az `isVisible: false` ág NEM is kéri
+   őket. Bejelentkezve mind a hat vezérlő KÖTELEZŐ. Így a hívó (routes.tsx) a
+   kijelentkezett navbart egyetlen `isVisible={false}`-szal hívhatja, a
+   bejelentkezettet viszont csak a teljes készlettel — se többet, se kevesebbet.
+   (A JSX-ben a `props.isVisible ? / &&` ágak a fordítónak is szűkítenek a
+   bejelentkezett alakra, ezért a vezérlő-propok ott gond nélkül elérhetők.) */
+type NavbarProps =
+    | {isVisible: false}
+    | {
+        isVisible: true;
+        handleLinkClicked: () => void;
+        /* A szín- és kategória-legördülő NYITOTTSÁGA a hívónál (app) él, mert a
+           lista-nézetnek is tudnia kell róla — a navbar csak billenti. */
+        isColorClicked: boolean;
+        setIsColorClicked: (isClicked: boolean) => void;
+        isCategoryClicked: boolean;
+        setIsCategoryClicked: (isClicked: boolean) => void;
+        categories: CategoryAndColorGroupProps["categories"];
+    };
 
 export default function Navbar(props: NavbarProps) {
     /* A szín- és kategória-választó a to-do SAJÁTJA (kártyaszín, kategória-szűrés);
@@ -42,12 +50,19 @@ export default function Navbar(props: NavbarProps) {
     /* Nincs useCallback: ezek sima onClick-ekre mennek, memózatlan komponensekre —
        a memózásnak nem lenne fogyasztója. (Ráadásul a régi [props] függőség
        hatástalan volt: a props objektum minden rendernél új.) */
+    /* Az `isVisible` őr a fordítónak szűkít a bejelentkezett alakra (a vezérlő-
+       propok csak ott léteznek). Futásidőben nem elérhető ág: ezek a handlerek
+       csak a bejelentkezett navbar gyerekeiből (ColorCategoryAndSignOut,
+       CategoryAndColorGroup) hívódnak, amik maguk is csak `isVisible` mellett
+       renderelnek — az őr a típus-invariánst teszi explicitté. */
     const handleColorClick = () => {
+        if (!props.isVisible) return;
         props.setIsColorClicked(!props.isColorClicked);
         props.setIsCategoryClicked(false);
     };
 
     const handleCategoryClick = () => {
+        if (!props.isVisible) return;
         props.setIsCategoryClicked(!props.isCategoryClicked);
         props.setIsColorClicked(false);
     };

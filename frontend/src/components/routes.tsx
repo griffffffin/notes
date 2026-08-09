@@ -12,6 +12,7 @@ import QuoteSave from "./Quotes/save";
 import QuotePublic from "./Quotes/public";
 import {lastSectionPath} from "./Navbar/sections";
 import {useAuth} from "../contexts/auth-context";
+import type {CategoryAndColorGroupProps} from "./Link/categoryAndColorGroup";
 
 /* Miért DATA ROUTER (createBrowserRouter + RouterProvider) a régi deklaratív
    <BrowserRouter> + <Routes> helyett? A szerkesztők (Save/QuoteSave) a
@@ -24,14 +25,39 @@ import {useAuth} from "../contexts/auth-context";
    Sem a téma, sem a bejelentkezés nem propként utazik: a komponensek a
    useTheme() és a useAuth() hookkal veszik ki őket, ahol szükségük van rájuk. */
 
+/* Az App a UI-állapotát (kategóriák, "+"-nyilak, handlerek) az App-ból propként
+   adja le. A `handleLinkClicked` és a `handleCategoryChange` valóban paraméter
+   nélküli (l. app.jsx: a link-kattintás csak becsukja a nyitott vezérlőket, nem
+   olvassa az eseményt) — a kártyák onClickjeként átadva a szűkebb `() => void` is
+   megfelel a `MouseEventHandler`-t váró helyeknek. A két szög-állapot boolean +
+   szűk setter (a repo settereinek konvenciója, l. Navbar). A `categories` a to-do
+   kategórialista; a típusát a Navbar láncából vesszük át, hogy egyben mozogjon. */
+type RoutesProps = {
+    handleLinkClicked: () => void;
+    setIsColorAngleClicked: (isClicked: boolean) => void;
+    isColorAngleClicked: boolean;
+    setIsCategoryAngleClicked: (isClicked: boolean) => void;
+    isCategoryAngleClicked: boolean;
+    categories: CategoryAndColorGroupProps["categories"];
+    handleCategoryChange: () => void;
+};
+
 /* Az App a UI-állapotát (kategóriák, "+"-nyilak, handlerek) EDDIG propként adta
    a Routes-nak. A data router route-definíciója viszont EGYSZER jön létre (memózva),
    így a benne rögzített elemek nem látnák az App friss propjait. Megoldás: az App
    propjait egy contexten át adjuk le; a lenti wrapper-komponensek onnan olvassák,
    és a VÁLTOZATLAN prop-interfészű oldal-komponenseknek (Navbar, Read, Save…) adják
-   tovább. Így sem az App.jsx, sem az oldal-komponensek nem változnak a migrációtól. */
-const RoutesPropsContext = createContext({});
-const useRoutesProps = () => useContext(RoutesPropsContext);
+   tovább. Így sem az App.jsx, sem az oldal-komponensek nem változnak a migrációtól.
+
+   A context alapértéke `null` (nem egy üres objektum-hazugság): a Provider MINDIG
+   körbeveszi a route-fát, ezért a `useRoutesProps` a null-ágon dob — a mai repo
+   típusos contextjeinek mintája (l. auth-context.ts, theme-context.ts). */
+const RoutesPropsContext = createContext<RoutesProps | null>(null);
+function useRoutesProps() {
+    const props = useContext(RoutesPropsContext);
+    if (!props) throw new Error("useRoutesProps csak a RoutesPropsContext alatt használható.");
+    return props;
+}
 
 /* A bejelentkezett elrendezés: a Navbar (teljes) + a route-tartalom (<Outlet/>).
    A Navbar a Routeren BELÜL renderelődik, ezért a useLocation() működik benne. */
@@ -58,18 +84,18 @@ function AuthLayout() {
 
 /* Vékony wrapperek: a contextből olvassák az App friss propjait, és a meglévő
    oldal-komponenseknek adják tovább — azok interfésze nem változik. */
-function TodosReadRoute({url}) {
+function TodosReadRoute({url}: {url: string}) {
     const p = useRoutesProps();
     return <Read url={url} handleLinkClicked={p.handleLinkClicked}/>;
 }
 
-function TodosSaveRoute({isUpdate}) {
+function TodosSaveRoute({isUpdate}: {isUpdate: boolean}) {
     const p = useRoutesProps();
     return <Save isUpdate={isUpdate} handleLinkClicked={p.handleLinkClicked}
                  categories={p.categories} handleCategoryChange={p.handleCategoryChange}/>;
 }
 
-function QuotesReadRoute({url}) {
+function QuotesReadRoute({url}: {url: string}) {
     const p = useRoutesProps();
     return <QuoteRead url={url} handleLinkClicked={p.handleLinkClicked}/>;
 }
@@ -79,7 +105,7 @@ function QuotesSearchRoute() {
     return <QuoteSearchResults handleLinkClicked={p.handleLinkClicked}/>;
 }
 
-function QuotesSaveRoute({isUpdate}) {
+function QuotesSaveRoute({isUpdate}: {isUpdate: boolean}) {
     const p = useRoutesProps();
     return <QuoteSave isUpdate={isUpdate} handleLinkClicked={p.handleLinkClicked}/>;
 }
@@ -145,7 +171,7 @@ const loggedOutRoutes = createRoutesFromElements(
     </Route>
 );
 
-export default function Routes(props) {
+export default function Routes(props: RoutesProps) {
     const {isLoggedIn} = useAuth();
 
     /* A routert az isLoggedIn értékére memózzuk: egy munkameneten belül (nincs
