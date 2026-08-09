@@ -152,9 +152,17 @@ export default function Save(props: SaveProps) {
         setIsTitleValid(event.target.value.length > 0);
     }, []);
 
+    /* Versenyhelyzet-őr: az effekt a todoId változásakor újrafut (pl. /update/:id1 →
+       /update/:id2 ugyanazon a szerkesztő-példányon, a route key="update"), és két
+       párhuzamos válasz fordított sorrendben is visszaérhet — a RÉGI id válasza
+       felülírhatná a frisset (a state-eket ÉS a loadedTodo pillanatképet is). Az
+       `active` zászló a leszereléskor és minden újrafutáskor hamisra vált, így a
+       lejárt kérés callbackje már nem ír semmit. Minta: CardList/useSortableCards.ts. */
     useEffect(() => {
+        let active = true;
         if (todoId) {
             handleAxios<Todo>("/to-dos/id", {id: todoId}, (response) => {
+                if (!active) return;
                 // Pillanatkép arról, AMIT a szerver adott — a beküldéskor ehhez
                 // hasonlítunk, hogy egy változatlan űrlap ne írjon feleslegesen.
                 loadedTodo.current = {
@@ -181,6 +189,7 @@ export default function Save(props: SaveProps) {
                 setIsCategoryValid(true);
                 setIsDisabled(false);
             }, (error) => {
+                if (!active) return;
                 // A to-do nem tölthető be (pl. timeout vagy törölt elem) — vissza
                 // a listához, hogy a szerkesztő betöltője ne pörögjön örökké. A
                 // setIsLoading(false) a betöltött adathoz kötött, tehát hiba után
@@ -191,10 +200,12 @@ export default function Save(props: SaveProps) {
         }
         handleAxios<number>("/to-dos/last/order", {},
             (response) => {
+                if (!active) return;
                 const lastOrder = response.data;
                 setLastOrder(lastOrder === 0 ? 0 : (isUpdate ? lastOrder - 1 : lastOrder));
             },
             logRequestError);
+        return () => { active = false; };
     }, [isUpdate, todoId, handleAxios, leaveEditor]);
 
     const setTask = useCallback<SetTask>((key, content, isDone) => {
