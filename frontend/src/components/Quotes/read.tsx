@@ -1,15 +1,25 @@
+import type {MouseEventHandler} from "react";
 import {useMemo} from "react";
 import {useParams} from "react-router-dom";
 import QuoteCard from "./card";
 import {useQuoteAccent} from "./useQuoteAccent";
 import {useSectionList} from "../CardList/useSectionList";
 import CardListView from "../CardList/CardListView";
+import type {Quote} from "../../types/api";
+
+/* A `url` a lista végpontját adja: a csupasz /quotes (teljes lista) vagy a
+   /quotes/author (szerző-szűrt) — a route dönti el, melyikkel hív. A szűrő-mód
+   is ebből számol (l. `needsFilter`). */
+type QuoteReadProps = {
+    url: string;
+    handleLinkClicked: MouseEventHandler<HTMLAnchorElement>;
+};
 
 /* Az idézet-lista. A betöltés + húzás + szekció-emlékezet a useSectionList
    hookban, a megjelenítés a CardListView-ban van (ugyanaz, mint a to-dónál); itt
    csak az idézet-SPECIFIKUS rész marad: a szerző-szűrő és a szekció akcentusa. A
    kártya TARTALMA a KÖZÖS QuoteCard (a keresési találat is ezt használja). */
-export default function QuoteRead(props) {
+export default function QuoteRead(props: QuoteReadProps) {
     const {author} = useParams();
 
     const needsFilter = props.url === "/quotes/author";
@@ -22,7 +32,7 @@ export default function QuoteRead(props) {
         [author],
     );
 
-    const {cards, isLoading, grid} = useSectionList({
+    const {cards, isLoading, grid} = useSectionList<Quote>({
         url: props.url, filter, reorderUrl: "/quotes/reorder", section: "/quotes",
     });
 

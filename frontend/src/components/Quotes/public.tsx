@@ -6,6 +6,7 @@ import {useTheme} from "../../contexts/theme-context";
 import {useQuoteAccent} from "./useQuoteAccent";
 import {renderBold} from "./bold";
 import {logRequestError} from "../../log";
+import type {Quote} from "../../types/api";
 
 /* Egy megosztott idézet PUBLIKUS nézete (/quotes/:author/:id). Token nélkül is
    megnyitható (a backend readById az auth ELŐTT ül), ezért ez a route a
@@ -19,11 +20,12 @@ export default function QuotePublic() {
     const {color} = useTheme();
     // A megosztott egy-idézet nézet is a quotes szekció: világos témán tinta-kék.
     useQuoteAccent();
-    const [quote, setQuote] = useState();
+    // A betöltés végéig undefined (nem null): a `!quote` őr a spinnert tartja.
+    const [quote, setQuote] = useState<Quote | undefined>(undefined);
     const [notFound, setNotFound] = useState(false);
 
     useEffect(() => {
-        handleAxios("/quotes/id", {id}, (response) => setQuote(response.data),
+        handleAxios<Quote>("/quotes/id", {id}, (response) => setQuote(response.data),
             (error) => {
                 logRequestError(error);
                 setNotFound(true);

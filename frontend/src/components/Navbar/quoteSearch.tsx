@@ -1,4 +1,4 @@
-import {useEffect, useState, type ChangeEvent} from "react";
+import {useEffect, useState} from "react";
 import {useNavigate} from "react-router-dom";
 import AuthorInput from "../Quotes/authorInput";
 import {useAuth} from "../../contexts/auth-context";
@@ -69,11 +69,10 @@ export default function QuoteSearch(props: QuoteSearchProps) {
     return (
         // Az igazítást (commitolt kifejezés középen/unfókuszáltan, gépeléskor balra)
         // és a fókusz-alapú ghost-ot maga az AuthorInput intézi kereső módban.
-        /* Az AuthorInput még .jsx, tehát a propjai típusát nem ismerjük — a
-           `event` ezért kap kimondott típust (különben `any` lenne, amit a
-           `noImplicitAny` helyesen visszautasít). Az AuthorInput átírásakor ez
-           az annotáció elhagyható lesz. */
-        <AuthorInput value={term} onChange={(event: ChangeEvent<HTMLInputElement>) => setTerm(event.target.value)}
+        /* Az `event` típusát innen az AuthorInput onChange-propja adja (ValueChange:
+           {target:{value}}) — a korábbi kézi ChangeEvent-annotáció elhagyható lett,
+           amint az AuthorInput átkerült TypeScriptre. */
+        <AuthorInput value={term} onChange={(event) => setTerm(event.target.value)}
                      onSubmit={runSearch} onFocusChange={props.onFocusChange}
                      placeholder="Keresés..." wrapperClass="w-100"
                      class={"caveat text-" + color}/>

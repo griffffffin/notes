@@ -4,6 +4,7 @@ import {copyToClipboard} from "../../clipboard";
 import {publicQuoteUrl} from "./publicQuoteUrl";
 import {TOOLTIP_MIDDLEWARES} from "../../tooltipMiddlewares";
 import {setTooltipOpen, useTooltipOpen} from "../../tooltipRegistry";
+import type {Id, Quote} from "../../types/api";
 
 /* Meddig marad a "Másolva" visszajelzés a tooltipben. Elég hosszú, hogy a
    felhasználó elolvassa, elég rövid, hogy ne ragadjon ott. */
@@ -22,7 +23,23 @@ const TOOLTIP_ID = "share-tooltip";
    `type="submit"`, ami elsütné az űrlapot (l. a törölt to-do "szellemének"
    tanulságát). Az ikon a téma kiemelőszínét viseli (a text-theme osztályból,
    a currentColoron át), tehát szekciónként is együtt vált a többivel. */
-export default function ShareButton({author, quoteId}) {
+/* A visszajelző buborék tartalma: a szöveg + a horgony-PONT (l. lentebb, miért
+   pont és nem elem). A `null` a "nincs nyitva" állapot. */
+type Feedback = {
+    text: string;
+    pos: {x: number; y: number};
+};
+
+/* Az `author` a szerkesztő ÉPPEN AKTUÁLIS szerző-értéke (esetleg még nem mentve) —
+   a Quote-szerződésből származik (`Quote["author"]`), így ha a szerző egyszer
+   kötelezővé válik, ez is együtt mozdul. A `quoteId` a mentett idézet azonosítója
+   (ShareButton csak update-nél jelenik meg, l. lentebb). */
+type ShareButtonProps = {
+    author: Quote["author"];
+    quoteId: Id;
+};
+
+export default function ShareButton({author, quoteId}: ShareButtonProps) {
     /* A buborék CSAK a másolás visszajelzésére nyílik ki — nincs "Megosztás"
        súgó hoverre. A hibaágnak is van szövege: a másolás megtagadható (szigorú
        böngésző-beállítás), és a néma kudarc rosszabb, mint a hír.
@@ -35,9 +52,11 @@ export default function ShareButton({author, quoteId}) {
        közben becsukhatta más (a "csak egy tooltip lehet nyitva" szabály: elég a
        sorszám-léptető fölé vinni a kurzort). Ez volt a "néha nem reagál a gomb"
        hiba, ezért az objektum-alak itt KÖTELEZŐ, nem ízlés kérdése. */
-    const [feedback, setFeedback] = useState(null);
-    const timer = useRef(null);
-    const icon = useRef(null);
+    const [feedback, setFeedback] = useState<Feedback | null>(null);
+    // undefined (nem null) a kezdőérték: a clearTimeout undefined-ot elnyel (no-op),
+    // null-t viszont a típusa nem enged — így a takarítás egyszerű marad.
+    const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+    const icon = useRef<SVGSVGElement>(null);
     const isTooltipOpen = useTooltipOpen(TOOLTIP_ID);
 
     /* Leszereléskor: a függőben lévő visszaállítás ne fusson le a semmibe, és a
@@ -74,6 +93,9 @@ export default function ShareButton({author, quoteId}) {
            betöltése utáni ELSŐ kattintás sosem jelzett vissza, a második igen).
            Ponttal a számításnak nincs mire várnia — a szerkesztő hibabuboréka is
            így működik, az elsőre is megjelenik. */
+        /* Az `await` alatt a szerkesztő be is zárulhatott (a komponens leszerelt),
+           ekkor az ikon már nincs meg — ilyenkor nincs mit horgonyozni, kilépünk. */
+        if (!icon.current) return;
         const rect = icon.current.getBoundingClientRect();
         setFeedback({
             text: copied ? "Link másolva." : "Sikertelen másolás.",

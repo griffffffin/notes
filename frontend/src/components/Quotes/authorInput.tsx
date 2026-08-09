@@ -1,10 +1,30 @@
-import {useEffect, useRef, useState} from "react";
+import {useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent, type PointerEvent} from "react";
 import {useAuth} from "../../contexts/auth-context";
 import {logRequestError} from "../../log";
 
 // Ennyi szünet után kérünk javaslatot: gépelés közben minden billentyűnél
 // fölösleges a szerverhez fordulni, csak ha a felhasználó "megállt".
 const DEBOUNCE_MS = 200;
+
+/* Az onChange a valódi input-eseményt IS megkapja (gépeléskor), DE a javaslat
+   elfogadásakor egy SZINTETIKUS {target:{value}} alakot is — a mező value-ját
+   ilyenkor mi állítjuk elő, nincs mögötte DOM-esemény. A hívó mindkét ágon csak a
+   `target.value`-t olvassa, ezért a prop a KÖZÖS, minimális alakot kéri: annyit,
+   amennyit tényleg használunk. Egy valódi ChangeEvent is megfelel neki (a target-je
+   HTMLInputElement, van value-ja), így a gépelés-ág is ezen a típuson megy át. */
+type ValueChange = {target: {value: string}};
+
+type AuthorInputProps = {
+    value: string;
+    onChange: (event: ValueChange) => void;
+    class: string;
+    placeholder?: string;
+    /* Megadva → KERESŐ mód (az Enter keres, nem a javaslatot fogadja el); hiánya →
+       SZERKESZTŐ mód. A `Boolean(props.onSubmit)` ebből számolja az `isSearch`-öt. */
+    onSubmit?: () => void;
+    onFocusChange?: (isFocused: boolean) => void;
+    wrapperClass?: string;
+};
 
 /* Szerző-mező ghost-text kiegészítéssel. A látható input MÖGÖTT egy azonos
    betűtípusú/paddingű réteg: a beírt részt színtelenül tartja (hogy a
@@ -24,7 +44,7 @@ const DEBOUNCE_MS = 200;
      Enter a régi módon az egész javaslatot fogadja el.
    - wrapperClass a külső doboz osztályát adja: a szerkesztőben flex-grow-1 (egy
      input-groupban ül), a keresőben a hívó saját szélessége. */
-export default function AuthorInput(props) {
+export default function AuthorInput(props: AuthorInputProps) {
     const {handleAxios} = useAuth();
     const [suggestion, setSuggestion] = useState("");
     /* Csak azután ajánlunk, hogy a felhasználó MAGA nyúlt a mezőhöz. Update-nél a
@@ -35,7 +55,7 @@ export default function AuthorInput(props) {
     // helyett: ott a javaslat csak akkor kell, ha BELEKATTINTOK (fókusz), a
     // beküldés után pedig (blur) el is tűnjön.
     const [focused, setFocused] = useState(false);
-    const inputRef = useRef(null);
+    const inputRef = useRef<HTMLInputElement>(null);
     const value = props.value;
     const isSearch = Boolean(props.onSubmit);
 
@@ -60,7 +80,7 @@ export default function AuthorInput(props) {
             return;
         }
         const timer = setTimeout(() => {
-            handleAxios("/quotes/authors", {prefix: value},
+            handleAxios<string[]>("/quotes/authors", {prefix: value},
                 (response) => setSuggestion(response.data[0] ?? ""),
                 logRequestError);
         }, DEBOUNCE_MS);
@@ -88,7 +108,7 @@ export default function AuthorInput(props) {
     }, [isSearch, focused]);
 
     // A felhasználó módosítása kapcsolja be a javaslatokat (a betöltött érték nem).
-    const handleChange = (event) => {
+    const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
         setTouched(true);
         props.onChange(event);
     };
@@ -98,14 +118,14 @@ export default function AuthorInput(props) {
        miatt a szürkére koppintás is ide, az inputra érkezik). NEM keresünk vele,
        ahhoz további Enter kell. Csak ÉRINTÉSRE hat (pointerType==="touch"), hogy
        asztali gépen a kattintás továbbra is a kurzort pozicionálja. */
-    const handlePointerUp = (event) => {
+    const handlePointerUp = (event: PointerEvent<HTMLInputElement>) => {
         if (props.onSubmit && completion && event.pointerType === "touch") {
             props.onChange({target: {value: suggestion}});
             setSuggestion("");
         }
     };
 
-    const handleKeyDown = (event) => {
+    const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
         // KERESŐ mód: az Enter keres (a javaslat elfogadása nélkül is), akár van
         // kiegészítés, akár nincs. Ezért a completion-őr ELŐTT áll.
         if (props.onSubmit && event.key === "Enter") {
@@ -132,7 +152,9 @@ export default function AuthorInput(props) {
             return;
         }
         if (!completion) return;
-        const atEnd = event.target.selectionStart === value.length;
+        // currentTarget, nem target: a React-esemény `target`-je csak EventTarget
+        // (nincs rajta selectionStart); a `currentTarget` a kezelőt viselő input.
+        const atEnd = event.currentTarget.selectionStart === value.length;
         if (event.key === "Enter" || (event.key === "ArrowRight" && event.ctrlKey && atEnd)) {
             // Enter vagy Ctrl+jobbra a szöveg végén: az EGÉSZ javaslat elfogadása —
             // a JAVASLAT írásmódjával (nem a beírt prefix betűzésével). Így "már" →

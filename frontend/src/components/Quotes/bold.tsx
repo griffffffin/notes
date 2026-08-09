@@ -1,3 +1,10 @@
+import type {ReactNode} from "react";
+
+/* A markerek feldolgozásának munkapéldánya: egy karakter + hogy félkövér-e. A két
+   toggle-függvény (toggleBold, normalizeBold) ugyanilyen tömbön dolgozik, ezért a
+   típus egy helyen áll. */
+type Char = {ch: string; bold: boolean};
+
 /* Az idézet-szöveg félkövér-markereinek renderelése. Az idézetet SIMA szövegként
    tároljuk (a szerkesztő egy sima <textarea>, formázást nem ismer), a félkövéret
    a WhatsApp/Markdown-mintára `**...**` marker jelöli. A szerkesztőben a marker
@@ -8,9 +15,9 @@
    fogja a \n-t), és NON-GREEDY, hogy a legrövidebb `**…**` párt fogja (két külön
    félkövér ne olvadjon eggyé). A közlekedő (nem félkövér) darabok stringként
    maradnak — a befoglaló elem white-space: pre-wrapja őrzi a sortöréseiket. */
-export function renderBold(text) {
+export function renderBold(text: string): ReactNode {
     if (!text) return text;
-    const parts = [];
+    const parts: ReactNode[] = [];
     const regex = /\*\*([\s\S]+?)\*\*/g;
     let lastIndex = 0;
     let key = 0;
@@ -33,11 +40,13 @@ export function renderBold(text) {
    Ctrl+B → `**dasd**` (mind bold), nem az "inverz". Utána a `**` jelek a
    félkövér-futamok határára kerülnek, a fölöslegesek eltűnnek — ezt az
    újraszerializálás adja (soha nem halmoz csillagokat). */
-export function toggleBold(text, selStart, selEnd) {
+export function toggleBold(text: string, selStart: number, selEnd: number): {
+    text: string; selStart: number; selEnd: number;
+} {
     // 1) Minden TARTALMI karakter (a ** markereket kihagyva) félkövér-e, + a nyers
     //    pozíció → tartalmi index leképezés (a kijelölés áttételéhez).
-    const chars = [];
-    const plainBefore = new Array(text.length + 1);
+    const chars: Char[] = [];
+    const plainBefore: number[] = new Array(text.length + 1);
     let bold = false;
     let plain = 0;
     let i = 0;
@@ -67,7 +76,7 @@ export function toggleBold(text, selStart, selEnd) {
     // 3) Újraszerializálás: `**` a félkövér-futamok határán; a kijelölés a
     //    TARTALMON marad (a ** kívül esik).
     let out = "";
-    const rawAt = new Array(chars.length + 1);
+    const rawAt: number[] = new Array(chars.length + 1);
     let cur = false;
     for (let k = 0; k < chars.length; k++) {
         if (chars[k].bold !== cur) { out += "**"; cur = chars[k].bold; }
@@ -84,7 +93,7 @@ export function toggleBold(text, selStart, selEnd) {
     };
 }
 
-const isWs = (c) => /\s/.test(c);
+const isWs = (c: string) => /\s/.test(c);
 
 /* MENTÉSKORI normalizálás. A `**` jeleket flip-flop toggle-ként dolgozza fel
    (be-ki kapcsol), majd tisztán, nem átfedő félkövér-futamokra írja újra. Fontos:
@@ -104,8 +113,8 @@ const isWs = (c) => /\s/.test(c);
          nincs bold (vagy ws előzi), a jel hatás nélkül lekerül (pl. `szó **`).
 
    - A bold-futamok szélső whitespace-ei kikerülnek a jelek közül (nincs `** szó **`). */
-export function normalizeBold(text) {
-    const chars = [];
+export function normalizeBold(text: string): string {
+    const chars: Char[] = [];
     let bold = false;
     let markerCount = 0;
     let i = 0;

@@ -1,8 +1,14 @@
+import type {MouseEventHandler} from "react";
 import {useMemo} from "react";
 import {useParams} from "react-router-dom";
 import QuoteCard from "./card";
 import {useSectionList} from "../CardList/useSectionList";
 import CardListView from "../CardList/CardListView";
+import type {Quote} from "../../types/api";
+
+type QuoteSearchResultsProps = {
+    handleLinkClicked: MouseEventHandler<HTMLAnchorElement>;
+};
 
 /* A keresés SZÖVEG-módjának találati nézete (/quotes/search/:term): azok az
    idézetek, amelyekben a keresett kifejezés a szövegben VAGY a szerzőben
@@ -20,14 +26,14 @@ import CardListView from "../CardList/CardListView";
 
    A szekció akcentusát ez a nézet SZÁNDÉKOSAN nem állítja: a keresési találat a
    piros szűrt-nézet-színt a QuoteRead-től eltérően nem viseli (l. useQuoteAccent). */
-export default function QuoteSearchResults(props) {
+export default function QuoteSearchResults(props: QuoteSearchResultsProps) {
     const {term} = useParams();
 
     // A useParams a route-paramétert MÁR dekódolva adja (mint a szerzőnél) —
     // nem kell újra decodeURIComponent, az kétszeres dekódolás lenne.
     const filter = useMemo(() => ({term}), [term]);
 
-    const {cards, isLoading, grid} = useSectionList({
+    const {cards, isLoading, grid} = useSectionList<Quote>({
         url: "/quotes/search", filter, reorderUrl: "/quotes/reorder", section: "/quotes",
     });
 
