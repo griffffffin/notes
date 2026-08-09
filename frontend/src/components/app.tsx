@@ -7,6 +7,7 @@ import {
 import Routes from "./routes";
 import {useAuth} from "../contexts/auth-context";
 import {logRequestError} from "../log";
+import type {Todo} from "../types/api";
 
 /* CSAK a ténylegesen használt ikonokat regisztráljuk, nem a teljes `fas`
    készletet (~1600 ikon). A régi `library.add(fas)` mindet a bundle-be húzta,
@@ -27,7 +28,10 @@ library.add(faAngleDown, faAngleUp, faBars, faFill, faFillDrip, faPaintRoller, f
 export default function App() {
     const [isColorAngleClicked, setIsColorAngleClicked] = useState(false);
     const [isCategoryAngleClicked, setIsCategoryAngleClicked] = useState(false);
-    const [categories, setCategories] = useState([]);
+    // A to-do kategórialista (a kimondott típus a `useState([])` `never[]`-jét
+    // váltja ki). A `Todo["category"]` a to-do saját, elemekre vonatkozó mezője —
+    // ugyanaz a típus, amit a lenti Routes→Navbar lánc kategóriaként vár.
+    const [categories, setCategories] = useState<Todo["category"][]>([]);
     const {isLoggedIn, handleAxios} = useAuth();
 
     const handleLinkClicked = useCallback(() => {
@@ -39,7 +43,7 @@ export default function App() {
         // Kijelentkezve nincs mit lekérni — enélkül a bejelentkező képernyőn is
         // elindulna egy kérés, ami 401-gyel bukna.
         if (!isLoggedIn) return;
-        handleAxios("/to-dos/categories", {}, (response) => setCategories(response.data),
+        handleAxios<Todo["category"][]>("/to-dos/categories", {}, (response) => setCategories(response.data),
             logRequestError);
     }, [isLoggedIn, handleAxios]);
 

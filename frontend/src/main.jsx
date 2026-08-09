@@ -16,7 +16,7 @@ import 'react-tooltip/dist/react-tooltip.css'
 // (pl. a .no-focus transzparens színét a .text-* utility írja felül).
 import './index.css'
 import 'bootstrap/dist/css/bootstrap.min.css'
-import App from './components/app.jsx'
+import App from './components/app'
 import ErrorBoundary from './components/errorBoundary.jsx'
 import { AuthProvider } from './contexts/auth.jsx'
 import { ThemeProvider } from './contexts/theme.jsx'
