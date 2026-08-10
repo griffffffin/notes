@@ -1,4 +1,5 @@
-import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react";
+import {useCallback, useEffect, useLayoutEffect, useRef, useState,
+    type ChangeEvent, type FormEvent, type KeyboardEvent} from "react";
 import {useBlocker, useLocation, useNavigate, useParams} from "react-router-dom";
 import Spinner from "../spinner";
 import SubmitButton from "../Button/submitButton";
@@ -11,16 +12,42 @@ import {useAuth} from "../../contexts/auth-context";
 import {useTheme} from "../../contexts/theme-context";
 import {useQuoteAccent} from "./useQuoteAccent";
 import {logRequestError} from "../../log";
-import {fieldAnchor} from "../Editor/fieldAnchor";
+import {fieldAnchor, type FieldAnchor} from "../Editor/fieldAnchor";
 import ValidationTooltip from "../Editor/validationTooltip";
 import {useEscapeSubmit} from "../Editor/useEscapeSubmit";
 import {useIdleTimer} from "../Editor/useIdleTimer";
+import type {QuoteForEdit} from "../../types/api";
 
 /* Az új idézet alap betűmérete SZÁZALÉKBAN — szándékosan a Szerző-mező méretével
    egyezik (a .caveat szabály 155%-a), hogy a szerkesztőben az idézet és a szerző
    egy méretűnek induljon, és a lista is így mutassa. A "Betűméret"-stepperrel
    idézetenként átállítható; a mező nélküli régi idézetek is ekkorák. */
 const DEFAULT_FONT_SIZE = 155;
+
+/* A szerkesztő és a szerver közti ÖSSZEHASONLÍTHATÓ pillanatkép: az a négy mező,
+   amit a "változott-e?" ellenőrzés néz. A `loaded` ref ezt tárolja (a szerver adta
+   állapot). Az `author` itt már NEM opcionális: betöltéskor `q.author ?? ""`-vel
+   üres stringgé normalizáljuk (a mező value-ja is string), így az összevetés két
+   sima string közt megy. */
+type QuoteSnapshot = {
+    quote: string;
+    author: string;
+    order: number;
+    fontSize: number;
+};
+
+/* A MENTENDŐ adat: a pillanatkép + update-nél a szerkesztett elem id-je. A három
+   mentési útvonal (blocker, leváláskori mentés, autosave) ezt küldi. */
+type QuotePayload = QuoteSnapshot & {id?: string};
+
+/* A propokat a routes.tsx QuotesSaveRoute wrapperje adja. Az idézet-szerkesztő
+   SZŰKEBB, mint a to-dóé: nincs kategória, ezért se `handleCategoryChange`, se
+   `categories` (l. Todos/save.tsx SaveProps). A `handleLinkClicked` paraméter
+   nélküli (l. app.tsx). */
+type SaveProps = {
+    isUpdate: boolean;
+    handleLinkClicked: () => void;
+};
 
 /* Az idézet-szerkesztő (create és update). A to-do save.jsx VÉKONYABB mása: az
    idézet-textarea + szerző-input + a KÖZÖS Order sorszám-választó (a to-doból),
@@ -30,20 +57,20 @@ const DEFAULT_FONT_SIZE = 155;
    és amíg van mentenivaló, előbb ELLENŐRIZ + MENT, csak utána enged tovább
    (üres idézetnél hibabuborék + maradás). A törlést a paraméterezett DeleteAndModal
    intézi (a /quotes/delete végponttal, vissza a /quotes-ra). */
-export default function QuoteSave(props) {
+export default function QuoteSave(props: SaveProps) {
     const [quote, setQuote] = useState("");
     const [author, setAuthor] = useState("");
     const [isQuoteValid, setIsQuoteValid] = useState(false);
     // Az Order kezdőértéke 1 — pontosan a to-do mintájára: create-nél az új idézet
     // alapból a lista ELEJÉRE kerül (1), onnan léptethető lejjebb.
     const [order, setOrder] = useState(1);
-    const [lastOrder, setLastOrder] = useState(null);
+    const [lastOrder, setLastOrder] = useState<number | null>(null);
     // Per-idézet betűméret SZÁZALÉKBAN. Create-nél az alap a Szerző mezőével egyező
     // DEFAULT_FONT_SIZE, update-nél a betöltött érték. A "Betűméret" stepper állítja;
     // a nézetek a --quote-fs CSS-változón át rajzolják ekkorára az idézetet.
     const [fontSize, setFontSize] = useState(DEFAULT_FONT_SIZE);
     const [isLoading, setIsLoading] = useState(true);
-    const [validation, setValidation] = useState(null);
+    const [validation, setValidation] = useState<FieldAnchor | null>(null);
     const {id} = useParams();
     const location = useLocation();
     const navigate = useNavigate();
@@ -51,12 +78,12 @@ export default function QuoteSave(props) {
     const {color} = useTheme();
     // A szerkesztő is a quotes szekció része: világos témán tinta-kék akcentus.
     useQuoteAccent();
-    const formRef = useRef(null);
-    const textareaRef = useRef(null);
+    const formRef = useRef<HTMLFormElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
     // A Ctrl+B utáni kijelölést a render UTÁN állítjuk vissza (a setQuote
     // újrarajzol, előbb a DOM-értéknek frissülnie kell) — ide tesszük a [start,end]-t.
-    const pendingSelection = useRef(null);
-    const loaded = useRef(null);
+    const pendingSelection = useRef<[number, number] | null>(null);
+    const loaded = useRef<QuoteSnapshot | null>(null);
     /* Igaz, ha a mentés MÁR elintézte a távozást (a blocker mentés+proceed ága, vagy a
        Törlés) — ilyenkor a leváláskori (unmount) mentés NEM fut le újra (create-nél
        nehogy duplán hozzon létre). A blocker shouldBlock-ja is ezt nézi: ha igaz, nem
@@ -86,7 +113,7 @@ export default function QuoteSave(props) {
        "Tovább" hazudná, hogy hozzányúltunk). Ha még nincs betöltve (loaded null:
        betöltés alatt vagy hiba után), szintén pristine — nincs mit menteni, és a
        betöltés-hiba leaveEditor()-ja se akadjon a blockerbe. */
-    const isPristine = (cleanedQuote) => {
+    const isPristine = (cleanedQuote: string) => {
         if (isUpdate) {
             if (loaded.current == null) return true;
             return cleanedQuote === loaded.current.quote && author === loaded.current.author
@@ -108,7 +135,7 @@ export default function QuoteSave(props) {
     const hasSilentWork = () =>
         !leftViaForm.current && isQuoteValid && !isPristine(normalizeBold(quote));
 
-    /* A useBlocker DATA ROUTERT kér (l. routes.jsx). shouldBlock: akkor blokkoljuk a
+    /* A useBlocker DATA ROUTERT kér (l. routes.tsx). shouldBlock: akkor blokkoljuk a
        navigációt, ha van mentenivaló (dirty) ÉS nem a mentés/törlés maga navigál
        (leftViaForm). A függvény üres deps-szel stabil, de refekből olvas, így a friss
        állapotot látja — a react-router így nem regisztrálja újra minden rendernél. */
@@ -129,7 +156,7 @@ export default function QuoteSave(props) {
             // A szerkesztő betöltése a HITELESÍTETT /quotes/edit-ről megy (nem a
             // publikus /quotes/id-ról): innen jön a sorszám is, tulajdonos-
             // ellenőrzés mögött. Idegen/törölt idézetnél 403 → leaveEditor.
-            handleAxios("/quotes/edit", {id: quoteId}, (response) => {
+            handleAxios<QuoteForEdit>("/quotes/edit", {id: quoteId}, (response) => {
                 const q = response.data;
                 setQuote(q.quote);
                 setAuthor(q.author ?? "");
@@ -159,7 +186,7 @@ export default function QuoteSave(props) {
            térjen el a to-dótól): create-nél az idézetek száma (N), update-nél N-1 —
            a szerkesztett elem a saját helyén már bent van, tehát a többiek közé
            tolható. Üres listánál 0. */
-        handleAxios("/quotes/last/order", {}, (response) => {
+        handleAxios<number>("/quotes/last/order", {}, (response) => {
             const last = response.data;
             setLastOrder(last === 0 ? 0 : (isUpdate ? last - 1 : last));
         }, logRequestError);
@@ -187,7 +214,7 @@ export default function QuoteSave(props) {
        böngésző elgörgethet — ez okozta, hogy gépelés/Ctrl+B közben a lap felugrott
        vagy a sort a képernyő aljára tolta. Ezért a lap görgetési pozícióját
        elmentjük az átméretezés ELŐTT, és utána visszaállítjuk: az editor nem ugrál. */
-    const autoGrow = useCallback((el) => {
+    const autoGrow = useCallback((el: HTMLTextAreaElement | null) => {
         if (!el) return;
         const scrollY = window.scrollY;
         el.style.height = "auto";
@@ -200,12 +227,19 @@ export default function QuoteSave(props) {
        ezért egy azonos szélességű/betűjű tükör-divbe másoljuk a kurzorig tartó
        szöveget, és a lezáró span offsetTop-ja adja a kurzor Y-ját. Csak akkor
        görgetünk, ha a kurzor a nézeten KÍVÜL esik (ha látszik, nem ugrik). */
-    const scrollCaretIntoView = useCallback((el) => {
+    const scrollCaretIntoView = useCallback((el: HTMLTextAreaElement) => {
         const cs = getComputedStyle(el);
         const mirror = document.createElement("div");
-        for (const p of ["fontFamily", "fontSize", "fontWeight", "fontStyle", "letterSpacing",
-            "lineHeight", "textTransform", "wordSpacing", "textIndent", "textAlign",
-            "paddingTop", "paddingRight", "paddingBottom", "paddingLeft"]) mirror.style[p] = cs[p];
+        /* A tükör betű- és padding-tulajdonságait a mezőéből másoljuk. KEBAB-alakú
+           CSS-neveket használunk a getPropertyValue/setProperty párral, nem a
+           camelCase style[p]-t: a CSSStyleDeclaration-nek NINCS string-index-
+           szignatúrája, tehát a `mirror.style[p] = cs[p]` fordítási hiba volna. A
+           kebab-nevek stringet várnak és stringet adnak, ellenőrzötten (nem `as`). */
+        for (const p of ["font-family", "font-size", "font-weight", "font-style", "letter-spacing",
+            "line-height", "text-transform", "word-spacing", "text-indent", "text-align",
+            "padding-top", "padding-right", "padding-bottom", "padding-left"]) {
+            mirror.style.setProperty(p, cs.getPropertyValue(p));
+        }
         mirror.style.position = "absolute";
         mirror.style.left = "-9999px";
         mirror.style.top = "0";
@@ -240,7 +274,7 @@ export default function QuoteSave(props) {
        dokumentum-szintű figyelőjét. */
     const dismissValidation = useCallback(() => setValidation(null), []);
 
-    const handleQuoteChange = (event) => {
+    const handleQuoteChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
         setQuote(event.target.value);
         setIsQuoteValid(event.target.value.trim().length > 0);
         setValidation(null);
@@ -251,7 +285,7 @@ export default function QuoteSave(props) {
        végzi a döntést + a `**` átrendezését, l. bold.jsx). A mező sima <textarea>,
        tehát a `**` jelek látszanak; a nézetek renderelik félkövérnek. Telefonon a
        `**` kézzel is beírható. A kijelölést a render után állítjuk vissza. */
-    const handleQuoteKeyDown = (event) => {
+    const handleQuoteKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if ((event.ctrlKey || event.metaKey) && (event.key === "b" || event.key === "B")) {
             event.preventDefault();
             const el = textareaRef.current;
@@ -310,12 +344,14 @@ export default function QuoteSave(props) {
 
        useCallback: a blocker-effekt függőségi listájában ez az EGY érték áll a hat
        nyers state helyett, így az effekt csak akkor fut újra, ha a payload tényleg
-       változhatott. */
-    const buildPayload = useCallback(() => {
-        const data = {quote: normalizeBold(quote), author: author, order: order, fontSize: fontSize};
-        if (isUpdate) data["id"] = quoteId;
+       változhatott. Az id-t a `quoteId` truthy-vizsgálatával tesszük be (nem
+       `isUpdate`-tel): update-nél a quoteId string, ez szűkíti a `string | null`-t
+       stringre, create-nél null → nem kerül id a payloadba. */
+    const buildPayload = useCallback((): QuotePayload => {
+        const data: QuotePayload = {quote: normalizeBold(quote), author: author, order: order, fontSize: fontSize};
+        if (quoteId) data.id = quoteId;
         return data;
-    }, [quote, author, order, fontSize, isUpdate, quoteId]);
+    }, [quote, author, order, fontSize, quoteId]);
 
     /* A NAVIGÁCIÓ-ELKAPÓ mentés magja: a blocker akkor billen "blocked"-ba, ha van
        mentenivaló ÉS navigálni próbálnak (Tovább, Escape, logó, "+", Vissza gomb,
@@ -353,7 +389,7 @@ export default function QuoteSave(props) {
     /* A Tovább gomb (és az Escape) már csak NAVIGÁL — az ellenőrzést+mentést a
        fenti blocker intézi, ha van mentenivaló. Érintetlen űrlapnál a blocker nem
        blokkol, tehát egyszerűen visszalépünk. */
-    const handleSubmit = useCallback((event) => {
+    const handleSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         leaveEditor();
     }, [leaveEditor]);
@@ -403,99 +439,105 @@ export default function QuoteSave(props) {
             (error) => { leftViaForm.current = false; logRequestError(error); });
     });
 
+    // A betöltő spinner az isLoading-ig; a `lastOrder === null` ág vele EGYÜTT igaz
+    // (az isLoading csak a sorszám-korlát beérkezte után lesz false), de kimondva a
+    // fordítónak is: innentől a lastOrder number, így az Order `last`-ja nem number|null.
+    if (isLoading || lastOrder === null) return <Spinner class="min-vh-75"/>;
+
     return (
-        isLoading ? <Spinner class="min-vh-75"/> :
-            <form ref={formRef} noValidate onSubmit={handleSubmit}
-                  className={"col-11 col-sm-10 col-md-8 col-lg-7 col-xl-6 card mx-auto mt-3 " +
-                      "bg-transparent border-2 border-" + color}>
+        <form ref={formRef} noValidate onSubmit={handleSubmit}
+              className={"col-11 col-sm-10 col-md-8 col-lg-7 col-xl-6 card mx-auto mt-3 " +
+                  "bg-transparent border-2 border-" + color}>
 
-                <div className="input-group">
-                    {/* Sima textarea: a `**` jelek látszanak szerkesztés közben, a
-                        nézetek renderelik félkövérnek. Ctrl+B a kijelölésen kapcsol
-                        (okos toggle, l. bold.jsx); telefonon a `**` kézzel is
-                        beírható. A magasság a tartalomhoz nő, scrollbar nélkül
-                        (autoGrow). A rows=4 az alsó korlát. */}
-                    <textarea ref={textareaRef} id="quoteField" value={quote} onChange={handleQuoteChange}
-                              onKeyDown={handleQuoteKeyDown}
-                              placeholder="Idézet szövege" rows="4" autoFocus
-                              style={{"--quote-fs": fontSize + "%"}}
-                              className={"form-control card-header caveat no-focus bg-transparent ms-1 text-" + color}/>
-                    {/* A szövegmező MELLETT (nem alatta) egy jobbra igazított oszlop:
-                        legfelül a sorszám-léptető, LEGALUL a megosztás-gomb. A
-                        justify-content-between nyomja az ikont a sor aljára, így
-                        közvetlenül a card-body első sorában ülő BETŰMÉRET-léptető
-                        FÖLÉ kerül (a két léptető közé), miközben végig a szövegmező
-                        mellett marad. A pe-2 a léptetőével azonos jobb térköz, tehát
-                        az ikon pontosan a "+" gombok fölé esik. A flex-shrink-0 kell,
-                        hogy az oszlop telefonon se zsugorodjon a szövegmező javára.
+            <div className="input-group">
+                {/* Sima textarea: a `**` jelek látszanak szerkesztés közben, a
+                    nézetek renderelik félkövérnek. Ctrl+B a kijelölésen kapcsol
+                    (okos toggle, l. bold.jsx); telefonon a `**` kézzel is
+                    beírható. A magasság a tartalomhoz nő, scrollbar nélkül
+                    (autoGrow). A rows=4 az alsó korlát. */}
+                <textarea ref={textareaRef} id="quoteField" value={quote} onChange={handleQuoteChange}
+                          onKeyDown={handleQuoteKeyDown}
+                          placeholder="Idézet szövege" rows={4} autoFocus
+                          style={{"--quote-fs": fontSize + "%"}}
+                          className={"form-control card-header caveat no-focus bg-transparent ms-1 text-" + color}/>
+                {/* A szövegmező MELLETT (nem alatta) egy jobbra igazított oszlop:
+                    legfelül a sorszám-léptető, LEGALUL a megosztás-gomb. A
+                    justify-content-between nyomja az ikont a sor aljára, így
+                    közvetlenül a card-body első sorában ülő BETŰMÉRET-léptető
+                    FÖLÉ kerül (a két léptető közé), miközben végig a szövegmező
+                    mellett marad. A pe-2 a léptetőével azonos jobb térköz, tehát
+                    az ikon pontosan a "+" gombok fölé esik. A flex-shrink-0 kell,
+                    hogy az oszlop telefonon se zsugorodjon a szövegmező javára.
 
-                        Az editor-side-column NEM dísz-osztály: az index.css ebből
-                        tudja, hogy a card jobb felső ívét most az oszlop ELSŐ eleme
-                        (a sorszám-toolbar) örökölje — enélkül a fekete hátterű
-                        toolbar szögletes sarka kitakarná a card lekerekítését. */}
-                    <div className="editor-side-column d-flex flex-column align-items-end justify-content-between flex-shrink-0">
-                        <Order current={order} setOrder={setOrder} last={lastOrder}/>
-                        {/* Csak update-nél: a publikus cím az idézet azonosítójára
-                            épül, ami create-nél még nem létezik. */}
-                        {/* Nincs alsó térköz (pb): az ikon a sor legaljára ül, hogy
-                            minél közelebb legyen az alatta következő betűméret-"+"-hoz.
-                            A pe-2 marad, az adja a "+" gombokkal EGY VONALBA eső jobb szélt. */}
-                        {isUpdate && <div className="pe-2 text-theme">
-                            <ShareButton author={author} quoteId={quoteId}/>
-                        </div>}
-                    </div>
+                    Az editor-side-column NEM dísz-osztály: az index.css ebből
+                    tudja, hogy a card jobb felső ívét most az oszlop ELSŐ eleme
+                    (a sorszám-toolbar) örökölje — enélkül a fekete hátterű
+                    toolbar szögletes sarka kitakarná a card lekerekítését. */}
+                <div className="editor-side-column d-flex flex-column align-items-end justify-content-between flex-shrink-0">
+                    <Order current={order} setOrder={setOrder} last={lastOrder}/>
+                    {/* Csak update-nél: a publikus cím az idézet azonosítójára
+                        épül, ami create-nél még nem létezik. A quoteId truthy-
+                        vizsgálata egyben szűkít is (string | null → string), így a
+                        ShareButton a szigorú `Id` propját kapja meg. */}
+                    {/* Nincs alsó térköz (pb): az ikon a sor legaljára ül, hogy
+                        minél közelebb legyen az alatta következő betűméret-"+"-hoz.
+                        A pe-2 marad, az adja a "+" gombokkal EGY VONALBA eső jobb szélt. */}
+                    {isUpdate && quoteId && <div className="pe-2 text-theme">
+                        <ShareButton author={author} quoteId={quoteId}/>
+                    </div>}
+                </div>
+            </div>
+
+            {/* pb-3 (nem py-1): a legalsó gomb — create-nél a "Tovább",
+                update-nél a "Törlés" — alatt nagyobb levegő a card aljáig. */}
+            <div className="card-body pt-1 pb-3">
+                {/* A szerző-mező és a "Betűméret"-stepper egy sorban — a stepper a
+                    sorszám-választó (Order) 1:1 mása: a léptetés (egyesével,
+                    nyomva tartva ismételve) is azonos, csak a tartomány más
+                    (100–200%), "Betűméret" tooltippel FELFELÉ, és külön tooltip-id-vel
+                    (egy oldalon a sorszám ÉS a betűméret is stepper). */}
+                {/* flex-nowrap: a Szerző-mező és a stepper egy sorban maradjon
+                    telefonon is (a Bootstrap input-group alapból sort tördel). A
+                    zsugoríthatóságot a Szerző-mező wrapper minWidth:0-ja adja.
+                    width: calc(100% + 1rem): a card-body jobb paddingján (1rem) TÚLnyújtja
+                    a sort JOBBRA, így a stepper jobb széle a sorszám-sor stepperével EGY
+                    VONALBA kerül (mindkettő pe-2 = azonos táv a modal szélétől; headless
+                    méréssel igazolva: 10px = 10px). A sorszám-sor a formban ül (nincs
+                    card-body padding), ezért volt kijjebb. (Negatív margó nem elég: a
+                    Bootstrap .input-group width:100%, azon a margó nem tolja a jobb szélt;
+                    a Bootstrap negatív margó-utility-ket meg alapból nem is generál.) */}
+                <div className="input-group flex-nowrap" style={{width: "calc(100% + 1rem)"}}>
+                    <AuthorInput value={author} onChange={(event) => setAuthor(event.target.value)}
+                                 placeholder="Szerző" class={"caveat ps-2 text-" + color}/>
+                    <Order current={fontSize} setOrder={setFontSize} max={200} min={100}
+                           stepDelay={STEP_DELAY_MS / 2}
+                           tooltip="Betűméret" tooltipPlace="top" tooltipId="fontsize-tooltip"/>
                 </div>
 
-                {/* pb-3 (nem py-1): a legalsó gomb — create-nél a "Tovább",
-                    update-nél a "Törlés" — alatt nagyobb levegő a card aljáig. */}
-                <div className="card-body pt-1 pb-3">
-                    {/* A szerző-mező és a "Betűméret"-stepper egy sorban — a stepper a
-                        sorszám-választó (Order) 1:1 mása: a léptetés (egyesével,
-                        nyomva tartva ismételve) is azonos, csak a tartomány más
-                        (100–200%), "Betűméret" tooltippel FELFELÉ, és külön tooltip-id-vel
-                        (egy oldalon a sorszám ÉS a betűméret is stepper). */}
-                    {/* flex-nowrap: a Szerző-mező és a stepper egy sorban maradjon
-                        telefonon is (a Bootstrap input-group alapból sort tördel). A
-                        zsugoríthatóságot a Szerző-mező wrapper minWidth:0-ja adja.
-                        width: calc(100% + 1rem): a card-body jobb paddingján (1rem) TÚLnyújtja
-                        a sort JOBBRA, így a stepper jobb széle a sorszám-sor stepperével EGY
-                        VONALBA kerül (mindkettő pe-2 = azonos táv a modal szélétől; headless
-                        méréssel igazolva: 10px = 10px). A sorszám-sor a formban ül (nincs
-                        card-body padding), ezért volt kijjebb. (Negatív margó nem elég: a
-                        Bootstrap .input-group width:100%, azon a margó nem tolja a jobb szélt;
-                        a Bootstrap negatív margó-utility-ket meg alapból nem is generál.) */}
-                    <div className="input-group flex-nowrap" style={{width: "calc(100% + 1rem)"}}>
-                        <AuthorInput value={author} onChange={(event) => setAuthor(event.target.value)}
-                                     placeholder="Szerző" class={"caveat ps-2 text-" + color}/>
-                        <Order current={fontSize} setOrder={setFontSize} max={200} min={100}
-                               stepDelay={STEP_DELAY_MS / 2}
-                               tooltip="Betűméret" tooltipPlace="top" tooltipId="fontsize-tooltip"/>
-                    </div>
+                <div className="d-grid">
+                    {/* A Tovább TILTOTT, amíg a kötelező mező (az idézet szövege) üres —
+                        pontosan a to-do mintájára (Todos/save.jsx: isTitleValid &&
+                        isCategoryValid). A szerző OPCIONÁLIS, azt nem kérjük számon.
+                        A blocker üres-idézet ága ettől NEM válik feleslegessé: a logó,
+                        a "+", a Vissza gomb és a szekció-váltó továbbra is elindíthat
+                        navigációt üres mezővel — ott a hibabuborék + maradás jár. */}
+                    <SubmitButton isDisabled={!isQuoteValid} isOutline={false} color={color} text="Tovább"/>
 
-                    <div className="d-grid">
-                        {/* A Tovább TILTOTT, amíg a kötelező mező (az idézet szövege) üres —
-                            pontosan a to-do mintájára (Todos/save.jsx: isTitleValid &&
-                            isCategoryValid). A szerző OPCIONÁLIS, azt nem kérjük számon.
-                            A blocker üres-idézet ága ettől NEM válik feleslegessé: a logó,
-                            a "+", a Vissza gomb és a szekció-váltó továbbra is elindíthat
-                            navigációt üres mezővel — ott a hibabuborék + maradás jár. */}
-                        <SubmitButton isDisabled={!isQuoteValid} isOutline={false} color={color} text="Tovább"/>
-
-                        {isUpdate &&
-                            <DeleteAndModal handleLinkClicked={props.handleLinkClicked} color={color}
-                                            deleteUrl="/quotes/delete" listUrl="/quotes" itemId={quoteId}
-                                            onDelete={() => { leftViaForm.current = true; }}/>}
-                    </div>
+                    {isUpdate &&
+                        <DeleteAndModal handleLinkClicked={props.handleLinkClicked} color={color}
+                                        deleteUrl="/quotes/delete" listUrl="/quotes" itemId={quoteId}
+                                        onDelete={() => { leftViaForm.current = true; }}/>}
                 </div>
+            </div>
 
-                {/* Kötelező-mező hibabuborék (l. Editor/validationTooltip). Külön id,
-                    mert a to-do szerkesztőé is él a lapon — az id-ütközést a
-                    react-tooltip nem tűrné. Az onDismiss a buborékon KÍVÜLI
-                    kattintásra felejti el a hibát (a buborék így nem ragad a
-                    képernyőn, ha a felhasználó nem gépel tovább). */}
-                <ValidationTooltip id="quote-validation-tooltip" validation={validation}
-                                   onDismiss={dismissValidation}/>
+            {/* Kötelező-mező hibabuborék (l. Editor/validationTooltip). Külön id,
+                mert a to-do szerkesztőé is él a lapon — az id-ütközést a
+                react-tooltip nem tűrné. Az onDismiss a buborékon KÍVÜLI
+                kattintásra felejti el a hibát (a buborék így nem ragad a
+                képernyőn, ha a felhasználó nem gépel tovább). */}
+            <ValidationTooltip id="quote-validation-tooltip" validation={validation}
+                               onDismiss={dismissValidation}/>
 
-            </form>
+        </form>
     );
 }

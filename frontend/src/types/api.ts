@@ -77,6 +77,15 @@ export type Quote = {
     updatedAt: IsoDate;
 };
 
+/* A /quotes/edit VÁLASZA — a szerkesztőnek betöltött idézet. WHITELIST: a szerver
+   (backend/src/controllers/Quotes/readForEdit.js) SZÁNDÉKOSAN csak ezt a négy mezőt
+   adja ki (a user-id és az időbélyegek soha nem mennek ki), és az `order` is CSAK
+   ezen a hitelesített, tulajdonos-ellenőrzött végponton jön — a publikus /quotes/id
+   már nem adja (l. readById.js). `Pick` a Quote-ból, nem külön leírás: a mezők
+   ugyanazok az értékek, csak kevesebb — ha a Quote egy mezőjének típusa változik
+   (pl. az author kötelezővé válik), ez magától követi, nem csúszik el. */
+export type QuoteForEdit = Pick<Quote, "quote" | "author" | "order" | "fontSize">;
+
 /* A /quotes/search-mode VÁLASZA: a szerver dönti el, hogy a beírt kifejezés
    SZERZŐ-e (ekkor a szerző-szűrt nézetre megyünk) vagy szöveg (ekkor a találati
    listára) — l. backend/src/controllers/Quotes/readSearchMode.js.
