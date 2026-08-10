@@ -151,12 +151,28 @@ export default function QuoteSave(props: SaveProps) {
         else navigate("/quotes");
     }, [isUpdate, location.key, navigate]);
 
+    /* Versenyhelyzet-őr: az effekt a `quoteId` változásakor újrafut (pl. /update/:id1 →
+       /update/:id2 UGYANAZON a szerkesztő-példányon — a route key="quote-update", tehát
+       nincs remount), és a `leaveEditor` váltásakor is (deps: location.key). Ilyenkor a
+       KÉT lekérés (/quotes/edit + /quotes/last/order) újra elindul, és két párhuzamos
+       válasz FORDÍTOTT sorrendben is visszaérhet — a RÉGI id válasza felülírhatná a
+       frisset (a state-eket ÉS a `loaded` pillanatképet is). Az `active` zászló a
+       leszereléskor és minden újrafutáskor hamisra vált, így a lejárt kérés callbackje
+       már nem ír semmit.
+
+       Ez a LEVÁLÁST is fedi: törlés (DeleteAndModal → /quotes) vagy a mentés utáni
+       proceed után a szerkesztő leszerel — egy KÉSEI /quotes/edit-válasz ekkor már nem
+       hívja a leaveEditor()-t egy megszűnt komponensen (a hiba-ág a 403/timeout után a
+       listára navigálna, ami törlés után dupla, félrevezető navigáció volna).
+       Minta: CardList/useSortableCards.ts. */
     useEffect(() => {
+        let active = true;
         if (quoteId) {
             // A szerkesztő betöltése a HITELESÍTETT /quotes/edit-ről megy (nem a
             // publikus /quotes/id-ról): innen jön a sorszám is, tulajdonos-
             // ellenőrzés mögött. Idegen/törölt idézetnél 403 → leaveEditor.
             handleAxios<QuoteForEdit>("/quotes/edit", {id: quoteId}, (response) => {
+                if (!active) return;
                 const q = response.data;
                 setQuote(q.quote);
                 setAuthor(q.author ?? "");
@@ -176,6 +192,7 @@ export default function QuoteSave(props: SaveProps) {
                 loaded.current = {quote: q.quote, author: q.author ?? "", order: q.order,
                     fontSize: q.fontSize ?? DEFAULT_FONT_SIZE};
             }, (error) => {
+                if (!active) return;
                 // Nem tölthető be (törölt elem vagy timeout) — vissza a listához,
                 // hogy a betöltő ne pörögjön örökké.
                 logRequestError(error);
@@ -187,9 +204,11 @@ export default function QuoteSave(props: SaveProps) {
            a szerkesztett elem a saját helyén már bent van, tehát a többiek közé
            tolható. Üres listánál 0. */
         handleAxios<number>("/quotes/last/order", {}, (response) => {
+            if (!active) return;
             const last = response.data;
             setLastOrder(last === 0 ? 0 : (isUpdate ? last - 1 : last));
         }, logRequestError);
+        return () => { active = false; };
     }, [isUpdate, quoteId, handleAxios, leaveEditor]);
 
     /* A betöltő feloldása a to-do mintájára: create-nél amint a felső korlát
