@@ -1,5 +1,5 @@
 import {useState} from "react";
-import {fireEvent, render, screen, waitFor} from "@testing-library/react";
+import {act, fireEvent, render, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {beforeEach, describe, expect, it, vi} from "vitest";
 import AuthorInput from "./authorInput";
@@ -79,6 +79,47 @@ describe("AuthorInput — ghost-text", () => {
         // A javaslat "Kosztolányi", de a beírt "Má" nem a kezdete — nincs ghost.
         await waitFor(() => expect(handleAxios.mock.calls.some((c) => c[0] === "/quotes/authors")).toBe(true));
         expect(screen.queryByText(/nyi$/)).not.toBeInTheDocument();
+    });
+});
+
+/* VERSENYHELYZET a javaslat-lekérésben — az authorInput.tsx `isLatest` zászlójának
+   őre. Ez az effekt MINDEN leütésre újrafut, tehát az appban ez indul újra a
+   leggyakrabban; a 200 ms-os debounce csak ritkítja a kéréseket, a válaszok
+   sorrendjét NEM rendezi.
+
+   A hiba, amit megelőz, kétszeresen néma: a lejárt prefix válasza felülírja a
+   frisset, a `completion` pedig csak akkor rajzol, ha a beírt szöveg tényleg a
+   javaslat eleje — így a ghost nem rosszat mutat, hanem eltűnik, pedig volt
+   érvényes javaslat. A következő leütésig marad is így. */
+describe("AuthorInput — versenyhelyzet a javaslat-lekérésben", () => {
+    it("a lejárt prefix KÉSVE érkező válasza nem tünteti el a friss javaslatot", async () => {
+        // A mock nem válaszol, csak gyűjti a callbackeket — a sorrendet a teszt adja.
+        const pending = [];
+        handleAxios.mockImplementation((url, data, then) => {
+            if (url === "/quotes/authors") pending.push({prefix: data.prefix, then});
+            return Promise.resolve();
+        });
+        render(<Wrapper/>);
+        const input = screen.getByPlaceholderText("Szerző");
+
+        /* Két leütés, két kérés: az "M"-é már elment (letelt a debounce), amikor a
+           "Má"-é elindul. Ettől van egyszerre kettő a levegőben. */
+        await userEvent.type(input, "M");
+        await waitFor(() => expect(pending).toHaveLength(1));
+        await userEvent.type(input, "á");
+        await waitFor(() => expect(pending).toHaveLength(2));
+        // A sorrend a teszt előfeltétele: előbb a lejárt "M", utána a friss "Má".
+        expect(pending.map((call) => call.prefix)).toEqual(["M", "Má"]);
+
+        // A FRISS ("Má") válasza érkezik meg előbb: a ghost kirajzolja a folytatást.
+        act(() => pending[1].then({data: ["Márai"]}));
+        expect(await screen.findByText("rai")).toBeInTheDocument();
+
+        /* És most fut be a lejárt "M" válasza. A "Molnár" a "Má"-val nem kezdődik,
+           tehát ha felülírná a javaslatot, a ghost némán eltűnne. */
+        act(() => pending[0].then({data: ["Molnár"]}));
+
+        expect(screen.getByText("rai")).toBeInTheDocument();
     });
 });
 

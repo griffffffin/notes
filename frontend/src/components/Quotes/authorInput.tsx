@@ -74,17 +74,38 @@ export default function AuthorInput(props: AuthorInputProps) {
         suggestion.toLowerCase().startsWith(value.toLowerCase()) && suggestion.length > value.length)
         ? suggestion.slice(value.length) : "";
 
+    /* Versenyhelyzet-őr, a többi betöltő effekt mintájára (l. useSortableCards.ts).
+       Ez az effekt MINDEN leütésre újrafut, tehát a leggyakrabban újrainduló az
+       appban: két javaslat-kérés fordított sorrendben is visszaérhet.
+
+       A debounce ezt NEM oldja meg: a `clearTimeout` a még el nem sült IDŐZÍTŐT
+       vonja vissza, a 200 ms letelte után MÁR ELINDULT kérést nem. Enélkül egy
+       lejárt prefix válasza felülírja a frisset — és mivel a lenti `completion`
+       csak akkor rajzol, ha a beírt szöveg tényleg a javaslat eleje, a ghost nem
+       rosszat mutat, hanem NÉMÁN ELTŰNIK, pedig volt érvényes javaslat. A
+       következő leütésig így is marad.
+
+       A zászló neve itt NEM `active`, mint a többi betöltőnél: ebben a
+       komponensben az `active` már foglalt (a javaslat láthatóságát jelenti,
+       l. fentebb), az árnyékolás pont a lényegi helyen zavarna össze. */
     useEffect(() => {
         if (!active || !value.trim()) {
             setSuggestion("");
             return;
         }
+        let isLatest = true;
         const timer = setTimeout(() => {
             handleAxios<string[]>("/quotes/authors", {prefix: value},
-                (response) => setSuggestion(response.data[0] ?? ""),
+                (response) => {
+                    if (isLatest) setSuggestion(response.data[0] ?? "");
+                },
+                // A hibaág nem ír state-et (csak naplóz), ezért nem kér őrt.
                 logRequestError);
         }, DEBOUNCE_MS);
-        return () => clearTimeout(timer);
+        return () => {
+            isLatest = false;
+            clearTimeout(timer);
+        };
     }, [value, active, handleAxios]);
 
     /* Telefonon a virtuális billentyűzet eltűnése (rendszer vissza-gombja vagy a
