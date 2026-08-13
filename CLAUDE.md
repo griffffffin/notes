@@ -205,6 +205,19 @@ elmaradt átvezetés.
      sorrendben is visszaérhet, és a RÉGI felülírhatja a frisset. Minta a
      `useSortableCards.ts` `active`-jelzője; minden `handleAxios`-t hívó effektnek
      kell ilyen, ha újra tud futni (változó paraméter, pl. `:id`).
+     **A debounce NEM őr**: a `clearTimeout` a még el nem sült IDŐZÍTŐT vonja
+     vissza, a már elindult kérést nem.
+     **És az őr mellé TESZT is kell** — az őr egyetlen `if (!active) return;` sor,
+     amit egy refaktor némán kivehet: nem esik szét semmi, a tesztek zöldek
+     maradnak. Minta: `Quotes/public.test.jsx`, `Todos/save.test.jsx`,
+     `Quotes/save.test.jsx` "versenyhelyzet a betöltésben" blokkjai — a mockolt
+     `handleAxios` GYŰJTI a callbackeket ahelyett, hogy válaszolna, a paraméter-
+     váltás a böngésző Vissza gombjával megy (`pushState` ×2 +
+     `history.back()` — a route `key`-e ugyanaz, tehát nincs remount), és a teszt
+     süti el a válaszokat fordított sorrendben. A hibaág külön teszt: a lejárt
+     hiba ne navigáljon ki a szerkesztőből. **A teszt csak MUTÁCIÓ-PRÓBÁVAL
+     kész**: az adott `if (!active) return;` kivételére pontosan a hozzá tartozó
+     teszt bukjon, más ne.
   4. **Bedrótozott kiterjesztés és útvonal.** Fájlokat kiterjesztés szerint szűrő
      kód (`.js`) a TS-átállás alatt NÉMÁN kihagy fájlokat — l.
      `scripts/exportSections.js`. Fájlra hivatkozó tesztek kiterjesztés nélkül
