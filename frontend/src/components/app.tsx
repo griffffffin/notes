@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from "react";
+import {useCallback, useEffect, useRef, useState} from "react";
 import {library} from "@fortawesome/fontawesome-svg-core";
 import {
     faAngleDown, faAngleUp, faBars, faFill, faFillDrip,
@@ -39,11 +39,29 @@ export default function App() {
         setIsCategoryAngleClicked(false);
     }, []);
 
+    /* Versenyhelyzet-őr — de NEM a betöltő effektek `active` zászlójával, mert ez a
+       lekérés nem EGY effekthez tartozik: ÖT helyről indulhat (a lenti mount-effekt,
+       a to-do törlése, és a szerkesztő három mentési útja). Közös cleanup tehát
+       nincs, amire a zászlót fel lehetne fűzni. Helyette SORSZÁM: minden hívás
+       kiváltja a következőt, és a válasz csak akkor írhat, ha ő a legutóbbi.
+
+       Amit megelőz: mentesz egy to-dót ÚJ kategóriával (a válasz már tartalmazza),
+       de a lassabb, korábbi lekérés válasza utána fut be a RÉGI listával — az új
+       kategória némán eltűnik a legördülőből, a következő lekérésig. */
+    const latestCategoryRequest = useRef(0);
+
     const handleCategoryChange = useCallback(() => {
+        /* A léptetés a kijelentkezés-ág ELŐTT van: a kilépés is érvénytelenítse a
+           még függőben lévő kérést, különben annak válasza a kilépés UTÁN írna
+           kategórialistát. */
+        const requestId = ++latestCategoryRequest.current;
         // Kijelentkezve nincs mit lekérni — enélkül a bejelentkező képernyőn is
         // elindulna egy kérés, ami 401-gyel bukna.
         if (!isLoggedIn) return;
-        handleAxios<Todo["category"][]>("/to-dos/categories", {}, (response) => setCategories(response.data),
+        handleAxios<Todo["category"][]>("/to-dos/categories", {},
+            (response) => {
+                if (requestId === latestCategoryRequest.current) setCategories(response.data);
+            },
             logRequestError);
     }, [isLoggedIn, handleAxios]);
 
