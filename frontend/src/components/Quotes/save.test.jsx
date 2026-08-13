@@ -335,3 +335,81 @@ describe("QuoteSave — logóra kattintás a szerkesztőben (ellenőrzés + ment
         await waitFor(() => expect(window.location.pathname).toBe("/quotes"));
     });
 });
+
+/* VERSENYHELYZET a betöltő effektben — a save.tsx `active` zászlójának őre, a to-do
+   szerkesztőjének tesztjével azonos felállásban (Todos/save.test.jsx). A
+   /quotes/update/:id route-on a szerkesztő NEM mountol újra, ha csak az :id
+   változik (a route key="quote-update" mindkét címen ugyanaz), tehát az effekt fut
+   le megint. A két betöltés válasza fordított sorrendben is visszaérhet, és a
+   LEJÁRT kérés callbackje felülírhatná a friss mezőket ÉS a `loaded` pillanatképet
+   is — az utóbbi a súlyosabb: a "változott-e?" ellenőrzés attól kezdve a MÁSIK
+   idézethez hasonlítana. Néma hiba: semmi nem dob, a szerkesztő kitöltve áll, csak
+   nem azzal, amit megnyitottunk.
+
+   Amit ez a két teszt rögzít: a betöltés sikeres és hibás ága. A harmadik őrzött
+   hívás (/quotes/last/order) szándékosan teszt nélkül marad: a két válasza
+   ugyanabból a listahosszból jön, tehát az elcsúszásuk nem ad megfigyelhető
+   különbséget — a rá írt teszt az Order-stepper újratesztelése volna. */
+describe("QuoteSave — versenyhelyzet a betöltésben", () => {
+    /* A /quotes/edit hívások callbackjeit összegyűjti ahelyett, hogy válaszolna; a
+       többi végpont marad automatikus, különben a szerkesztő a betöltőn ragadna. */
+    const capturePendingLoads = () => {
+        const pending = [];
+        handleAxios.mockImplementation((url, data, then) => {
+            if (url === "/quotes/edit") pending.push({id: data.id, then});
+            else if (url === "/quotes/last/order") then({data: 3});
+            else if (url === "/quotes" || url === "/quotes/author") then({data: []});
+            else then({status: 200, data: {}});
+            return Promise.resolve();
+        });
+        return pending;
+    };
+
+    /* Két szerkesztő-cím egymás után az előzményben, majd a böngésző Vissza gombja
+       (a data router popstate-re navigál): a q-2 kérése MÁR FUT, amikor a q-1 kérése
+       elindul. A visszalépést nem akasztja meg a blocker, mert betöltetlen szerkesztő
+       (loaded === null) nem "piszkos". */
+    const openTwoEditorsAndGoBack = async () => {
+        const pending = capturePendingLoads();
+        window.history.pushState({}, "", "/quotes/update/q-1");
+        window.history.pushState({}, "", "/quotes/update/q-2");
+        renderRoutes();
+        await waitFor(() => expect(pending).toHaveLength(1));
+
+        window.history.back();
+        await waitFor(() => expect(pending).toHaveLength(2));
+        // A sorrend a teszt előfeltétele: előbb a lejárt q-2, utána a friss q-1.
+        expect(pending.map((call) => call.id)).toEqual(["q-2", "q-1"]);
+        return pending;
+    };
+
+    it("a lejárt :id KÉSVE érkező válasza nem írja felül a friss idézet mezőit", async () => {
+        const pending = await openTwoEditorsAndGoBack();
+
+        // Előbb a FRISS (q-1) válasza érkezik meg, és csak utána a lejárt q-2-é.
+        act(() => pending[1].then({data: {...QUOTE, _id: "q-1", quote: "A friss idézet."}}));
+        act(() => pending[0].then({data: {
+            ...QUOTE, _id: "q-2", quote: "A lejárt idézet.", author: "Másvalaki",
+        }}));
+
+        await waitFor(() => expect(quoteField()).toHaveValue("A friss idézet."));
+        expect(screen.getByPlaceholderText("Szerző")).toHaveValue("Valaki");
+    });
+
+    it("a lejárt :id KÉSVE érkező HIBÁJA nem rángatja ki a szerkesztőből", async () => {
+        const pending = await openTwoEditorsAndGoBack();
+        // A hiba-ág a NEGYEDIK argumentum (a sikeres a harmadik).
+        const staleError = handleAxios.mock.calls
+            .find((call) => call[0] === "/quotes/edit" && call[1].id === "q-2")[3];
+
+        act(() => pending[1].then({data: {...QUOTE, _id: "q-1", quote: "A friss idézet."}}));
+        await waitFor(() => expect(quoteField()).toHaveValue("A friss idézet."));
+        /* A lejárt kérés elszáll (idegen vagy közben törölt idézet: 403) — az ő
+           hiba-ága a listára navigálna. Ez az az eset, amit a save.tsx komment a
+           "leválás" alatt ír le: törlés után dupla, félrevezető navigáció lenne. */
+        act(() => staleError({response: {status: 403}}));
+
+        expect(window.location.pathname).toBe("/quotes/update/q-1");
+        expect(quoteField()).toHaveValue("A friss idézet.");
+    });
+});

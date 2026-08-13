@@ -1,4 +1,4 @@
-import {screen} from "@testing-library/react";
+import {act, screen, waitFor} from "@testing-library/react";
 import {beforeEach, describe, expect, it, vi} from "vitest";
 import {renderRoutes} from "../../test/renderRoutes";
 
@@ -48,5 +48,44 @@ describe("QuotePublic (megosztott idézet)", () => {
         renderRoutes("/quotes/x/nincs");
 
         expect(await screen.findByText("Nem létező idézet.")).toBeVisible();
+    });
+});
+
+/* VERSENYHELYZET a betöltő effektben — a public.tsx `active` zászlójának őre.
+   A /quotes/:author/:id route-on a komponens NEM mountol újra, ha csak az :id
+   változik: az effekt fut le megint. A két kérés válasza fordított sorrendben is
+   visszaérhet, és a LEJÁRT kérés callbackje felülírhatná a frisset. Ez néma hiba:
+   semmi nem dob, a betöltő eltűnik, csak épp a MÁSIK idézet szövege áll a lapon.
+
+   A teszt a legkisebb, ami a kötést rögzíti: a válaszokat nem a mock süti el,
+   hanem mi, kézzel, szándékosan rossz sorrendben. */
+describe("QuotePublic — versenyhelyzet a betöltésben", () => {
+    it("a lejárt :id KÉSVE érkező válasza nem írja felül a frisset", async () => {
+        // A /quotes/id hívások callbackjeit összegyűjtjük ahelyett, hogy azonnal
+        // válaszolnánk; a többi hívás (navbar stb.) érdektelen.
+        const pending = [];
+        handleAxios.mockImplementation((url, data, then) => {
+            if (url === "/quotes/id") pending.push({id: data.id, then});
+            return Promise.resolve();
+        });
+
+        /* Két megosztott idézet egymás után az előzményben, majd a böngésző Vissza
+           gombja (window.history.back — a data router popstate-re navigál). Így a
+           q-2 kérése MÁR FUT, amikor a q-1 kérése elindul. */
+        window.history.pushState({}, "", "/quotes/M%C3%A1rai/q-1");
+        renderRoutes("/quotes/M%C3%A1rai/q-2");
+        await waitFor(() => expect(pending).toHaveLength(1));
+
+        window.history.back();
+        await waitFor(() => expect(pending).toHaveLength(2));
+        // A sorrend a teszt előfeltétele: előbb a lejárt q-2, utána a friss q-1.
+        expect(pending.map((call) => call.id)).toEqual(["q-2", "q-1"]);
+
+        // Előbb a FRISS (q-1) válasza érkezik meg, és csak utána a lejárt q-2-é.
+        act(() => pending[1].then({data: {...QUOTE, _id: "q-1", quote: "A friss idézet."}}));
+        act(() => pending[0].then({data: {...QUOTE, _id: "q-2", quote: "A lejárt idézet."}}));
+
+        expect(await screen.findByText("A friss idézet.")).toBeVisible();
+        expect(screen.queryByText("A lejárt idézet.")).not.toBeInTheDocument();
     });
 });

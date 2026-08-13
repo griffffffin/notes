@@ -464,3 +464,78 @@ describe("Save — a sorszám-választó felső korlátja", () => {
         }
     });
 });
+
+/* VERSENYHELYZET a betöltő effektben — a save.tsx `active` zászlójának őre.
+   A /to-dos/update/:id route-on a szerkesztő NEM mountol újra, ha csak az :id
+   változik (a route key="update" mindkét címen ugyanaz), tehát az effekt fut le
+   megint. A két betöltés válasza fordított sorrendben is visszaérhet, és a LEJÁRT
+   kérés callbackje felülírhatná a friss to-do mezőit ÉS a loadedTodo pillanatképet
+   is — az utóbbi a súlyosabb: a "változott-e?" ellenőrzés attól kezdve a MÁSIK
+   to-dóhoz hasonlítana, és a mentés a szerkesztett elemre írná a rossz adatot.
+   Néma hiba: semmi nem dob, az űrlap kitöltve áll, csak nem azzal, amit nyitottunk.
+
+   A válaszokat itt nem a mock süti el, hanem a teszt, kézzel, rossz sorrendben. */
+describe("Save — versenyhelyzet a betöltésben", () => {
+    /* A /to-dos/id hívások callbackjeit összegyűjti ahelyett, hogy válaszolna; a
+       többi végpont (sorszám, lista) marad automatikus, különben a szerkesztő a
+       betöltőn ragadna. */
+    const capturePendingLoads = () => {
+        const pending = [];
+        handleAxios.mockImplementation((url, data, then) => {
+            if (url === "/to-dos/id") pending.push({id: data.id, then});
+            else if (url === "/to-dos/last/order") then({data: 3});
+            else if (url === "/to-dos") then({data: [TODO]});
+            else then({status: 200, data: {}});
+            return Promise.resolve();
+        });
+        return pending;
+    };
+
+    /* Két szerkesztő-cím egymás után az előzményben, majd a böngésző Vissza gombja
+       (a data router popstate-re navigál): a todo-2 kérése MÁR FUT, amikor a todo-1
+       kérése elindul. A visszalépést nem akasztja meg a blocker, mert betöltetlen
+       szerkesztő (loadedTodo === null) nem "piszkos". */
+    const openTwoEditorsAndGoBack = async () => {
+        const pending = capturePendingLoads();
+        window.history.pushState({}, "", "/to-dos/update/todo-1");
+        window.history.pushState({}, "", "/to-dos/update/todo-2");
+        renderRoutes();
+        await waitFor(() => expect(pending).toHaveLength(1));
+
+        window.history.back();
+        await waitFor(() => expect(pending).toHaveLength(2));
+        // A sorrend a teszt előfeltétele: előbb a lejárt todo-2, utána a friss todo-1.
+        expect(pending.map((call) => call.id)).toEqual(["todo-2", "todo-1"]);
+        return pending;
+    };
+
+    it("a lejárt :id KÉSVE érkező válasza nem írja felül a friss to-do mezőit", async () => {
+        const pending = await openTwoEditorsAndGoBack();
+
+        // Előbb a FRISS (todo-1) válasza érkezik meg, és csak utána a lejárt todo-2-é.
+        act(() => pending[1].then({data: {...TODO, _id: "todo-1", title: "Friss to-do"}}));
+        act(() => pending[0].then({data: {
+            ...TODO, _id: "todo-2", title: "Lejárt to-do", color: "success", category: "munka",
+        }}));
+
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Friss to-do"));
+        // A lejárt válasz sem a kategóriát, sem a színt nem hozta magával.
+        expect(screen.getByPlaceholderText("Kategória")).toHaveValue("otthon");
+        expect(cardColor()).toBe("border-danger");
+    });
+
+    it("a lejárt :id KÉSVE érkező HIBÁJA nem rángatja ki a szerkesztőből", async () => {
+        const pending = await openTwoEditorsAndGoBack();
+        // A hiba-ág a NEGYEDIK argumentum (a sikeres a harmadik).
+        const staleError = handleAxios.mock.calls
+            .find((call) => call[0] === "/to-dos/id" && call[1].id === "todo-2")[3];
+
+        act(() => pending[1].then({data: {...TODO, _id: "todo-1", title: "Friss to-do"}}));
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Friss to-do"));
+        // A lejárt kérés elszáll (pl. timeout) — az ő hiba-ága a listára navigálna.
+        act(() => staleError({message: "timeout of 15000ms exceeded"}));
+
+        expect(window.location.pathname).toBe("/to-dos/update/todo-1");
+        expect(screen.getByPlaceholderText("Cím")).toHaveValue("Friss to-do");
+    });
+});
