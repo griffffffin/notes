@@ -225,3 +225,77 @@ describe("Szűrő az URL-ből", () => {
         await waitFor(() => expect(document.querySelector(".min-vh-75")).not.toBeInTheDocument());
     });
 });
+
+/* VERSENYHELYZET a lista betöltésében — a useSortableCards.ts `active` zászlójának
+   őre. Ez a hook szolgálja ki MIND A HÁROM lista-nézetet (to-do, idézet, keresési
+   találat), és ez az az őr, amelynek a hiánya már ÉLESBEN is kárt okozott: a
+   törlés utáni két lekérés fordított sorrendben ért vissza, és a régi válasz
+   ragasztotta vissza a törölt to-do "szellemét". A kiváltó okra van teszt
+   (Todos/modal.test.jsx: a modál gombjai type="button"-ok), magára az őrre — a
+   MÁSODIK védvonalra — eddig nem volt.
+
+   A szűrő-váltás (/category/otthon → /category/munka) ugyanazt a route-elemet
+   használja, csak a :name paraméter más, tehát a komponens NEM mountol újra: a
+   `filter` memo változik, és a betöltő effekt fut le megint. */
+describe("Read — versenyhelyzet a lista betöltésében", () => {
+    const HOME = [{...TODOS[0], _id: "h", title: "Otthoni teendő", category: "otthon"}];
+    const WORK = [{...TODOS[0], _id: "w", title: "Munkahelyi teendő", category: "munka"}];
+
+    /* A szűrt lekérések callbackjeit gyűjti ahelyett, hogy válaszolna; a főlista
+       marad automatikus (arra esik vissza az üres szűrt nézet átirányítása). */
+    const capturePendingLoads = () => {
+        const pending = [];
+        handleAxios.mockImplementation((url, data, then) => {
+            if (url === "/to-dos/category") pending.push({category: data.category, then});
+            else if (url === "/to-dos") then({data: TODOS});
+            else then({status: 200, data: {}});
+            return Promise.resolve();
+        });
+        return pending;
+    };
+
+    /* Két szűrt nézet egymás után az előzményben, majd a böngésző Vissza gombja: az
+       "otthon" kérése MÁR FUT, amikor a "munka" kérése elindul. */
+    const openTwoFiltersAndGoBack = async () => {
+        const pending = capturePendingLoads();
+        window.history.pushState({}, "", "/to-dos/category/munka");
+        renderRoutes("/to-dos/category/otthon");
+        await waitFor(() => expect(pending).toHaveLength(1));
+
+        window.history.back();
+        await waitFor(() => expect(pending).toHaveLength(2));
+        // A sorrend a teszt előfeltétele: előbb a lejárt "otthon", utána a friss "munka".
+        expect(pending.map((call) => call.category)).toEqual(["otthon", "munka"]);
+        return pending;
+    };
+
+    it("a lejárt szűrő KÉSVE érkező válasza nem írja felül a friss listát", async () => {
+        const pending = await openTwoFiltersAndGoBack();
+
+        // Előbb a FRISS ("munka") válasza érkezik meg, és csak utána a lejárt "otthon"-é.
+        act(() => pending[1].then({data: WORK}));
+        expect(await screen.findByText("Munkahelyi teendő")).toBeVisible();
+        act(() => pending[0].then({data: HOME}));
+
+        expect(screen.getByText("Munkahelyi teendő")).toBeVisible();
+        // Ez a "szellem": a lejárt szűrő eleme nem jelenhet meg a friss nézetben.
+        expect(screen.queryByText("Otthoni teendő")).not.toBeInTheDocument();
+    });
+
+    it("a lejárt szűrő KÉSVE érkező HIBÁJA nem irányít el a friss nézetből", async () => {
+        const pending = await openTwoFiltersAndGoBack();
+        // A hiba-ág a NEGYEDIK argumentum (a sikeres a harmadik).
+        const staleError = handleAxios.mock.calls
+            .find((call) => call[0] === "/to-dos/category" && call[1].category === "otthon")[3];
+
+        act(() => pending[1].then({data: WORK}));
+        expect(await screen.findByText("Munkahelyi teendő")).toBeVisible();
+        /* A hiba-ág üres listát tesz ki (hogy a betöltő ne pörögjön örökké) — egy
+           SZŰRT nézetben viszont az üres lista átirányítást jelent a főlistára.
+           Őr nélkül tehát egy lejárt kérés hibája kirántana a friss nézetből. */
+        act(() => staleError({response: {status: 500}}));
+
+        expect(window.location.pathname).toBe("/to-dos/category/munka");
+        expect(screen.getByText("Munkahelyi teendő")).toBeVisible();
+    });
+});
