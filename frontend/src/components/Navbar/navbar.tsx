@@ -16,7 +16,7 @@ import CategoryAndColorGroup, {type CategoryAndColorGroupProps} from "../Link/ca
    bejelentkezettet viszont csak a teljes készlettel — se többet, se kevesebbet.
    (A JSX-ben a `props.isVisible ? / &&` ágak a fordítónak is szűkítenek a
    bejelentkezett alakra, ezért a vezérlő-propok ott gond nélkül elérhetők.) */
-type NavbarProps =
+export type NavbarProps =
     | {isVisible: false}
     | {
         isVisible: true;

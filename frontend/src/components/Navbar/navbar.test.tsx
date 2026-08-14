@@ -4,22 +4,33 @@ import {CookiesProvider} from "react-cookie";
 import {MemoryRouter} from "react-router-dom";
 import {describe, expect, it, vi} from "vitest";
 import Navbar from "./navbar";
+import type {NavbarProps} from "./navbar";
 import {ThemeProvider} from "../../contexts/theme";
+import {requireElement} from "../../test/dom";
 
 /* Az ikonokat data-icon attribútummá alakítjuk: a fill/kijelentkezés gombok
    csak ikont hordoznak (nincs szöveges nevük), így ez teszi őket kereshetővé.
    A valódi library.add(fas) ráadásul mind az ikont behúzná (lassú a Pi-n). */
 
-// A kijelentkezéshez a valódi AuthProvider helyett elég a logout kimockolása.
-const {logout} = vi.hoisted(() => ({logout: vi.fn()}));
-vi.mock("../../contexts/auth-context", () => ({useAuth: () => ({logout, handleAxios: vi.fn()})}));
+/* A kijelentkezéshez a `logout` kell, de a pótlék a TELJES contextet adja (közös
+   segéd, l. test/mockAuth.ts): a korábbi kézzel írt `{logout, handleAxios}`-ból
+   hiányzott a `token` és a `login`, és ezt semmi nem vetette össze a valósággal.
+   A `vi.mock` import()-tal veszi át a modult — string-útvonallal a gyár
+   visszatérését a fordító nem nézi meg. */
+const {auth} = await vi.hoisted(async () => {
+    const {mockAuth} = await import("../../test/mockAuth");
+    return mockAuth({isLoggedIn: true});
+});
+const logout = auth.logout;
 
-const setup = (overrides = {}, route = "/") => {
+vi.mock(import("../../contexts/auth-context"), () => ({useAuth: () => auth}));
+
+const setup = (overrides: Partial<NavbarProps> = {}, route = "/") => {
     const props = {
         isVisible: true, categories: ["otthon", "munka"], handleLinkClicked: vi.fn(),
         setIsCategoryClicked: vi.fn(), isCategoryClicked: false,
         setIsColorClicked: vi.fn(), isColorClicked: false, ...overrides,
-    };
+    } satisfies NavbarProps;
     render(
         <CookiesProvider>
             <ThemeProvider>
@@ -48,7 +59,7 @@ describe("Navbar szűrő-kapcsolók", () => {
         const props = setup();
 
         // A szín-gomb csak a kitöltés-ikont hordozza; a data-icon teszi kereshetővé.
-        await userEvent.click(document.querySelector('[data-icon="fill"]'));
+        await userEvent.click(requireElement('[data-icon="fill"]', SVGSVGElement));
 
         expect(props.setIsColorClicked).toHaveBeenCalledWith(true);
         expect(props.setIsCategoryClicked).toHaveBeenCalledWith(false);
@@ -57,7 +68,7 @@ describe("Navbar szűrő-kapcsolók", () => {
     it("a kijelentkezés ikon a logout-ot hívja", async () => {
         setup();
 
-        await userEvent.click(document.querySelector('[data-icon="right-from-bracket"]'));
+        await userEvent.click(requireElement('[data-icon="right-from-bracket"]', SVGSVGElement));
 
         expect(logout).toHaveBeenCalled();
     });
