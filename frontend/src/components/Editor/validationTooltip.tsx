@@ -61,8 +61,13 @@ export default function ValidationTooltip({id, validation, onDismiss}: Validatio
        pointerdown (nem click) és a CAPTURE fázisban: így akkor is elsül, ha a
        megnyomott elem maga megállítja az esemény terjedését, és nem várunk az
        elengedésig. */
+    /* Az `onDismiss` meglétét NEM vizsgáljuk: a prop kötelező (l. a típusnál), és
+       mind a két hívó (Todos/save, Quotes/save) átadja. A korábbi `!onDismiss` ág
+       a JS-korszak öröksége volt — egy őr olyan eset ellen, amit ma a fordító zár
+       ki. Két, egymást átfedő védelemből az a rosszabb, amelyik feleslegesen áll:
+       azt sugallja, hogy a hiányzó prop megengedett eset. */
     useEffect(() => {
-        if (!isOpen || !onDismiss) return;
+        if (!isOpen) return;
         document.addEventListener("pointerdown", onDismiss, true);
         return () => document.removeEventListener("pointerdown", onDismiss, true);
     }, [isOpen, onDismiss]);
