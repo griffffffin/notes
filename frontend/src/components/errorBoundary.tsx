@@ -1,4 +1,5 @@
 import {Component} from "react";
+import type {ErrorInfo, ReactNode} from "react";
 import {logDev} from "../log";
 
 /* Hibahatár: elkapja a fa alatt keletkező futásidejű hibákat, és a néma
@@ -14,34 +15,50 @@ import {logDev} from "../log";
    Fejlesztésben megmutatja a hibaüzenetet és a komponens-hívási láncot;
    élesben csak barátságos üzenetet — a részletek a konzolba mennek. */
 
+/* Az `as const` nem állítás egy értékről, hanem a literálok megőrzése: enélkül a
+   `flexDirection: "column"` sima `string`-gé szürkülne, amit a React
+   CSSProperties típusa (helyesen) nem fogad el. */
 const styles = {
-    doboz: {
+    screen: {
         minHeight: "100vh", display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center", gap: "1rem",
         padding: "2rem", textAlign: "center",
         background: "#111", color: "#eee",
         fontFamily: "system-ui, sans-serif",
     },
-    gomb: {
+    button: {
         padding: "0.5rem 1.5rem", borderRadius: "999px", cursor: "pointer",
         border: "1px solid #ffc107", background: "#ffc107", color: "#000",
         fontSize: "1rem",
     },
-    reszletek: {
+    details: {
         maxWidth: "90vw", overflow: "auto", textAlign: "left",
         background: "#1c1c1c", color: "#ff8080", padding: "1rem",
         borderRadius: "8px", fontSize: "0.8rem", marginTop: "1rem",
     },
+} as const;
+
+/* A hibahatár BÁRMIT elkaphat: JavaScriptben nem csak Error-t lehet dobni,
+   ezért az `error` típusa `unknown`. A megjelenítés `String(error)`-ral megy —
+   az minden értékre működik, míg egy `error.message` `undefined`-ot adna egy
+   dobott stringre. */
+type ErrorBoundaryProps = {
+    children: ReactNode;
 };
 
-export default class ErrorBoundary extends Component {
-    state = {error: null, info: null};
+type ErrorBoundaryState = {
+    error: unknown;
+    info: ErrorInfo | null;
+};
 
-    static getDerivedStateFromError(error) {
+export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+    state: ErrorBoundaryState = {error: null, info: null};
+
+    static getDerivedStateFromError(error: unknown): Pick<ErrorBoundaryState, "error"> {
         return {error};
     }
 
-    componentDidCatch(error, info) {
+    componentDidCatch(error: unknown, info: ErrorInfo) {
         this.setState({info});
         logDev("Elkapott hiba:", error, info.componentStack);
     }
@@ -51,16 +68,16 @@ export default class ErrorBoundary extends Component {
         if (!error) return this.props.children;
 
         return (
-            <div style={styles.doboz}>
+            <div style={styles.screen}>
                 <h1>Hiba történt</h1>
                 <p>Az alkalmazás váratlan hibába ütközött. Próbáld újratölteni az oldalt.</p>
-                <button type="button" style={styles.gomb} onClick={() => window.location.reload()}>
+                <button type="button" style={styles.button} onClick={() => window.location.reload()}>
                     Újratöltés
                 </button>
 
                 {import.meta.env.DEV &&
-                    <pre style={styles.reszletek}>
-                        {error.toString()}
+                    <pre style={styles.details}>
+                        {String(error)}
                         {info?.componentStack}
                     </pre>}
             </div>

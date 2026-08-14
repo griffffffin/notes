@@ -17,13 +17,20 @@ import 'react-tooltip/dist/react-tooltip.css'
 import './index.css'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import App from './components/app'
-import ErrorBoundary from './components/errorBoundary.jsx'
-import { AuthProvider } from './contexts/auth.jsx'
-import { ThemeProvider } from './contexts/theme.jsx'
+import ErrorBoundary from './components/errorBoundary'
+import { AuthProvider } from './contexts/auth'
+import { ThemeProvider } from './contexts/theme'
 
 config.autoAddCss = false
 
-createRoot(document.getElementById('root')).render(
+/* A gyökér-elem hiánya nem "elvi lehetetlenség", hanem az index.html és ez a
+   fájl közti KÉTOLDALI KÖTÉS: ha ott átnevezik a div azonosítóját, itt semmi nem
+   szól — a React csak annyit mondana, hogy null-ra nem lehet rendert kötni.
+   A kimondott hiba megnevezi, mi hiányzik és hol. */
+const rootElement = document.getElementById('root')
+if (!rootElement) throw new Error('Hiányzik a #root elem az index.html-ből.')
+
+createRoot(rootElement).render(
   <StrictMode>
     {/* A hibahatár legkívül: így a Providerek hibáit is elkapja (pl. a hiányzó
         CookiesProvider annak idején néma, üres képernyőt adott). */}
