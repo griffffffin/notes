@@ -23,15 +23,22 @@
        az allowImportingTsExtensions-nek, amit majd a backend használ.) */
     "noEmit": true,
 
-    /* EZ A KETTŐ ADJA A FOKOZATOSSÁGOT — nem a szigor lazítása:
-       allowJs: a .js/.jsx és a .ts/.tsx fájlok egymás mellett élhetnek, tehát
-       az átállás fájlonként haladhat;
-       checkJs: a még át nem írt JavaScript fájlokba NE kössön bele (különben az
-       első naptól több ezer hibát látnánk, és megszokásból figyelmen kívül
-       hagynánk őket).
-       Az átállás ZÁRÓKÖVE az allowJs: false lesz: onnantól egy .js fájl a
-       src-ben fordítási hiba, tehát nem lehet észrevétlenül visszaszivárogni. */
-    "allowJs": true,
+    /* AZ ÁTÁLLÁS ZÁRÓKÖVE (2026-08-14). Az `allowJs: true` adta a fokozatosságot:
+       amíg tartott a migráció, a .js/.jsx és a .ts/.tsx fájlok egymás mellett
+       éltek, és a `checkJs: false` miatt a fordító a még át nem írt JavaScriptbe
+       nem kötött bele (különben az első naptól több ezer hibát látnánk, és
+       megszokásból figyelmen kívül hagynánk őket).
+
+       Mostantól `false`: a `src` alatt MINDEN fájl TypeScript (a forrás, a
+       tesztek és a teszt-segédek is), és egy visszaszivárgó .js/.jsx fájlt a
+       fordító nem is venne fel a programba — a rá hivatkozó import azonnal
+       "cannot find module"-lal bukna. A kaput a CI `npm run typecheck` lépése
+       őrzi.
+
+       A `checkJs` ezzel értelmét vesztette (nincs mit ellenőrizni), de bent
+       marad kimondva: ha valaha visszakerülne egy .js (pl. egy generált fájl),
+       a két kapcsoló EGYÜTT írja le a szándékot. */
+    "allowJs": false,
     "checkJs": false,
 
     /* Az esbuild FÁJLONKÉNT fordít, a többi fájl ismerete nélkül. Ez a kapcsoló
