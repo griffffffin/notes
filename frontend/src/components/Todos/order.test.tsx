@@ -1,10 +1,20 @@
 import {act, fireEvent, render, screen} from "@testing-library/react";
-import {useState} from "react";
+import {forwardRef, memo, useState} from "react";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import Order, {STEP_DELAY_MS} from "./order";
+import {requireElement} from "../../test/dom";
 
-// A tooltip nem tartozik a léptetéshez, a saját stílusaival csak zajt vinne.
-vi.mock("react-tooltip", () => ({Tooltip: () => null}));
+/* A tooltip nem tartozik a léptetéshez, a saját stílusaival csak zajt vinne.
+   A pótlék `memo(forwardRef(...))`, mert a valódi Tooltip is az: egy nyers
+   függvénykomponens nem áll a helyére (hiányzik róla a $$typeof, amit a React a
+   memo/forwardRef komponensekre tesz). */
+vi.mock(import("react-tooltip"), () => {
+    const Empty = forwardRef(() => null);
+    // A memo TÍPUSPARAMÉTERE kimondva: enélkül a fordító a "sima
+    // függvénykomponens" túlterhelést választja, és az eredményből hiányzik a
+    // `type` mező, amit a valódi memo-zott komponens típusa megkövetel.
+    return {Tooltip: memo<typeof Empty>(Empty)};
+});
 
 /* Az Order nem tárolja a sorszámot, hanem a szülőét lépteti — ezért a szülőt is
    meg kell játszanunk, különben a lépés sehol nem látszana. */
@@ -13,8 +23,13 @@ function Parent({start = 8, last = 10}) {
     return <Order current={order} setOrder={setOrder} last={last}/>;
 }
 
-const minus = (container) => container.querySelector(".bi-dash-circle");
-const plus = (container) => container.querySelector(".bi-plus-circle");
+/* A két léptető-gomb a kirajzolt fán belül. A `requireElement` dob, ha nincs
+   találat: egy elgépelt osztálynév így nem néma null-ként jelenik meg. */
+/* A két léptető-gomb a kirajzolt fán belül. SVG-elemek (Bootstrap-ikonok), nem
+   HTML-ek — a requireElement ezt ki is mondja, és dob, ha nincs találat: egy
+   elgépelt osztálynév így nem néma null-ként jelenik meg. */
+const minus = (container: HTMLElement) => requireElement(".bi-dash-circle", SVGSVGElement, container);
+const plus = (container: HTMLElement) => requireElement(".bi-plus-circle", SVGSVGElement, container);
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());

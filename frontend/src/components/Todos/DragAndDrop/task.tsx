@@ -9,7 +9,7 @@ import type {TodoColor} from "../../../todoColors";
 
 /* Névütközés feloldása: a `Task` ebben a fájlban a KOMPONENS, a szerződésből
    importált azonos nevű típus pedig a listaelem ADATA. */
-type TaskProps = {
+export type TaskProps = {
     task: TaskData;
     todo: TodoDraft;
     setTodo: Dispatch<SetStateAction<TodoDraft>>;

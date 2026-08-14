@@ -2,16 +2,34 @@ import {act, fireEvent, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest";
 import {renderRoutes as renderApp} from "../../test/renderRoutes";
+import {axiosResponse} from "../../test/axiosResponse";
+import {requireElement} from "../../test/dom";
+import type {AxiosResponse} from "axios";
+import type {Todo} from "../../types/api";
+
+/* A kérés TÖRZSE a kém felől `unknown` — az azonosítót VALÓDI vizsgálattal
+   olvassuk ki belőle, nem `as`-szal. Ha a betöltő lekérés törzse egyszer más
+   alakot venne fel, ez azonnal, beszédesen bukik. */
+const idOf = (data: unknown): string => {
+    if (typeof data === "object" && data !== null && "id" in data && typeof data.id === "string") return data.id;
+    throw new Error(`a lekérés törzsében nincs id: ${JSON.stringify(data)}`);
+};
 
 /* Csak a SZERVERHÍVÁST cseréljük ki; a témát VALÓDIKÉNT használjuk (a téma és a
    to-do színének viszonya épp az egyik vizsgált kérdés), és a route-tábla is
    valódi — a /update → /create váltás viselkedése az ő felelőssége. A route-fa
    renderelésének kerete a közös test/renderRoutes segédben van. */
 
+/* A fixtúra a szerver VALÓDI válaszának alakjában: a tulajdonos és az
+   időbélyegek is benne vannak (a Mongoose mindig küldi őket), még ha ez a teszt
+   nem is vizsgálja azokat. A `satisfies` a szerződéshez méri — egy hiányzó mező
+   innentől fordítási hiba —, de megtartja a literálokat, így a "danger" a szűk
+   TodoColor unióhoz illeszkedik. */
 const TODO = {
-    _id: "todo-1", title: "Bevásárlás", color: "danger", category: "otthon", order: 1,
-    percentage: 0, tasks: {}, taskOrder: [],
-};
+    _id: "todo-1", user: "u-1", title: "Bevásárlás", color: "danger", category: "otthon",
+    order: 1, percentage: 0, tasks: {}, taskOrder: [],
+    createdAt: "2026-01-01T10:00:00.000Z", updatedAt: "2026-01-01T10:00:00.000Z",
+} satisfies Todo;
 
 /* A Context-mock ÁLLANDÓ objektumot adjon vissza: a komponensek effektjei a
    handleAxios azonosságára vannak felfüggesztve, így egy rendernként újra
@@ -19,13 +37,13 @@ const TODO = {
 /* A `token` a mockban is szerepel: a leváláskori mentés ezt zárványolja, és
    EXPLICIT ötödik argumentumként adja át a handleAxios-nak (kijelentkezéskor az
    élő token már törölve van). Az alábbi teszt épp ezt az átadást rögzíti. */
-const {handleAxios, auth, TEST_TOKEN} = vi.hoisted(() => {
-    const fn = vi.fn();
-    const token = "teszt-token";
-    return {handleAxios: fn, TEST_TOKEN: token, auth: {isLoggedIn: true, handleAxios: fn, token}};
+const TEST_TOKEN = "teszt-token";
+const {auth, handleAxios} = await vi.hoisted(async () => {
+    const {mockAuth} = await import("../../test/mockAuth");
+    return mockAuth({isLoggedIn: true, token: "teszt-token"});
 });
 
-vi.mock("../../contexts/auth-context", () => ({useAuth: () => auth}));
+vi.mock(import("../../contexts/auth-context"), () => ({useAuth: () => auth}));
 
 /* A to-do szerkesztőjéhez KELL egy létező kategória: a kategória-legördülő ebből
    a propból tölt, és a tesztek közül több épp a választását vizsgálja. Az utat a
@@ -33,7 +51,7 @@ vi.mock("../../contexts/auth-context", () => ({useAuth: () => auth}));
 const renderRoutes = () => renderApp(undefined, {categories: ["otthon"]});
 
 // A kártya színe a szegély-osztályból olvasható ki ("border-danger").
-const cardColor = () => [...document.querySelector("form").classList]
+const cardColor = () => [...requireElement("form", HTMLFormElement).classList]
     .find((c) => c.startsWith("border-") && c !== "border-2");
 
 /* A jsdom nem ad valódi canvas-t; a fieldOf a placeholder szélességét
@@ -41,17 +59,20 @@ const cardColor = () => [...document.querySelector("form").classList]
    a pontos szélesség itt nem számít, mert a buborék MEGJELENÉSÉT vizsgáljuk, nem
    a pixelpozícióját (azt élőben, headless renderrel néztük). */
 beforeAll(() => {
-    HTMLCanvasElement.prototype.getContext = () => ({font: "", measureText: () => ({width: 10})});
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
+        value: () => ({font: "", measureText: () => ({width: 10})}),
+        configurable: true,
+    });
 });
 
 beforeEach(() => {
     window.history.pushState({}, "", "/");
     handleAxios.mockReset();
     handleAxios.mockImplementation((url, data, then) => {
-        if (url === "/to-dos/id") then({data: TODO});
-        else if (url === "/to-dos/last/order") then({data: 3});
-        else if (url === "/to-dos") then({data: [TODO]});
-        else then({status: 200, data: {}});
+        if (url === "/to-dos/id") then(axiosResponse(TODO));
+        else if (url === "/to-dos/last/order") then(axiosResponse(3));
+        else if (url === "/to-dos") then(axiosResponse([TODO]));
+        else then(axiosResponse({}));
         return Promise.resolve();
     });
 });
@@ -82,7 +103,7 @@ describe("Save útvonalai", () => {
         await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
 
         // Onnan a navbar "+" gombjával az új to-do űrlapra.
-        await userEvent.click(document.querySelector('[data-icon="plus"]'));
+        await userEvent.click(requireElement('[data-icon="plus"]', SVGSVGElement));
 
         await waitFor(() => expect(window.location.pathname).toBe("/to-dos/create"));
         expect(screen.getByPlaceholderText("Cím")).toHaveValue("");
@@ -94,9 +115,9 @@ describe("Save útvonalai", () => {
         // spinneren, mert a setIsLoading(false) a betöltött adathoz kötött.
         handleAxios.mockImplementation((url, data, then, catchError) => {
             if (url === "/to-dos/id") catchError({message: "timeout of 15000ms exceeded"});
-            else if (url === "/to-dos/last/order") then({data: 3});
-            else if (url === "/to-dos") then({data: [TODO]});
-            else then({status: 200, data: {}});
+            else if (url === "/to-dos/last/order") then(axiosResponse(3));
+            else if (url === "/to-dos") then(axiosResponse([TODO]));
+            else then(axiosResponse({}));
             return Promise.resolve();
         });
         renderRoutes();
@@ -221,10 +242,10 @@ describe("Szerkesztőből kilépés célja", () => {
     it("update mentése a szűrt nézetbe tér vissza, ahonnan indult (nem a főoldalra)", async () => {
         // A szűrt kategória-nézet is a to-dót adja, hogy legyen mire kattintani.
         handleAxios.mockImplementation((url, data, then) => {
-            if (url === "/to-dos/id") then({data: TODO});
-            else if (url === "/to-dos/last/order") then({data: 3});
-            else if (url === "/to-dos/category") then({data: [TODO]});
-            else then({status: 200, data: {}});
+            if (url === "/to-dos/id") then(axiosResponse(TODO));
+            else if (url === "/to-dos/last/order") then(axiosResponse(3));
+            else if (url === "/to-dos/category") then(axiosResponse([TODO]));
+            else then(axiosResponse({}));
             return Promise.resolve();
         });
         window.history.pushState({}, "", "/to-dos/category/otthon");
@@ -336,7 +357,7 @@ describe("Save — autosave tétlenség után", () => {
             renderRoutes();
             // A betöltés (handleAxios → setState) lefuttatása a hamis órán.
             await act(async () => { await vi.advanceTimersByTimeAsync(0); });
-            fireEvent.change(document.querySelector("#createColumn"), {target: {value: "Módosított cím"}});
+            fireEvent.change(requireElement("#createColumn", HTMLInputElement), {target: {value: "Módosított cím"}});
             handleAxios.mockClear();
 
             // 10 perc tétlenség (közben SEMMI aktivitás) → az autosave elsül.
@@ -357,7 +378,7 @@ describe("Save — autosave tétlenség után", () => {
             window.history.pushState({}, "", "/to-dos/update/todo-1");
             renderRoutes();
             await act(async () => { await vi.advanceTimersByTimeAsync(0); });
-            fireEvent.change(document.querySelector("#createColumn"), {target: {value: "Módosított cím"}});
+            fireEvent.change(requireElement("#createColumn", HTMLInputElement), {target: {value: "Módosított cím"}});
             handleAxios.mockClear();
 
             // 9 perc tétlenség, egy billentyű, majd újabb 9 perc — összesen 18 perc, de
@@ -424,9 +445,9 @@ describe("Save — a leváláskori mentés zárványolt tokennel megy", () => {
    elemet jelent (/to-dos/last/order → 3). */
 describe("Save — a sorszám-választó felső korlátja", () => {
     // A stepper száma a tooltip-horgonyon ül; a + gomb a Bootstrap-ikon.
-    const orderValue = () => document.querySelector('[data-tooltip-id="order-tooltip"]').textContent;
+    const orderValue = () => requireElement('[data-tooltip-id="order-tooltip"]', HTMLElement).textContent;
     const stepUpToLimit = async () => {
-        const plus = document.querySelector(".bi-plus-circle");
+        const plus = requireElement(".bi-plus-circle", SVGSVGElement);
         fireEvent.mouseDown(plus);
         // Bőven több idő, mint amennyi a határig lépéshez kell — a stepper megáll a maxon.
         await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
@@ -480,12 +501,14 @@ describe("Save — versenyhelyzet a betöltésben", () => {
        többi végpont (sorszám, lista) marad automatikus, különben a szerkesztő a
        betöltőn ragadna. */
     const capturePendingLoads = () => {
-        const pending = [];
+        /* A típus kimondja, mit tart a tömb: a kért to-do azonosítóját és azt a
+           visszahívást, ami MAJD a to-dót kapja. */
+        const pending: {id: string; then: (response: AxiosResponse<Todo>) => void}[] = [];
         handleAxios.mockImplementation((url, data, then) => {
-            if (url === "/to-dos/id") pending.push({id: data.id, then});
-            else if (url === "/to-dos/last/order") then({data: 3});
-            else if (url === "/to-dos") then({data: [TODO]});
-            else then({status: 200, data: {}});
+            if (url === "/to-dos/id") pending.push({id: idOf(data), then});
+            else if (url === "/to-dos/last/order") then(axiosResponse(3));
+            else if (url === "/to-dos") then(axiosResponse([TODO]));
+            else then(axiosResponse({}));
             return Promise.resolve();
         });
         return pending;
@@ -513,10 +536,10 @@ describe("Save — versenyhelyzet a betöltésben", () => {
         const pending = await openTwoEditorsAndGoBack();
 
         // Előbb a FRISS (todo-1) válasza érkezik meg, és csak utána a lejárt todo-2-é.
-        act(() => pending[1].then({data: {...TODO, _id: "todo-1", title: "Friss to-do"}}));
-        act(() => pending[0].then({data: {
+        act(() => pending[1].then(axiosResponse({...TODO, _id: "todo-1", title: "Friss to-do"})));
+        act(() => pending[0].then(axiosResponse({
             ...TODO, _id: "todo-2", title: "Lejárt to-do", color: "success", category: "munka",
-        }}));
+        })));
 
         await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Friss to-do"));
         // A lejárt válasz sem a kategóriát, sem a színt nem hozta magával.
@@ -527,10 +550,12 @@ describe("Save — versenyhelyzet a betöltésben", () => {
     it("a lejárt :id KÉSVE érkező HIBÁJA nem rángatja ki a szerkesztőből", async () => {
         const pending = await openTwoEditorsAndGoBack();
         // A hiba-ág a NEGYEDIK argumentum (a sikeres a harmadik).
-        const staleError = handleAxios.mock.calls
-            .find((call) => call[0] === "/to-dos/id" && call[1].id === "todo-2")[3];
+        const staleCall = handleAxios.mock.calls
+            .find((call) => call[0] === "/to-dos/id" && idOf(call[1]) === "todo-2");
+        if (!staleCall) throw new Error("nem indult lekérés a todo-2-re");
+        const staleError = staleCall[3];
 
-        act(() => pending[1].then({data: {...TODO, _id: "todo-1", title: "Friss to-do"}}));
+        act(() => pending[1].then(axiosResponse({...TODO, _id: "todo-1", title: "Friss to-do"})));
         await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Friss to-do"));
         // A lejárt kérés elszáll (pl. timeout) — az ő hiba-ága a listára navigálna.
         act(() => staleError({message: "timeout of 15000ms exceeded"}));

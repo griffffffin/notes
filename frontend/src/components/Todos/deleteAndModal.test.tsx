@@ -3,19 +3,25 @@ import userEvent from "@testing-library/user-event";
 import {MemoryRouter, Route, Routes} from "react-router-dom";
 import {beforeAll, beforeEach, describe, expect, it, vi} from "vitest";
 import DeleteAndModal from "./deleteAndModal";
+import {requireElement} from "../../test/dom";
+import {axiosResponse} from "../../test/axiosResponse";
 
 /* A jsdom nem implementálja a <dialog> showModal()/close() metódusait — a
    megerősítő modál ezekre épül —, ezért a prototípuson pótoljuk (mint a
    modal.test.jsx). Csak az `open` állítását modellezzük; a natív top-layer a
    böngészőé, a teszt a törlés-LOGIKÁT vizsgálja. */
 beforeAll(() => {
-    HTMLDialogElement.prototype.showModal = vi.fn(function () { this.open = true; });
-    HTMLDialogElement.prototype.close = vi.fn(function () { this.open = false; });
+    HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) { this.open = true; });
+    HTMLDialogElement.prototype.close = vi.fn(function (this: HTMLDialogElement) { this.open = false; });
 });
 
-// Állandó handleAxios (a komponens nem függ tőle effektben, de a mock stabil legyen).
-const {handleAxios} = vi.hoisted(() => ({handleAxios: vi.fn()}));
-vi.mock("../../contexts/auth-context", () => ({useAuth: () => ({handleAxios})}));
+/* Állandó handleAxios (a komponens nem függ tőle effektben, de a mock stabil
+   legyen). A pótlék a közös segédből jön, tehát a TELJES Auth alakot adja. */
+const {auth, handleAxios} = await vi.hoisted(async () => {
+    const {mockAuth} = await import("../../test/mockAuth");
+    return mockAuth({isLoggedIn: true});
+});
+vi.mock(import("../../contexts/auth-context"), () => ({useAuth: () => auth}));
 
 /* A DeleteAndModal a szerkesztőben él; a törlés utáni navigációt egy valódi
    route-táblával figyeljük: a /to-dos route egy jelző-szöveget render. */
@@ -34,7 +40,7 @@ const renderDelete = () => render(
 beforeEach(() => {
     handleAxios.mockReset();
     handleAxios.mockImplementation((url, data, then) => {
-        then({status: 200});
+        then(axiosResponse({}));
         return Promise.resolve();
     });
 });
@@ -46,7 +52,7 @@ describe("Törlés folyamata", () => {
         // A kártya Törlés gombja (az első ilyen) megnyitja a megerősítő modált.
         await userEvent.click(screen.getAllByRole("button", {name: "Törlés"})[0]);
         // A modálon belüli Törlés erősíti meg a műveletet.
-        const modalBody = document.querySelector(".modal-body");
+        const modalBody = requireElement(".modal-body", HTMLElement);
         await userEvent.click(within(modalBody).getByRole("button", {name: "Törlés"}));
 
         expect(handleAxios).toHaveBeenCalledWith("/to-dos/delete", {id: "todo-9"},
@@ -60,7 +66,7 @@ describe("Törlés folyamata", () => {
 
         await userEvent.click(screen.getAllByRole("button", {name: "Törlés"})[0]);
         // A modálon belüli Vissza elveti a törlést.
-        const modalBody = document.querySelector(".modal-body");
+        const modalBody = requireElement(".modal-body", HTMLElement);
         await userEvent.click(within(modalBody).getByRole("button", {name: "Vissza"}));
 
         // Egyetlen törlő kérés sem ment ki, és a szerkesztőben maradtunk.

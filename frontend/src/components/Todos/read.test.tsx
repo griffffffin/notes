@@ -1,46 +1,87 @@
 import {act, render, screen, waitFor} from "@testing-library/react";
+import {memo} from "react";
 import {CookiesProvider} from "react-cookie";
 import {MemoryRouter} from "react-router-dom";
 import {beforeEach, describe, expect, it, vi} from "vitest";
 import Read from "./read";
 import {ThemeProvider} from "../../contexts/theme";
 import {renderRoutes} from "../../test/renderRoutes";
+import {axiosResponse} from "../../test/axiosResponse";
+import {dragEndEvent, dragStartEvent} from "../../test/dndEvents";
+import {requireElement} from "../../test/dom";
+import type {DragEndEvent, DragStartEvent} from "@dnd-kit/core";
+import type {AxiosResponse} from "axios";
+import type {Todo} from "../../types/api";
 
 /* A Context-mock ÁLLANDÓ objektumot adjon vissza: a komponens effektje a
    handleAxios azonosságára van felfüggesztve, így egy rendernként újra gyártott
-   függvény végtelen újratöltő ciklust okozna. */
-const {handleAxios, auth, linkClicked} = vi.hoisted(() => {
-    const fn = vi.fn();
-    return {handleAxios: fn, auth: {isLoggedIn: true, handleAxios: fn}, linkClicked: vi.fn()};
+   függvény végtelen újratöltő ciklust okozna. A pótlék a közös segédből jön
+   (test/mockAuth.ts), tehát a TELJES Auth alakot adja — a korábbi kézzel írt
+   `{isLoggedIn, handleAxios}`-ból hiányzott a token, a login és a logout. */
+const {auth, handleAxios} = await vi.hoisted(async () => {
+    const {mockAuth} = await import("../../test/mockAuth");
+    return mockAuth({isLoggedIn: true});
 });
-vi.mock("../../contexts/auth-context", () => ({useAuth: () => auth}));
+const {linkClicked} = vi.hoisted(() => ({linkClicked: vi.fn()}));
+
+vi.mock(import("../../contexts/auth-context"), () => ({useAuth: () => auth}));
 
 /* Valódi húzást jsdom-ban nem tudunk lejátszani: nincs benne elrendezés, tehát
    a dnd-kit nem tudja kiszámolni, mi fölött járunk. A húzás VÉGE viszont egy
    sima függvényhívás (onDragEnd), amit a könyvtár ad át — ezt kapjuk el, és
-   hívjuk közvetlenül. A DndContext többi részét nem bántjuk. */
-const dnd = vi.hoisted(() => ({endDrag: null, startDrag: null}));
-vi.mock("@dnd-kit/core", async (importOriginal) => {
+   hívjuk közvetlenül. A DndContext többi részét nem bántjuk.
+
+   A pótlék `memo`-val készül (a valódi DndContext `NamedExoticComponent`, egy
+   nyers függvénykomponens nem áll a helyére), a `vi.mock` pedig import()-tal veszi
+   át a modult — enélkül az `importOriginal()` `unknown`-t adna, és a `...actual`
+   szórás sem fordulna. */
+const dnd = vi.hoisted(() => ({
+    endDrag: null as ((event: DragEndEvent) => void) | null,
+    startDrag: null as ((event: DragStartEvent) => void) | null,
+}));
+
+vi.mock(import("@dnd-kit/core"), async (importOriginal) => {
     const actual = await importOriginal();
     return {
         ...actual,
-        DndContext: ({children, onDragEnd, onDragStart}) => {
-            dnd.endDrag = onDragEnd;
-            dnd.startDrag = onDragStart;
+        DndContext: memo(({children, onDragEnd, onDragStart}) => {
+            dnd.endDrag = onDragEnd ?? null;
+            dnd.startDrag = onDragStart ?? null;
             return children;
-        },
+        }),
     };
 });
 
 
+/* A kérés TÖRZSE a kém felől `unknown` (bármit küldhet a hívó), a szűrt
+   lekérésnél viszont a szűrő nevére van szükségünk. Ezt VALÓDI vizsgálattal
+   olvassuk ki — `as`-szal csak állítanánk, hogy ott van. Ha a szűrt lekérés
+   egyszer más alakú törzset küldene, ez azonnal, beszédesen bukik. */
+const filterOf = (data: unknown): string => {
+    if (typeof data === "object" && data !== null && "category" in data
+        && typeof data.category === "string") return data.category;
+    throw new Error(`a szűrt lekérés törzsében nincs category: ${JSON.stringify(data)}`);
+};
+
 /* A sorszámok SZÁNDÉKOSAN nem 1,2,3: egy szűrt nézetben (kategória/szín) a
    lista részhalmaz, tehát a sorszámok hézagosak. A húzásnak ott is helyesen
    kell működnie — épp ezért nem az indexet küldjük a szervernek. */
+/* A közös mezők, amiket a szerver MINDEN to-dóval küld (tulajdonos, időbélyegek),
+   és amiket ez a teszt nem vizsgál. A fixtúrából eddig hiányoztak — a válasz
+   viszont sosem jön nélkülük, és a mai kód bármikor hozzájuk nyúlhatna. */
+const TODO_BASE = {
+    user: "u-1", percentage: 0, tasks: {}, taskOrder: [],
+    createdAt: "2026-01-01T10:00:00.000Z", updatedAt: "2026-01-01T10:00:00.000Z",
+};
+
 const TODOS = [
-    {_id: "a", title: "Alma", color: "warning", category: "x", order: 2, percentage: 0, tasks: {}, taskOrder: []},
-    {_id: "b", title: "Banán", color: "warning", category: "x", order: 5, percentage: 0, tasks: {}, taskOrder: []},
-    {_id: "c", title: "Cékla", color: "warning", category: "x", order: 9, percentage: 0, tasks: {}, taskOrder: []},
-];
+    {...TODO_BASE, _id: "a", title: "Alma", color: "warning", category: "x", order: 2},
+    {...TODO_BASE, _id: "b", title: "Banán", color: "warning", category: "x", order: 5},
+    {...TODO_BASE, _id: "c", title: "Cékla", color: "warning", category: "x", order: 9},
+    /* A `satisfies` a szerződéshez méri a fixtúrát — egy hiányzó vagy elgépelt
+       mező innentől fordítási hiba —, de megtartja a literál típusokat, így a
+       "warning" a szűk TodoColor unióhoz illeszkedik, nem sima string-gé szürkül. */
+] satisfies Todo[];
 
 const renderRead = () => render(
     <CookiesProvider>
@@ -54,8 +95,8 @@ beforeEach(() => {
     linkClicked.mockClear();
     handleAxios.mockReset();
     handleAxios.mockImplementation((url, data, then) => {
-        if (url === "/to-dos") then({data: TODOS});
-        else then({status: 200, data: {}});
+        if (url === "/to-dos") then(axiosResponse(TODOS));
+        else then(axiosResponse({}));
         return Promise.resolve();
     });
 });
@@ -77,11 +118,13 @@ describe("Read", () => {
     /* A húzás vége. A "nem küld" állításokat CSAK a küldő ággal együtt szabad
        hinni: ha a mentés egyáltalán nem működne, az alábbi két teszt attól is
        zöld lenne. Ezért a sorrend: előbb a fő út. */
-    const dropOn = async (activeId, overId) => {
+    const dropOn = async (activeId: string, overId: string | null) => {
         renderRead();
         await screen.findByText("Alma");
         handleAxios.mockClear();   // a lista betöltése is egy hívás volt
-        act(() => dnd.endDrag({active: {id: activeId}, over: overId && {id: overId}}));
+        if (!dnd.endDrag) throw new Error("a DndContext-pótlék nem kapott onDragEnd-et");
+        const endDrag = dnd.endDrag;
+        act(() => endDrag(dragEndEvent(activeId, overId)));
     };
 
     it("másik kártyára húzva a CÉLKÁRTYA sorszámát küldi, nem az indexét", async () => {
@@ -109,9 +152,11 @@ describe("Read", () => {
        fut, a react-router nem navigál. A natív oldalbetöltés elleni védelmet
        (preventDefault) csak ott állítjuk, ahol már tudjuk, hogy a Link kezelője
        nem futott — ott a hívás csak a mienk lehetett. */
-    const clickOn = (text) => {
+    const clickOn = (text: string) => {
         const event = new MouseEvent("click", {bubbles: true, cancelable: true});
-        screen.getByText(text).closest("a").dispatchEvent(event);
+        const link = screen.getByText(text).closest("a");
+        if (!link) throw new Error(`a(z) "${text}" szöveg nem linkben van`);
+        link.dispatchEvent(event);
         return event;
     };
 
@@ -125,7 +170,9 @@ describe("Read", () => {
     it("a húzást lezáró kattintás nem navigál el sehova", async () => {
         renderRead();
         await screen.findByText("Alma");
-        act(() => dnd.startDrag());
+        const startDrag = dnd.startDrag;
+        if (!startDrag) throw new Error("a DndContext-pótlék nem kapott onDragStart-ot");
+        act(() => startDrag(dragStartEvent("a")));
         const event = clickOn("Alma");
         expect(linkClicked).not.toHaveBeenCalled();      // a react-router nem visz el
         expect(event.defaultPrevented).toBe(true);       // és a böngésző sem tölt újra
@@ -134,7 +181,9 @@ describe("Read", () => {
     it("a húzás utáni MÁSODIK kattintás már megint átmegy", async () => {
         renderRead();
         await screen.findByText("Alma");
-        act(() => dnd.startDrag());
+        const startDrag = dnd.startDrag;
+        if (!startDrag) throw new Error("a DndContext-pótlék nem kapott onDragStart-ot");
+        act(() => startDrag(dragStartEvent("a")));
         clickOn("Alma");                    // ezt nyeli el
         clickOn("Alma");
         expect(linkClicked).toHaveBeenCalledTimes(1);
@@ -148,7 +197,7 @@ describe("Read", () => {
     it("a rács megkapja a vízszintes levágást vezérlő osztályt", async () => {
         renderRead();
         await screen.findByText("Alma");
-        const grid = document.querySelector(".todo-grid");
+        const grid = requireElement(".todo-grid", HTMLElement);
         expect(grid).toBeInTheDocument();
         // Ugyanazon a dobozon kell lennie, amiben a kártyák ülnek.
         expect(grid.querySelectorAll("[aria-roledescription]").length).toBe(3);
@@ -164,7 +213,7 @@ describe("Szűrő az URL-ből", () => {
        örökre pörgött). */
     it("/to-dos/category/:name a dekódolt name-mel szűrt kérést küld", async () => {
         handleAxios.mockImplementation((url, data, then) => {
-            then({data: url === "/to-dos" ? TODOS : []});
+            then(axiosResponse(url === "/to-dos" ? TODOS : []));
             return Promise.resolve();
         });
         /* A %20 a szóköz, a %C5%91 az "ő" kódja: a Link encodeURIComponenttel
@@ -194,7 +243,7 @@ describe("Szűrő az URL-ből", () => {
         // A kategória-szűrő üres listát ad (nincs már ilyen kategóriájú elem), a
         // főlista viszont a to-dókat.
         handleAxios.mockImplementation((url, data, then) => {
-            then({data: url === "/to-dos" ? TODOS : []});
+            then(axiosResponse(url === "/to-dos" ? TODOS : []));
             return Promise.resolve();
         });
         renderRoutes("/to-dos/category/otthon");
@@ -206,7 +255,7 @@ describe("Szűrő az URL-ből", () => {
     it("ÜRES FŐlista nem irányít át, marad a /to-dos-n (legitim üres állapot)", async () => {
         // Egyetlen to-do sincs — ez legitim "nincs teendő", nem zsákutca.
         handleAxios.mockImplementation((url, data, then) => {
-            then({data: []});
+            then(axiosResponse([]));
             return Promise.resolve();
         });
         renderRoutes("/to-dos");
@@ -244,11 +293,14 @@ describe("Read — versenyhelyzet a lista betöltésében", () => {
     /* A szűrt lekérések callbackjeit gyűjti ahelyett, hogy válaszolna; a főlista
        marad automatikus (arra esik vissza az üres szűrt nézet átirányítása). */
     const capturePendingLoads = () => {
-        const pending = [];
+        /* A gyűjtő-tömb típusa kimondja, mit tart: a szűrő nevét és azt a
+           visszahívást, ami MAJD a szűrt to-do-listát kapja. Így a lentebbi kézi
+           válasz-elsütések a valódi szerződéshez mérve fordulnak. */
+        const pending: {category: string; then: (response: AxiosResponse<Todo[]>) => void}[] = [];
         handleAxios.mockImplementation((url, data, then) => {
-            if (url === "/to-dos/category") pending.push({category: data.category, then});
-            else if (url === "/to-dos") then({data: TODOS});
-            else then({status: 200, data: {}});
+            if (url === "/to-dos/category") pending.push({category: filterOf(data), then});
+            else if (url === "/to-dos") then(axiosResponse(TODOS));
+            else then(axiosResponse({}));
             return Promise.resolve();
         });
         return pending;
@@ -273,9 +325,9 @@ describe("Read — versenyhelyzet a lista betöltésében", () => {
         const pending = await openTwoFiltersAndGoBack();
 
         // Előbb a FRISS ("munka") válasza érkezik meg, és csak utána a lejárt "otthon"-é.
-        act(() => pending[1].then({data: WORK}));
+        act(() => pending[1].then(axiosResponse(WORK)));
         expect(await screen.findByText("Munkahelyi teendő")).toBeVisible();
-        act(() => pending[0].then({data: HOME}));
+        act(() => pending[0].then(axiosResponse(HOME)));
 
         expect(screen.getByText("Munkahelyi teendő")).toBeVisible();
         // Ez a "szellem": a lejárt szűrő eleme nem jelenhet meg a friss nézetben.
@@ -285,10 +337,12 @@ describe("Read — versenyhelyzet a lista betöltésében", () => {
     it("a lejárt szűrő KÉSVE érkező HIBÁJA nem irányít el a friss nézetből", async () => {
         const pending = await openTwoFiltersAndGoBack();
         // A hiba-ág a NEGYEDIK argumentum (a sikeres a harmadik).
-        const staleError = handleAxios.mock.calls
-            .find((call) => call[0] === "/to-dos/category" && call[1].category === "otthon")[3];
+        const staleCall = handleAxios.mock.calls
+            .find((call) => call[0] === "/to-dos/category" && filterOf(call[1]) === "otthon");
+        if (!staleCall) throw new Error("nem indult lekérés az 'otthon' szűrőre");
+        const staleError = staleCall[3];
 
-        act(() => pending[1].then({data: WORK}));
+        act(() => pending[1].then(axiosResponse(WORK)));
         expect(await screen.findByText("Munkahelyi teendő")).toBeVisible();
         /* A hiba-ág üres listát tesz ki (hogy a betöltő ne pörögjön örökké) — egy
            SZŰRT nézetben viszont az üres lista átirányítást jelent a főlistára.
