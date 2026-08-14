@@ -51,8 +51,17 @@
     /* Globális típusok, amiket sehol nem importálunk, mégis kellenek:
        vite/client — az `import.meta.env` (VITE_BACKEND) típusa;
        vitest/globals — a `describe`/`test`/`expect` a tesztfájlokban (a
-       vite.config.js `globals: true` beállítása miatt nem importáljuk őket). */
-    "types": ["vite/client", "vitest/globals"]
+       vite.config.js `globals: true` beállítása miatt nem importáljuk őket);
+       node — a `node:fs`/`node:path`/`node:url` MODUL-deklarációi. Ezeket a
+       @types/node hozza, de a lista jelenléte kikapcsolja az automatikus
+       betöltést, ezért itt is meg kell nevezni. Egyetlen fájlnak kell (a
+       todoColors.test.ts a backend forrásából olvassa ki a színlistát —
+       szerződés-teszt), a tesztek pedig Node alatt futnak, nem böngészőben.
+       Az ára, hogy a Node globálisai (process, Buffer) a böngészőnek szánt
+       kódban is FORDULNAK: ott nem hiba, hanem hangos futásidejű összeomlás
+       lenne belőlük — a környezet-specifikus értékek helye továbbra is az
+       `import.meta.env` (l. a migrációs buktatók a CLAUDE.md-ben). */
+    "types": ["vite/client", "vitest/globals", "node"]
   },
   "include": ["src"]
 }
