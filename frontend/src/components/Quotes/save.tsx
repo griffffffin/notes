@@ -12,6 +12,7 @@ import {useAuth} from "../../contexts/auth-context";
 import {useTheme} from "../../contexts/theme-context";
 import {useQuoteAccent} from "./useQuoteAccent";
 import {logRequestError} from "../../log";
+import {ENDPOINTS} from "../../endpoints";
 import {fieldAnchor, type FieldAnchor} from "../Editor/fieldAnchor";
 import ValidationTooltip from "../Editor/validationTooltip";
 import {useEscapeSubmit} from "../Editor/useEscapeSubmit";
@@ -101,7 +102,7 @@ export default function QuoteSave(props: SaveProps) {
     const handledBlockRef = useRef(false);
 
     const isUpdate = Boolean(props.isUpdate);
-    const url = isUpdate ? "/quotes/update" : "/quotes/create";
+    const url = isUpdate ? ENDPOINTS.quoteUpdate : ENDPOINTS.quoteCreate;
     /* Az azonosító az URL /update/:id szegmenséből jön. A route-ban a :id kötelező,
        tehát update-nél mindig megvan; a csupasz /update-et a "*"-ág fogja el, ide
        nem jut. Create-nél nincs szerkesztett elem: null. */
@@ -171,7 +172,7 @@ export default function QuoteSave(props: SaveProps) {
             // A szerkesztő betöltése a HITELESÍTETT /quotes/edit-ről megy (nem a
             // publikus /quotes/id-ról): innen jön a sorszám is, tulajdonos-
             // ellenőrzés mögött. Idegen/törölt idézetnél 403 → leaveEditor.
-            handleAxios<QuoteForEdit>("/quotes/edit", {id: quoteId}, (response) => {
+            handleAxios<QuoteForEdit>(ENDPOINTS.quoteForEdit, {id: quoteId}, (response) => {
                 if (!active) return;
                 const q = response.data;
                 setQuote(q.quote);
@@ -203,7 +204,7 @@ export default function QuoteSave(props: SaveProps) {
            térjen el a to-dótól): create-nél az idézetek száma (N), update-nél N-1 —
            a szerkesztett elem a saját helyén már bent van, tehát a többiek közé
            tolható. Üres listánál 0. */
-        handleAxios<number>("/quotes/last/order", {}, (response) => {
+        handleAxios<number>(ENDPOINTS.quoteLastOrder, {}, (response) => {
             if (!active) return;
             const last = response.data;
             setLastOrder(last === 0 ? 0 : (isUpdate ? last - 1 : last));
@@ -544,7 +545,7 @@ export default function QuoteSave(props: SaveProps) {
 
                     {isUpdate &&
                         <DeleteAndModal handleLinkClicked={props.handleLinkClicked} color={color}
-                                        deleteUrl="/quotes/delete" listUrl="/quotes" itemId={quoteId}
+                                        deleteUrl={ENDPOINTS.quoteDelete} listUrl="/quotes" itemId={quoteId}
                                         onDelete={() => { leftViaForm.current = true; }}/>}
                 </div>
             </div>

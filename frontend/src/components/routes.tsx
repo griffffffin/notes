@@ -12,6 +12,8 @@ import QuoteSave from "./Quotes/save";
 import QuotePublic from "./Quotes/public";
 import {lastSectionPath} from "./Navbar/sections";
 import {useAuth} from "../contexts/auth-context";
+import {ENDPOINTS} from "../endpoints";
+import type {Endpoint} from "../endpoints";
 import type {CategoryAndColorGroupProps} from "./Link/categoryAndColorGroup";
 
 /* Miért DATA ROUTER (createBrowserRouter + RouterProvider) a régi deklaratív
@@ -88,7 +90,10 @@ function AuthLayout() {
 
 /* Vékony wrapperek: a contextből olvassák az App friss propjait, és a meglévő
    oldal-komponenseknek adják tovább — azok interfésze nem változik. */
-function TodosReadRoute({url}: {url: string}) {
+/* Az `url` itt a LEKÉRÉS végpontja (nem a böngésző címe): ugyanaz a lista-nézet
+   szolgálja ki a szűretlen és a szűrt eseteket, csak más végpontról kér. Ezért
+   `Endpoint` a típusa, nem `string`. */
+function TodosReadRoute({url}: {url: Endpoint}) {
     const p = useRoutesProps();
     return <Read url={url} handleLinkClicked={p.handleLinkClicked}/>;
 }
@@ -99,7 +104,7 @@ function TodosSaveRoute({isUpdate}: {isUpdate: boolean}) {
                  categories={p.categories} handleCategoryChange={p.handleCategoryChange}/>;
 }
 
-function QuotesReadRoute({url}: {url: string}) {
+function QuotesReadRoute({url}: {url: Endpoint}) {
     const p = useRoutesProps();
     return <QuoteRead url={url} handleLinkClicked={p.handleLinkClicked}/>;
 }
@@ -125,25 +130,25 @@ const loggedInRoutes = createRoutesFromElements(
             jegyzik meg, melyikben jársz — useRememberSection). A tárolás
             részletei, a kulcs és az alapértelmezés a sections.js-ben, egy helyen. */}
         <Route path="/" element={<Navigate to={lastSectionPath()} replace/>}/>
-        <Route path="/to-dos" element={<TodosReadRoute url="/to-dos"/>}/>
+        <Route path="/to-dos" element={<TodosReadRoute url={ENDPOINTS.todos}/>}/>
         <Route path="/to-dos/create" element={<TodosSaveRoute key="create" isUpdate={false}/>}/>
         {/* A szűrő és a szerkesztendő azonosító az URL-ben, nem a navigációs
             state-ben — így F5/direkt link sem törik el. */}
-        <Route path="/to-dos/category/:name" element={<TodosReadRoute url="/to-dos/category"/>}/>
-        <Route path="/to-dos/color/:name" element={<TodosReadRoute url="/to-dos/color"/>}/>
+        <Route path="/to-dos/category/:name" element={<TodosReadRoute url={ENDPOINTS.todosByCategory}/>}/>
+        <Route path="/to-dos/color/:name" element={<TodosReadRoute url={ENDPOINTS.todosByColor}/>}/>
         <Route path="/to-dos/update/:id" element={<TodosSaveRoute key="update" isUpdate={true}/>}/>
         {/* Idézetek. A lista és a szerző-szűrt nézet ugyanaz a QuoteRead (a url-prop
             dönti, szűr-e); a create és az update ugyanaz a QuoteSave, külön key-vel.
             A statikus /quotes/create és /quotes/update rangban megelőzi a dinamikus
             /quotes/:author-t, így nem ütköznek. */}
-        <Route path="/quotes" element={<QuotesReadRoute url="/quotes"/>}/>
+        <Route path="/quotes" element={<QuotesReadRoute url={ENDPOINTS.quotes}/>}/>
         <Route path="/quotes/create" element={<QuotesSaveRoute key="quote-create" isUpdate={false}/>}/>
         <Route path="/quotes/update/:id" element={<QuotesSaveRoute key="quote-update" isUpdate={true}/>}/>
         {/* A keresés szöveg-módú találata. A statikus "search" szegmens rangban
             megelőzi a dinamikus /quotes/:author-t ÉS a /quotes/:author/:id-t (a
             react-router a statikus szegmenst többre értékeli), ezért nem ütköznek. */}
         <Route path="/quotes/search/:term" element={<QuotesSearchRoute/>}/>
-        <Route path="/quotes/:author" element={<QuotesReadRoute url="/quotes/author"/>}/>
+        <Route path="/quotes/:author" element={<QuotesReadRoute url={ENDPOINTS.quotesByAuthor}/>}/>
         {/* Egy megosztott idézet publikus nézete. A bejelentkezett is megnyithatja
             (olvasásra); a kijelentkezett ágban ugyanez a route szerepel. */}
         <Route path="/quotes/:author/:id" element={<QuotePublic/>}/>

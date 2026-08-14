@@ -4,6 +4,7 @@ import AuthorInput from "../Quotes/authorInput";
 import {useAuth} from "../../contexts/auth-context";
 import {useTheme} from "../../contexts/theme-context";
 import {logRequestError} from "../../log";
+import {ENDPOINTS} from "../../endpoints";
 import type {SearchMode} from "../../types/api";
 
 /* A Quotes-navbar keresője (a "+" és a kijelentkezés között, középen). A ghost-
@@ -57,7 +58,7 @@ export default function QuoteSearch(props: QuoteSearchProps) {
         /* A <SearchMode> nem csak megnevezi a választ: a diszkriminált unió miatt a
            `response.data.author` sor CSAK a mode-vizsgálat ága alatt fordul le
            (l. types/api.ts). */
-        handleAxios<SearchMode>("/quotes/search-mode", {term: trimmed}, (response) => {
+        handleAxios<SearchMode>(ENDPOINTS.quoteSearchMode, {term: trimmed}, (response) => {
             props.handleLinkClicked?.();
             if (response.data.mode === "author")
                 navigate("/quotes/" + encodeURIComponent(response.data.author));

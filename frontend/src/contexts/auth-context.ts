@@ -1,6 +1,7 @@
 import {createContext, useContext} from "react";
 import type {AxiosResponse} from "axios";
 import type {AuthToken} from "../types/api";
+import type {Endpoint} from "../endpoints";
 
 /* Az auth megosztható, NEM komponens része: a context és a useAuth hook — külön
    az AuthProvider komponenstől, hogy az auth.tsx csak komponenst exportáljon, és
@@ -14,7 +15,7 @@ import type {AuthToken} from "../types/api";
    értékek helyett típusokra. A hívó mondja meg, milyen adatot VÁR a szervertől, és
    a `then` visszahívása pontosan azt kapja:
 
-       handleAxios<Quote[]>("/quotes", {}, (response) => setQuotes(response.data), …)
+       handleAxios<Quote[]>(ENDPOINTS.quotes, {}, (response) => setQuotes(response.data), …)
                    ^^^^^^^ ettől lesz a response.data Quote[] a callbackben
 
    Innentől egy `response.data.map((q) => q.qoute)` elgépelés FORDÍTÁSKOR bukik, nem
@@ -32,7 +33,11 @@ import type {AuthToken} from "../types/api";
    Az `authToken` OPCIONÁLIS felülírás; az indoka az auth.tsx-ben van, ahol a
    kijelentkezéskori mentés a már törölt élő token helyett a zárványolt régit adja. */
 export type HandleAxios = <T = unknown>(
-    url: string,
+    /* NEM `string`: csak a ténylegesen létező végpontok valamelyike (l.
+       endpoints.ts). Egy kézzel odaírt vagy elgépelt útvonal így fordítási hiba,
+       nem futásidejű 404 — a hívó oldalán ez a szűkítés az egyetlen olyan
+       ellenőrzés, ami a kérés ELINDULÁSA előtt hat. */
+    url: Endpoint,
     data: unknown,
     then: (response: AxiosResponse<T>) => void,
     catchError: (error: unknown) => void,

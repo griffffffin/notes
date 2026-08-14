@@ -6,6 +6,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import Routes from "./routes";
 import {useAuth} from "../contexts/auth-context";
+import {ENDPOINTS} from "../endpoints";
 import {logRequestError} from "../log";
 import type {Todo} from "../types/api";
 
@@ -58,7 +59,7 @@ export default function App() {
         // Kijelentkezve nincs mit lekérni — enélkül a bejelentkező képernyőn is
         // elindulna egy kérés, ami 401-gyel bukna.
         if (!isLoggedIn) return;
-        handleAxios<Todo["category"][]>("/to-dos/categories", {},
+        handleAxios<Todo["category"][]>(ENDPOINTS.todoCategories, {},
             (response) => {
                 if (requestId === latestCategoryRequest.current) setCategories(response.data);
             },

@@ -1,5 +1,6 @@
 import {useSortableCards} from "./useSortableCards";
 import type {SortableCard} from "./useSortableCards";
+import type {Endpoint} from "../../endpoints";
 import {useAuth} from "../../contexts/auth-context";
 import {useRememberSection} from "../Navbar/useRememberSection";
 
@@ -24,9 +25,12 @@ import {useRememberSection} from "../Navbar/useRememberSection";
    egyikről sem tud semmit — csak annyit, hogy van `_id`-je és `order`-e. */
 export function useSectionList<T extends SortableCard>(
     {url, filter, reorderUrl, section}: {
-        url: string;
+        url: Endpoint;
         filter?: Record<string, unknown> | null;
-        reorderUrl: string;
+        reorderUrl: Endpoint;
+        /* A `section` NEM végpont, hanem NAVIGÁCIÓS út: a szekció gyökere, amit a
+           useRememberSection megjegyez, és ahová a gyökér-átirányítás visszatér.
+           Ezért marad `string` — a két fogalom szándékosan külön (l. endpoints.ts). */
         section: string;
     },
 ) {

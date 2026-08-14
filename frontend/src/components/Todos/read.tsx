@@ -3,13 +3,15 @@ import {useParams} from "react-router-dom";
 import TodoCard from "./card";
 import {useSectionList} from "../CardList/useSectionList";
 import CardListView from "../CardList/CardListView";
+import {ENDPOINTS} from "../../endpoints";
+import type {Endpoint} from "../../endpoints";
 import type {MouseEventHandler} from "react";
 import type {Todo} from "../../types/api";
 
 /* Ugyanaz a komponens szolgálja ki a szűretlen listát és a szűrt nézeteket — a
-   különbség az `url`-ben van (/to-dos, /to-dos/category, /to-dos/color). */
+   különbség az `url`-ben van (a to-do lista, a kategória- és a szín-szűrt végpont). */
 type TodoReadProps = {
-    url: string;
+    url: Endpoint;
     handleLinkClicked: MouseEventHandler<HTMLAnchorElement>;
 };
 
@@ -27,18 +29,18 @@ export default function Read(props: TodoReadProps) {
        encodeURIComponent-tel kódolják). A csupasz /category (:name nélkül) IDE be
        sem jut: a route-ban a :name kötelező, így az ilyen útvonal a "*"-ágra esik,
        ami a listára irányít — külön komponens-őr itt már nem kell. */
-    const needsFilter = props.url === "/to-dos/category" || props.url === "/to-dos/color";
+    const needsFilter = props.url === ENDPOINTS.todosByCategory || props.url === ENDPOINTS.todosByColor;
     // useMemo, mert az objektum-literál rendernként új referencia lenne, és a hook
     // betöltő effektje függ tőle — memoizálás nélkül minden render újratöltene.
     const filter = useMemo(
-        () => (name != null ? (props.url === "/to-dos/color" ? {color: name} : {category: name}) : null),
+        () => (name != null ? (props.url === ENDPOINTS.todosByColor ? {color: name} : {category: name}) : null),
         [name, props.url],
     );
 
     /* A `<Todo>` mondja meg, MILYEN kártyákat várunk — innen tudja a CardListView
        és a renderCard is, hogy `todo.color`-t és `todo.category`-t olvashat. */
     const {cards, isLoading, grid} = useSectionList<Todo>({
-        url: props.url, filter, reorderUrl: "/to-dos/reorder", section: "/to-dos",
+        url: props.url, filter, reorderUrl: ENDPOINTS.todoReorder, section: "/to-dos",
     });
 
     /* Üres SZŰRT nézet esetén vissza a főlistára (a szűrő kihalt: az utolsó ilyen

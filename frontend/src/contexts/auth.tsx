@@ -6,6 +6,8 @@ import {useCookies} from "react-cookie";
 import {AuthContext} from "./auth-context";
 import type {Auth} from "./auth-context";
 import type {AuthToken} from "../types/api";
+import {ENDPOINTS} from "../endpoints";
+import type {Endpoint} from "../endpoints";
 import {ACTIVITY_EVENTS, IDLE_LOGOUT_MS} from "../idle";
 import {responseStatus} from "../httpError";
 
@@ -77,7 +79,9 @@ export function AuthProvider({children}: {children: ReactNode}) {
        elírás: .tsx fájlban a puszta `<T>` JSX-címkének látszana, a vessző oszlatja
        el a kétértelműséget. */
     const handleAxios = useCallback(<T,>(
-        url: string,
+        // Csak létező végpont adható át (l. endpoints.ts) — a szerződést a
+        // HandleAxios típus mondja ki, ez itt annak a megvalósítása.
+        url: Endpoint,
         data: unknown,
         then: (response: AxiosResponse<T>) => void,
         catchError: (error: unknown) => void,
@@ -112,7 +116,7 @@ export function AuthProvider({children}: {children: ReactNode}) {
             lastActivity.current = Date.now();
             if (Date.now() - lastRefresh.current < REFRESH_EVERY_MS) return;
             lastRefresh.current = Date.now();
-            axios.post<AuthToken>(import.meta.env.VITE_BACKEND + "/refresh", {},
+            axios.post<AuthToken>(import.meta.env.VITE_BACKEND + ENDPOINTS.refresh, {},
                 {headers: {Authorization: "Bearer " + token}})
                 .then((response) => setCookie("user", response.data, {path: "/"}))
                 /* A néma bukás szándékos: ez háttérmunka, amiről a felhasználó

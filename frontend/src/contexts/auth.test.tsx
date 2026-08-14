@@ -6,6 +6,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import {AuthProvider} from "./auth";
 import {useAuth} from "./auth-context";
 import {axiosResponse} from "../test/axiosResponse";
+import {ENDPOINTS} from "../endpoints";
 
 /* Az axios AUTOMOCKOLVA: a modul minden exportja kémmé válik, tehát valódi
    hálózat nincs, de az AuthProvider (és benne a handleAxios) a maga teljes
@@ -30,10 +31,10 @@ function AuthProbe() {
             <span data-testid="token">{token ?? "nincs"}</span>
             <button onClick={() => login("uj-token")}>belépés</button>
             <button onClick={logout}>kilépés</button>
-            <button onClick={() => handleAxios("/valami", {a: 1}, () => {}, () => {})}>kérés</button>
+            <button onClick={() => handleAxios(ENDPOINTS.todos, {a: 1}, () => {}, () => {})}>kérés</button>
             {/* Explicit token-felülírással — ezt használja a leváláskori (kijelentkezés
                 utáni) mentés, amikor az élő token már törlődött. */}
-            <button onClick={() => handleAxios("/valami", {a: 1}, () => {}, () => {}, "zárvány-token")}>
+            <button onClick={() => handleAxios(ENDPOINTS.todos, {a: 1}, () => {}, () => {}, "zárvány-token")}>
                 kérés-tokennel</button>
         </div>
     );
@@ -85,7 +86,7 @@ describe("AuthProvider", () => {
         // objectContaining: a fejlécre fókuszálunk, a config többi mezőjét (pl. a
         // timeout-ot) figyelmen kívül hagyjuk, hogy az ne tegye törékennyé a tesztet.
         expect(axios.post).toHaveBeenCalledWith(
-            expect.stringContaining("/valami"), {a: 1},
+            expect.stringContaining(ENDPOINTS.todos), {a: 1},
             expect.objectContaining({headers: {Authorization: "Bearer uj-token"}}));
     });
 
@@ -96,7 +97,7 @@ describe("AuthProvider", () => {
         // Token nélkül a headers undefined — nincs Authorization. (A timeout-ot az
         // objectContaining itt is figyelmen kívül hagyja.)
         expect(axios.post).toHaveBeenCalledWith(
-            expect.stringContaining("/valami"), {a: 1},
+            expect.stringContaining(ENDPOINTS.todos), {a: 1},
             expect.objectContaining({headers: undefined}));
     });
 
@@ -108,7 +109,7 @@ describe("AuthProvider", () => {
         await userEvent.click(screen.getByRole("button", {name: "kérés-tokennel"}));
 
         expect(axios.post).toHaveBeenCalledWith(
-            expect.stringContaining("/valami"), {a: 1},
+            expect.stringContaining(ENDPOINTS.todos), {a: 1},
             expect.objectContaining({headers: {Authorization: "Bearer zárvány-token"}}));
     });
 

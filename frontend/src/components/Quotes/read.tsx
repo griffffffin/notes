@@ -5,13 +5,14 @@ import QuoteCard from "./card";
 import {useQuoteAccent} from "./useQuoteAccent";
 import {useSectionList} from "../CardList/useSectionList";
 import CardListView from "../CardList/CardListView";
+import {ENDPOINTS} from "../../endpoints";
+import type {Endpoint} from "../../endpoints";
 import type {Quote} from "../../types/api";
 
-/* A `url` a lista végpontját adja: a csupasz /quotes (teljes lista) vagy a
-   /quotes/author (szerző-szűrt) — a route dönti el, melyikkel hív. A szűrő-mód
-   is ebből számol (l. `needsFilter`). */
+/* A `url` a lista végpontját adja: a teljes lista vagy a szerző-szűrt — a route
+   dönti el, melyikkel hív. A szűrő-mód is ebből számol (l. `needsFilter`). */
 type QuoteReadProps = {
-    url: string;
+    url: Endpoint;
     handleLinkClicked: MouseEventHandler<HTMLAnchorElement>;
 };
 
@@ -22,7 +23,7 @@ type QuoteReadProps = {
 export default function QuoteRead(props: QuoteReadProps) {
     const {author} = useParams();
 
-    const needsFilter = props.url === "/quotes/author";
+    const needsFilter = props.url === ENDPOINTS.quotesByAuthor;
     /* A "névtelen" idézeteket a URL-ben "Anonymous" jelöli (üres szerző nem lehet
        URL-szegmens); a szervernek viszont üres stringgel szűrünk rájuk. A csupasz
        /quotes (:author nélkül) nem ide, hanem a szűretlen listára jut, a szűrt
@@ -33,7 +34,7 @@ export default function QuoteRead(props: QuoteReadProps) {
     );
 
     const {cards, isLoading, grid} = useSectionList<Quote>({
-        url: props.url, filter, reorderUrl: "/quotes/reorder", section: "/quotes",
+        url: props.url, filter, reorderUrl: ENDPOINTS.quoteReorder, section: "/quotes",
     });
 
     /* A szekció akcentusa (l. useQuoteAccent): a quotes-lista VILÁGOS témán tinta-kék,

@@ -3,6 +3,8 @@ import {useNavigate} from "react-router-dom";
 import Modal from "./modal";
 import {useAuth} from "../../contexts/auth-context";
 import {logRequestError} from "../../log";
+import {ENDPOINTS} from "../../endpoints";
+import type {Endpoint} from "../../endpoints";
 import type {Id} from "../../types/api";
 import type {BootstrapColor} from "../../contexts/theme-context";
 
@@ -13,7 +15,10 @@ import type {BootstrapColor} from "../../contexts/theme-context";
 type DeleteAndModalProps = {
     handleLinkClicked: () => void;
     color: BootstrapColor;
-    deleteUrl?: string;
+    /* A `deleteUrl` VÉGPONT (a szervernek szól), a `listUrl` NAVIGÁCIÓS út (a
+       böngésző címe a törlés után) — a két fogalom szándékosan külön típusú, hogy
+       ne lehessen összecserélni őket (l. endpoints.ts). */
+    deleteUrl?: Endpoint;
     listUrl?: string;
     /* Az azonosító az URL-ből jön, ezért `undefined` is lehet; a gomb viszont csak
        szerkesztés (update) közben jelenik meg, ahol az útvonal kötelezővé teszi. */
@@ -34,7 +39,7 @@ export default function DeleteAndModal(props: DeleteAndModalProps) {
        navbar-szűrők zárását és a kategória-lista frissítését; az idézetnek csak a
        saját törlő-végpontja és listája van. A defaultok a to-dóra állnak (hogy az
        ő hívása ne változzon), a to-do-specifikus callbackek pedig opcionálisak. */
-    const deleteUrl = props.deleteUrl ?? "/to-dos/delete";
+    const deleteUrl = props.deleteUrl ?? ENDPOINTS.todoDelete;
     const listUrl = props.listUrl ?? "/to-dos";
     const itemId = props.itemId ?? props.todoId;
 

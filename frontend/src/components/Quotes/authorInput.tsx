@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent, type PointerEvent} from "react";
 import {useAuth} from "../../contexts/auth-context";
 import {logRequestError} from "../../log";
+import {ENDPOINTS} from "../../endpoints";
 
 // Ennyi szünet után kérünk javaslatot: gépelés közben minden billentyűnél
 // fölösleges a szerverhez fordulni, csak ha a felhasználó "megállt".
@@ -95,7 +96,7 @@ export default function AuthorInput(props: AuthorInputProps) {
         }
         let isLatest = true;
         const timer = setTimeout(() => {
-            handleAxios<string[]>("/quotes/authors", {prefix: value},
+            handleAxios<string[]>(ENDPOINTS.quoteAuthors, {prefix: value},
                 (response) => {
                     if (isLatest) setSuggestion(response.data[0] ?? "");
                 },

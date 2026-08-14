@@ -4,6 +4,7 @@ import type {DragEndEvent} from "@dnd-kit/core";
 import {arrayMove} from "@dnd-kit/sortable";
 import {logRequestError} from "../../log";
 import type {HandleAxios} from "../../contexts/auth-context";
+import type {Endpoint} from "../../endpoints";
 import type {Id} from "../../types/api";
 
 /* Ujjal ennyit kell a kártyán tartani, mire a húzás elindul. Ez választja szét a
@@ -30,12 +31,13 @@ const SINGLE_COLUMN_QUERY = "(max-width: 575.98px)";
 export type SortableCard = {_id: Id; order: number};
 
 type SortableCardsOptions = {
-    url: string;
+    // A lista LEKÉRÉSÉNEK végpontja (nem a böngésző címe) — l. endpoints.ts.
+    url: Endpoint;
     /* A szűrő szekció-specifikus (kategória, szín, szerző, keresőkifejezés), ezért a
        hívó adja. MEMOIZÁLVA kell érkeznie: egy rendernként újragyártott
        objektum-literál a betöltő effektet végtelen ciklusba vinné. */
     filter?: Record<string, unknown> | null;
-    reorderUrl: string;
+    reorderUrl: Endpoint;
     handleAxios: HandleAxios;
 };
 

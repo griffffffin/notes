@@ -3,6 +3,7 @@ import InputGroup from "./Form/Input/inputGroup";
 import SubmitButtonGroup from "../Button/submitButtonGroup";
 import {useAuth} from "../../contexts/auth-context";
 import {logRequestError} from "../../log";
+import {ENDPOINTS} from "../../endpoints";
 import {responseStatus} from "../../httpError";
 import {ENTRY_ERROR_MESSAGES, entryError, type EntryError} from "./entryError";
 import type {AuthToken} from "../../types/api";
@@ -37,7 +38,7 @@ export default function Entry(props: EntryProps) {
        renderrel a prop mögött járt. Itt ráadásul az egész isLoading + Spinner
        csak azért létezett, hogy ezt az effektet megvárja; származtatva nincs
        mire várni, tehát az is elhagyható. */
-    const url = isLogin ? "/login" : "/user/create";
+    const url = isLogin ? ENDPOINTS.login : ENDPOINTS.signup;
 
     /* A jelszómező alatti térköz: hibaüzenetkor összébb húzódik, hogy a piros
        felirat elférjen. (A régi kód a beírás-kezelőkből mindig "mb-5"-öt tett

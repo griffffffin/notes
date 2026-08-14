@@ -6,6 +6,7 @@ import {useTheme} from "../../contexts/theme-context";
 import {useQuoteAccent} from "./useQuoteAccent";
 import {renderBold} from "./bold";
 import {logRequestError} from "../../log";
+import {ENDPOINTS} from "../../endpoints";
 import type {Quote} from "../../types/api";
 
 /* Egy megosztott idézet PUBLIKUS nézete (/quotes/:author/:id). Token nélkül is
@@ -31,7 +32,7 @@ export default function QuotePublic() {
        Minta: CardList/useSortableCards.ts. */
     useEffect(() => {
         let active = true;
-        handleAxios<Quote>("/quotes/id", {id}, (response) => {
+        handleAxios<Quote>(ENDPOINTS.quoteById, {id}, (response) => {
             if (active) setQuote(response.data);
         }, (error) => {
             logRequestError(error);

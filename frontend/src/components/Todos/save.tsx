@@ -14,6 +14,7 @@ import ColorButtonGroup from "../Button/colorButtonGroup";
 import {useTheme} from "../../contexts/theme-context";
 import {useAuth} from "../../contexts/auth-context";
 import {logRequestError} from "../../log";
+import {ENDPOINTS} from "../../endpoints";
 import {fieldAnchor, type FieldAnchor} from "../Editor/fieldAnchor";
 import ValidationTooltip from "../Editor/validationTooltip";
 import {useEscapeSubmit} from "../Editor/useEscapeSubmit";
@@ -97,7 +98,7 @@ export default function Save(props: SaveProps) {
        a még "true" isUpdate-tel futott le a lenti lekérdezés a már üres
        navigációs state-en (TypeError: reading 'id' of null). */
     const isUpdate = Boolean(props.isUpdate);
-    const url = isUpdate ? "/to-dos/update" : "/to-dos/create";
+    const url = isUpdate ? ENDPOINTS.todoUpdate : ENDPOINTS.todoCreate;
 
     /* Melyik to-do-t szerkesztjük. Az azonosító az URL /update/:id szegmenséből
        jön, így F5 és közvetlen link után is megvan (szemben a régi navigációs
@@ -161,7 +162,7 @@ export default function Save(props: SaveProps) {
     useEffect(() => {
         let active = true;
         if (todoId) {
-            handleAxios<Todo>("/to-dos/id", {id: todoId}, (response) => {
+            handleAxios<Todo>(ENDPOINTS.todoById, {id: todoId}, (response) => {
                 if (!active) return;
                 // Pillanatkép arról, AMIT a szerver adott — a beküldéskor ehhez
                 // hasonlítunk, hogy egy változatlan űrlap ne írjon feleslegesen.
@@ -198,7 +199,7 @@ export default function Save(props: SaveProps) {
                 leaveEditor();
             });
         }
-        handleAxios<number>("/to-dos/last/order", {},
+        handleAxios<number>(ENDPOINTS.todoLastOrder, {},
             (response) => {
                 if (!active) return;
                 const lastOrder = response.data;
