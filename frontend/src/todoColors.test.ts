@@ -1,4 +1,4 @@
-import {readFileSync} from "node:fs";
+import {existsSync, readFileSync} from "node:fs";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
 import {describe, expect, it} from "vitest";
@@ -23,10 +23,27 @@ import {TODO_COLORS} from "./todoColors";
    Ezért a teszt a backend forrásából olvassa ki a listát. A regex szűk
    szándékosan: ha a COLORS deklarációja formát vált, a teszt inkább HIBÁT jelez
    (nem talál listát), mint hogy csendben üres halmazt hasonlítson össze. */
-const backendValidator = path.resolve(
-    path.dirname(fileURLToPath(import.meta.url)), "../../backend/src/middleware/validateTodo.js");
+/* A KITERJESZTÉST nem drótozzuk be. A backend ma még JavaScript, de a TS-átállás
+   után ugyanez a fájl `.ts` lesz — egy bedrótozott ".js" azon a napon állítaná
+   meg ezt a szerződés-tesztet, és a hibaüzenete ("nincs ilyen fájl") nem arról
+   szólna, ami valójában történt. A projekt szabálya is ez: fájlra hivatkozó
+   tesztek kiterjesztés nélkül oldják fel a nevet (l. CLAUDE.md, 4. néma minta).
+
+   A keresés HANGOS: ha egyik alakot sem találja, megnevezi a könyvtárat és a
+   keresett neveket — nem üres listával hasonlít csendben. */
+const BACKEND_MIDDLEWARE = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)), "../../backend/src/middleware");
+
+const backendValidatorPath = () => {
+    for (const extension of [".js", ".ts"]) {
+        const candidate = path.join(BACKEND_MIDDLEWARE, `validateTodo${extension}`);
+        if (existsSync(candidate)) return candidate;
+    }
+    throw new Error(`A validateTodo forrása nem található itt: ${BACKEND_MIDDLEWARE} (.js/.ts)`);
+};
 
 const readBackendColors = () => {
+    const backendValidator = backendValidatorPath();
     const source = readFileSync(backendValidator, "utf8");
     const declaration = source.match(/const COLORS = \[([^\]]*)]/);
     if (!declaration) throw new Error(`A COLORS deklaráció nem található: ${backendValidator}`);
