@@ -5,8 +5,20 @@ import {CookiesProvider} from "react-cookie";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import {AuthProvider} from "./auth";
 import {useAuth} from "./auth-context";
+import {axiosResponse} from "../test/axiosResponse";
 
-vi.mock("axios");
+/* Az axios AUTOMOCKOLVA: a modul minden exportja kémmé válik, tehát valódi
+   hálózat nincs, de az AuthProvider (és benne a handleAxios) a maga teljes
+   valójában fut — épp az a vizsgálat tárgya.
+
+   A `post`-ot NEM értékadással cseréljük ki: a típusa generikus (`post<T, R, D>`),
+   vagyis olyan függvényt vár, ami BÁRMELY R-re működik — egy `vi.fn(() =>
+   Promise.resolve(…))` viszont egy konkrétat ad, és a fordító ezt (helyesen)
+   elutasítja. A `vi.mocked` az automock kémjét adja vissza a valódi szignatúrával,
+   a válaszokat pedig a mockResolvedValue/mockRejectedValue állítja be. */
+vi.mock(import("axios"));
+
+const postSpy = () => vi.mocked(axios.post);
 
 /* Próbakomponens: kiírja, amit a Contextből kap, és gombokkal hívja a
    műveleteit — így a hookot komponensfa nélkül vizsgálhatjuk. */
@@ -34,7 +46,8 @@ const renderAuth = () => render(
 );
 
 beforeEach(() => {
-    axios.post = vi.fn(() => Promise.resolve({data: "ok"}));
+    postSpy().mockReset();
+    postSpy().mockResolvedValue(axiosResponse("ok"));
 });
 
 afterEach(() => {
@@ -100,7 +113,7 @@ describe("AuthProvider", () => {
     });
 
     it("401-es válasznál kilépteti a felhasználót (lejárt token)", async () => {
-        axios.post = vi.fn(() => Promise.reject({response: {status: 401}}));
+        postSpy().mockRejectedValue({response: {status: 401}});
         renderAuth();
         await userEvent.click(screen.getByRole("button", {name: "belépés"}));
         expect(screen.getByTestId("belepett")).toHaveTextContent("true");
@@ -162,7 +175,7 @@ describe("Tétlenségi kijelentkezés", () => {
 
     it("aktivitáskor megújítja a tokent, de legfeljebb 5 percenként", async () => {
         await signIn();
-        axios.post.mockClear();
+        postSpy().mockClear();
 
         // Sűrű egérmozgás: ettől még nem szabad kérést indítania.
         await act(async () => {

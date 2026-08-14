@@ -14,6 +14,8 @@ import Routes from "../routes";
    egyetlen teszt sem válhat pirossá. Amit itt vizsgálunk, az az, hogy MELYIK
    esetet ismerte fel a felület. */
 import {ENTRY_ERROR_MESSAGES} from "./entryError";
+import {axiosResponse} from "../../test/axiosResponse";
+import type {RoutesProps} from "../routes";
 
 /* A login/regisztrációs űrlap viselkedése. A jelszó-szabály és a "Tovább" gomb
    tiltása a felhasználó első találkozása az appal — ha ez elromlik, senki nem
@@ -22,7 +24,15 @@ import {ENTRY_ERROR_MESSAGES} from "./entryError";
    A hálózati hívást az axios szintjén némítjuk el: így az igazi AuthProvider
    fut (a handleAxios logikájával együtt), csak a szerver van kiváltva. */
 
-vi.mock("axios");
+/* Az axios AUTOMOCKOLVA: valódi hálózat nincs, de az igazi AuthProvider fut (a
+   handleAxios logikájával együtt) — csak a szerver van kiváltva.
+
+   A `post`-ot a `vi.mocked` kémjén át vezéreljük, nem értékadással: a típusa
+   generikus (`post<T, R, D>`), tehát BÁRMELY R-re működő függvényt vár, amit egy
+   konkrét visszatérésű vi.fn nem elégít ki. */
+vi.mock(import("axios"));
+
+const postSpy = () => vi.mocked(axios.post);
 
 function renderEntry({isLogin = true} = {}) {
     render(
@@ -41,7 +51,8 @@ function renderEntry({isLogin = true} = {}) {
 const submitButton = () => screen.getByRole("button", {name: "Tovább"});
 
 beforeEach(() => {
-    axios.post = vi.fn(() => Promise.resolve({data: "teszt-token"}));
+    postSpy().mockReset();
+    postSpy().mockResolvedValue(axiosResponse("teszt-token"));
 });
 
 afterEach(() => {
@@ -129,6 +140,16 @@ describe("Entry — regisztráció", () => {
    szerkesztő-tesztek kicserélik az auth-contextet). A ki-/bejelentkezés viszont
    épp az AuthProvider valódi működése, ezért itt a teljes, valódi provider-fa
    kell — a közös segéddel ezt a tesztet nem lehetne megírni. */
+/* Az App UI-propjai: KIJELENTKEZVE egyiket sem használja a route-fa (az
+   AuthLayout ágon nincs se kategória-legördülő, se szín-szűrő), a szerződés
+   viszont kötelezővé teszi őket. Semleges alapértékeket adunk, hogy a hiányuk ne
+   típus-lyukként, hanem kimondott döntésként álljon. */
+const ROUTE_PROPS = {
+    categories: [], handleLinkClicked: vi.fn(), handleCategoryChange: vi.fn(),
+    setIsColorAngleClicked: vi.fn(), isColorAngleClicked: false,
+    setIsCategoryAngleClicked: vi.fn(), isCategoryAngleClicked: false,
+} satisfies RoutesProps;
+
 describe("Bejelentkezés és regisztráció közti váltás", () => {
     function renderRoutes() {
         window.history.pushState({}, "", "/");
@@ -136,7 +157,7 @@ describe("Bejelentkezés és regisztráció közti váltás", () => {
             <CookiesProvider>
                 <ThemeProvider>
                     <AuthProvider>
-                        <Routes/>
+                        <Routes {...ROUTE_PROPS}/>
                     </AuthProvider>
                 </ThemeProvider>
             </CookiesProvider>
@@ -157,15 +178,15 @@ describe("Bejelentkezés és regisztráció közti váltás", () => {
         /* A szerver szerződése a státuszkód, nem a mondat. Ha a szöveget
            átfogalmazzuk vagy lefordítjuk, ennek a tesztnek zöldnek kell
            maradnia — épp ezért nem a szövegre asszertálunk. */
-        axios.post = vi.fn(() => Promise.reject({
+        postSpy().mockRejectedValue({
             response: {status: 409, data: "bármilyen üzenet, akár angolul"},
-        }));
+        });
         window.history.pushState({}, "", "/signup");
         render(
             <CookiesProvider>
                 <ThemeProvider>
                     <AuthProvider>
-                        <Routes/>
+                        <Routes {...ROUTE_PROPS}/>
                     </AuthProvider>
                 </ThemeProvider>
             </CookiesProvider>
@@ -185,7 +206,7 @@ describe("Bejelentkezés és regisztráció közti váltás", () => {
            handleAxios globálisan kiléptet rá; a fixtúra korábban ezt a másik
            esetet játszotta meg, csak épp nem látszott, mert a felület akkor még
            minden hibára ugyanazt írta ki. */
-        axios.post = vi.fn(() => Promise.reject({response: {status: 400, data: "Hibás jelszó"}}));
+        postSpy().mockRejectedValue({response: {status: 400, data: "Hibás jelszó"}});
         renderRoutes();
 
         await userEvent.type(screen.getByLabelText("Felhasználónév"), "anna");
@@ -218,7 +239,7 @@ describe("Entry — hibaüzenetek", () => {
         /* Hálózati hibánál és időtúllépésnél NINCS `response` az objektumon —
            ezért nincs státuszkód sem, és pont ez különbözteti meg a szerver
            szerződéses "nem"-jétől. */
-        axios.post = vi.fn(() => Promise.reject(new Error("Network Error")));
+        postSpy().mockRejectedValue(new Error("Network Error"));
         renderEntry({isLogin: true});
         await fillAndSubmitLogin();
 
@@ -227,7 +248,7 @@ describe("Entry — hibaüzenetek", () => {
     });
 
     it("belépésnél a 400 marad a 'hibás név vagy jelszó'", async () => {
-        axios.post = vi.fn(() => Promise.reject({response: {status: 400, data: "bármi"}}));
+        postSpy().mockRejectedValue({response: {status: 400, data: "bármi"}});
         renderEntry({isLogin: true});
         await fillAndSubmitLogin();
 
@@ -235,7 +256,7 @@ describe("Entry — hibaüzenetek", () => {
     });
 
     it("regisztrációnál a szerverhiba sem marad némán", async () => {
-        axios.post = vi.fn(() => Promise.reject({response: {status: 500, data: "Sikertelen regisztráció."}}));
+        postSpy().mockRejectedValue({response: {status: 500, data: "Sikertelen regisztráció."}});
         renderEntry({isLogin: false});
         await userEvent.type(screen.getByLabelText("Felhasználónév"), "anna");
         await userEvent.type(screen.getByLabelText("Jelszó"), "Teszt1234");
@@ -246,7 +267,7 @@ describe("Entry — hibaüzenetek", () => {
     });
 
     it("a hibaüzenet az első leütésre eltűnik", async () => {
-        axios.post = vi.fn(() => Promise.reject({response: {status: 400, data: "bármi"}}));
+        postSpy().mockRejectedValue({response: {status: 400, data: "bármi"}});
         renderEntry({isLogin: true});
         await fillAndSubmitLogin();
         expect(await screen.findByText(ENTRY_ERROR_MESSAGES.credentials)).toBeVisible();
@@ -258,13 +279,14 @@ describe("Entry — hibaüzenetek", () => {
 
 describe("Sikeres belépés utáni cím", () => {
     it("regisztráció után a főoldalra visz, nem marad a /signup címen", async () => {
-        axios.post = vi.fn(() => Promise.resolve({data: "teszt-token"}));
+        postSpy().mockReset();
+    postSpy().mockResolvedValue(axiosResponse("teszt-token"));
         window.history.pushState({}, "", "/signup");
         render(
             <CookiesProvider>
                 <ThemeProvider>
                     <AuthProvider>
-                        <Routes/>
+                        <Routes {...ROUTE_PROPS}/>
                     </AuthProvider>
                 </ThemeProvider>
             </CookiesProvider>
@@ -288,7 +310,7 @@ describe("Sikeres belépés utáni cím", () => {
             <CookiesProvider>
                 <ThemeProvider>
                     <AuthProvider>
-                        <Routes/>
+                        <Routes {...ROUTE_PROPS}/>
                     </AuthProvider>
                 </ThemeProvider>
             </CookiesProvider>
