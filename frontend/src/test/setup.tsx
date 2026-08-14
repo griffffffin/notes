@@ -3,9 +3,11 @@
    tudnánk ellenőrizni. */
 import "@testing-library/jest-dom/vitest";
 import {cleanup} from "@testing-library/react";
+import {forwardRef} from "react";
 import {afterEach, vi} from "vitest";
+import type {FontAwesomeIconProps} from "@fortawesome/react-fontawesome";
 
-/* Az ikon-könyvtár GLOBÁLIS cseréje egy egyszerű <span>-re.
+/* Az ikon-könyvtár GLOBÁLIS cseréje egy csupasz <svg>-re.
 
    Nem kényelmi kérdés: a valódi FontAwesome `library.add(fas)`-a mind az ~1600
    ikont behúzza, amit a Pi percekig transzformál — emiatt a tesztek időtúllépéssel
@@ -18,7 +20,8 @@ import {afterEach, vi} from "vitest";
    sort, két kissé eltérő változatban — ez zaj, nem a tesztek tárgya. Ha egy jövőbeli
    teszt mégis a VALÓDI könyvtárat kérné, a saját fájljában vi.unmock-olhatja.
 
-   (A fájl azért .jsx, mert JSX-et tartalmaz: a Vite csak .jsx-ben fordítja.) */
+   (A fájl azért .tsx, mert JSX-et tartalmaz: a Vite csak .jsx/.tsx kiterjesztésű
+   fájlban fordítja a JSX-et.) */
 /* A pótlék a VALÓDI FontAwesome kimenetét utánozza, nem egy saját alakot: a
    könyvtár KÉT attribútumot tesz ki az <svg>-re (fontawesome-svg-core:
    `'data-prefix': prefix, 'data-icon': iconName`), tehát a data-icon CSAK az
@@ -34,12 +37,37 @@ import {afterEach, vi} from "vitest";
 
    A rendezés a hívási alakot követi: `icon={["fas", "plus"]}` a mai, ellenőrzött
    forma; a csupasz szöveges alak (`icon="plus"`) prefix nélkül marad, mert a
-   valódi könyvtár is az alapértelmezett készletet használná rá. */
-vi.mock("@fortawesome/react-fontawesome", () => ({
-    FontAwesomeIcon: ({icon, ...rest}) => {
-        const [prefix, name] = Array.isArray(icon) ? icon : [undefined, String(icon)];
-        return <span data-prefix={prefix} data-icon={name} {...rest}/>;
-    },
+   valódi könyvtár is az alapértelmezett készletet használná rá. A harmadik alak
+   (IconLookup objektum) ma sehol nem szerepel, de a típus megengedi — ezért a
+   pótlék is kezeli, hogy ne csendben "[object Object]"-et írjon ki.
+
+   A pótlék <svg>-t ad (nem <span>-t), és forwardRef-fel készül: a valódi
+   FontAwesomeIcon típusa `ForwardRefExoticComponent<… & RefAttributes<SVGSVGElement>>`,
+   vagyis SVG-elemre mutató refet fogad. Egy nyers függvénykomponens nem felelne
+   meg neki — és ez épp az a fajta eltérés, amit a lenti import()-os alak fog meg.
+
+   A `vi.mock` a modult IMPORT-tal veszi át, nem string-útvonallal. A különbség
+   nem stílus: a Vitest típusa a string-alaknál `Partial<unknown>`-t vár a gyártól,
+   vagyis BÁRMIT elfogad; az import()-os alaknál a modul valódi típusához méri a
+   mockot. Az `import type` sor mellette kitörlődik a fordításkor
+   (verbatimModuleSyntax), tehát futásidőben nem hoz vissza semmit a mockolt
+   modulból. */
+vi.mock(import("@fortawesome/react-fontawesome"), () => ({
+    /* A `size`/`mask`/`transform` a KÖNYVTÁR saját propjai, nem SVG-attribútumok
+       (a valódi komponens osztályokká és transzformációvá dolgozza fel őket) —
+       ezért itt kiemelve, nem a DOM-ba szórva. A `mask` és a `transform` nevét
+       az SVG is ismeri, más típussal: a spreadben hagyva fordítási hibát adnak,
+       vagyis a típus is ugyanoda mutat, ahová a józan ész. A maradék
+       (className, onClick, style, aria-*) változatlanul átmegy. Az aláhúzás-előtag
+       a linternek szól: a változó SZÁNDÉKOSAN kihasználatlan, csak a rest-ből
+       való kiemelés miatt van neve. */
+    FontAwesomeIcon: forwardRef<SVGSVGElement, FontAwesomeIconProps>(
+        ({icon, size: _size, mask: _mask, transform: _transform, ...rest}, ref) => {
+            const [prefix, name] = Array.isArray(icon) ? icon
+                : typeof icon === "object" ? [icon.prefix, icon.iconName]
+                    : [undefined, icon];
+            return <svg ref={ref} data-prefix={prefix} data-icon={name} {...rest}/>;
+        }),
 }));
 
 /* A jsdom nem ismeri a matchMedia-t: nincs benne tényleges elrendezés, tehát

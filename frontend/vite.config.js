@@ -30,7 +30,10 @@ export default defineConfig({
     // tényleges megjelenítés. Gyors, és a logika teszteléséhez elég.
     environment: 'jsdom',
     globals: true,
-    setupFiles: './src/test/setup.jsx',
+    // A kiterjesztés itt BE VAN DRÓTOZVA (a Vitest nem oldja fel magától): ha a
+    // setup fájl kiterjesztést vált, ezt a sort is át kell írni. Szerencsére
+    // hangosan bukik — "cannot find module" —, nem némán hagyja ki a setupot.
+    setupFiles: './src/test/setup.tsx',
     /* A vitest alapértelmezett 5 másodperces ESET-határa ezen a gépen kevés.
        A tesztfájlok a Pi négy magján PÁRHUZAMOSAN futnak, és a legnehezebb
        eseteink (teljes szerkesztő-render + karakterenként szimulált gépelés)

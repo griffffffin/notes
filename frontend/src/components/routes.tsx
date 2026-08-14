@@ -31,8 +31,12 @@ import type {CategoryAndColorGroupProps} from "./Link/categoryAndColorGroup";
    olvassa az eseményt) — a kártyák onClickjeként átadva a szűkebb `() => void` is
    megfelel a `MouseEventHandler`-t váró helyeknek. A két szög-állapot boolean +
    szűk setter (a repo settereinek konvenciója, l. Navbar). A `categories` a to-do
-   kategórialista; a típusát a Navbar láncából vesszük át, hogy egyben mozogjon. */
-type RoutesProps = {
+   kategórialista; a típusát a Navbar láncából vesszük át, hogy egyben mozogjon.
+
+   EXPORTÁLT, mert a teszt-segéd (test/renderRoutes.tsx) ehhez méri a saját
+   alapértékeit: ott a propok `Partial<RoutesProps>`-ként érkeznek, így ha ez a
+   szerződés változik, a segéd is elhasal — nem a tesztek dőlnek el némán. */
+export type RoutesProps = {
     handleLinkClicked: () => void;
     setIsColorAngleClicked: (isClicked: boolean) => void;
     isColorAngleClicked: boolean;

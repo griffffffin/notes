@@ -2,6 +2,7 @@ import {render} from "@testing-library/react";
 import {CookiesProvider} from "react-cookie";
 import {vi} from "vitest";
 import Routes from "../components/routes";
+import type {RoutesProps} from "../components/routes";
 import {ThemeProvider} from "../contexts/theme";
 
 /* A teljes route-fa renderelése egy adott útvonalon — a lista-, szerkesztő- és
@@ -24,8 +25,13 @@ import {ThemeProvider} from "../contexts/theme";
 
    Amit ez a segéd SZÁNDÉKOSAN nem visz el: a szerverhívás mockolása (handleAxios)
    és a teszt adatai. Azok tesztfájlonként mások, és a teszt lényegéhez tartoznak —
-   ha ide kerülnének, a tesztet olvasva nem lehetne látni, mire válaszol a "szerver". */
-export function renderRoutes(path, props = {}) {
+   ha ide kerülnének, a tesztet olvasva nem lehetne látni, mire válaszol a "szerver".
+
+   A `path` OPCIONÁLIS (l. fent: van, aki maga építi az előzményt), a felülíró
+   propok `Partial<RoutesProps>`-ok — a Partial itt pontosan azt mondja ki, amit a
+   segéd csinál: minden propnak van alapértéke, a teszt bármelyiket kicserélheti,
+   de újat nem találhat ki. Egy elgépelt propnév innentől fordítási hiba. */
+export function renderRoutes(path?: string, props: Partial<RoutesProps> = {}) {
     if (path !== undefined) window.history.pushState({}, "", path);
     return render(
         <CookiesProvider>
