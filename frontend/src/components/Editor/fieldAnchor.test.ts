@@ -3,12 +3,28 @@ import {fieldAnchor} from "./fieldAnchor";
 
 /* A jsdom nem ad valódi canvast (nincs szövegrajzolás), ezért a measureText-et
    rögzített szélességre cseréljük: a mérés MENETÉT teszteljük, nem a betűk
-   tényleges méretét. 40 px széles "szöveg" → 20 px félszélesség. */
+   tényleges méretét. 40 px széles "szöveg" → 20 px félszélesség.
+
+   Miért Object.defineProperty, és nem sima értékadás? Mert a pótlék CSAK azt
+   tudja, amit a fieldAnchor használ (a `font` beállítását és a `measureText`-et),
+   a `getContext` típusa viszont a teljes, ~200 tagú CanvasRenderingContext2D-t
+   ígérné. Ezt a rést vagy egy `as`-szal söpörnénk el — az viszont a hívási
+   helyeket is megmérgezné, és a projekt tiltja (l. CLAUDE.md) —, vagy, mint itt,
+   futásidejű beállítással, EGY helyen, kimondva. Amit a pótlék nem tud, azt a
+   mért kód nem hívja; ha egyszer mégis hívná, HANGOSAN szállna el (undefined is
+   not a function), nem némán adna rossz eredményt. */
 beforeAll(() => {
-    HTMLCanvasElement.prototype.getContext = () => ({font: "", measureText: () => ({width: 40})});
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
+        value: () => ({font: "", measureText: () => ({width: 40})}),
+        configurable: true,
+    });
 });
 
-const addField = (attrs) => {
+/* A mező attribútumai: annyi, amennyit a teszt beállít (placeholder, value…) —
+   az Object.assign a HTMLInputElement saját mezőire ír, ezért a típus is onnan
+   származik. Így egy elgépelt attribútumnév (`placeholde`) fordítási hiba lesz,
+   nem csendben figyelmen kívül hagyott mező. */
+const addField = (attrs: Partial<HTMLInputElement>) => {
     const input = document.createElement("input");
     Object.assign(input, attrs);
     input.id = "field";

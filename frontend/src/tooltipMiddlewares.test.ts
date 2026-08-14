@@ -1,5 +1,6 @@
 import {beforeEach, describe, expect, it} from "vitest";
 import {computePosition, flip, offset, shift} from "@floating-ui/dom";
+import type {Middleware} from "@floating-ui/dom";
 import {TOOLTIP_MIDDLEWARES, tooltipMiddlewares} from "./tooltipMiddlewares";
 
 /* A tooltip IRÁNYÁT teszteljük telefon-szélességen — vagyis pontosan azt, ami
@@ -47,7 +48,7 @@ const anchorPoint = {
     }),
 };
 
-let bubble;
+let bubble: HTMLDivElement;
 
 beforeEach(() => {
     for (const [prop, value] of [["clientWidth", PHONE_WIDTH], ["clientHeight", PHONE_HEIGHT]]) {
@@ -59,7 +60,7 @@ beforeEach(() => {
     document.body.appendChild(bubble);
 });
 
-const place = (middleware) =>
+const place = (middleware: Middleware[]) =>
     computePosition(anchorPoint, bubble, {placement: "bottom", strategy: "absolute", middleware});
 
 describe("tooltip-pozicionálás telefon-szélességen", () => {
@@ -103,12 +104,15 @@ const CARD_LEFT = 20;
 const CARD_WIDTH = 368;
 
 describe("a hibabuborék a szerkesztő kártyáján belül marad", () => {
-    let card;
+    let card: HTMLDivElement;
 
     beforeEach(() => {
         card = document.createElement("div");
-        const rect = {x: CARD_LEFT, y: 10, width: CARD_WIDTH, height: 300,
-            left: CARD_LEFT, top: 10, right: CARD_LEFT + CARD_WIDTH, bottom: 310};
+        /* A téglalapot a DOMRect.fromRect SZÁMOLJA ki a bal felső sarokból és a
+           méretből — a left/top/right/bottom nem kézzel írt, tehát nem lehet
+           ellentmondásos, és a `toJSON` is megvan rajta (a DOMRect része, egy
+           kézzel írt objektumból hiányzott volna). */
+        const rect = DOMRect.fromRect({x: CARD_LEFT, y: 10, width: CARD_WIDTH, height: 300});
         card.getBoundingClientRect = () => rect;
         for (const [prop, value] of [["clientWidth", CARD_WIDTH], ["clientHeight", 300],
             ["offsetWidth", CARD_WIDTH], ["offsetHeight", 300]]) {

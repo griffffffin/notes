@@ -26,8 +26,14 @@ const ANONYMOUS_AUTHOR = "Anonymous";
    egy odaírt `string | undefined`: így ha a modellben egyszer kötelezővé válik a
    szerző, ez a függvény azonnal együtt mozdul vele — nem kell észben tartani,
    hogy itt is át kell írni. Ez az egyik fő haszna a szerződés-fájlnak: EGY helyen
-   van kimondva, mi micsoda. */
-export function publicQuoteUrl(origin: string, author: Quote["author"], id: Id): string {
+   van kimondva, mi micsoda.
+
+   A `| null` a szerződés része, nem engedmény a tesztnek: a szerző a JSON-ból
+   `null`-ként is megérkezhet (a Mongo-dokumentumban explicit null állhat ott,
+   ahol a séma csak opcionálisnak mondja a mezőt), és a lenti `author?.trim()`
+   ezt kezdettől kezeli is. A típus most már kimondja, amit a kód tud — a
+   publicQuoteUrl.test "null" esete pontosan ezt rögzíti. */
+export function publicQuoteUrl(origin: string, author: Quote["author"] | null, id: Id): string {
     const authorSegment = author?.trim() ? author : ANONYMOUS_AUTHOR;
     return `${origin}/quotes/${encodeURIComponent(authorSegment)}/${encodeURIComponent(id)}`;
 }

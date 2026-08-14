@@ -8,7 +8,7 @@ afterEach(resetTooltips);
    A hookot azért teszteljük (és nem csak a modul belsejét), mert a komponensek
    ezen át kapják az isOpen propjukat — az újrarajzolás elmaradása ugyanolyan
    hiba, mint a rossz érték. */
-const arrangeTooltips = (...ids) =>
+const arrangeTooltips = (...ids: string[]) =>
     ids.map((id) => renderHook(() => useTooltipOpen(id)));
 
 describe("tooltipRegistry", () => {
