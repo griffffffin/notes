@@ -3,12 +3,23 @@ import {act, fireEvent, render, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {beforeEach, describe, expect, it, vi} from "vitest";
 import AuthorInput from "./authorInput";
+import type {AuthorInputProps} from "./authorInput";
+import {axiosResponse} from "../../test/axiosResponse";
+import type {AxiosResponse} from "axios";
 
-const {handleAxios, auth} = vi.hoisted(() => {
-    const fn = vi.fn();
-    return {handleAxios: fn, auth: {handleAxios: fn}};
+const {auth, handleAxios} = await vi.hoisted(async () => {
+    const {mockAuth} = await import("../../test/mockAuth");
+    return mockAuth({isLoggedIn: true});
 });
-vi.mock("../../contexts/auth-context", () => ({useAuth: () => auth}));
+vi.mock(import("../../contexts/auth-context"), () => ({useAuth: () => auth}));
+
+/* A javaslat-lekérés törzséből a prefixet VALÓDI vizsgálattal olvassuk ki: a kém
+   felől a törzs `unknown`, és egy `as` csak állítaná, hogy ott a mező. */
+const prefixOf = (data: unknown): string => {
+    if (typeof data === "object" && data !== null && "prefix" in data
+        && typeof data.prefix === "string") return data.prefix;
+    throw new Error(`a javaslat-lekérés törzsében nincs prefix: ${JSON.stringify(data)}`);
+};
 
 /* Az AuthorInput kontrollált (a value kívülről jön), ezért egy pici szülőbe
    ágyazzuk, ami state-ben tartja — mint a QuoteSave. */
@@ -21,7 +32,7 @@ function Wrapper() {
 beforeEach(() => {
     handleAxios.mockReset();
     handleAxios.mockImplementation((url, data, then) => {
-        if (url === "/quotes/authors") then({data: ["Márai"]});
+        if (url === "/quotes/authors") then(axiosResponse(["Márai"]));
         return Promise.resolve();
     });
 });
@@ -70,7 +81,7 @@ describe("AuthorInput — ghost-text", () => {
 
     it("nem villant fel kiegészítést, ha a beírt szöveg NEM a javaslat eleje", async () => {
         handleAxios.mockImplementation((url, data, then) => {
-            if (url === "/quotes/authors") then({data: ["Kosztolányi"]});
+            if (url === "/quotes/authors") then(axiosResponse(["Kosztolányi"]));
             return Promise.resolve();
         });
         render(<Wrapper/>);
@@ -94,9 +105,11 @@ describe("AuthorInput — ghost-text", () => {
 describe("AuthorInput — versenyhelyzet a javaslat-lekérésben", () => {
     it("a lejárt prefix KÉSVE érkező válasza nem tünteti el a friss javaslatot", async () => {
         // A mock nem válaszol, csak gyűjti a callbackeket — a sorrendet a teszt adja.
-        const pending = [];
+        /* A típus kimondja, mit tart a tömb: a kért prefixet és azt a
+           visszahívást, ami MAJD a szerzőnevek listáját kapja. */
+        const pending: {prefix: string; then: (response: AxiosResponse<string[]>) => void}[] = [];
         handleAxios.mockImplementation((url, data, then) => {
-            if (url === "/quotes/authors") pending.push({prefix: data.prefix, then});
+            if (url === "/quotes/authors") pending.push({prefix: prefixOf(data), then});
             return Promise.resolve();
         });
         render(<Wrapper/>);
@@ -112,12 +125,12 @@ describe("AuthorInput — versenyhelyzet a javaslat-lekérésben", () => {
         expect(pending.map((call) => call.prefix)).toEqual(["M", "Má"]);
 
         // A FRISS ("Má") válasza érkezik meg előbb: a ghost kirajzolja a folytatást.
-        act(() => pending[1].then({data: ["Márai"]}));
+        act(() => pending[1].then(axiosResponse(["Márai"])));
         expect(await screen.findByText("rai")).toBeInTheDocument();
 
         /* És most fut be a lejárt "M" válasza. A "Molnár" a "Má"-val nem kezdődik,
            tehát ha felülírná a javaslatot, a ghost némán eltűnne. */
-        act(() => pending[0].then({data: ["Molnár"]}));
+        act(() => pending[0].then(axiosResponse(["Molnár"])));
 
         expect(screen.getByText("rai")).toBeInTheDocument();
     });
@@ -126,7 +139,7 @@ describe("AuthorInput — versenyhelyzet a javaslat-lekérésben", () => {
 /* Kereső mód: onSubmit megadva az Enter a KERESÉST indítja, nem a javaslatot
    fogadja el (a navbar keresője így viselkedik). A javaslat-átvétel ilyenkor a
    jobbra-nyílon marad — az továbbra is működik. */
-function SearchWrapper({onSubmit}) {
+function SearchWrapper({onSubmit}: Pick<AuthorInputProps, "onSubmit">) {
     const [value, setValue] = useState("");
     return <AuthorInput value={value} onChange={(event) => setValue(event.target.value)}
                         onSubmit={onSubmit} placeholder="Keresés" class=""/>;
@@ -202,7 +215,7 @@ describe("AuthorInput — kereső mód (onSubmit)", () => {
 
 /* Kereső mód: a commitolt kifejezés (amit a mező az aktuális nézethez mutat)
    UNFÓKUSZÁLTAN középre igazít, és NEM villan rá ghost — csak ha belekattintok. */
-function CommittedWrapper({initial}) {
+function CommittedWrapper({initial}: {initial: string}) {
     const [value, setValue] = useState(initial);
     return <AuthorInput value={value} onChange={(event) => setValue(event.target.value)}
                         onSubmit={vi.fn()} placeholder="Keresés" class=""/>;

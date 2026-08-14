@@ -1,24 +1,34 @@
 import {screen, waitFor} from "@testing-library/react";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import {renderRoutes} from "../../test/renderRoutes";
+import {axiosResponse} from "../../test/axiosResponse";
+import type {Quote} from "../../types/api";
 
+
+/* A lista-válasz a TELJES idézeteket adja (a szerkesztő szűkített alakja külön
+   szerződés, l. QuoteForEdit). A `satisfies` a fixtúrát ehhez méri: a tulajdonos,
+   a betűméret és az időbélyegek is jelen vannak, ahogy a szerver küldi. */
+const QUOTE_BASE = {
+    user: "u-1", fontSize: 155,
+    createdAt: "2026-01-01T10:00:00.000Z", updatedAt: "2026-01-01T10:00:00.000Z",
+};
 
 const QUOTES = [
-    {_id: "a", quote: "Első idézet", author: "Márai", order: 1},
-    {_id: "b", quote: "Második idézet", author: "", order: 2},
-];
+    {...QUOTE_BASE, _id: "a", quote: "Első idézet", author: "Márai", order: 1},
+    {...QUOTE_BASE, _id: "b", quote: "Második idézet", author: "", order: 2},
+] satisfies Quote[];
 
-const {handleAxios, auth} = vi.hoisted(() => {
-    const fn = vi.fn();
-    return {handleAxios: fn, auth: {isLoggedIn: true, handleAxios: fn}};
+const {auth, handleAxios} = await vi.hoisted(async () => {
+    const {mockAuth} = await import("../../test/mockAuth");
+    return mockAuth({isLoggedIn: true});
 });
-vi.mock("../../contexts/auth-context", () => ({useAuth: () => auth}));
+vi.mock(import("../../contexts/auth-context"), () => ({useAuth: () => auth}));
 
 beforeEach(() => {
     handleAxios.mockReset();
     handleAxios.mockImplementation((url, data, then) => {
-        if (url === "/quotes" || url === "/quotes/author") then({data: QUOTES});
-        else then({status: 200, data: {}});
+        if (url === "/quotes" || url === "/quotes/author") then(axiosResponse(QUOTES));
+        else then(axiosResponse({}));
         return Promise.resolve();
     });
 });

@@ -14,7 +14,7 @@ const DEBOUNCE_MS = 200;
    HTMLInputElement, van value-ja), így a gépelés-ág is ezen a típuson megy át. */
 type ValueChange = {target: {value: string}};
 
-type AuthorInputProps = {
+export type AuthorInputProps = {
     value: string;
     onChange: (event: ValueChange) => void;
     class: string;

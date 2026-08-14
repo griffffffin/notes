@@ -1,15 +1,31 @@
 import {act, screen, waitFor} from "@testing-library/react";
 import {beforeEach, describe, expect, it, vi} from "vitest";
 import {renderRoutes} from "../../test/renderRoutes";
+import {axiosResponse} from "../../test/axiosResponse";
+import type {AxiosResponse} from "axios";
+import type {Quote} from "../../types/api";
 
 
-const QUOTE = {_id: "q-1", quote: "Megosztott idézet.", author: "Márai", order: 1};
+/* A fixtúra a szerver VALÓDI válaszának alakjában: a tulajdonos, a betűméret és
+   az időbélyegek is benne vannak, még ha ez a teszt nem is vizsgálja őket. A
+   `satisfies` a szerződéshez méri — egy hiányzó mező innentől fordítási hiba. */
+const QUOTE = {
+    _id: "q-1", user: "u-1", quote: "Megosztott idézet.", author: "Márai", order: 1, fontSize: 155,
+    createdAt: "2026-01-01T10:00:00.000Z", updatedAt: "2026-01-01T10:00:00.000Z",
+} satisfies Quote;
 
-const {handleAxios, auth} = vi.hoisted(() => {
-    const fn = vi.fn();
-    return {handleAxios: fn, auth: {isLoggedIn: true, handleAxios: fn}};
+const {auth, handleAxios} = await vi.hoisted(async () => {
+    const {mockAuth} = await import("../../test/mockAuth");
+    return mockAuth({isLoggedIn: true});
 });
-vi.mock("../../contexts/auth-context", () => ({useAuth: () => auth}));
+vi.mock(import("../../contexts/auth-context"), () => ({useAuth: () => auth}));
+
+/* A lekérés törzséből az azonosítót VALÓDI vizsgálattal olvassuk ki (a kém felől
+   `unknown`); egy `as` csak állítaná, hogy ott a mező. */
+const idOf = (data: unknown): string => {
+    if (typeof data === "object" && data !== null && "id" in data && typeof data.id === "string") return data.id;
+    throw new Error(`a lekérés törzsében nincs id: ${JSON.stringify(data)}`);
+};
 
 beforeEach(() => {
     handleAxios.mockReset();
@@ -18,7 +34,7 @@ beforeEach(() => {
 describe("QuotePublic (megosztott idézet)", () => {
     it("betölti és megjeleníti a megosztott idézetet a szerzővel", async () => {
         handleAxios.mockImplementation((url, data, then) => {
-            if (url === "/quotes/id") then({data: QUOTE});
+            if (url === "/quotes/id") then(axiosResponse(QUOTE));
             return Promise.resolve();
         });
         renderRoutes("/quotes/M%C3%A1rai/q-1");
@@ -29,7 +45,7 @@ describe("QuotePublic (megosztott idézet)", () => {
 
     it("a **…** markert félkövérként rendereli, a marker maga nem látszik", async () => {
         handleAxios.mockImplementation((url, data, then) => {
-            if (url === "/quotes/id") then({data: {...QUOTE, quote: "Sima **félkövér** rész."}});
+            if (url === "/quotes/id") then(axiosResponse({...QUOTE, quote: "Sima **félkövér** rész."}));
             return Promise.resolve();
         });
         renderRoutes("/quotes/M%C3%A1rai/q-1");
@@ -63,9 +79,11 @@ describe("QuotePublic — versenyhelyzet a betöltésben", () => {
     it("a lejárt :id KÉSVE érkező válasza nem írja felül a frisset", async () => {
         // A /quotes/id hívások callbackjeit összegyűjtjük ahelyett, hogy azonnal
         // válaszolnánk; a többi hívás (navbar stb.) érdektelen.
-        const pending = [];
+        /* A típus kimondja, mit tart a tömb: a kért azonosítót és azt a
+           visszahívást, ami MAJD a megosztott idézetet kapja. */
+        const pending: {id: string; then: (response: AxiosResponse<Quote>) => void}[] = [];
         handleAxios.mockImplementation((url, data, then) => {
-            if (url === "/quotes/id") pending.push({id: data.id, then});
+            if (url === "/quotes/id") pending.push({id: idOf(data), then});
             return Promise.resolve();
         });
 
@@ -82,8 +100,8 @@ describe("QuotePublic — versenyhelyzet a betöltésben", () => {
         expect(pending.map((call) => call.id)).toEqual(["q-2", "q-1"]);
 
         // Előbb a FRISS (q-1) válasza érkezik meg, és csak utána a lejárt q-2-é.
-        act(() => pending[1].then({data: {...QUOTE, _id: "q-1", quote: "A friss idézet."}}));
-        act(() => pending[0].then({data: {...QUOTE, _id: "q-2", quote: "A lejárt idézet."}}));
+        act(() => pending[1].then(axiosResponse({...QUOTE, _id: "q-1", quote: "A friss idézet."})));
+        act(() => pending[0].then(axiosResponse({...QUOTE, _id: "q-2", quote: "A lejárt idézet."})));
 
         expect(await screen.findByText("A friss idézet.")).toBeVisible();
         expect(screen.queryByText("A lejárt idézet.")).not.toBeInTheDocument();
