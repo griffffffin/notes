@@ -9,7 +9,7 @@ import type {TodoColor} from "../../todoColors";
    őket. Egy `Dispatch<SetStateAction<string>>` a frissítő-FÜGGVÉNYES alakot is
    megengedné, amit ez a komponens sosem használ — a szűkebb típus pontosan a
    tényleges igényt írja le, és egy state-setter simán megfelel neki. */
-type CategoryProps = {
+export type CategoryProps = {
     setCategory: (category: string) => void;
     setIsValid: (isValid: boolean) => void;
     setIsAngleClicked: (isAngleClicked: boolean) => void;

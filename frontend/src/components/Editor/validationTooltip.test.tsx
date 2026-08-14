@@ -4,11 +4,18 @@ import userEvent from "@testing-library/user-event";
 import ValidationTooltip from "./validationTooltip";
 import Order from "../Todos/order";
 import {resetTooltips} from "../../tooltipRegistry";
+import type {FieldAnchor} from "./fieldAnchor";
 
 afterEach(resetTooltips);
 
-// A fieldAnchor visszatérési értékének alakja — a buborék ezt kapja state-ként.
-const validation = {anchor: "#field", name: "idézet", pos: {x: 80, y: 46}};
+/* A fieldAnchor visszatérési értékének alakja — a buborék ezt kapja state-ként.
+   A `boundary` (a buborékot bent tartó űrlap) KIMONDVA undefined: a fieldAnchor
+   is ezt adja, ha a mező nincs formban, és ezekben a tesztekben nincs. Korábban a
+   mező egyszerűen hiányzott a fixtúrából — ugyanaz az érték, csak nem lehetett
+   tudni, hogy szándék-e vagy feledékenység. */
+const validation: FieldAnchor = {
+    anchor: "#field", name: "idézet", boundary: undefined, pos: {x: 80, y: 46},
+};
 
 const MESSAGE = "Az idézet kitöltése kötelező.";
 
@@ -16,20 +23,27 @@ const MESSAGE = "Az idézet kitöltése kötelező.";
    már egyszer megmutatott buborékot a lapon HAGYJA, csak elrejti — a látható
    állapotot a "react-tooltip__show" osztály jelöli. (A tényleges elrejtést a
    könyvtár CSS-e végzi, ami jsdomban nem fut le, ezért az osztályt nézzük.) */
-const isShown = (text) => {
+const isShown = (text: string) => {
     const content = screen.queryByText(text);
     return Boolean(content?.closest(".react-tooltip")?.classList.contains("react-tooltip__show"));
 };
 
+// A szöveget tartalmazó buborék MAGA. Ha nincs, az hiba: dobjon, ne null-ozzon.
+const bubbleOf = (text: string) => {
+    const bubble = screen.getByText(text).closest(".react-tooltip");
+    if (!bubble) throw new Error(`a(z) "${text}" szöveg nem tooltip-buborékban van`);
+    return bubble;
+};
+
 describe("ValidationTooltip", () => {
     it("hiba nélkül nincs buborék a lapon", () => {
-        render(<ValidationTooltip id="v" validation={null}/>);
+        render(<ValidationTooltip id="v" validation={null} onDismiss={vi.fn()}/>);
 
         expect(screen.queryByText(MESSAGE)).not.toBeInTheDocument();
     });
 
     it("hibánál a mező nevével kiírja a kötelező-üzenetet", async () => {
-        render(<ValidationTooltip id="v" validation={validation}/>);
+        render(<ValidationTooltip id="v" validation={validation} onDismiss={vi.fn()}/>);
 
         await waitFor(() => expect(isShown(MESSAGE)).toBe(true));
     });
@@ -57,10 +71,10 @@ describe("ValidationTooltip", () => {
        react-tooltip viszont osztályban is jelöli a kattinthatóságot — ezt fogjuk
        meg, hogy egy visszacsúszó `clickable` ne maradjon némán a kódban. */
     it("a buborék nem kattintható felület", async () => {
-        render(<ValidationTooltip id="v" validation={validation}/>);
+        render(<ValidationTooltip id="v" validation={validation} onDismiss={vi.fn()}/>);
         await waitFor(() => expect(isShown(MESSAGE)).toBe(true));
 
-        expect(screen.getByText(MESSAGE).closest(".react-tooltip").className).not.toMatch(/clickable/);
+        expect(bubbleOf(MESSAGE).className).not.toMatch(/clickable/);
     });
 
     // Amíg nincs hiba, semmit nem figyelünk — a kattintás nem szól a szerkesztőnek.
@@ -81,7 +95,7 @@ describe("ValidationTooltip", () => {
        szabály attól ér valamit, hogy a két külön komponens tényleg tud egymásról. */
     it("egy másik tooltip megnyílása eltünteti a hibabuborékot", async () => {
         render(<>
-            <ValidationTooltip id="v" validation={validation}/>
+            <ValidationTooltip id="v" validation={validation} onDismiss={vi.fn()}/>
             <Order current={1} setOrder={() => {}} last={3}/>
         </>);
         await waitFor(() => expect(isShown(MESSAGE)).toBe(true));

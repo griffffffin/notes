@@ -29,10 +29,10 @@ const renderWithTheme = () => render(
 /* A böngésző (és a jsdom) a színeket normalizálja: a "#fff"-ből "rgb(255,255,255)"
    lesz. Ezért nem a hex-szöveget hasonlítjuk, hanem ugyanazon az úton normalizált
    értékeket. */
-function normalizaltSzin(szin) {
-    const elem = document.createElement("div");
-    elem.style.background = szin;
-    return elem.style.background;
+function normalizedColor(color: string) {
+    const element = document.createElement("div");
+    element.style.background = color;
+    return element.style.background;
 }
 
 describe("ThemeProvider", () => {
@@ -55,7 +55,7 @@ describe("ThemeProvider", () => {
         expect(screen.getByTestId("hex")).toHaveTextContent(THEMES.light.accent);
         // A fekete sáv-hiba ellen: a <html> háttere is kövesse a témát.
         expect(document.documentElement.style.background)
-            .toBe(normalizaltSzin(THEMES.light.pageBackground));
+            .toBe(normalizedColor(THEMES.light.pageBackground));
     });
 
     it("a témát sütibe menti, hogy újratöltés után is megmaradjon", async () => {

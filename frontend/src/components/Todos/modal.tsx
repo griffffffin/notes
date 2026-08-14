@@ -5,7 +5,7 @@ import type {BootstrapColor} from "../../contexts/theme-context";
 
 /* A szín kétféle lehet, mert a modal két szerkesztőt szolgál ki: a to-do a saját
    paletta-színét adja, az idézet a témáét (l. deleteAndModal). */
-type ModalProps = {
+export type ModalProps = {
     isShow: boolean;
     handleClose: () => void;
     handleDelete: () => void;

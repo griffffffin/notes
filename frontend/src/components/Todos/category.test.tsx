@@ -1,13 +1,20 @@
 import {fireEvent, render, screen} from "@testing-library/react";
 import {describe, expect, it, vi} from "vitest";
 import Category from "./category";
+import type {CategoryProps} from "./category";
 
 
-const setup = (overrides = {}) => {
+/* A `satisfies` (nem `:` és nem `as`): ELLENŐRZI, hogy a props-halmaz megfelel a
+   komponens szerződésének — egy elgépelt vagy elavult propnév innentől fordítási
+   hiba —, de MEGTARTJA a pontos típusokat, tehát a visszaadott `setCategory`
+   továbbra is mock marad, nem sima függvénnyé szürkül. A `color: "warning"` így
+   literálként méretik a szűk TodoColor unióhoz. */
+const setup = (overrides: Partial<CategoryProps> = {}) => {
     const props = {
         category: "", categories: ["otthon", "munka"], color: "warning", isAngleClicked: false,
-        setCategory: vi.fn(), setIsValid: vi.fn(), setIsAngleClicked: vi.fn(), handleAngleClick: vi.fn(), ...overrides,
-    };
+        setCategory: vi.fn(), setIsValid: vi.fn(), setIsAngleClicked: vi.fn(), handleAngleClick: vi.fn(),
+        ...overrides,
+    } satisfies CategoryProps;
     render(<Category {...props}/>);
     return props;
 };

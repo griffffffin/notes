@@ -7,7 +7,7 @@ import type {TodoColor} from "../../todoColors";
 
 /* A `setTaskOrder`-t ez a komponens NEM kapja meg (szemben a DragAndDrop-pal):
    az új listaelem a sorrend VÉGÉRE kerül, amit közvetlen `push`-sal intéz. */
-type MoreTaskProps = {
+export type MoreTaskProps = {
     todo: TodoDraft;
     setTodo: Dispatch<SetStateAction<TodoDraft>>;
     setTask: SetTask;

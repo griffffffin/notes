@@ -1,8 +1,13 @@
 import {render, screen} from "@testing-library/react";
 import {describe, expect, it, vi} from "vitest";
+import type {ReactNode} from "react";
 import ErrorBoundary from "./errorBoundary";
 
-function Exploding() {
+/* A visszatérési típus KIMONDVA `ReactNode`: a fordító különben a törzsből
+   `never`-t következtet (a függvény csak dob, sosem tér vissza), és egy `never`
+   visszatérésű függvényt nem fogad el JSX-komponensként. A komponens dolga itt
+   éppen a dobás — a hibahatár ezt kapja el. */
+function Exploding(): ReactNode {
     throw new Error("szándékos teszthiba");
 }
 

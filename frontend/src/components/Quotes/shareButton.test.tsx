@@ -10,13 +10,20 @@ const ID = "6a6cc7bc8dca2d05004fcf39";
    megjegyezzük, mit jelölt ki a kód — a KIMÁSOLT SZÖVEG a bizonyíték. A
    vágólap-modult SZÁNDÉKOSAN nem mockoljuk: így a gomb → cím-összeállítás →
    másolás teljes lánca fut, nem csak a gomb. */
-let copiedText;
+let copiedText: string | null = null;
 
 const arrangeClipboard = (succeeds = true) => {
     copiedText = null;
     document.execCommand = vi.fn(() => {
+        /* A kijelölést a másolás pillanatában olvassuk ki. Az `instanceof` VALÓDI
+           ellenőrzés (a document.activeElement típusa `Element | null`, azon
+           nincs `value`): ha a vágólap-modul egyszer nem textareát használna, ez
+           null-t adna, és a rá épülő állítás azonnal megbukna — nem mérnénk
+           csendben mást. Ugyanez a minta a clipboard.test.ts-ben. */
         const field = document.activeElement;
-        copiedText = field?.value?.slice(field.selectionStart, field.selectionEnd);
+        copiedText = field instanceof HTMLTextAreaElement
+            ? field.value.slice(field.selectionStart ?? 0, field.selectionEnd ?? 0)
+            : null;
         return succeeds;
     });
 };
