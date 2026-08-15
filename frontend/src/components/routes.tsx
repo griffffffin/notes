@@ -120,6 +120,22 @@ function QuotesSaveRoute({isUpdate}: {isUpdate: boolean}) {
     return <QuoteSave isUpdate={isUpdate} handleLinkClicked={p.handleLinkClicked}/>;
 }
 
+/* Az utolsó megnyitott szekcióra visz — a gyökér ÉS az ismeretlen út közös célja.
+
+   Miért KOMPONENS, és nem egyszerűen `<Navigate to={lastSectionPath()}/>` a route
+   mellett? Mert a lenti route-fák MODUL SZINTŰ konstansok: a JSX propjai egyszer,
+   a modul betöltésekor értékelődnek ki. Ott hívva a `lastSectionPath()` az első
+   betöltéskori értéket fagyasztaná be, és a később megjegyzett szekció-váltás már
+   nem látszana rajta — némán, mindig a régi helyre víve. Komponensként a hívás a
+   RENDERELÉS idejére kerül, tehát mindig a friss emlékezetet olvassa.
+
+   (Ma ezt a to-do → idézet váltás csak teljes újratöltéssel jár, ami a modult is
+   újraértékeli — a hiba tehát lappangó. A `*`-ág átirányításával viszont élővé
+   válna, és a tervezett szekció-váltó legördülővel is.) */
+function RedirectToLastSection() {
+    return <Navigate to={lastSectionPath()} replace/>;
+}
+
 /* A két route-fa (bejelentkezve / kijelentkezve) — a régi Routes két <Router>-ágának
    1:1 megfelelője, csak data-router alakban. A `key` a Save/QuoteSave elemeken NEM
    dísz: a /create és a /update UGYANAZT a komponenst rendereli, a külön key nélkül a
@@ -130,7 +146,7 @@ const loggedInRoutes = createRoutesFromElements(
         {/* A gyökér az UTOLSÓ megnyitott SZEKCIÓRA visz (a lista-nézetek mountkor
             jegyzik meg, melyikben jársz — useRememberSection). A tárolás
             részletei, a kulcs és az alapértelmezés a sections.ts-ben, egy helyen. */}
-        <Route path={PATHS.root} element={<Navigate to={lastSectionPath()} replace/>}/>
+        <Route path={PATHS.root} element={<RedirectToLastSection/>}/>
         <Route path={PATHS.todos} element={<TodosReadRoute url={ENDPOINTS.todos}/>}/>
         <Route path={PATHS.todoCreate} element={<TodosSaveRoute key="create" isUpdate={false}/>}/>
         {/* A szűrő és a szerkesztendő azonosító az URL-ben, nem a navigációs
@@ -155,10 +171,11 @@ const loggedInRoutes = createRoutesFromElements(
         {/* Egy megosztott idézet publikus nézete. A bejelentkezett is megnyithatja
             (olvasásra); a kijelentkezett ágban ugyanez a route szerepel. */}
         <Route path={PATHS.publicQuote.pattern} element={<QuotePublic/>}/>
-        {/* Ismeretlen út → a to-do listára (a régi "* → főlista" mintát megtartva).
-            A "*" a react-router saját joker-mintája (nem a mi utunk), ezért marad
-            szó szerint. */}
-        <Route path="*" element={<Navigate to={PATHS.todos} replace/>}/>
+        {/* Ismeretlen út → az UTOLSÓ megnyitott szekcióra, ugyanoda, ahova a gyökér.
+            Eddig bedrótozottan a to-do listára vitt: aki az idézetek közt dolgozott
+            és elrontott egy címet, az átesett a másik szekcióba. A "*" a react-router
+            saját joker-mintája (nem a mi utunk), ezért marad szó szerint. */}
+        <Route path="*" element={<RedirectToLastSection/>}/>
     </Route>
 );
 
