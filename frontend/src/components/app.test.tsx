@@ -12,10 +12,16 @@ import type {Todo} from "../types/api";
    valódi. A providerek sorrendje a main.jsx-ét követi (CookiesProvider →
    ThemeProvider); az AuthProvider helyett a context-mock áll be. */
 
+/* A `satisfies Todo` a fixtúrát a VALÓDI szerződéshez méri: a tulajdonos és az
+   időbélyegek is jelen vannak, ahogy a szerver küldi (a /to-dos/id a teljes
+   dokumentumot adja vissza, l. Todos/readById.js). Korábban ez a három mező
+   hiányzott innen, és semmi nem szólt érte — a válasz alakját akkor még csak egy
+   típusparaméter "ígérte"; a séma-ellenőrzés bevezetése mutatta meg a hiányt. */
 const TODO = {
-    _id: "todo-1", title: "Bevásárlás", color: "danger", category: "otthon", order: 1,
+    _id: "todo-1", user: "u-1", title: "Bevásárlás", color: "danger", category: "otthon", order: 1,
     percentage: 0, tasks: {}, taskOrder: [],
-};
+    createdAt: "2026-01-01T10:00:00.000Z", updatedAt: "2026-01-01T10:00:00.000Z",
+} satisfies Todo;
 
 /* Állandó handleAxios: az App effektje az azonosságára függ, egy rendernként
    újragyártott függvény végtelen újratöltő ciklust okozna. A valódi

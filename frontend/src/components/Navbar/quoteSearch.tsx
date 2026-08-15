@@ -5,7 +5,8 @@ import {useAuth} from "../../contexts/auth-context";
 import {useTheme} from "../../contexts/theme-context";
 import {logRequestError} from "../../log";
 import {ENDPOINTS} from "../../endpoints";
-import type {SearchMode} from "../../types/api";
+import * as v from "valibot";
+import {searchModeSchema} from "../../types/api";
 
 /* A Quotes-navbar keresője (a "+" és a kijelentkezés között, középen). A ghost-
    text szerző-ajánlást a szerkesztővel KÖZÖS AuthorInput adja (onSubmit móddal:
@@ -55,13 +56,17 @@ export default function QuoteSearch(props: QuoteSearchProps) {
             navigate("/quotes/Anonymous");
             return;
         }
-        /* A <SearchMode> nem csak megnevezi a választ: a diszkriminált unió miatt a
-           `response.data.author` sor CSAK a mode-vizsgálat ága alatt fordul le
-           (l. types/api.ts). */
-        handleAxios<SearchMode>(ENDPOINTS.quoteSearchMode, {term: trimmed}, (response) => {
+        handleAxios(ENDPOINTS.quoteSearchMode, {term: trimmed}, (response) => {
+            /* A séma nem csak megnevezi a választ, ELLENŐRZI is: a diszkriminált
+               unió miatt a `mode.author` sor CSAK a mode-vizsgálat ága alatt fordul
+               le (l. types/api.ts), és futásidőben is csak akkor van ott. Egy
+               "author" módú válasz szerző NÉLKÜL így nem az URL-be írt "undefined"
+               szót eredményezi, hanem elutasított választ: maradunk a helyünkön, a
+               hiba a naplóba megy. */
+            const mode = v.parse(searchModeSchema, response.data);
             props.handleLinkClicked?.();
-            if (response.data.mode === "author")
-                navigate("/quotes/" + encodeURIComponent(response.data.author));
+            if (mode.mode === "author")
+                navigate("/quotes/" + encodeURIComponent(mode.author));
             else
                 navigate("/quotes/search/" + encodeURIComponent(trimmed));
         }, logRequestError);

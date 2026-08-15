@@ -6,7 +6,8 @@ import {logRequestError} from "../../log";
 import {ENDPOINTS} from "../../endpoints";
 import {responseStatus} from "../../httpError";
 import {ENTRY_ERROR_MESSAGES, entryError, type EntryError} from "./entryError";
-import type {AuthToken} from "../../types/api";
+import * as v from "valibot";
+import {authTokenSchema} from "../../types/api";
 
 /* Ugyanaz a komponens szolgálja ki a belépést és a regisztrációt — a különbséget
    EGYETLEN zászló hordozza, nem két majdnem egyforma fájl. */
@@ -80,18 +81,21 @@ export default function Entry(props: EntryProps) {
 
     const handleSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        /* A <AuthToken> megmondja, MIT várunk a szervertől: a válasz törzse maga az
-           aláírt JWT, csupasz szövegként. Enélkül a `response.data` `unknown`
-           volna, és a `login()` nem fogadná el — a típus-paraméter tehát nem
-           díszítés, hanem itt dől el, hogy a szerződést betartjuk-e. */
-        handleAxios<AuthToken>(url, {name: name, password: password}, (response) => {
+        handleAxios(url, {name: name, password: password}, (response) => {
+                /* A séma mondja ki, MIT várunk a szervertől: a válasz törzse maga
+                   az aláírt JWT, csupasz szövegként — és most már ellenőrizzük is,
+                   mielőtt sütibe tesszük. Ha a szerver egyszer burkolót ad
+                   ({token: "…"}), a bejelentkezés HANGOSAN bukik (hibaüzenet a
+                   belépő űrlapon), nem egy "[object Object]" tokennel, amivel
+                   utána minden kérés 401-et kapna. */
+                const token = v.parse(authTokenSchema, response.data);
                 /* A süti beállítása átbillenti az isLoggedIn-t, a router
                    újrarenderel a belépett route-táblával — és MOST NEM navigálunk
                    kézzel: így ha a user login nélkül egy védett címet nyitott meg
                    (pl. /to-dos/update/:id vagy /quotes/:id), belépés után OTT marad,
                    nem dobjuk a főoldalra. A /login és /signup címeket a belépett
                    tábla "*" ága magától a /to-dos listára irányítja át. */
-                login(response.data);
+                login(token);
                 /* A paraméter neve `requestError`, nem `error`: a komponens
                    állapotát hívják `error`-nak, és az árnyékolás itt pont a
                    fontos helyen zavarna össze (melyiket adjuk a naplónak?). */

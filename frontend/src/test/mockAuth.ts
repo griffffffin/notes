@@ -15,33 +15,28 @@ import type {Auth} from "../contexts/auth-context";
    Innentől a pótlék `Auth` típusú, tehát a szerződés bármely változása (új mező,
    átnevezett paraméter) ITT bukik el, egy helyen — nem tíz tesztben, némán.
 
-   A HÍVÁS-KÉM ÉS A GENERIKUSSÁG. A `handleAxios` generikus (`<T>`: a hívó mondja
-   meg, milyen adatot vár), a Vitest `Mock<T>` típusa viszont a hívási aláírást
-   konkretizálja, és attól már nem felel meg egy generikus mezőnek. `as`-szal egy
-   sor lenne — de az pont az ellenőrzést kapcsolná ki. Helyette a kém a LAPOS
-   alakot rögzíti, és a contextbe egy vékony, generikus továbbító kerül: a
-   komponens azt hívja, a teszt a kémre tesz `mockImplementation`-t.
+   A HÍVÁS-KÉM. A kém a `handleAxios` LAPOS alakját rögzíti, és a contextbe egy
+   vékony továbbító kerül: a komponens azt hívja, a teszt a kémre tesz
+   `mockImplementation`-t.
 
-   A VÁLASZ TÍPUSA az egyetlen rés, és NÉVVEL áll, hogy látszódjon, mi az. A
-   `then` visszahívás kétfelé néz: a továbbítónak BÁRMELYIK hívó callbackjét
-   fogadnia kell (`AxiosResponse<Quote[]>`, `AxiosResponse<Todo>`, …), a tesztnek
-   pedig HÍVNIA kell a sajátjával. Az egyik igény kovariáns, a másik
-   kontravariáns; a `never` a továbbítót engedné, de a tesztet nem, az `unknown`
-   fordítva — a kettőt egyszerre semmi nem elégíti ki. Nem is elégítheti: a `T` a
-   HÍVÓ kívánsága, amiről futásidőben csak a teszt írója tud.
+   A VÁLASZ TÍPUSA `unknown` — ÉS EZ EGY BEZÁRULT RÉS. Korábban `AxiosResponse<any>`
+   állt itt, az egyetlen `any` a segédben, mert a `handleAxios` generikus volt
+   (`<T>`: a hívó mondta meg, milyen adatot vár), a `then` visszahívás pedig
+   egyszerre nézett kétfelé: a továbbítónak BÁRMELYIK hívó callbackjét fogadnia
+   kellett (`AxiosResponse<Quote[]>`, `AxiosResponse<Todo>`, …), a tesztnek pedig
+   HÍVNIA kellett a sajátjával — kovariáns és kontravariáns igény egyszerre, amit
+   csak az `any` elégített ki.
 
-   És ez nem a pótlék gyengesége: a VALÓDI implementáció is pontosan ennyit ígér.
-   Az `axios.post<T>` (auth.tsx) sem veti össze a szerver JSON-ját a `T`-vel — ott
-   a cast a könyvtár típusaiban van elrejtve. Ha a `handleAxios` egyszer `unknown`-t
-   adna, és a hívók típusőrrel szűkítenének (ahogy a httpError.ts teszi), ez a rés
-   magától eltűnne — a kém `AxiosResponse<unknown>`-t kapna, és minden típusos
-   lenne. Addig itt áll, egy helyen, kimondva. */
-type CallerTypedResponse = AxiosResponse<any>;
-
+   A rés nem itt szűnt meg, hanem a szerződésben: a `handleAxios` mostantól
+   `AxiosResponse<unknown>`-t ad, és a hívók sémával szűkítenek (l. types/api.ts).
+   Így a kémnek sincs mit találgatnia — a `then` `unknown`-t kap, a teszt pedig
+   bármilyen konkrét választ átadhat neki (az `AxiosResponse<Quote[]>`
+   értékadható az `AxiosResponse<unknown>` helyére). Amit a `mockAuth` mutat, az
+   pontosan annyi, amennyit a valóság is ígér. */
 type HandleAxiosSpy = (
     url: string,
     data: unknown,
-    then: (response: CallerTypedResponse) => void,
+    then: (response: AxiosResponse<unknown>) => void,
     catchError: (error: unknown) => void,
     authToken?: Auth["token"],
 ) => Promise<void>;

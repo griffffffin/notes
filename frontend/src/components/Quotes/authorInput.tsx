@@ -2,6 +2,8 @@ import {useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent, type 
 import {useAuth} from "../../contexts/auth-context";
 import {logRequestError} from "../../log";
 import {ENDPOINTS} from "../../endpoints";
+import * as v from "valibot";
+import {authorListSchema} from "../../types/api";
 
 // Ennyi szünet után kérünk javaslatot: gépelés közben minden billentyűnél
 // fölösleges a szerverhez fordulni, csak ha a felhasználó "megállt".
@@ -96,9 +98,12 @@ export default function AuthorInput(props: AuthorInputProps) {
         }
         let isLatest = true;
         const timer = setTimeout(() => {
-            handleAxios<string[]>(ENDPOINTS.quoteAuthors, {prefix: value},
+            handleAxios(ENDPOINTS.quoteAuthors, {prefix: value},
                 (response) => {
-                    if (isLatest) setSuggestion(response.data[0] ?? "");
+                    // A szerver legfeljebb EGY javaslatot küld ($limit 1), de a
+                    // szerződése tömb — a séma is azt kéri számon.
+                    const authors = v.parse(authorListSchema, response.data);
+                    if (isLatest) setSuggestion(authors[0] ?? "");
                 },
                 // A hibaág nem ír state-et (csak naplóz), ezért nem kér őrt.
                 logRequestError);

@@ -3,13 +3,16 @@ import type {AxiosResponse} from "axios";
 import {useCallback, useEffect, useMemo, useRef} from "react";
 import type {ReactNode} from "react";
 import {useCookies} from "react-cookie";
+import * as v from "valibot";
 import {AuthContext} from "./auth-context";
 import type {Auth} from "./auth-context";
+import {authTokenSchema} from "../types/api";
 import type {AuthToken} from "../types/api";
 import {ENDPOINTS} from "../endpoints";
 import type {Endpoint} from "../endpoints";
 import {ACTIVITY_EVENTS, IDLE_LOGOUT_MS} from "../idle";
 import {responseStatus} from "../httpError";
+import {logRequestError} from "../log";
 
 /* Bejelentkezés és szerverhívás egy helyen.
 
@@ -71,19 +74,18 @@ export function AuthProvider({children}: {children: ReactNode}) {
     const logout = useCallback(() => removeCookie("user", {path: "/"}), [removeCookie]);
 
     /* Az `authToken` OPCIONÁLIS felülírás: alapból az ÉLŐ tokent (tokenRef) küldjük.
-       A kijelentkezéskori unmount-mentés (Quotes/save.jsx) viszont a MÁR TÖRÖLT élő
+       A kijelentkezéskori unmount-mentés (Quotes/save.tsx) viszont a MÁR TÖRÖLT élő
        token helyett a leváláskor még érvényes, ZÁRVÁNYOLT tokent adja át — enélkül a
        mentés token nélkül, 401-gyel bukna (removeCookie már lefutott, tokenRef null).
 
-       A `<T,>` a hívó által megadott VÁLASZTÍPUS (l. auth-context.ts). A vessző nem
-       elírás: .tsx fájlban a puszta `<T>` JSX-címkének látszana, a vessző oszlatja
-       el a kétértelműséget. */
-    const handleAxios = useCallback(<T,>(
+       A válasz típusa `unknown`, nem a hívó által megadott `<T>`: az ellenőrzés a
+       hívási helyen történik, sémával (l. auth-context.ts és types/api.ts). */
+    const handleAxios = useCallback((
         // Csak létező végpont adható át (l. endpoints.ts) — a szerződést a
         // HandleAxios típus mondja ki, ez itt annak a megvalósítása.
         url: Endpoint,
         data: unknown,
-        then: (response: AxiosResponse<T>) => void,
+        then: (response: AxiosResponse<unknown>) => void,
         catchError: (error: unknown) => void,
         // A felülíró token a szerkesztők ZÁRVÁNYOLT tokene, ami `AuthToken | null`
         // (a legutóbbi render tokene). A `?? tokenRef.current` a null-t is elnyeli:
@@ -91,7 +93,10 @@ export function AuthProvider({children}: {children: ReactNode}) {
         authToken?: AuthToken | null,
     ): Promise<void> => {
         const bearer = authToken ?? tokenRef.current;
-        return axios.post<T>(import.meta.env.VITE_BACKEND + url, data, {
+        /* A `<unknown>` KIMONDVA: az axios alapértelmezése `any` volna, ami
+           csendben mindent átengedne — épp azt a védelmet kapcsolná ki, amiért a
+           válasz típusa `unknown` lett (l. auth-context.ts). */
+        return axios.post<unknown>(import.meta.env.VITE_BACKEND + url, data, {
             timeout: REQUEST_TIMEOUT_MS,
             headers: bearer ? {Authorization: "Bearer " + bearer} : undefined,
         })
@@ -116,14 +121,21 @@ export function AuthProvider({children}: {children: ReactNode}) {
             lastActivity.current = Date.now();
             if (Date.now() - lastRefresh.current < REFRESH_EVERY_MS) return;
             lastRefresh.current = Date.now();
-            axios.post<AuthToken>(import.meta.env.VITE_BACKEND + ENDPOINTS.refresh, {},
+            /* A `<unknown>` és a séma ugyanabból az okból, mint a handleAxios-ban:
+               a megújított tokent nem hihetjük el, ELLENŐRIZZÜK — ez az érték megy
+               egyenesen a sütibe, tehát ha a szerver egyszer mást ad (pl.
+               {token: "…"} burkolót), a hibás érték némán kiszorítaná a működő
+               tokent, és a következő kérés 401-gyel léptetne ki. */
+            axios.post<unknown>(import.meta.env.VITE_BACKEND + ENDPOINTS.refresh, {},
                 {headers: {Authorization: "Bearer " + token}})
-                .then((response) => setCookie("user", response.data, {path: "/"}))
-                /* A néma bukás szándékos: ez háttérmunka, amiről a felhasználó
+                .then((response) => setCookie("user", v.parse(authTokenSchema, response.data), {path: "/"}))
+                /* A FELHASZNÁLÓ felé néma bukás szándékos: ez háttérmunka, amiről
                    nem tud. Ha a token időközben mégis lejárt, a következő valódi
                    kérés 401-et kap, és az jelentkeztet ki — nem kell két helyen
-                   ugyanazt csinálni. */
-                .catch(() => {});
+                   ugyanazt csinálni. A naplózás viszont CSAK fejlesztéskor szólal
+                   meg (log.ts), és éles buildből kiesik: enélkül egy elcsúszott
+                   szerződés (a fenti v.parse bukása) nyomtalan maradna. */
+                .catch(logRequestError);
         };
 
         ACTIVITY_EVENTS.forEach((name) => window.addEventListener(name, markActivity, {passive: true}));

@@ -6,6 +6,7 @@ import CardListView from "../CardList/CardListView";
 import {ENDPOINTS} from "../../endpoints";
 import type {Endpoint} from "../../endpoints";
 import type {MouseEventHandler} from "react";
+import {todoListSchema} from "../../types/api";
 import type {Todo} from "../../types/api";
 
 /* Ugyanaz a komponens szolgálja ki a szűretlen listát és a szűrt nézeteket — a
@@ -38,9 +39,12 @@ export default function Read(props: TodoReadProps) {
     );
 
     /* A `<Todo>` mondja meg, MILYEN kártyákat várunk — innen tudja a CardListView
-       és a renderCard is, hogy `todo.color`-t és `todo.category`-t olvashat. */
+       és a renderCard is, hogy `todo.color`-t és `todo.category`-t olvashat. A
+       `schema` ugyanennek a FUTÁSIDEJŰ párja: a típus az ígéret, a séma az
+       ellenőrzés, és a kettő egy forrásból származik (types/api.ts). */
     const {cards, isLoading, grid} = useSectionList<Todo>({
         url: props.url, filter, reorderUrl: ENDPOINTS.todoReorder, section: "/to-dos",
+        schema: todoListSchema,
     });
 
     /* Üres SZŰRT nézet esetén vissza a főlistára (a szűrő kihalt: az utolsó ilyen

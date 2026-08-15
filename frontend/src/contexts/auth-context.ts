@@ -11,20 +11,30 @@ import type {Endpoint} from "../endpoints";
    egyetlen helyen is valósul meg (auth.tsx) — és mert ez az a pont, ahol a
    típusok a legtöbbet adják.
 
-   A `<T>` egy TÍPUS-PARAMÉTER: ugyanaz a fogalom, mint a függvény-paraméter, csak
-   értékek helyett típusokra. A hívó mondja meg, milyen adatot VÁR a szervertől, és
-   a `then` visszahívása pontosan azt kapja:
+   A VÁLASZ TÍPUSA `unknown`, ÉS EZ SZÁNDÉKOS. Korábban itt egy `<T>`
+   típus-paraméter állt, amivel a hívó MEGMONDTA, mit vár:
 
        handleAxios<Quote[]>(ENDPOINTS.quotes, {}, (response) => setQuotes(response.data), …)
-                   ^^^^^^^ ettől lesz a response.data Quote[] a callbackben
 
-   Innentől egy `response.data.map((q) => q.qoute)` elgépelés FORDÍTÁSKOR bukik, nem
-   egy üres kártyán a képernyőn.
+   Ez kényelmes volt, de üres ígéret: a `T`-t SEMMI nem vetette össze a szerver
+   JSON-jával — a lánc végén álló `axios.post<T>` sem teszi, ott a cast a könyvtár
+   típusaiban van elrejtve. Vagyis ugyanaz a fajta állítás volt, mint az `as` (l.
+   CLAUDE.md): ha a backend átnevez egy mezőt, a fordító elégedett marad, és
+   `undefined` jelenik meg a képernyőn, hibaüzenet nélkül.
 
-   Az alapértelmezés `unknown` (nem `any`): aki nem mondja meg, mit vár, annak a
-   fordító nem engedi meg, hogy találgasson — az `unknown`-hoz addig nem lehet
-   nyúlni, amíg meg nem mondjuk, minek nézzük. Az `any` ezzel szemben csendben
-   mindent átengedne, vagyis pont a védelmet kapcsolná ki.
+   `unknown`-nal ez nem lehetséges: az `unknown`-hoz addig nem lehet hozzányúlni,
+   amíg meg nem mondjuk, minek nézzük — a fordító tehát KIKÉNYSZERÍTI az
+   ellenőrzést a hívási helyen. Nem `any`, mert az csendben mindent átengedne,
+   vagyis pont a védelmet kapcsolná ki. A hívó a válaszra ráereszti a szekció
+   sémáját (types/api.ts), és onnantól ellenőrzött adattal dolgozik:
+
+       handleAxios(ENDPOINTS.quotes, {}, (response) => {
+           setQuotes(v.parse(quoteListSchema, response.data));
+       }, …)
+
+   Az elutasított válasz a HIBAÁGRA kerül (a `then`-ben dobott kivételt a
+   handleAxios `.catch`-e is elkapja) — ugyanúgy, mint egy hálózati hiba: az
+   értelmezhetetlen válasz nem más eset, mint a meg sem érkezett válasz.
 
    A `catchError` paramétere azért `unknown`, mert JavaScriptben BÁRMIT el lehet
    dobni — egy hibaág nem ígérhet Error-t. (A `then`-ben dobott kivétel is ide
@@ -32,14 +42,14 @@ import type {Endpoint} from "../endpoints";
 
    Az `authToken` OPCIONÁLIS felülírás; az indoka az auth.tsx-ben van, ahol a
    kijelentkezéskori mentés a már törölt élő token helyett a zárványolt régit adja. */
-export type HandleAxios = <T = unknown>(
+export type HandleAxios = (
     /* NEM `string`: csak a ténylegesen létező végpontok valamelyike (l.
        endpoints.ts). Egy kézzel odaírt vagy elgépelt útvonal így fordítási hiba,
        nem futásidejű 404 — a hívó oldalán ez a szűkítés az egyetlen olyan
        ellenőrzés, ami a kérés ELINDULÁSA előtt hat. */
     url: Endpoint,
     data: unknown,
-    then: (response: AxiosResponse<T>) => void,
+    then: (response: AxiosResponse<unknown>) => void,
     catchError: (error: unknown) => void,
     // A szerkesztők zárványolt tokene `AuthToken | null` (l. auth.tsx); a null
     // megengedett: a hívott oldalon `?? tokenRef.current` fallback nyeli el.

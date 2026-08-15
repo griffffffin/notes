@@ -17,7 +17,8 @@ import {fieldAnchor, type FieldAnchor} from "../Editor/fieldAnchor";
 import ValidationTooltip from "../Editor/validationTooltip";
 import {useEscapeSubmit} from "../Editor/useEscapeSubmit";
 import {useIdleTimer} from "../Editor/useIdleTimer";
-import type {QuoteForEdit} from "../../types/api";
+import * as v from "valibot";
+import {quoteForEditSchema, lastOrderSchema} from "../../types/api";
 
 /* Az új idézet alap betűmérete SZÁZALÉKBAN — szándékosan a Szerző-mező méretével
    egyezik (a .caveat szabály 155%-a), hogy a szerkesztőben az idézet és a szerző
@@ -172,13 +173,16 @@ export default function QuoteSave(props: SaveProps) {
             // A szerkesztő betöltése a HITELESÍTETT /quotes/edit-ről megy (nem a
             // publikus /quotes/id-ról): innen jön a sorszám is, tulajdonos-
             // ellenőrzés mögött. Idegen/törölt idézetnél 403 → leaveEditor.
-            handleAxios<QuoteForEdit>(ENDPOINTS.quoteForEdit, {id: quoteId}, (response) => {
+            handleAxios(ENDPOINTS.quoteForEdit, {id: quoteId}, (response) => {
                 if (!active) return;
-                const q = response.data;
+                /* Az ELLENŐRZÉS AZ ELSŐ, minden state-írás előtt: hibás alaknál a
+                   v.parse dob, és a szerkesztő a hibaágon lép ki a listára —
+                   nem marad félig kitöltve. */
+                const q = v.parse(quoteForEditSchema, response.data);
                 setQuote(q.quote);
                 setAuthor(q.author ?? "");
                 setOrder(q.order);
-                setFontSize(q.fontSize ?? DEFAULT_FONT_SIZE);
+                setFontSize(q.fontSize);
                 setIsQuoteValid(Boolean(q.quote));
                 /* A kurzort a betöltött szöveg VÉGÉRE tesszük (update, a to-do mintájára).
                    UGYANAZON az úton, mint a Ctrl+B: a pendingSelection-t a lenti layout-
@@ -191,7 +195,7 @@ export default function QuoteSave(props: SaveProps) {
                 // Order- és a Betűméret-stepperrel a felhasználó a szöveg érintése
                 // nélkül is módosíthatja az idézetet.
                 loaded.current = {quote: q.quote, author: q.author ?? "", order: q.order,
-                    fontSize: q.fontSize ?? DEFAULT_FONT_SIZE};
+                    fontSize: q.fontSize};
             }, (error) => {
                 if (!active) return;
                 // Nem tölthető be (törölt elem vagy timeout) — vissza a listához,
@@ -204,9 +208,9 @@ export default function QuoteSave(props: SaveProps) {
            térjen el a to-dótól): create-nél az idézetek száma (N), update-nél N-1 —
            a szerkesztett elem a saját helyén már bent van, tehát a többiek közé
            tolható. Üres listánál 0. */
-        handleAxios<number>(ENDPOINTS.quoteLastOrder, {}, (response) => {
+        handleAxios(ENDPOINTS.quoteLastOrder, {}, (response) => {
             if (!active) return;
-            const last = response.data;
+            const last = v.parse(lastOrderSchema, response.data);
             setLastOrder(last === 0 ? 0 : (isUpdate ? last - 1 : last));
         }, logRequestError);
         return () => { active = false; };

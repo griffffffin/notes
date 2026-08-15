@@ -20,7 +20,9 @@ import ValidationTooltip from "../Editor/validationTooltip";
 import {useEscapeSubmit} from "../Editor/useEscapeSubmit";
 import {useIdleTimer} from "../Editor/useIdleTimer";
 import {isTodoColor, type TodoColor} from "../../todoColors";
-import type {Todo, Tasks} from "../../types/api";
+import * as v from "valibot";
+import {todoSchema, lastOrderSchema} from "../../types/api";
+import type {Tasks} from "../../types/api";
 import type {TodoDraft, SetTask, SetTaskOrder} from "./todoDraft";
 
 /* A szerkesztő és a szerver közti ÖSSZEHASONLÍTHATÓ pillanatkép: az a hat mező,
@@ -162,31 +164,36 @@ export default function Save(props: SaveProps) {
     useEffect(() => {
         let active = true;
         if (todoId) {
-            handleAxios<Todo>(ENDPOINTS.todoById, {id: todoId}, (response) => {
+            handleAxios(ENDPOINTS.todoById, {id: todoId}, (response) => {
                 if (!active) return;
+                /* Az ELLENŐRZÉS AZ ELSŐ, minden state-írás ELŐTT: ha a válasz nem
+                   to-do alakú, a v.parse dob, és a hibaágon a szerkesztő kilép a
+                   listára. Fordított sorrendben (előbb írni, aztán ellenőrizni) a
+                   szerkesztő félig kitöltött, felemás állapotban maradna. */
+                const loaded = v.parse(todoSchema, response.data);
                 // Pillanatkép arról, AMIT a szerver adott — a beküldéskor ehhez
                 // hasonlítunk, hogy egy változatlan űrlap ne írjon feleslegesen.
                 loadedTodo.current = {
-                    title: response.data.title,
-                    category: response.data.category,
-                    color: response.data.color,
-                    order: response.data.order,
-                    tasks: response.data.tasks ?? {},
-                    taskOrder: response.data.taskOrder ?? [],
+                    title: loaded.title,
+                    category: loaded.category,
+                    color: loaded.color,
+                    order: loaded.order,
+                    tasks: loaded.tasks ?? {},
+                    taskOrder: loaded.taskOrder ?? [],
                 };
-                setColor(response.data.color);
-                setTitle(response.data.title);
+                setColor(loaded.color);
+                setTitle(loaded.title);
                 setIsTitleValid(true);
-                setOrder(response.data.order);
+                setOrder(loaded.order);
                 setTodo({
-                    tasks: response.data.tasks ? response.data.tasks : {},
+                    tasks: loaded.tasks ? loaded.tasks : {},
                     // A taskOrder a Todo-n OPCIONÁLIS: hiányában üres tömb (a fenti
                     // pillanatkép is így őrzi) — enélkül a draft taskOrder-je undefined
                     // lenne, amin a húzható lista végigmenne.
-                    columns: {"createColumn": {id: "createColumn", taskOrder: response.data.taskOrder ?? []}},
+                    columns: {"createColumn": {id: "createColumn", taskOrder: loaded.taskOrder ?? []}},
                     columnOrder: ["createColumn"]
                 });
-                setCategory(response.data.category);
+                setCategory(loaded.category);
                 setIsCategoryValid(true);
                 setIsDisabled(false);
             }, (error) => {
@@ -199,10 +206,10 @@ export default function Save(props: SaveProps) {
                 leaveEditor();
             });
         }
-        handleAxios<number>(ENDPOINTS.todoLastOrder, {},
+        handleAxios(ENDPOINTS.todoLastOrder, {},
             (response) => {
                 if (!active) return;
-                const lastOrder = response.data;
+                const lastOrder = v.parse(lastOrderSchema, response.data);
                 setLastOrder(lastOrder === 0 ? 0 : (isUpdate ? lastOrder - 1 : lastOrder));
             },
             logRequestError);

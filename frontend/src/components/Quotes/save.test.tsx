@@ -20,10 +20,17 @@ const idOf = (data: unknown): string => {
 
 /* A /quotes/edit válasza SZŰKÍTETT: a backend (readForEdit.js) csak ezt a négy
    mezőt adja vissza — user-azonosítót és időbélyeget SOHA. A fixtúra ezért a
-   QuoteForEdit szerződéshez méretik, nem a teljes Quote-hoz; a `fontSize`
-   szándékosan HIÁNYZIK, mert a szerkesztő alapértékre esik vissza nélküle, és
-   épp ezt a visszaesést rögzíti az egyik teszt. */
-const QUOTE = {quote: "Az élet szép.", author: "Valaki", order: 1} satisfies Omit<QuoteForEdit, "fontSize">;
+   QuoteForEdit szerződéshez méretik, nem a teljes Quote-hoz.
+
+   A `fontSize` korábban SZÁNDÉKOSAN hiányzott innen (`Omit<QuoteForEdit,
+   "fontSize">`), azzal az indokkal, hogy a szerkesztő alapértékre esik vissza
+   nélküle. Csakhogy a szerver SOHA nem küld ilyen választ: a Mongoose az
+   alapértéket a régi, mező nélkül mentett dokumentumokra is ráteszi betöltéskor
+   (mérve a Pi élő adatán, 2026-08-15: 55 idézetből 17-ben nincs fontSize a
+   lemezen, hidratálva mind az 55-ben van). A fixtúra tehát olyan választ
+   utánzott, ami a valóságban nem fordul elő — a séma-ellenőrzés bevezetése ezt
+   azonnal kimutatta. Egy pótlék akkor ér valamit, ha a VALÓSÁG helyett áll be. */
+const QUOTE = {quote: "Az élet szép.", author: "Valaki", order: 1, fontSize: 155} satisfies QuoteForEdit;
 
 /* Állandó handleAxios: a komponens effektjei az azonosságára függnek, egy
    rendernként újragyártott függvény végtelen újratöltő ciklust okozna. */
@@ -47,8 +54,15 @@ beforeEach(() => {
     handleAxios.mockImplementation((url, data, then) => {
         if (url === "/quotes/edit") then(axiosResponse(QUOTE));
         else if (url === "/quotes/last/order") then(axiosResponse(3));
-        // A mentés utáni leaveEditor a /quotes listát tölti — az tömböt vár.
-        else if (url === "/quotes" || url === "/quotes/author") then(axiosResponse([]));
+        /* A mentés utáni leaveEditor a /quotes listát tölti, a szerző-mező pedig
+           javaslatot kér — MINDKETTŐ tömböt vár. A kimaradó ág (a szerkesztő
+           AuthorInputja) korábban a közös `{}` fallbackre esett: az a válasz a
+           kódot ugyan nem zavarta (csak a [0]-át olvasta), de a szervertől SOSEM
+           érkezhetett volna — a séma-ellenőrzés ezt is kimutatta. */
+        else if (url === "/quotes" || url === "/quotes/author" || url === "/quotes/authors")
+            then(axiosResponse([]));
+        /* Ami marad, az az ÍRÁS-műveletek (create/update/delete) válasza: azokból
+           a kód csak a státuszt nézi, törzset nem olvas — ezért marad a `{}`. */
         else then(axiosResponse({}));
         return Promise.resolve();
     });
@@ -383,7 +397,8 @@ describe("QuoteSave — versenyhelyzet a betöltésben", () => {
         handleAxios.mockImplementation((url, data, then) => {
             if (url === "/quotes/edit") pending.push({id: idOf(data), then});
             else if (url === "/quotes/last/order") then(axiosResponse(3));
-            else if (url === "/quotes" || url === "/quotes/author") then(axiosResponse([]));
+            else if (url === "/quotes" || url === "/quotes/author" || url === "/quotes/authors")
+                then(axiosResponse([]));
             else then(axiosResponse({}));
             return Promise.resolve();
         });

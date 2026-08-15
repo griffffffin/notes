@@ -2,10 +2,11 @@ import {useCallback, useEffect, useRef, useState} from "react";
 import {MouseSensor, TouchSensor, useSensor, useSensors} from "@dnd-kit/core";
 import type {DragEndEvent} from "@dnd-kit/core";
 import {arrayMove} from "@dnd-kit/sortable";
+import * as v from "valibot";
 import {logRequestError} from "../../log";
 import type {HandleAxios} from "../../contexts/auth-context";
 import type {Endpoint} from "../../endpoints";
-import type {Id} from "../../types/api";
+import type {Id, Validator} from "../../types/api";
 
 /* Ujjal ennyit kell a kártyán tartani, mire a húzás elindul. Ez választja szét a
    GÖRGETÉST a húzástól: enélkül minden felfelé simítás megfogná a kártyát. A
@@ -30,7 +31,7 @@ const SINGLE_COLUMN_QUERY = "(max-width: 575.98px)";
    típusát kapja vissza a `cards`-ban — nem egy megcsonkított alakot. */
 export type SortableCard = {_id: Id; order: number};
 
-type SortableCardsOptions = {
+type SortableCardsOptions<T> = {
     // A lista LEKÉRÉSÉNEK végpontja (nem a böngésző címe) — l. endpoints.ts.
     url: Endpoint;
     /* A szűrő szekció-specifikus (kategória, szín, szerző, keresőkifejezés), ezért a
@@ -39,6 +40,17 @@ type SortableCardsOptions = {
     filter?: Record<string, unknown> | null;
     reorderUrl: Endpoint;
     handleAxios: HandleAxios;
+    /* A VÁLASZ ELLENŐRZŐJE — a hívótól, mert csak ő tudja, MILYEN kártyát kért.
+       A hook szándékosan nem ismeri a `T`-t (to-dót és idézetet is listáz), egy
+       ismeretlen alakot pedig nem lehet ellenőrizni: aki a típust megadja, annak
+       kell a hozzá tartozó sémát is adnia. Enélkül a `T` puszta ígéret maradna —
+       pontosan az, amit ezzel az átállással megszüntettünk (l. types/api.ts).
+
+       MODUL SZINTŰ KONSTANS kell ide (todoListSchema, quoteListSchema), nem a
+       renderben összerakott `v.array(...)`: a séma a betöltő effekt függősége,
+       és egy rendernként újragyártott objektum végtelen ciklusba vinné —
+       ugyanaz a kényszer, mint a `filter`-nél. */
+    schema: Validator<T[]>;
 };
 
 /* Egy húzással átrendezhető kártyalista LOGIKÁJA — szekciótól független. A
@@ -49,7 +61,7 @@ type SortableCardsOptions = {
    A kártyák azonosítója egységesen a MongoDB `_id` (mindkét szekcióban az), a
    sorrend pedig az `order` mező — a húzás ezekre épül. */
 export function useSortableCards<T extends SortableCard>(
-    {url, filter, reorderUrl, handleAxios}: SortableCardsOptions,
+    {url, filter, reorderUrl, handleAxios, schema}: SortableCardsOptions<T>,
 ) {
     const [cards, setCards] = useState<T[]>();
     const [isLoading, setIsLoading] = useState(true);
@@ -62,9 +74,13 @@ export function useSortableCards<T extends SortableCard>(
        cleanup false-ra állítja; csak a LEGUTÓBBI kérés írhat. */
     useEffect(() => {
         let active = true;
-        // A <T[]> a válasz VÁRT alakja: innentől a response.data a hívó kártyatípusa.
-        handleAxios<T[]>(url, filter ?? {}, (response) => {
-            if (active) setCards(response.data);
+        handleAxios(url, filter ?? {}, (response) => {
+            /* A séma a hívóé, a `T` is az övé — a kettő ugyanonnan jön, tehát a
+               `cards` most már ELLENŐRZÖTT adatot tart, nem ígéretet. A bukó
+               ellenőrzés dob, és a lenti hibaágon köt ki (üres lista + naplózás),
+               mint egy időtúllépés. */
+            const loaded = v.parse(schema, response.data);
+            if (active) setCards(loaded);
         }, (error) => {
             if (!active) return;
             logRequestError(error);
@@ -73,7 +89,7 @@ export function useSortableCards<T extends SortableCard>(
             setCards([]);
         });
         return () => {active = false;};
-    }, [url, filter, handleAxios]);
+    }, [url, filter, handleAxios, schema]);
 
     useEffect(() => {
         if (cards) setIsLoading(false);

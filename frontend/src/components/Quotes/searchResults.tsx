@@ -5,6 +5,7 @@ import QuoteCard from "./card";
 import {useSectionList} from "../CardList/useSectionList";
 import CardListView from "../CardList/CardListView";
 import {ENDPOINTS} from "../../endpoints";
+import {quoteListSchema} from "../../types/api";
 import type {Quote} from "../../types/api";
 
 type QuoteSearchResultsProps = {
@@ -36,6 +37,7 @@ export default function QuoteSearchResults(props: QuoteSearchResultsProps) {
 
     const {cards, isLoading, grid} = useSectionList<Quote>({
         url: ENDPOINTS.quoteSearch, filter, reorderUrl: ENDPOINTS.quoteReorder, section: "/quotes",
+        schema: quoteListSchema,
     });
 
     return (

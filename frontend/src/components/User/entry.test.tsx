@@ -15,6 +15,7 @@ import Routes from "../routes";
    esetet ismerte fel a felület. */
 import {ENTRY_ERROR_MESSAGES} from "./entryError";
 import {axiosResponse} from "../../test/axiosResponse";
+import {fakeToken} from "../../test/fakeToken";
 import type {RoutesProps} from "../routes";
 
 /* A login/regisztrációs űrlap viselkedése. A jelszó-szabály és a "Tovább" gomb
@@ -52,7 +53,7 @@ const submitButton = () => screen.getByRole("button", {name: "Tovább"});
 
 beforeEach(() => {
     postSpy().mockReset();
-    postSpy().mockResolvedValue(axiosResponse("teszt-token"));
+    postSpy().mockResolvedValue(axiosResponse(fakeToken()));
 });
 
 afterEach(() => {
@@ -280,7 +281,7 @@ describe("Entry — hibaüzenetek", () => {
 describe("Sikeres belépés utáni cím", () => {
     it("regisztráció után a főoldalra visz, nem marad a /signup címen", async () => {
         postSpy().mockReset();
-    postSpy().mockResolvedValue(axiosResponse("teszt-token"));
+    postSpy().mockResolvedValue(axiosResponse(fakeToken()));
         window.history.pushState({}, "", "/signup");
         render(
             <CookiesProvider>

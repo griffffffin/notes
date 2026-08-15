@@ -7,7 +7,9 @@ import {useQuoteAccent} from "./useQuoteAccent";
 import {renderBold} from "./bold";
 import {logRequestError} from "../../log";
 import {ENDPOINTS} from "../../endpoints";
-import type {Quote} from "../../types/api";
+import * as v from "valibot";
+import {publicQuoteSchema} from "../../types/api";
+import type {PublicQuote} from "../../types/api";
 
 /* Egy megosztott idézet PUBLIKUS nézete (/quotes/:author/:id). Token nélkül is
    megnyitható (a backend readById az auth ELŐTT ül), ezért ez a route a
@@ -22,7 +24,7 @@ export default function QuotePublic() {
     // A megosztott egy-idézet nézet is a quotes szekció: világos témán tinta-kék.
     useQuoteAccent();
     // A betöltés végéig undefined (nem null): a `!quote` őr a spinnert tartja.
-    const [quote, setQuote] = useState<Quote | undefined>(undefined);
+    const [quote, setQuote] = useState<PublicQuote | undefined>(undefined);
     const [notFound, setNotFound] = useState(false);
 
     /* Versenyhelyzet-őr: a route :id-je változásakor az effekt újrafut, és két
@@ -32,8 +34,14 @@ export default function QuotePublic() {
        Minta: CardList/useSortableCards.ts. */
     useEffect(() => {
         let active = true;
-        handleAxios<Quote>(ENDPOINTS.quoteById, {id}, (response) => {
-            if (active) setQuote(response.data);
+        handleAxios(ENDPOINTS.quoteById, {id}, (response) => {
+            /* A PUBLIKUS séma, nem a teljes Quote: ez a végpont whitelisttel csak
+               a szöveget, a szerzőt és a betűméretet adja ki (l. readById.js) —
+               sorszámot, tulajdonost, időbélyeget SOHA. A komponens korábban a
+               teljes Quote-ot ígérte magának; a futásidejű ellenőrzés bevezetése
+               mutatta meg, hogy az az ígéret hamis volt (l. types/api.ts). */
+            const loaded = v.parse(publicQuoteSchema, response.data);
+            if (active) setQuote(loaded);
         }, (error) => {
             logRequestError(error);
             if (active) setNotFound(true);
@@ -55,10 +63,12 @@ export default function QuotePublic() {
                 mert a Bootstrap text-* osztályok !important-ja verné — ezért a
                 text-start-ot le is vettük. */}
             {/* A megosztott idézet a SAJÁT betűméretével jelenik meg (--quote-fs, a
-                readById adja vissza); hiányában a Szerző-mérettel egyező 155%. A
-                .caveat szabály ebből rajzol. */}
+                readById adja vissza), és a .caveat szabály ebből rajzol. Az érték
+                mindig ott van: a séma megköveteli (l. types/api.ts) — a korábbi
+                `?? 155` visszaesés egy olyan esetre készült, amit a szerver nem tud
+                előállítani, a séma óta pedig ide nem is jutna el. */}
             <div className={"card-body caveat px-4 py-4 text-" + color}
-                 style={{"--quote-fs": (quote.fontSize ?? 155) + "%", whiteSpace: "pre-wrap",
+                 style={{"--quote-fs": quote.fontSize + "%", whiteSpace: "pre-wrap",
                      textAlign: "justify"}}>
                 {renderBold(quote.quote)}
             </div>

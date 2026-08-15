@@ -1,6 +1,7 @@
 import {useSortableCards} from "./useSortableCards";
 import type {SortableCard} from "./useSortableCards";
 import type {Endpoint} from "../../endpoints";
+import type {Validator} from "../../types/api";
 import {useAuth} from "../../contexts/auth-context";
 import {useRememberSection} from "../Navbar/useRememberSection";
 
@@ -24,10 +25,14 @@ import {useRememberSection} from "../Navbar/useRememberSection";
    kártyákat vár (Todo, Quote…), és a `cards` pontosan azt adja vissza. A hook maga
    egyikről sem tud semmit — csak annyit, hogy van `_id`-je és `order`-e. */
 export function useSectionList<T extends SortableCard>(
-    {url, filter, reorderUrl, section}: {
+    {url, filter, reorderUrl, section, schema}: {
         url: Endpoint;
         filter?: Record<string, unknown> | null;
         reorderUrl: Endpoint;
+        /* A válasz ellenőrzője, a hívótól — csak ő tudja, milyen kártyát kért. A
+           `T` és a séma EGYÜTT érkezik, különben a típus ígéret maradna (a
+           részletes indoklás és a memoizálási kényszer: useSortableCards.ts). */
+        schema: Validator<T[]>;
         /* A `section` NEM végpont, hanem NAVIGÁCIÓS út: a szekció gyökere, amit a
            useRememberSection megjegyez, és ahová a gyökér-átirányítás visszatér.
            Ezért marad `string` — a két fogalom szándékosan külön (l. endpoints.ts). */
@@ -35,7 +40,7 @@ export function useSectionList<T extends SortableCard>(
     },
 ) {
     const {handleAxios} = useAuth();
-    const {cards, isLoading, ...grid} = useSortableCards<T>({url, filter, reorderUrl, handleAxios});
+    const {cards, isLoading, ...grid} = useSortableCards<T>({url, filter, reorderUrl, handleAxios, schema});
 
     // A gyökér-átirányítás ide tér vissza: a szűrt nézetek is a szekció GYÖKERÉT
     // jegyzik meg, nem az éppen aktív szűrőt.

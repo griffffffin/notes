@@ -8,6 +8,8 @@ import Routes from "./routes";
 import {useAuth} from "../contexts/auth-context";
 import {ENDPOINTS} from "../endpoints";
 import {logRequestError} from "../log";
+import * as v from "valibot";
+import {categoryListSchema} from "../types/api";
 import type {Todo} from "../types/api";
 
 /* CSAK a ténylegesen használt ikonokat regisztráljuk, nem a teljes `fas`
@@ -59,9 +61,15 @@ export default function App() {
         // Kijelentkezve nincs mit lekérni — enélkül a bejelentkező képernyőn is
         // elindulna egy kérés, ami 401-gyel bukna.
         if (!isLoggedIn) return;
-        handleAxios<Todo["category"][]>(ENDPOINTS.todoCategories, {},
+        handleAxios(ENDPOINTS.todoCategories, {},
             (response) => {
-                if (requestId === latestCategoryRequest.current) setCategories(response.data);
+                /* A séma ELŐBB fut, mint az őr-vizsgálat sorrendjében bármi más:
+                   ha a válasz nem kategórianevek tömbje, a v.parse dob, és a hiba
+                   a catchError-ba (logRequestError) fut — a legördülő inkább
+                   marad a régi listával, mint hogy értelmezhetetlen adatot vegyen
+                   át. */
+                const categories = v.parse(categoryListSchema, response.data);
+                if (requestId === latestCategoryRequest.current) setCategories(categories);
             },
             logRequestError);
     }, [isLoggedIn, handleAxios]);

@@ -1,12 +1,16 @@
 import {act, render, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axios from "axios";
+import {useState} from "react";
 import {CookiesProvider} from "react-cookie";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
+import * as v from "valibot";
 import {AuthProvider} from "./auth";
 import {useAuth} from "./auth-context";
 import {axiosResponse} from "../test/axiosResponse";
+import {fakeToken} from "../test/fakeToken";
 import {ENDPOINTS} from "../endpoints";
+import {authTokenSchema} from "../types/api";
 
 /* Az axios AUTOMOCKOLVA: a modul minden exportja kémmé válik, tehát valódi
    hálózat nincs, de az AuthProvider (és benne a handleAxios) a maga teljes
@@ -21,20 +25,36 @@ vi.mock(import("axios"));
 
 const postSpy = () => vi.mocked(axios.post);
 
+/* A tokenek VALÓDI ALAKÚAK (l. test/fakeToken.ts): a szerződés megköveteli, hogy
+   a süti és a bejelentkezés válasza JWT legyen, különben a felület nem tekint
+   bejelentkezettnek. Két külön példány, mert a tesztek megkülönböztetik a
+   bejelentkezéskor kapott és a szerkesztő által ZÁRVÁNYOLT (leváláskori mentéshez
+   őrzött) tokent. */
+const TOKEN = fakeToken();
+const CAPTURED_TOKEN = fakeToken("u-zarvany");
+
 /* Próbakomponens: kiírja, amit a Contextből kap, és gombokkal hívja a
    műveleteit — így a hookot komponensfa nélkül vizsgálhatjuk. */
 function AuthProbe() {
     const {token, isLoggedIn, login, logout, handleAxios} = useAuth();
+    /* A séma-ellenőrzés a HÍVÓ oldalán történik (l. types/api.ts): a próba ezért
+       pontosan úgy jár el, ahogy egy valódi hívó — a választ átengedi a sémán, és
+       az EREDMÉNYT írja ki. Így a teszt azt látja, melyik ág futott le. */
+    const [outcome, setOutcome] = useState("még semmi");
     return (
         <div>
             <span data-testid="belepett">{String(isLoggedIn)}</span>
             <span data-testid="token">{token ?? "nincs"}</span>
-            <button onClick={() => login("uj-token")}>belépés</button>
+            <span data-testid="eredmeny">{outcome}</span>
+            <button onClick={() => handleAxios(ENDPOINTS.login, {}, 
+                (response) => setOutcome("siker: " + v.parse(authTokenSchema, response.data)),
+                () => setOutcome("hibaág"))}>kérés-sémával</button>
+            <button onClick={() => login(TOKEN)}>belépés</button>
             <button onClick={logout}>kilépés</button>
             <button onClick={() => handleAxios(ENDPOINTS.todos, {a: 1}, () => {}, () => {})}>kérés</button>
             {/* Explicit token-felülírással — ezt használja a leváláskori (kijelentkezés
                 utáni) mentés, amikor az élő token már törlődött. */}
-            <button onClick={() => handleAxios(ENDPOINTS.todos, {a: 1}, () => {}, () => {}, "zárvány-token")}>
+            <button onClick={() => handleAxios(ENDPOINTS.todos, {a: 1}, () => {}, () => {}, CAPTURED_TOKEN)}>
                 kérés-tokennel</button>
         </div>
     );
@@ -67,7 +87,7 @@ describe("AuthProvider", () => {
         await userEvent.click(screen.getByRole("button", {name: "belépés"}));
 
         expect(screen.getByTestId("belepett")).toHaveTextContent("true");
-        expect(document.cookie).toContain("user=uj-token");
+        expect(document.cookie).toContain("user=" + TOKEN);
     });
 
     it("kilépés után visszaáll kijelentkezettre", async () => {
@@ -87,7 +107,7 @@ describe("AuthProvider", () => {
         // timeout-ot) figyelmen kívül hagyjuk, hogy az ne tegye törékennyé a tesztet.
         expect(axios.post).toHaveBeenCalledWith(
             expect.stringContaining(ENDPOINTS.todos), {a: 1},
-            expect.objectContaining({headers: {Authorization: "Bearer uj-token"}}));
+            expect.objectContaining({headers: {Authorization: "Bearer " + TOKEN}}));
     });
 
     it("kijelentkezve nem küld Authorization fejlécet", async () => {
@@ -110,7 +130,7 @@ describe("AuthProvider", () => {
 
         expect(axios.post).toHaveBeenCalledWith(
             expect.stringContaining(ENDPOINTS.todos), {a: 1},
-            expect.objectContaining({headers: {Authorization: "Bearer zárvány-token"}}));
+            expect.objectContaining({headers: {Authorization: "Bearer " + CAPTURED_TOKEN}}));
     });
 
     it("401-es válasznál kilépteti a felhasználót (lejárt token)", async () => {
@@ -127,6 +147,54 @@ describe("AuthProvider", () => {
 
     it("AuthProvider nélkül érthető hibát dob", () => {
         expect(() => render(<AuthProbe/>)).toThrow(/AuthProvider/);
+    });
+});
+
+/* A HATÁR-ELLENŐRZÉS SZERZŐDÉSE. A hívók sémával szűkítik a választ (types/api.ts),
+   a séma pedig DOB, ha a válasz nem illeszkedik. Hogy ez ne egy elszabaduló
+   kivétel legyen, hanem kezelt eset, arra a handleAxios felépítése ad garanciát: a
+   `then` a promise-láncban fut, tehát a benne dobott kivételt UGYANAZ a `.catch`
+   fogja el, mint a hálózati hibát.
+
+   Ez a garancia egyetlen sorrenden múlik (`.then(then).catch(…)`), és egy
+   átrendezés némán elvenné — a sikerág egyszerűen elmaradna, a hibaág pedig soha
+   nem futna. Ezért van rá teszt, nem csak komment. */
+describe("Elutasított (értelmezhetetlen) válasz", () => {
+    it("a séma bukása a HIBAÁGRA fut, nem szakad el a hívás", async () => {
+        // A szerver a csupasz token helyett burkolót ad — pont az az elcsúszás,
+        // ami ellen a séma van.
+        postSpy().mockResolvedValue(axiosResponse({token: "burkolt"}));
+        renderAuth();
+
+        await userEvent.click(screen.getByRole("button", {name: "kérés-sémával"}));
+
+        await waitFor(() => expect(screen.getByTestId("eredmeny")).toHaveTextContent("hibaág"));
+    });
+
+    it("az ÉRVÉNYES válasz a sikerágon, ellenőrzött értékkel érkezik", async () => {
+        // Kontroll a fentihez: ugyanaz az út, jó alakú válasszal — enélkül a
+        // "hibaág" felirat abból is jöhetne, hogy a hívás el sem indul.
+        postSpy().mockResolvedValue(axiosResponse(TOKEN));
+        renderAuth();
+
+        await userEvent.click(screen.getByRole("button", {name: "kérés-sémával"}));
+
+        await waitFor(() => expect(screen.getByTestId("eredmeny")).toHaveTextContent("siker: " + TOKEN));
+    });
+
+    it("NEM lépteti ki a felhasználót (az elutasított válasz nem 401)", async () => {
+        /* A kiléptetés a hiba ALAKJÁRA néz (httpError.ts: van-e 401-es státusza),
+           nem arra, ki dobta. Egy ValiErrornak nincs `response`-a, tehát a
+           bejelentkezés érintetlen marad — a rossz alakú válasz nem munkamenet-hiba.
+           Ha a felismerés valaha "minden hiba kiléptet"-re egyszerűsödne, ez bukik. */
+        postSpy().mockResolvedValue(axiosResponse({token: "burkolt"}));
+        renderAuth();
+        await userEvent.click(screen.getByRole("button", {name: "belépés"}));
+
+        await userEvent.click(screen.getByRole("button", {name: "kérés-sémával"}));
+
+        await waitFor(() => expect(screen.getByTestId("eredmeny")).toHaveTextContent("hibaág"));
+        expect(screen.getByTestId("belepett")).toHaveTextContent("true");
     });
 });
 
@@ -191,5 +259,37 @@ describe("Tétlenségi kijelentkezés", () => {
         });
         expect(axios.post).toHaveBeenCalledWith(
             expect.stringContaining("/refresh"), {}, expect.anything());
+    });
+
+    /* A megújított token EGYENESEN A SÜTIBE megy, tehát ez a válasz a legkényesebb
+       az összes közül: ha a szerver egyszer mást ad (pl. {token: "…"} burkolót), a
+       hibás érték kiszorítaná a működő tokent, és a következő kérés 401-gyel
+       léptetne ki — látszólag ok nélkül. Ezért a séma itt is fut, a két teszt pedig
+       együtt bizonyít: a második mutatja, hogy a megújítás egyáltalán ír sütit
+       (enélkül az első attól is „zöld" lenne, hogy semmi nem történik). */
+    const refreshOnActivity = async () => {
+        await act(async () => vi.advanceTimersByTime(5 * 60 * 1000));
+        await act(async () => {
+            window.dispatchEvent(new MouseEvent("mousemove"));
+        });
+    };
+
+    it("HIBÁS alakú megújítás után a RÉGI token marad", async () => {
+        await signIn();
+        postSpy().mockResolvedValue(axiosResponse({token: "burkolt"}));
+
+        await refreshOnActivity();
+
+        expect(screen.getByTestId("token")).toHaveTextContent(TOKEN);
+    });
+
+    it("ÉRVÉNYES megújítás a friss tokenre cseréli a sütit", async () => {
+        await signIn();
+        const refreshed = fakeToken("u-frissitett");
+        postSpy().mockResolvedValue(axiosResponse(refreshed));
+
+        await refreshOnActivity();
+
+        expect(screen.getByTestId("token")).toHaveTextContent(refreshed);
     });
 });

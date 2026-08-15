@@ -7,6 +7,7 @@ import {useSectionList} from "../CardList/useSectionList";
 import CardListView from "../CardList/CardListView";
 import {ENDPOINTS} from "../../endpoints";
 import type {Endpoint} from "../../endpoints";
+import {quoteListSchema} from "../../types/api";
 import type {Quote} from "../../types/api";
 
 /* A `url` a lista végpontját adja: a teljes lista vagy a szerző-szűrt — a route
@@ -35,6 +36,7 @@ export default function QuoteRead(props: QuoteReadProps) {
 
     const {cards, isLoading, grid} = useSectionList<Quote>({
         url: props.url, filter, reorderUrl: ENDPOINTS.quoteReorder, section: "/quotes",
+        schema: quoteListSchema,
     });
 
     /* A szekció akcentusa (l. useQuoteAccent): a quotes-lista VILÁGOS témán tinta-kék,
