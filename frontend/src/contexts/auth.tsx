@@ -13,6 +13,7 @@ import type {Endpoint} from "../endpoints";
 import {ACTIVITY_EVENTS, IDLE_LOGOUT_MS} from "../idle";
 import {responseStatus} from "../httpError";
 import {BACKEND_URL} from "../backendUrl";
+import {COOKIES, SESSION_COOKIE} from "../cookies";
 import {logRequestError} from "../log";
 
 /* Bejelentkezés és szerverhívás egy helyen.
@@ -56,7 +57,7 @@ const REQUEST_TIMEOUT_MS = 15 * 1000;
 // a szerkesztők autosave-órája UGYANEZT a halmazt figyeli.
 
 export function AuthProvider({children}: {children: ReactNode}) {
-    const [cookies, setCookie, removeCookie] = useCookies(["user"]);
+    const [cookies, setCookie, removeCookie] = useCookies([COOKIES.token]);
     /* A SÜTI TARTALMA NEM MEGBÍZHATÓ FORRÁS, ezért ellenőrizzük — a `cookies.user`
        a react-cookie-tól `any`-ként jön, tehát a korábbi `AuthToken | null`
        annotáció csak ÁLLÍTÁS volt, nem vizsgálat (l. CLAUDE.md, "az `as` nem
@@ -69,7 +70,7 @@ export function AuthProvider({children}: {children: ReactNode}) {
        elutasítana, a felület viszont bejelentkezettnek látszana. Az `undefined`
        (nincs süti) ugyanezen az úton lesz `null`: a hiányzó és az értelmezhetetlen
        token egyaránt "nem vagy bejelentkezve". */
-    const storedToken = v.safeParse(authTokenSchema, cookies.user);
+    const storedToken = v.safeParse(authTokenSchema, cookies[COOKIES.token]);
     const token: AuthToken | null = storedToken.success ? storedToken.output : null;
     /* A friss tokent egy refben is tartjuk, hogy a handleAxios NE függjön tőle.
        Enélkül a token 5 percenkénti megújulása minden alkalommal új handleAxios-
@@ -84,8 +85,9 @@ export function AuthProvider({children}: {children: ReactNode}) {
     const lastActivity = useRef(Date.now());
     const lastRefresh = useRef(Date.now());
 
-    const login = useCallback((newToken: AuthToken) => setCookie("user", newToken, {path: "/"}), [setCookie]);
-    const logout = useCallback(() => removeCookie("user", {path: "/"}), [removeCookie]);
+    const login = useCallback((newToken: AuthToken) =>
+        setCookie(COOKIES.token, newToken, SESSION_COOKIE), [setCookie]);
+    const logout = useCallback(() => removeCookie(COOKIES.token, SESSION_COOKIE), [removeCookie]);
 
     /* Az `authToken` OPCIONÁLIS felülírás: alapból az ÉLŐ tokent (tokenRef) küldjük.
        A kijelentkezéskori unmount-mentés (Quotes/save.tsx) viszont a MÁR TÖRÖLT élő
@@ -120,7 +122,7 @@ export function AuthProvider({children}: {children: ReactNode}) {
                az ALAKRA néz, nem arra, ki dobta — az indoklás és a hozzá tartozó
                valódi (nem `as`-os) ellenőrzés a httpError.ts-ben. */
             .catch((error: unknown) => {
-                if (responseStatus(error) === 401) removeCookie("user", {path: "/"});
+                if (responseStatus(error) === 401) removeCookie(COOKIES.token, SESSION_COOKIE);
                 catchError(error);
             });
     }, [removeCookie]);
@@ -142,7 +144,8 @@ export function AuthProvider({children}: {children: ReactNode}) {
                tokent, és a következő kérés 401-gyel léptetne ki. */
             axios.post<unknown>(BACKEND_URL + ENDPOINTS.refresh, {},
                 {headers: {Authorization: "Bearer " + token}})
-                .then((response) => setCookie("user", v.parse(authTokenSchema, response.data), {path: "/"}))
+                .then((response) =>
+                    setCookie(COOKIES.token, v.parse(authTokenSchema, response.data), SESSION_COOKIE))
                 /* A FELHASZNÁLÓ felé néma bukás szándékos: ez háttérmunka, amiről
                    nem tud. Ha a token időközben mégis lejárt, a következő valódi
                    kérés 401-et kap, és az jelentkeztet ki — nem kell két helyen

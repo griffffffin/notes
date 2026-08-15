@@ -2,7 +2,7 @@ import {act, render, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axios from "axios";
 import {useState} from "react";
-import {CookiesProvider} from "react-cookie";
+import {Cookies, CookiesProvider} from "react-cookie";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import * as v from "valibot";
 import {AuthProvider} from "./auth";
@@ -11,6 +11,7 @@ import {axiosResponse} from "../test/axiosResponse";
 import {fakeToken} from "../test/fakeToken";
 import {ENDPOINTS} from "../endpoints";
 import {authTokenSchema} from "../types/api";
+import {COOKIES} from "../cookies";
 
 /* Az axios AUTOMOCKOLVA: a modul minden exportja kémmé válik, tehát valódi
    hálózat nincs, de az AuthProvider (és benne a handleAxios) a maga teljes
@@ -156,6 +157,36 @@ describe("AuthProvider", () => {
    alakítja — a korábbi `cookies.user ?? null` tehát nem ellenőrzés volt, hanem
    feltevés. Ezek a tesztek azt rögzítik, hogy csak VALÓDI token számít
    bejelentkezésnek. */
+describe("A token sütijének beállításai", () => {
+    it("a MUNKAMENETTEL él: nincs rajta lejárat", async () => {
+        /* A `document.cookie` csak a nevet és az értéket adja vissza — a Max-Age,
+           a Path és a SameSite onnan visszaolvashatatlan. Ezért a könyvtárnak
+           átadott beállításokat kémleljük: az az egyetlen hely, ahol ez a döntés
+           számon kérhető.
+
+           A lejárat hiánya SZÁNDÉKOS, nem feledékenység: a token 15 perc után
+           amúgy is érvénytelen (backend token.js), egy lemezen felejtett
+           bejelentkezés viszont közös gépen valódi kockázat. A téma sütijei
+           ezzel szemben tartósak (l. theme.test.tsx) — a kettő tudatosan
+           különbözik. */
+        const cookies = new Cookies();
+        const setSpy = vi.spyOn(cookies, "set");
+        render(
+            <CookiesProvider cookies={cookies}>
+                <AuthProvider><AuthProbe/></AuthProvider>
+            </CookiesProvider>
+        );
+
+        await userEvent.click(screen.getByRole("button", {name: "belépés"}));
+
+        const call = setSpy.mock.calls.find(([name]) => name === COOKIES.token);
+        expect(call, "A bejelentkezés nem írt token-sütit.").toBeDefined();
+        expect(call?.[2]).toMatchObject({path: "/", sameSite: "strict"});
+        expect(call?.[2]).not.toHaveProperty("maxAge");
+        expect(call?.[2]).not.toHaveProperty("expires");
+    });
+});
+
 describe("A süti tartalma", () => {
     it("érvényes token esetén bejelentkezettként indul", () => {
         // Kontroll: enélkül a lenti két teszt attól is „zöld" lenne, hogy a

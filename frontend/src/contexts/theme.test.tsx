@@ -4,6 +4,7 @@ import {CookiesProvider} from "react-cookie";
 import {beforeEach, describe, expect, it} from "vitest";
 import {ThemeProvider} from "./theme";
 import {THEMES, useTheme} from "./theme-context";
+import {COOKIES} from "../cookies";
 
 /* Kis próbakomponens, ami kiírja, amit a Contextből kap — így a hookot
    önmagában, komponensfa nélkül tudjuk vizsgálni. */
@@ -45,6 +46,29 @@ describe("ThemeProvider", () => {
         expect(screen.getByTestId("bg")).toHaveTextContent(THEMES.dark.pageBackground);
         expect(screen.getByTestId("hex")).toHaveTextContent(THEMES.dark.accent);
         expect(screen.getByTestId("checked")).toHaveTextContent("false");
+    });
+
+    it("ISMERETLEN süti-értékre a sötét témával indul", () => {
+        /* A süti a felhasználó gépén él: kézzel átírható, és egy régi verziótól is
+           örökölhet értéket. A kezdőérték ezért EGYENLŐSÉG-vizsgálat a világos
+           téma sajátjával (THEMES.light.cookieValue), nem "minden, ami nem
+           fekete" — így bármi ismeretlen a biztonságos alapértelmezésre, a sötét
+           témára esik, nem egy félig beállt állapotba. */
+        document.cookie = "backgroundColor=lila; path=/";
+        renderWithTheme();
+
+        expect(screen.getByTestId("bg")).toHaveTextContent(THEMES.dark.pageBackground);
+        expect(screen.getByTestId("checked")).toHaveTextContent("false");
+    });
+
+    it("a VILÁGOS téma süti-értékére világossal indul", () => {
+        // Kontroll az előzőhöz: enélkül a fenti teszt attól is zöld lenne, ha a
+        // Provider egyáltalán nem olvasna sütit.
+        document.cookie = "backgroundColor=" + THEMES.light.cookieValue + "; path=/";
+        renderWithTheme();
+
+        expect(screen.getByTestId("bg")).toHaveTextContent(THEMES.light.pageBackground);
+        expect(screen.getByTestId("checked")).toHaveTextContent("true");
     });
 
     it("kapcsolásra világos témára vált, és a html hátterét is átfesti", async () => {

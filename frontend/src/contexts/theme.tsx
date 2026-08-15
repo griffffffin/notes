@@ -2,13 +2,21 @@ import {useCallback, useEffect, useLayoutEffect, useMemo, useState} from "react"
 import type {ReactNode} from "react";
 import {useCookies} from "react-cookie";
 import {THEMES, ThemeContext} from "./theme-context";
+import {COOKIES, SESSION_COOKIE} from "../cookies";
 import type {AccentOverride, Theme} from "./theme-context";
 
 export function ThemeProvider({children}: {children: ReactNode}) {
-    const [cookies, setCookie] = useCookies(["backgroundColor", "themeBackground"]);
-    // A kapcsoló bekapcsolva = világos téma. A kezdőérték a sütiből jön, hogy
-    // ne kelljen egy fölösleges rendert várni rá.
-    const [isLight, setIsLight] = useState(cookies.backgroundColor === "white");
+    const [cookies, setCookie] = useCookies([COOKIES.theme, COOKIES.themeBackground]);
+    /* A kapcsoló bekapcsolva = világos téma. A kezdőérték a sütiből jön, hogy ne
+       kelljen egy fölösleges rendert várni rá.
+
+       Az összehasonlítás a THEMES-ből veszi az értéket, nem egy ideírt "white"
+       literálból: az a világos téma `cookieValue`-jának kézi másolata volt, és ha
+       az érték egyszer megváltozik, a másolat némán hamissá válik — az app MINDIG
+       sötéten indulna, hiába világos a süti. (A süti értéke amúgy `any`, de ez az
+       egyenlőség-vizsgálat maga a futásidejű ellenőrzés: csak a pontos egyezés
+       ad igazat, bármi más — objektum, undefined — hamisat.) */
+    const [isLight, setIsLight] = useState(cookies[COOKIES.theme] === THEMES.light.cookieValue);
 
     const theme = isLight ? THEMES.light : THEMES.dark;
 
@@ -140,9 +148,10 @@ export function ThemeProvider({children}: {children: ReactNode}) {
        a festést blokkoló useLayoutEffectbe csak az való, ami nélkül a kép hibás. */
     useEffect(() => {
         document.documentElement.classList.add("theme-ready");
-        setCookie("backgroundColor", theme.cookieValue, {path: "/"});
-        // Ebből festi az index.html boot-szkriptje a lapot, még a CSS előtt.
-        setCookie("themeBackground", theme.pageBackground, {path: "/"});
+        setCookie(COOKIES.theme, theme.cookieValue, SESSION_COOKIE);
+        // Ebből festi az index.html boot-szkriptje a lapot, még a CSS előtt (a
+        // kulcsnév kettősségét a themeBoot.test.ts őrzi).
+        setCookie(COOKIES.themeBackground, theme.pageBackground, SESSION_COOKIE);
     }, [theme, setCookie]);
 
     const value: Theme = useMemo(() => ({
