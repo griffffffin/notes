@@ -12,6 +12,7 @@ import {fakeToken} from "../test/fakeToken";
 import {ENDPOINTS} from "../endpoints";
 import {authTokenSchema} from "../types/api";
 import {COOKIES} from "../cookies";
+import {ACTIVITY_EVENTS} from "../idle";
 
 /* Az axios AUTOMOCKOLVA: a modul minden exportja kémmé válik, tehát valódi
    hálózat nincs, de az AuthProvider (és benne a handleAxios) a maga teljes
@@ -157,6 +158,56 @@ describe("AuthProvider", () => {
    alakítja — a korábbi `cookies.user ?? null` tehát nem ellenőrzés volt, hanem
    feltevés. Ezek a tesztek azt rögzítik, hogy csak VALÓDI token számít
    bejelentkezésnek. */
+/* AMIT A KÖNYVTÁRNAK ADUNK ÁT, DE VISSZAOLVASNI NEM TUDUNK. Egy beállítás
+   hiánya nem hibázik: a könyvtár az alapértelmezésével dolgozik tovább, és a
+   következménye csak sokkal később, más alakban jelentkezik. Az ilyen beállítás
+   ott kérhető számon, ahol átadjuk — máshol nincs is nyoma (l. CLAUDE.md, a néma
+   minták 6. tétele). Ez a két teszt a kérés két ilyen beállítását rögzíti. */
+describe("A kérés beállításai", () => {
+    it("MINDEN kérésre jut időkorlát (különben a betöltő örökké pörögne)", async () => {
+        /* Timeout NÉLKÜL egy néma szerver vagy megszakadt hálózat esetén a kérés
+           örökké függne: sem a siker-, sem a hiba-ág nem futna le. Ez nem elméleti
+           — pontosan ez okozta a törlés-modal "szellemének" örök töltését. A
+           tesztek eddig SZÁNDÉKOSAN figyelmen kívül hagyták a config timeout
+           mezőjét (objectContaining), hogy ne legyenek törékenyek; így viszont a
+           sor törlésére egyetlen teszt sem bukott volna.
+
+           A KONKRÉT értéket nem rögzítjük (az hangolási kérdés, nem szerződés),
+           csak azt, hogy VAN és VÉGES. */
+        renderAuth();
+        await userEvent.click(screen.getByRole("button", {name: "kérés"}));
+
+        const config = postSpy().mock.calls[0]?.[2];
+        expect(config?.timeout).toEqual(expect.any(Number));
+        expect(config?.timeout).toBeGreaterThan(0);
+        expect(Number.isFinite(config?.timeout)).toBe(true);
+    });
+
+    it("az aktivitás-figyelők PASSZÍVAK (nem akaszthatják meg a görgetést)", async () => {
+        /* A passive: true azt ígéri a böngészőnek, hogy a kezelő nem hívja meg a
+           preventDefault-ot — enélkül a görgetésnek meg kell VÁRNIA a JS-t, mielőtt
+           mozdulna, ami telefonon akadozó görgetésként jelentkezik. Ez a fajta
+           romlás sehol nem hibaüzenet, és a jelző a felkötés után visszaolvasható
+           sem: csak itt, az átadásnál látszik. */
+        const listenerSpy = vi.spyOn(window, "addEventListener");
+        renderAuth();
+        await userEvent.click(screen.getByRole("button", {name: "belépés"}));
+
+        /* A szűréshez SZÉLESÍTENI kell a lista típusát: az ACTIVITY_EVENTS a hat
+           konkrét eseménynév uniója, az addEventListener kémje viszont akármilyen
+           nevet láthat — a szűk típusú `includes` ezért nem fogadná el. A
+           szélesítés nem `as`: a `readonly string[]` igaz állítás a listáról. */
+        const activityNames: readonly string[] = ACTIVITY_EVENTS;
+        const activityCalls = listenerSpy.mock.calls.filter(([name]) => activityNames.includes(name));
+        expect(activityCalls.length, "Az aktivitás-figyelők fel sem lettek kötve.")
+            .toBe(ACTIVITY_EVENTS.length);
+        for (const [name, , options] of activityCalls)
+            expect(options, `A(z) "${name}" figyelő nem passzív.`).toMatchObject({passive: true});
+
+        listenerSpy.mockRestore();
+    });
+});
+
 describe("A token sütijének beállításai", () => {
     it("a MUNKAMENETTEL él: nincs rajta lejárat", async () => {
         /* A `document.cookie` csak a nevet és az értéket adja vissza — a Max-Age,
