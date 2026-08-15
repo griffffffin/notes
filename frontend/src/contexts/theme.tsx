@@ -2,7 +2,7 @@ import {useCallback, useEffect, useLayoutEffect, useMemo, useState} from "react"
 import type {ReactNode} from "react";
 import {useCookies} from "react-cookie";
 import {THEMES, ThemeContext} from "./theme-context";
-import {COOKIES, SESSION_COOKIE} from "../cookies";
+import {COOKIES, PERSISTENT_COOKIE} from "../cookies";
 import type {AccentOverride, Theme} from "./theme-context";
 
 export function ThemeProvider({children}: {children: ReactNode}) {
@@ -148,10 +148,10 @@ export function ThemeProvider({children}: {children: ReactNode}) {
        a festést blokkoló useLayoutEffectbe csak az való, ami nélkül a kép hibás. */
     useEffect(() => {
         document.documentElement.classList.add("theme-ready");
-        setCookie(COOKIES.theme, theme.cookieValue, SESSION_COOKIE);
+        setCookie(COOKIES.theme, theme.cookieValue, PERSISTENT_COOKIE);
         // Ebből festi az index.html boot-szkriptje a lapot, még a CSS előtt (a
         // kulcsnév kettősségét a themeBoot.test.ts őrzi).
-        setCookie(COOKIES.themeBackground, theme.pageBackground, SESSION_COOKIE);
+        setCookie(COOKIES.themeBackground, theme.pageBackground, PERSISTENT_COOKIE);
     }, [theme, setCookie]);
 
     const value: Theme = useMemo(() => ({

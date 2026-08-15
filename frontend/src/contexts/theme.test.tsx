@@ -1,7 +1,7 @@
 import {render, screen} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {CookiesProvider} from "react-cookie";
-import {beforeEach, describe, expect, it} from "vitest";
+import {Cookies, CookiesProvider} from "react-cookie";
+import {beforeEach, describe, expect, it, vi} from "vitest";
 import {ThemeProvider} from "./theme";
 import {THEMES, useTheme} from "./theme-context";
 import {COOKIES} from "../cookies";
@@ -26,6 +26,23 @@ const renderWithTheme = () => render(
         <ThemeProvider><ThemeProbe/></ThemeProvider>
     </CookiesProvider>
 );
+
+/* Ugyanaz, de SAJÁT Cookies-példánnyal, aminek a `set`-jét kémleljük. Így nem
+   csak azt látjuk, hogy a süti értéke helyes-e (azt a document.cookie is
+   megmutatja), hanem azt is, MILYEN BEÁLLÍTÁSOKKAL írjuk ki. A jsdom (és a
+   böngésző) a `document.cookie`-ból csak a nevet és az értéket adja vissza — a
+   Max-Age, a Path és a SameSite onnan VISSZAOLVASHATATLAN, tehát a
+   könyvtárnak átadott beállítás az egyetlen hely, ahol számon kérhető. */
+const renderWithCookieSpy = () => {
+    const cookies = new Cookies();
+    const setSpy = vi.spyOn(cookies, "set");
+    render(
+        <CookiesProvider cookies={cookies}>
+            <ThemeProvider><ThemeProbe/></ThemeProvider>
+        </CookiesProvider>
+    );
+    return setSpy;
+};
 
 /* A böngésző (és a jsdom) a színeket normalizálja: a "#fff"-ből "rgb(255,255,255)"
    lesz. Ezért nem a hex-szöveget hasonlítjuk, hanem ugyanazon az úton normalizált
@@ -69,6 +86,21 @@ describe("ThemeProvider", () => {
 
         expect(screen.getByTestId("bg")).toHaveTextContent(THEMES.light.pageBackground);
         expect(screen.getByTestId("checked")).toHaveTextContent("true");
+    });
+
+    it("a téma sütijei TÚLÉLIK a böngésző bezárását (van rajtuk lejárat)", () => {
+        /* Lejárat nélkül a süti MUNKAMENET-süti: a böngésző bezárásakor eltűnik,
+           és a világos témát választó felhasználó minden indításkor sötéten kapná
+           vissza az appot — némán, hiszen semmi nem hibázik. (Mérve: a korábbi
+           `{path: "/"}` pontosan ilyen sütit írt: `backgroundColor=white; Path=/`.)
+           Egy megjelenítési beállítás nem munkamenet-adat: maradjon meg. */
+        const setSpy = renderWithCookieSpy();
+
+        for (const name of [COOKIES.theme, COOKIES.themeBackground]) {
+            const call = setSpy.mock.calls.find(([cookieName]) => cookieName === name);
+            expect(call, `A(z) ${name} sütit nem is írtuk ki.`).toBeDefined();
+            expect(call?.[2]).toMatchObject({path: "/", maxAge: expect.any(Number)});
+        }
     });
 
     it("kapcsolásra világos témára vált, és a html hátterét is átfesti", async () => {

@@ -74,3 +74,25 @@ const BASE: CookieOptions = {path: "/", sameSite: "strict"};
    értelme, mert maga a token 15 perc után amúgy is érvénytelen (backend
    token.js), a lemezen felejtett token viszont valódi kockázat egy közös gépen. */
 export const SESSION_COOKIE: CookieOptions = BASE;
+
+/* A TÉMA sütijei viszont TÚLÉLIK a böngésző bezárását. Enélkül (mérve: ma
+   `backgroundColor=white; Path=/`, azaz lejárat nélküli munkamenet-süti) a
+   világos témát választó felhasználó minden új böngésző-indításnál sötéten
+   kapná vissza az appot — némán, hiszen semmi nem hibázik. Egy megjelenítési
+   beállítás nem titok és nem munkamenet-adat: az a helyes, ha megmarad.
+
+   Egy év: elég hosszú ahhoz, hogy a gyakorlatban tartósnak érződjön, és véges,
+   tehát egy évig nem használt gépről magától eltűnik. A lejáratot a BÖNGÉSZŐ
+   tartja számon (nem a szerver és nem az app): a tárolt időpont után a sütit már
+   nem adja oda a lapnak, és takarításkor törli — akkor is, ha közben soha nem
+   nyitottuk meg az oldalt. Amíg viszont használjuk, minden témaváltás
+   ÚJRAÍRJA a sütit, tehát az egy év mindig a legutóbbi használattól számol.
+
+   FIGYELEM, ez a felső korlát nem a mi kezünkben van: a böngészők maguk is
+   megvágják a JS-ből írt sütik élettartamát (a Chrome 400 napra, a Safari
+   nyomkövetés-védelme jóval rövidebbre, napokra). Ez dokumentált böngésző-
+   viselkedés, nálunk nem mérve — a szám tehát felső korlát, nem ígéret. Emiatt
+   nem is építünk rá semmit: a téma elvesztése legrosszabb esetben egy újbóli
+   kattintás, nem adatvesztés. */
+const ONE_YEAR_IN_SECONDS = 365 * 24 * 60 * 60;
+export const PERSISTENT_COOKIE: CookieOptions = {...BASE, maxAge: ONE_YEAR_IN_SECONDS};
