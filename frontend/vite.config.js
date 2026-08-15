@@ -30,6 +30,13 @@ export default defineConfig({
     // tényleges megjelenítés. Gyors, és a logika teszteléséhez elég.
     environment: 'jsdom',
     globals: true,
+    /* A TESZTEK KÖRNYEZETE ITT DŐL EL, nem a fejlesztő gépén álló .env-ben. Az
+       env-fájlok gépspecifikusak és gitignore-oltak, tehát a CI-ban nincs .env:
+       a VITE_BACKEND ott `undefined` volna, itthon meg a Pi címe — a tesztek
+       futásának pedig nem szabad ezen múlnia. Az üres string ugyanaz az érték,
+       amivel az éles build fut (relatív URL-ek), és a backendUrl.ts induláskori
+       ellenőrzésének is megfelel. */
+    env: {VITE_BACKEND: ''},
     // A kiterjesztés itt BE VAN DRÓTOZVA (a Vitest nem oldja fel magától): ha a
     // setup fájl kiterjesztést vált, ezt a sort is át kell írni. Szerencsére
     // hangosan bukik — "cannot find module" —, nem némán hagyja ki a setupot.

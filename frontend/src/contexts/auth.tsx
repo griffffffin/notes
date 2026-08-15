@@ -12,6 +12,7 @@ import {ENDPOINTS} from "../endpoints";
 import type {Endpoint} from "../endpoints";
 import {ACTIVITY_EVENTS, IDLE_LOGOUT_MS} from "../idle";
 import {responseStatus} from "../httpError";
+import {BACKEND_URL} from "../backendUrl";
 import {logRequestError} from "../log";
 
 /* Bejelentkezés és szerverhívás egy helyen.
@@ -109,7 +110,7 @@ export function AuthProvider({children}: {children: ReactNode}) {
         /* A `<unknown>` KIMONDVA: az axios alapértelmezése `any` volna, ami
            csendben mindent átengedne — épp azt a védelmet kapcsolná ki, amiért a
            válasz típusa `unknown` lett (l. auth-context.ts). */
-        return axios.post<unknown>(import.meta.env.VITE_BACKEND + url, data, {
+        return axios.post<unknown>(BACKEND_URL + url, data, {
             timeout: REQUEST_TIMEOUT_MS,
             headers: bearer ? {Authorization: "Bearer " + bearer} : undefined,
         })
@@ -139,7 +140,7 @@ export function AuthProvider({children}: {children: ReactNode}) {
                egyenesen a sütibe, tehát ha a szerver egyszer mást ad (pl.
                {token: "…"} burkolót), a hibás érték némán kiszorítaná a működő
                tokent, és a következő kérés 401-gyel léptetne ki. */
-            axios.post<unknown>(import.meta.env.VITE_BACKEND + ENDPOINTS.refresh, {},
+            axios.post<unknown>(BACKEND_URL + ENDPOINTS.refresh, {},
                 {headers: {Authorization: "Bearer " + token}})
                 .then((response) => setCookie("user", v.parse(authTokenSchema, response.data), {path: "/"}))
                 /* A FELHASZNÁLÓ felé néma bukás szándékos: ez háttérmunka, amiről
