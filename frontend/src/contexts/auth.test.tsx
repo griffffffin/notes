@@ -150,6 +150,69 @@ describe("AuthProvider", () => {
     });
 });
 
+/* A SÜTIBŐL OLVASOTT TOKEN. A süti a felhasználó gépén él: átírható kézzel, egy
+   böngésző-kiegészítővel, vagy megörökölhető egy régebbi verziótól. A react-cookie
+   `any`-t ad vissza, ráadásul a JSON-nak látszó értéket MAGÁTÓL objektummá
+   alakítja — a korábbi `cookies.user ?? null` tehát nem ellenőrzés volt, hanem
+   feltevés. Ezek a tesztek azt rögzítik, hogy csak VALÓDI token számít
+   bejelentkezésnek. */
+describe("A süti tartalma", () => {
+    it("érvényes token esetén bejelentkezettként indul", () => {
+        // Kontroll: enélkül a lenti két teszt attól is „zöld" lenne, hogy a
+        // provider egyáltalán nem olvas sütit.
+        document.cookie = "user=" + TOKEN + "; path=/";
+        renderAuth();
+
+        expect(screen.getByTestId("belepett")).toHaveTextContent("true");
+        expect(screen.getByTestId("token")).toHaveTextContent(TOKEN);
+    });
+
+    it("OBJEKTUMMÁ alakuló (JSON) süti nem számít bejelentkezésnek", () => {
+        /* A universal-cookie a JSON-nak látszó értéket objektumként adja vissza.
+           Ellenőrzés nélkül ebből "Bearer [object Object]" fejléc lenne: a felület
+           bejelentkezettnek látszana, a szerver viszont mindent elutasítana. */
+        document.cookie = 'user={"a":1}; path=/';
+        renderAuth();
+
+        expect(screen.getByTestId("belepett")).toHaveTextContent("false");
+    });
+
+    it("TETSZŐLEGES SZÖVEG nem számít bejelentkezésnek", () => {
+        /* Ez a kézzel átírt (vagy egy régi verziótól örökölt) süti esete.
+           Ellenőrzés nélkül a felület bejelentkezettnek látszana, és csak az első
+           kérés 401-e derítené ki az igazságot — addig a felhasználó a saját
+           adatai helyett üres listákat látna. */
+        document.cookie = "user=nem-egy-jwt; path=/";
+        renderAuth();
+
+        expect(screen.getByTestId("belepett")).toHaveTextContent("false");
+    });
+
+    it("HÁROM RÉSZES, de nem dekódolható érték sem elég", () => {
+        /* A pontok száma önmagában semmit nem bizonyít: ez a teszt köti ki, hogy
+           az ellenőrzés tényleg DEKÓDOLJA a középső részt, és a szerver
+           állításait (id/iat/exp) keresi benne. */
+        document.cookie = "user=abc.def.ghi; path=/";
+        renderAuth();
+
+        expect(screen.getByTestId("belepett")).toHaveTextContent("false");
+    });
+
+    it("ÜRES süti sem számít bejelentkezésnek", () => {
+        document.cookie = "user=; path=/";
+        renderAuth();
+
+        expect(screen.getByTestId("belepett")).toHaveTextContent("false");
+        /* A tokenre is ránézünk, nem csak a belépett-jelzőre: az üres szöveget a
+           `Boolean("")` amúgy is hamisnak látná, tehát a fenti sor a séma
+           `nonEmpty` szűkítése NÉLKÜL is átmenne. A "nincs" felirat viszont csak
+           akkor jelenik meg, ha a token tényleg `null` (a próbakomponens
+           `token ?? "nincs"`-e) — vagyis ha az üres sütit ELUTASÍTOTTUK, nem
+           pedig üres tokenként fogadtuk el. */
+        expect(screen.getByTestId("token")).toHaveTextContent("nincs");
+    });
+});
+
 /* A HATÁR-ELLENŐRZÉS SZERZŐDÉSE. A hívók sémával szűkítik a választ (types/api.ts),
    a séma pedig DOB, ha a válasz nem illeszkedik. Hogy ez ne egy elszabaduló
    kivétel legyen, hanem kezelt eset, arra a handleAxios felépítése ad garanciát: a

@@ -56,7 +56,20 @@ const REQUEST_TIMEOUT_MS = 15 * 1000;
 
 export function AuthProvider({children}: {children: ReactNode}) {
     const [cookies, setCookie, removeCookie] = useCookies(["user"]);
-    const token: AuthToken | null = cookies.user ?? null;
+    /* A SÜTI TARTALMA NEM MEGBÍZHATÓ FORRÁS, ezért ellenőrizzük — a `cookies.user`
+       a react-cookie-tól `any`-ként jön, tehát a korábbi `AuthToken | null`
+       annotáció csak ÁLLÍTÁS volt, nem vizsgálat (l. CLAUDE.md, "az `as` nem
+       ellenőrzés").
+
+       Nem elméleti kockázat: a sütit a felhasználó (vagy bármelyik böngésző-
+       kiegészítő) átírhatja, a react-cookie pedig a JSON-nak látszó értéket
+       MAGÁTÓL objektummá alakítja. Egy `user={"a":1}` süti így objektumot adna,
+       amiből a fejléc "Bearer [object Object]" lenne — a szerver 401-gyel
+       elutasítana, a felület viszont bejelentkezettnek látszana. Az `undefined`
+       (nincs süti) ugyanezen az úton lesz `null`: a hiányzó és az értelmezhetetlen
+       token egyaránt "nem vagy bejelentkezve". */
+    const storedToken = v.safeParse(authTokenSchema, cookies.user);
+    const token: AuthToken | null = storedToken.success ? storedToken.output : null;
     /* A friss tokent egy refben is tartjuk, hogy a handleAxios NE függjön tőle.
        Enélkül a token 5 percenkénti megújulása minden alkalommal új handleAxios-
        referenciát gyártana, amitől a rá épülő effektek (pl. a lista lekérése a
