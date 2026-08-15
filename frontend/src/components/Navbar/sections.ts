@@ -11,15 +11,23 @@
    exportáljon (Vite fast-refresh, react/only-export-components), és a "+" gomb
    (logoAndCreate) is innen vehesse a currentSection-t. */
 
+import {PATHS} from "../../paths";
+
 /* A típus egyelőre NEM exportált: kifelé még senki nem kéri (a fogyasztói .jsx-ek),
    a `currentSection` visszatérési értékét pedig a fordító magától is ismeri. Amint
    egy .tsx komponens néven akarja nevezni, exportálttá válik — addig a knip halott
    exportként jelentené. L. a src/types/api.ts növekedési szabályát. */
-type Section = {path: string; label: string};
+/* A `createPath` azért tartozik a szekcióhoz, mert a navbar "+" gombja EDDIG
+   összefűzéssel állította elő (`section.path + "/create"`). Az összefűzés néma
+   feltevés volt: hogy minden szekció létrehozó-oldala pont így néz ki. Amelyiké
+   egyszer nem — mondjuk a könyvjelzőké /bookmarks/new lesz —, ott a "+" egy nem
+   létező címre vitt volna, és a `*`-ág némán visszadobja a listára. Így viszont
+   minden szekció KIMONDJA a saját létrehozó-útját, a paths.ts értékeivel. */
+type Section = {path: string; label: string; createPath: string};
 
 const SECTIONS: Section[] = [
-    {path: "/to-dos", label: "To-dos"},
-    {path: "/quotes", label: "Quotes"},
+    {path: PATHS.todos, label: "To-dos", createPath: PATHS.todoCreate},
+    {path: PATHS.quotes, label: "Quotes", createPath: PATHS.quoteCreate},
 ];
 
 // Az aktuális szekció az URL ELSŐ szegmenséből (/to-dos/category/... → /to-dos).

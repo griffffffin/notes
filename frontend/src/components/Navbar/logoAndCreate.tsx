@@ -41,7 +41,7 @@ export default function LogoAndCreate(props: LogoAndCreateProps) {
                        után a főoldalra) jogosan kéziek: azok egy MŰVELET
                        eredményei, nem célpontok — linkként hamis ígéret lenne
                        rájuk kattintani. */
-                    <Link to={currentSection(location.pathname).path + "/create"}
+                    <Link to={currentSection(location.pathname).createPath}
                           onClick={props.handleLinkClicked} className="no-focus">
                         {/* A logó és a "+" távolsága: <576px-en a ps-3 (1rem) — ez jó.
                             A töréspont (≥576px) fölött korábban egy plusz ms-sm-3 (1rem)
