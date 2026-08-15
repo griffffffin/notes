@@ -8,6 +8,7 @@ import type {Endpoint} from "../../endpoints";
 import type {MouseEventHandler} from "react";
 import {todoListSchema} from "../../types/api";
 import type {Todo} from "../../types/api";
+import {PATHS} from "../../paths";
 
 /* Ugyanaz a komponens szolgálja ki a szűretlen listát és a szűrt nézeteket — a
    különbség az `url`-ben van (a to-do lista, a kategória- és a szín-szűrt végpont). */
@@ -43,7 +44,7 @@ export default function Read(props: TodoReadProps) {
        `schema` ugyanennek a FUTÁSIDEJŰ párja: a típus az ígéret, a séma az
        ellenőrzés, és a kettő egy forrásból származik (types/api.ts). */
     const {cards, isLoading, grid} = useSectionList<Todo>({
-        url: props.url, filter, reorderUrl: ENDPOINTS.todoReorder, section: "/to-dos",
+        url: props.url, filter, reorderUrl: ENDPOINTS.todoReorder, section: PATHS.todos,
         schema: todoListSchema,
     });
 
@@ -52,7 +53,7 @@ export default function Read(props: TodoReadProps) {
        nincs átirányítás — l. a CardListView indoklását. */
     return (
         <CardListView cards={cards} isLoading={isLoading} grid={grid}
-                      emptyRedirect={needsFilter ? "/to-dos" : null}
+                      emptyRedirect={needsFilter ? PATHS.todos : null}
                       renderCard={(todo) =>
                           <TodoCard todo={todo} handleLinkClicked={props.handleLinkClicked}/>}/>
     );

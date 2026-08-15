@@ -7,6 +7,7 @@ import QuoteSearch from "./quoteSearch";
 import ColorCategoryAndSignOut from "./colorCategoryAndSignOut";
 import Switch from "./switch";
 import CategoryAndColorGroup, {type CategoryAndColorGroupProps} from "../Link/categoryAndColorGroup";
+import {PATHS} from "../../paths";
 
 /* A navbar KÉT alakja diszkriminált unió az `isVisible`-en. Kijelentkezve (pl.
    megosztott idézet nézete) a navbar szinte üres: csak a téma-váltó marad, a
@@ -38,7 +39,7 @@ export default function Navbar(props: NavbarProps) {
        téma-váltó mindenhol marad. A useLocation itt működik: a Navbar a Routeren
        BELÜL renderelődik. */
     const pathname = useLocation().pathname;
-    const isTodo = currentSection(pathname).path === "/to-dos";
+    const isTodo = currentSection(pathname).path === PATHS.todos;
     /* A kereső CSAK a Quotes read-oldalain (lista, szerző-szűrt, találat) jelenik
        meg, és a mező kezdőértékét is az URL adja — l. quoteSearchState. */
     const search = quoteSearchState(pathname);

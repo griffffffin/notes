@@ -14,6 +14,7 @@ import {lastSectionPath} from "./Navbar/sections";
 import {useAuth} from "../contexts/auth-context";
 import {ENDPOINTS} from "../endpoints";
 import type {Endpoint} from "../endpoints";
+import {PATHS} from "../paths";
 import type {CategoryAndColorGroupProps} from "./Link/categoryAndColorGroup";
 
 /* Miért DATA ROUTER (createBrowserRouter + RouterProvider) a régi deklaratív
@@ -128,32 +129,36 @@ const loggedInRoutes = createRoutesFromElements(
     <Route element={<AppLayout/>}>
         {/* A gyökér az UTOLSÓ megnyitott SZEKCIÓRA visz (a lista-nézetek mountkor
             jegyzik meg, melyikben jársz — useRememberSection). A tárolás
-            részletei, a kulcs és az alapértelmezés a sections.js-ben, egy helyen. */}
-        <Route path="/" element={<Navigate to={lastSectionPath()} replace/>}/>
-        <Route path="/to-dos" element={<TodosReadRoute url={ENDPOINTS.todos}/>}/>
-        <Route path="/to-dos/create" element={<TodosSaveRoute key="create" isUpdate={false}/>}/>
+            részletei, a kulcs és az alapértelmezés a sections.ts-ben, egy helyen. */}
+        <Route path={PATHS.root} element={<Navigate to={lastSectionPath()} replace/>}/>
+        <Route path={PATHS.todos} element={<TodosReadRoute url={ENDPOINTS.todos}/>}/>
+        <Route path={PATHS.todoCreate} element={<TodosSaveRoute key="create" isUpdate={false}/>}/>
         {/* A szűrő és a szerkesztendő azonosító az URL-ben, nem a navigációs
-            state-ben — így F5/direkt link sem törik el. */}
-        <Route path="/to-dos/category/:name" element={<TodosReadRoute url={ENDPOINTS.todosByCategory}/>}/>
-        <Route path="/to-dos/color/:name" element={<TodosReadRoute url={ENDPOINTS.todosByColor}/>}/>
-        <Route path="/to-dos/update/:id" element={<TodosSaveRoute key="update" isUpdate={true}/>}/>
+            state-ben — így F5/direkt link sem törik el. A MINTÁT (":name", ":id") a
+            paths.ts ugyanabból az előtagból származtatja, amiből a rá mutató linkek
+            címét építi — l. az ottani `route()` indoklását. */}
+        <Route path={PATHS.todoCategory.pattern} element={<TodosReadRoute url={ENDPOINTS.todosByCategory}/>}/>
+        <Route path={PATHS.todoColor.pattern} element={<TodosReadRoute url={ENDPOINTS.todosByColor}/>}/>
+        <Route path={PATHS.todoUpdate.pattern} element={<TodosSaveRoute key="update" isUpdate={true}/>}/>
         {/* Idézetek. A lista és a szerző-szűrt nézet ugyanaz a QuoteRead (a url-prop
             dönti, szűr-e); a create és az update ugyanaz a QuoteSave, külön key-vel.
             A statikus /quotes/create és /quotes/update rangban megelőzi a dinamikus
             /quotes/:author-t, így nem ütköznek. */}
-        <Route path="/quotes" element={<QuotesReadRoute url={ENDPOINTS.quotes}/>}/>
-        <Route path="/quotes/create" element={<QuotesSaveRoute key="quote-create" isUpdate={false}/>}/>
-        <Route path="/quotes/update/:id" element={<QuotesSaveRoute key="quote-update" isUpdate={true}/>}/>
+        <Route path={PATHS.quotes} element={<QuotesReadRoute url={ENDPOINTS.quotes}/>}/>
+        <Route path={PATHS.quoteCreate} element={<QuotesSaveRoute key="quote-create" isUpdate={false}/>}/>
+        <Route path={PATHS.quoteUpdate.pattern} element={<QuotesSaveRoute key="quote-update" isUpdate={true}/>}/>
         {/* A keresés szöveg-módú találata. A statikus "search" szegmens rangban
             megelőzi a dinamikus /quotes/:author-t ÉS a /quotes/:author/:id-t (a
             react-router a statikus szegmenst többre értékeli), ezért nem ütköznek. */}
-        <Route path="/quotes/search/:term" element={<QuotesSearchRoute/>}/>
-        <Route path="/quotes/:author" element={<QuotesReadRoute url={ENDPOINTS.quotesByAuthor}/>}/>
+        <Route path={PATHS.quoteSearch.pattern} element={<QuotesSearchRoute/>}/>
+        <Route path={PATHS.quotesByAuthor.pattern} element={<QuotesReadRoute url={ENDPOINTS.quotesByAuthor}/>}/>
         {/* Egy megosztott idézet publikus nézete. A bejelentkezett is megnyithatja
             (olvasásra); a kijelentkezett ágban ugyanez a route szerepel. */}
-        <Route path="/quotes/:author/:id" element={<QuotePublic/>}/>
-        {/* Ismeretlen út → a to-do listára (a régi "* → főlista" mintát megtartva). */}
-        <Route path="*" element={<Navigate to="/to-dos" replace/>}/>
+        <Route path={PATHS.publicQuote.pattern} element={<QuotePublic/>}/>
+        {/* Ismeretlen út → a to-do listára (a régi "* → főlista" mintát megtartva).
+            A "*" a react-router saját joker-mintája (nem a mi utunk), ezért marad
+            szó szerint. */}
+        <Route path="*" element={<Navigate to={PATHS.todos} replace/>}/>
     </Route>
 );
 
@@ -161,21 +166,21 @@ const loggedOutRoutes = createRoutesFromElements(
     <Route element={<AuthLayout/>}>
         {/* Külön key, mint a Save-nél: a két nézetet ugyanaz az Entry rendereli,
             enélkül a beírt adatok meg a hibaüzenet átjönnének a másik űrlapra. */}
-        <Route path="/signup" element={<Entry key="signup" isLogin={false}/>}/>
+        <Route path={PATHS.signup} element={<Entry key="signup" isLogin={false}/>}/>
         {/* A szerkesztő-URL (/quotes/update/:id) kijelentkezve NEM publikus nézet:
             enélkül a statikus "update" szegmenst a lenti /quotes/:author/:id az
             author-nak venné, és megmutatná az idézetet. A szerkesztéshez belépés
             kell, ezért a bejelentkezőt adjuk; a statikus route megelőzi a dinamikusat. */}
-        <Route path="/quotes/update/:id" element={<Entry key="login" isLogin={true}/>}/>
+        <Route path={PATHS.quoteUpdate.pattern} element={<Entry key="login" isLogin={true}/>}/>
         {/* A keresés is bejelentkezést kíván: kijelentkezve a /quotes/search/:term a
             bejelentkezőre essen (mint az /update), NE a lenti /quotes/:author/:id
             publikus nézetre — az a "search"-öt szerzőnek, a kifejezést idézet-id-nek
             venné, és "Nem létező idézet"-et mutatna. A statikus "search" szegmens
             rangban megelőzi a dinamikus :author-t. */}
-        <Route path="/quotes/search/:term" element={<Entry key="login" isLogin={true}/>}/>
+        <Route path={PATHS.quoteSearch.pattern} element={<Entry key="login" isLogin={true}/>}/>
         {/* Publikus idézet-nézet bejelentkezés nélkül is — a megosztott link ettől
             működik kijelentkezve. Minden más ismeretlen út a bejelentkezőre esik. */}
-        <Route path="/quotes/:author/:id" element={<QuotePublic/>}/>
+        <Route path={PATHS.publicQuote.pattern} element={<QuotePublic/>}/>
         <Route path="*" element={<Entry key="login" isLogin={true}/>}/>
     </Route>
 );

@@ -1,6 +1,7 @@
 import type {MouseEventHandler} from "react";
 import {Link} from "react-router-dom";
 import type {Todo} from "../../types/api";
+import {PATHS} from "../../paths";
 
 /* A kártya tartalma, ami a szerkesztőre visz — ezért VALÓDI link.
 
@@ -31,9 +32,10 @@ export default function TodoUpdate(props: LinkTodoUpdateProps) {
     return (
         /* Az azonosító az URL-ben utazik (/update/:id) a szerkesztőnek; enélkül a
            route (:id kötelező) nem is illeszkedne, a "*"-ág a listára dobna vissza.
-           Az _id 24 jegyű hex ObjectId, nincs benne kódolandó karakter, de a
-           konzisztenciáért itt is encodeURIComponent-et használunk. */
-        <Link to={"/to-dos/update/" + encodeURIComponent(props.todo._id)} onClick={props.handleLinkClicked}
+           A kódolást a builder intézi (paths.ts): az _id 24 jegyű hex ObjectId,
+           nincs benne kódolandó karakter, de a szabály nem kivételezik — így nem
+           kell minden hívási helyen külön eldönteni, kell-e. */
+        <Link to={PATHS.todoUpdate(props.todo._id)} onClick={props.handleLinkClicked}
               className="text-decoration-none">
             <div className={"card-header caveat bg-transparent no-focus ms-1 text-" + props.todo.color}>
                 <div className="float-end ms-1">{props.todo.percentage}%</div>

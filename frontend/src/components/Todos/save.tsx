@@ -24,6 +24,7 @@ import * as v from "valibot";
 import {todoSchema, lastOrderSchema} from "../../types/api";
 import type {Tasks} from "../../types/api";
 import type {TodoDraft, SetTask, SetTaskOrder} from "./todoDraft";
+import {PATHS} from "../../paths";
 
 /* A szerkesztő és a szerver közti ÖSSZEHASONLÍTHATÓ pillanatkép: az a hat mező,
    amit a "változott-e?" ellenőrzés néz. A `loadedTodo` ref ezt tárolja (a szerver
@@ -136,7 +137,7 @@ export default function Save(props: SaveProps) {
        to-do listára megyünk. A navigációt a blocker kapja el, ha van mentenivaló. */
     const leaveEditor = useCallback(() => {
         if (isUpdate && location.key !== "default") navigate(-1);
-        else navigate("/to-dos");
+        else navigate(PATHS.todos);
     }, [isUpdate, location.key, navigate]);
 
     /* A színválasztó gomb `value`-ja DOM-szinten sima string; az isTodoColor VALÓDI
@@ -396,7 +397,7 @@ export default function Save(props: SaveProps) {
         handleAxios(url, data, () => {
             props.handleLinkClicked();
             props.handleCategoryChange();
-            navigate("/to-dos");
+            navigate(PATHS.todos);
         }, (error) => { leftViaForm.current = false; logRequestError(error); });
     });
 

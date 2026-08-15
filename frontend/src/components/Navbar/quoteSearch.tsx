@@ -7,6 +7,7 @@ import {logRequestError} from "../../log";
 import {ENDPOINTS} from "../../endpoints";
 import * as v from "valibot";
 import {searchModeSchema} from "../../types/api";
+import {PATHS} from "../../paths";
 
 /* A Quotes-navbar keresője (a "+" és a kijelentkezés között, középen). A ghost-
    text szerző-ajánlást a szerkesztővel KÖZÖS AuthorInput adja (onSubmit móddal:
@@ -42,7 +43,7 @@ export default function QuoteSearch(props: QuoteSearchProps) {
         // Üres keresés (üres mező vagy csak szóköz) → vissza a teljes listára (főoldal).
         if (!trimmed) {
             props.handleLinkClicked?.();
-            navigate("/quotes");
+            navigate(PATHS.quotes);
             return;
         }
         /* Az "Anonymous" a névtelen (üres szerzőjű) idézetek URL-jelölője — a
@@ -53,7 +54,7 @@ export default function QuoteSearch(props: QuoteSearchProps) {
            kanonikus "Anonymous" jelölő. */
         if (trimmed.toLowerCase() === "anonymous") {
             props.handleLinkClicked?.();
-            navigate("/quotes/Anonymous");
+            navigate(PATHS.quotesByAuthor("Anonymous"));
             return;
         }
         handleAxios(ENDPOINTS.quoteSearchMode, {term: trimmed}, (response) => {
@@ -66,9 +67,9 @@ export default function QuoteSearch(props: QuoteSearchProps) {
             const mode = v.parse(searchModeSchema, response.data);
             props.handleLinkClicked?.();
             if (mode.mode === "author")
-                navigate("/quotes/" + encodeURIComponent(mode.author));
+                navigate(PATHS.quotesByAuthor(mode.author));
             else
-                navigate("/quotes/search/" + encodeURIComponent(trimmed));
+                navigate(PATHS.quoteSearch(trimmed));
         }, logRequestError);
     };
 

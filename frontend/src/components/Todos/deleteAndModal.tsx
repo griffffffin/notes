@@ -7,6 +7,7 @@ import {ENDPOINTS} from "../../endpoints";
 import type {Endpoint} from "../../endpoints";
 import type {Id} from "../../types/api";
 import type {BootstrapColor} from "../../contexts/theme-context";
+import {PATHS} from "../../paths";
 
 /* A KÖTELEZŐ mezők azok, amiket mindkét szerkesztő ad; minden más opcionális,
    mert vagy csak a to-dónak, vagy csak az idézetnek van értelme. Az `itemId` és a
@@ -40,7 +41,7 @@ export default function DeleteAndModal(props: DeleteAndModalProps) {
        saját törlő-végpontja és listája van. A defaultok a to-dóra állnak (hogy az
        ő hívása ne változzon), a to-do-specifikus callbackek pedig opcionálisak. */
     const deleteUrl = props.deleteUrl ?? ENDPOINTS.todoDelete;
-    const listUrl = props.listUrl ?? "/to-dos";
+    const listUrl = props.listUrl ?? PATHS.todos;
     const itemId = props.itemId ?? props.todoId;
 
     /* Nincs useCallback: ezek onClick-ekre mennek, memózatlan komponensekre. */

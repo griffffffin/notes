@@ -9,6 +9,7 @@ import {ENDPOINTS} from "../../endpoints";
 import type {Endpoint} from "../../endpoints";
 import {quoteListSchema} from "../../types/api";
 import type {Quote} from "../../types/api";
+import {PATHS} from "../../paths";
 
 /* A `url` a lista végpontját adja: a teljes lista vagy a szerző-szűrt — a route
    dönti el, melyikkel hív. A szűrő-mód is ebből számol (l. `needsFilter`). */
@@ -35,7 +36,7 @@ export default function QuoteRead(props: QuoteReadProps) {
     );
 
     const {cards, isLoading, grid} = useSectionList<Quote>({
-        url: props.url, filter, reorderUrl: ENDPOINTS.quoteReorder, section: "/quotes",
+        url: props.url, filter, reorderUrl: ENDPOINTS.quoteReorder, section: PATHS.quotes,
         schema: quoteListSchema,
     });
 
@@ -56,7 +57,7 @@ export default function QuoteRead(props: QuoteReadProps) {
     // vissza a teljes listára. A teljes lista LEGITIMEN lehet üres.
     return (
         <CardListView cards={cards} isLoading={isLoading} grid={grid}
-                      emptyRedirect={needsFilter ? "/quotes" : null}
+                      emptyRedirect={needsFilter ? PATHS.quotes : null}
                       renderCard={(quote) =>
                           <QuoteCard quote={quote} handleLinkClicked={props.handleLinkClicked}/>}/>
     );

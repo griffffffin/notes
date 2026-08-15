@@ -19,6 +19,7 @@ import {useEscapeSubmit} from "../Editor/useEscapeSubmit";
 import {useIdleTimer} from "../Editor/useIdleTimer";
 import * as v from "valibot";
 import {quoteForEditSchema, lastOrderSchema} from "../../types/api";
+import {PATHS} from "../../paths";
 
 /* Az új idézet alap betűmérete SZÁZALÉKBAN — szándékosan a Szerző-mező méretével
    egyezik (a .caveat szabály 155%-a), hogy a szerkesztőben az idézet és a szerző
@@ -150,7 +151,7 @@ export default function QuoteSave(props: SaveProps) {
        van mentenivaló — ez indítja a mentést. */
     const leaveEditor = useCallback(() => {
         if (isUpdate && location.key !== "default") navigate(-1);
-        else navigate("/quotes");
+        else navigate(PATHS.quotes);
     }, [isUpdate, location.key, navigate]);
 
     /* Versenyhelyzet-őr: az effekt a `quoteId` változásakor újrafut (pl. /update/:id1 →
@@ -459,7 +460,7 @@ export default function QuoteSave(props: SaveProps) {
            NE mentsen újra (create-nél nehogy duplikáljon — ezért nem kell külön
            create→update váltás). Hibánál visszavonjuk, hogy egy későbbi távozás újrapróbálja. */
         leftViaForm.current = true;
-        handleAxios(url, buildPayload(), () => { props.handleLinkClicked(); navigate("/quotes"); },
+        handleAxios(url, buildPayload(), () => { props.handleLinkClicked(); navigate(PATHS.quotes); },
             (error) => { leftViaForm.current = false; logRequestError(error); });
     });
 
@@ -549,7 +550,7 @@ export default function QuoteSave(props: SaveProps) {
 
                     {isUpdate &&
                         <DeleteAndModal handleLinkClicked={props.handleLinkClicked} color={color}
-                                        deleteUrl={ENDPOINTS.quoteDelete} listUrl="/quotes" itemId={quoteId}
+                                        deleteUrl={ENDPOINTS.quoteDelete} listUrl={PATHS.quotes} itemId={quoteId}
                                         onDelete={() => { leftViaForm.current = true; }}/>}
                 </div>
             </div>

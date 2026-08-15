@@ -7,6 +7,7 @@ import CardListView from "../CardList/CardListView";
 import {ENDPOINTS} from "../../endpoints";
 import {quoteListSchema} from "../../types/api";
 import type {Quote} from "../../types/api";
+import {PATHS} from "../../paths";
 
 type QuoteSearchResultsProps = {
     handleLinkClicked: MouseEventHandler<HTMLAnchorElement>;
@@ -36,12 +37,12 @@ export default function QuoteSearchResults(props: QuoteSearchResultsProps) {
     const filter = useMemo(() => ({term}), [term]);
 
     const {cards, isLoading, grid} = useSectionList<Quote>({
-        url: ENDPOINTS.quoteSearch, filter, reorderUrl: ENDPOINTS.quoteReorder, section: "/quotes",
+        url: ENDPOINTS.quoteSearch, filter, reorderUrl: ENDPOINTS.quoteReorder, section: PATHS.quotes,
         schema: quoteListSchema,
     });
 
     return (
-        <CardListView cards={cards} isLoading={isLoading} grid={grid} emptyRedirect="/quotes"
+        <CardListView cards={cards} isLoading={isLoading} grid={grid} emptyRedirect={PATHS.quotes}
                       renderCard={(quote) =>
                           <QuoteCard quote={quote} handleLinkClicked={props.handleLinkClicked}/>}/>
     );
