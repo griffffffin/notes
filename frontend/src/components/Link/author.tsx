@@ -1,5 +1,6 @@
 import FilterLink, {type FilterLinkProps} from "./filterLink";
 import type {Quote} from "../../types/api";
+import {PATHS} from "../../paths";
 
 /* Egy szerző-hivatkozás az idézet-kártya láblécén — a to-do LinkCategory párja: a
    szerző szűrt nézetére visz (/quotes/:author). A link VÁZÁT (kódolás, szín,
@@ -12,16 +13,16 @@ import type {Quote} from "../../types/api";
    ott nincs mit elrejteni.
 
    Az `Omit` a váz propjaiból veszi ki azt a kettőt, amit ez a komponens maga tölt
-   ki (`to`, `value`) — a maradékot (onClick, color, class) változatlanul kapja és
-   adja tovább. A szerző típusa a szerződésből jön: a `Quote["author"]` opcionális,
-   ezért kell a fenti korai kilépés. */
-type LinkAuthorProps = Omit<FilterLinkProps, "to" | "value"> & {
+   ki (`buildPath`, `value`) — a maradékot (onClick, color, class) változatlanul
+   kapja és adja tovább. A szerző típusa a szerződésből jön: a `Quote["author"]`
+   opcionális, ezért kell a fenti korai kilépés. */
+type LinkAuthorProps = Omit<FilterLinkProps, "buildPath" | "value"> & {
     author: Quote["author"];
 };
 
 export default function LinkAuthor(props: LinkAuthorProps) {
     if (!props.author) return null;
 
-    return <FilterLink to="/quotes/" value={props.author} onClick={props.onClick}
+    return <FilterLink buildPath={PATHS.quotesByAuthor} value={props.author} onClick={props.onClick}
                        color={props.color} class={props.class}/>;
 }

@@ -12,9 +12,19 @@ import {useTheme, type BootstrapColor} from "../../contexts/theme-context";
    ki. Ez egyben elhagyhatóvá teszi a kézzel adott role="button"-t, a tabIndexet
    és a billentyűkezelést: azt mind ingyen hozza a linkség.
 
-   Az encodeURIComponent a szóközt/ékezetet/perjelet kódolja, hogy az érték ne
-   törje szét az útvonalat; a fogadó nézet a route-paramétert már dekódolva kapja
-   (useParams), tehát ott nem kell — és nem is szabad — újra dekódolni.
+   A CÍM ÉPÍTÉSE NEM ITT TÖRTÉNIK: a hívó egy BUILDER-FÜGGVÉNYT ad át (paths.ts),
+   ez a komponens csak meghívja az értékkel. Eddig egy előtag-STRINGET kapott
+   ("/quotes/"), amihez maga fűzte hozzá a kódolt értéket — két néma csapdával.
+   Egyrészt a záró perjelet semmi nem őrizte: egy "/quotes" előtagból
+   "/quotesKant" lett volna, ami a "*"-ágra esik, tehát némán átirányít. Másrészt
+   a cím és a felirat KÉT külön propból jött, így egy figyelmetlen hívás olyan
+   linket adhatott, ami mást ír ki, mint amire visz. Egy builderrel mindkettő
+   ugyanabból az egy `value`-ból számítódik, és az útvonal alakja a paths.ts-ben
+   van kimondva.
+
+   A kódolást (szóköz, ékezet, perjel) így a builder végzi; a fogadó nézet a
+   route-paramétert már dekódolva kapja (useParams), tehát ott nem kell — és nem
+   is szabad — újra dekódolni.
 
    A színt a téma adja, KIVÉVE ha a hívó felülírja (color): a to-do kártyák
    lábléce a saját to-do színét viseli, nem a témáét.
@@ -31,11 +41,12 @@ import {useTheme, type BootstrapColor} from "../../contexts/theme-context";
    többit változatlanul adják tovább. Így ha a váz egyszer új propot kap, nem kell
    három fájlban átvezetni — és nem is csúszhatnak el egymástól. */
 export type FilterLinkProps = {
-    /* Az útvonal ELŐTAGJA, per-jellel a végén ("/quotes/"), amihez a kódolt érték
-       hozzáfűződik. Nem a kész cím, mert a kódolás itt történik. */
-    to: string;
-    /* A szűrés értéke — egyben a link látható szövege: a kategória, illetve a
-       szerző neve. */
+    /* A szűrt nézet ÚTVONAL-BUILDERE a paths.ts-ből (PATHS.todoCategory,
+       PATHS.quotesByAuthor) — nem a kész cím és nem is egy előtag. A komponens
+       ezt hívja meg a `value`-val; a kódolás és az útvonal alakja a builderé. */
+    buildPath: (value: string) => string;
+    /* A szűrés értéke — egyben a link látható szövege ÉS a címbe kerülő szegmens:
+       a kategória, illetve a szerző neve. */
     value: string;
     onClick: MouseEventHandler<HTMLAnchorElement>;
     /* Ha elmarad, a téma színe érvényes (l. a fenti magyarázatot). */
@@ -43,11 +54,11 @@ export type FilterLinkProps = {
     class: string;
 };
 
-export default function FilterLink({to, value, onClick, color, class: className}: FilterLinkProps) {
+export default function FilterLink({buildPath, value, onClick, color, class: className}: FilterLinkProps) {
     const theme = useTheme();
 
     return (
-        <Link to={to + encodeURIComponent(value)} onClick={onClick}
+        <Link to={buildPath(value)} onClick={onClick}
               className={className + " d-block text-decoration-none text-" + (color ?? theme.color)}>
             {value}
         </Link>
