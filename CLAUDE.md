@@ -184,6 +184,23 @@ elmaradt átvezetés.
   hibanaplózás alak-vizsgálata; korábban két külön `as` állította ugyanezt.)
   Az `as const` KIVÉTEL: az nem állítás egy értékről, hanem a literál típus
   megőrzése, és a fordító ellenőrzi.
+- **A GENERIKUS HÍVÁS UGYANEZ, csak nem látszik rajta.** A `fn<T>(…)` alakú hívás
+  — `handleAxios<Quote[]>(…)`, `axios.post<T>(…)`, `useState<T>()`,
+  `querySelector<T>(…)` — nem vizsgál semmit: a `T`-t a HÍVÓ mondja meg, és a
+  fordító elhiszi. Ha a válasz mégis más alakú, senki nem szól. Ez a legalattomosabb
+  formája a hitnek, mert *úgy néz ki*, mint egy típusellenőrzés.
+  **Szabály: ami a programon KÍVÜLRŐL jön (szerver-válasz, süti, localStorage,
+  env, JSON.parse), az `unknown`, és a hívó VALÓDI ellenőrzéssel szűkíti.**
+  Az `unknown` nem kényelmetlenség, hanem a kapu: hozzá nem lehet nyúlni
+  ellenőrzés nélkül, tehát nem lehet elfelejteni. A minták, mind működő kód:
+  - séma-ellenőrzés a szerver válaszaira: `frontend/src/types/api.ts` (valibot;
+    a típusok a sémából SZÁRMAZNAK, nincs kézzel írt párhuzamos leírás) — a
+    hívók `v.parse(séma, response.data)`-val szűkítenek;
+  - kézzel írt típusőr, ahol nem kell séma: `frontend/src/httpError.ts`;
+  - süti: `frontend/src/contexts/auth.tsx` (a token `v.safeParse`-szal);
+  - env: `frontend/src/vite-env.d.ts` (a `ViteTypeOptions.strictImportMetaEnv`
+    nélkül minden env-kulcs `any` marad!) + `frontend/src/backendUrl.ts` (a
+    hiányzó értéket a típus nem fogja meg, ezért induláskori ellenőrzés is kell).
 - **Kezdőérték ≠ típus.** Ahol egy `useState`, `useRef` vagy modul-szintű változó
   `null`-lal (vagy üres tömbbel) indul, ott a típus KIMONDOTTAN járjon mellé
   (`useState<AccentOverride | null>(null)`). A fordító különben a kezdőértékből
@@ -226,6 +243,14 @@ elmaradt átvezetés.
      `/etc`-ben és a `deploy/`-ban, env-kulcs a kódban és az `.env.example`-ben),
      az el fog csúszni. Ha nem lehet egy példány, akkor ellenőrzés kell rá — a
      unitokat a napi Pi-állapotellenőrzés hasonlítja össze.
+  6. **A KÜLSŐ ÉRTÉK BEÁLLÍTÁSAI, nem csak a tartalma.** Egy süti (vagy bármi,
+     amit egy könyvtárnak adunk át) nem csak akkor romlik el, ha az ÉRTÉKE rossz:
+     a HIÁNYZÓ beállítás is némán mást jelent. A `{path: "/"}`-vel írt süti
+     lejárat nélküli, azaz munkamenet-süti — a téma-választás így minden
+     böngésző-bezárásnál elveszett, hibaüzenet nélkül. Az ilyen beállítás
+     `document.cookie`-ból VISSZA SEM OLVASHATÓ, tehát csak ott kérhető számon,
+     ahol átadjuk: `frontend/src/cookies.ts` (a szándék kimondva:
+     `SESSION_COOKIE` vs. `PERSISTENT_COOKIE`) + a rájuk írt tesztek.
 - **`ELTÉRÉS`-komment**: ahol egy szekció (to-do, idézet, később film…) SZÁNDÉKOSAN
   másképp működik, mint a párja, azt kommentben jelöljük, az `ELTÉRÉS` szóval
   kezdve — így `grep "ELTÉRÉS"`-sel az összes tudatos elhajlás előkereshető.
