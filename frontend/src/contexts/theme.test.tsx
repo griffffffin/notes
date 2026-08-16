@@ -136,3 +136,69 @@ describe("ThemeProvider", () => {
         expect(() => render(<ThemeProbe/>)).toThrow(/ThemeProvider/);
     });
 });
+
+/* A BÖNGÉSZŐFÜL IKONJA (favicon) — a jin-jang két fele.
+
+   A fület a böngésző rajzolja, oda a CSS-változóink nem érnek el, ezért a képet a
+   Provider állítja össze SVG-szövegként, és a <link rel=icon> href-jébe írja.
+
+   A SZABÁLY, amit ez a blokk rögzít: az a fél tartja meg az eredeti színét,
+   amelyik A LAP HÁTTERÉVEL egyezik — a másik lesz az akcentus. Sötét témán tehát
+   a fekete fél marad és a fehér vált sárgára, világoson pontosan fordítva. Így az
+   akcentus MINDIG azon az oldalon van, amelyik a laptól elüt.
+
+   MIÉRT ÉR EZ TESZTET. A szabályt korábban három bedrótozott literál írta le
+   (`pageBackground !== "#000"`, majd "#fff" és "#000"), vagyis a THEMES tábla
+   kézi másolatai. A legelső NÉMÁN romlott volna el: ha a sötét téma háttere
+   egyszer "#0a0a0a" lesz, a vizsgálat tévesen világos témát mond, és az ikon
+   invertálva jelenik meg — hibaüzenet nélkül, ráadásul olyan helyen (a fülön),
+   ahova fejlesztés közben senki nem néz. Az alábbi elvárások ezért a THEMES-ből
+   származnak, nem szó szerinti színekből: a színek szabadon változhatnak, a
+   SZABÁLYNAK kell állnia. */
+describe("favicon — a lap hátterével egyező fél tartja a színét", () => {
+    beforeEach(() => {
+        document.cookie = "backgroundColor=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+    });
+
+    /* A jsdom alapdokumentumában NINCS <link rel=icon>, a Provider pedig
+       `instanceof` őrrel dolgozik — elem híján CSENDBEN kihagyná a cserét, és a
+       teszt semmit nem vizsgálna. Ezért magunk tesszük oda. */
+    /* A `link` változó típusát a createElement adja (HTMLLinkElement), tehát a
+       .href olvasásához itt nincs szükség semmilyen állításra — a visszaolvasó
+       segéd viszont a DOM-ból keres, ahol az `instanceof` a VALÓDI ellenőrzés
+       (nem `querySelector<HTMLLinkElement>`, ami csak állítaná; l. CLAUDE.md). */
+    function currentFavicon(): string {
+        const link = document.querySelector("link[rel=icon]");
+        if (!(link instanceof HTMLLinkElement))
+            throw new Error("Nincs <link rel=icon> a dokumentumban — a teszt nem vizsgálna semmit.");
+        return decodeURIComponent(link.href);
+    }
+
+    function renderWithFavicon() {
+        document.querySelector("link[rel=icon]")?.remove();
+        const link = document.createElement("link");
+        link.rel = "icon";
+        document.head.appendChild(link);
+        renderWithTheme();
+        return currentFavicon();
+    }
+
+    it("sötét témán a FEKETE fél marad a lap háttere, a fehér lesz az akcentus", () => {
+        const svg = renderWithFavicon();
+
+        // A nagy korong (r=49.3) az eredeti FEHÉR fél; a <path> az eredeti FEKETE.
+        expect(svg).toContain(`r="49.3" fill="${THEMES.dark.accent}"`);
+        expect(svg).toContain(`<path fill="${THEMES.dark.pageBackground}"`);
+    });
+
+    it("világos témán fordítva: a FEHÉR fél marad, a fekete lesz az akcentus", async () => {
+        const svg0 = renderWithFavicon();
+        expect(svg0).toContain(`<path fill="${THEMES.dark.pageBackground}"`);  // kontroll: sötéten indult
+
+        await userEvent.click(screen.getByRole("button", {name: "váltás"}));
+        const svg = currentFavicon();
+
+        expect(svg).toContain(`r="49.3" fill="${THEMES.light.pageBackground}"`);
+        expect(svg).toContain(`<path fill="${THEMES.light.accent}"`);
+    });
+});

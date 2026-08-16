@@ -122,9 +122,20 @@ export function ThemeProvider({children}: {children: ReactNode}) {
            eső felét azon az oldalon, és a körvonal csak félvastagnak látszana ott
            (mérve: a fekete fél oldalán fele annyinak, mint a fehérén). Legfelső
            rétegként mindenhol a teljes vastagság látszik. */
-        const light = theme.pageBackground !== "#000";
-        const brightHalf = light ? "#fff" : accent;   // az eredeti FEHÉR fél (bal)
-        const darkHalf = light ? accent : "#000";     // az eredeti FEKETE fél (jobb)
+        /* A SZABÁLY EGY MONDATBAN: az a fél tartja meg az eredeti színét, amelyik
+           a LAP HÁTTERÉVEL egyezik; a másik lesz az akcentus. Sötét témán tehát a
+           fekete fél marad (a háttér is fekete), és a fehér vált sárgára; világoson
+           fordítva. Ezért mindkét "megmaradó" fél a theme.pageBackground.
+
+           EZ EDDIG HÁROM BEDRÓTOZOTT LITERÁLLAL volt leírva: `pageBackground !== "#000"`
+           döntötte el a témát, és a két megmaradó fél is "#fff"/"#000" volt. Mindhárom
+           a THEMES tábla kézi másolata (theme-context.ts) — és a legelső NÉMÁN romlott
+           volna el: ha a sötét téma háttere egyszer "#0a0a0a" lesz, a vizsgálat
+           tévesen VILÁGOS témát mond, és a böngészőfül ikonja invertálva jelenik meg.
+           Semmi nem hibázik, csak rossz. Az `isLight` maga az állapot, ami a témát
+           választja — ugyanabban a komponensben, karnyújtásnyira. */
+        const brightHalf = isLight ? theme.pageBackground : accent;  // az eredeti FEHÉR fél (bal)
+        const darkHalf = isLight ? accent : theme.pageBackground;    // az eredeti FEKETE fél (jobb)
         const favicon = "data:image/svg+xml," + encodeURIComponent(
             `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-4 -4 108 108">` +
             `<circle cx="50" cy="50" r="49.3" fill="${brightHalf}"/>` +
@@ -138,7 +149,7 @@ export function ThemeProvider({children}: {children: ReactNode}) {
            nem plusz sor, csak erősebb feltétel. */
         const link = document.querySelector("link[rel=icon]");
         if (link instanceof HTMLLinkElement) link.href = favicon;
-    }, [theme, accent, focusBorder, focusRing]);
+    }, [theme, accent, focusBorder, focusRing, isLight]);
 
     /* Sima useEffect (a festés UTÁN fut) — SZÁNDÉKOSAN, két okból is.
 
