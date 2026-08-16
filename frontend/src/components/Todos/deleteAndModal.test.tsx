@@ -8,7 +8,7 @@ import {axiosResponse} from "../../test/axiosResponse";
 
 /* A jsdom nem implementálja a <dialog> showModal()/close() metódusait — a
    megerősítő modál ezekre épül —, ezért a prototípuson pótoljuk (mint a
-   modal.test.jsx). Csak az `open` állítását modellezzük; a natív top-layer a
+   modal.test.tsx). Csak az `open` állítását modellezzük; a natív top-layer a
    böngészőé, a teszt a törlés-LOGIKÁT vizsgálja. */
 beforeAll(() => {
     HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) { this.open = true; });

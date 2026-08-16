@@ -7,7 +7,7 @@ import type {Id} from "../../../types/api";
 
    A húzó-fogantyú maga a KÁRTYA: a listeners az egész dobozra kerül, nem egy
    külön markoló ikonra. A kattintás (ami a szerkesztőt nyitja) és a húzás
-   szétválasztását két dolog intézi, MINDKETTŐ a read.jsx-ben: az érzékelők
+   szétválasztását két dolog intézi, MINDKETTŐ a read.tsx-ben: az érzékelők
    aktiválási feltételei, és a húzás utáni kattintás elnyelése — utóbbi a
    dokumentumon ül, mert a dnd-kit már a rács fölött megállítja az eseményt (az
    indoklás ott van, a kezelőnél). */

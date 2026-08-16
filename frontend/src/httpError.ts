@@ -21,7 +21,7 @@
    `axios.isAxiosError()` típusőrt hívni, de az CSAK valódi AxiosError-példányokat
    ismer el. Ezzel a kiléptetés szabálya a HTTP-kliens identitásához kötődne: ha
    egyszer lecseréljük az axiost, vagy egy interceptor becsomagolja a hibát, a
-   szabály némán hatástalanná válna. (Nem elmélet: az auth.test.jsx egy sima
+   szabály némán hatástalanná válna. (Nem elmélet: az auth.test.tsx egy sima
    `{response: {status: 401}}`-gyel utasít el, és az isAxiosError-ra átírt kód
    ettől elhasalt — a lejárt tokenre nem jelentkeztetett ki.) A "van 401-es
    státusza" viszont attól igaz, ami a válaszban áll. */

@@ -57,7 +57,7 @@ export default function Order(props: OrderProps) {
     /* A felső korlát: ha a hívó megadja a max propot (betűméret: 200), az; különben
        a sorszám-minta last+1-e. A `last` a MEGLÉVŐ elemek száma; az új elem eggyel
        több pozíciót nyit, így a legnagyobb VÁLASZTHATÓ sorszám last+1. (Az új to-do
-       alapból az ELSŐ helyre, 1-re kerül — l. a save.jsx useState(1)-ét; a stepper
+       alapból az ELSŐ helyre, 1-re kerül — l. a save.tsx useState(1)-ét; a stepper
        viszont felengedi egészen a végére, last+1-re is. L. az order-tesztet.) */
     const max = props.max !== undefined ? props.max : props.last + 1;
     /* Két lépés közti idő ezredmásodpercben — ennyivel később mozdul a kattintás, és
@@ -179,7 +179,7 @@ export default function Order(props: OrderProps) {
                   style={{fontVariantNumeric: "tabular-nums", display: "inline-block", textAlign: "center"}}>
                 {props.current}
             </span>
-            {/* A CSS-t a main.jsx importálja statikusan (disableStyleInjection).
+            {/* A CSS-t a main.tsx importálja statikusan (disableStyleInjection).
                 z-index 10: a react-tooltip alapértéke 1, ami a fókuszált input
                 (Bootstrap: 5) alá esne.
 
@@ -189,7 +189,7 @@ export default function Order(props: OrderProps) {
                 kiemelőszín (--theme-accent). A színeket inline adjuk, mert a
                 react-tooltip a saját (injektálatlan) stílusát tenné rá.
 
-                A middlewares (l. tooltipMiddlewares.js) az egész appban közös: a
+                A middlewares (l. tooltipMiddlewares.ts) az egész appban közös: a
                 buborék KERESZTirányú kilógástól nem billenhet át oldalra, csak
                 elcsúszik. Ez a stepper a kártya JOBB széléhez tapad, tehát a
                 telefon jobb szélén ugyanaz fenyegetné, ami a hibabuborékot a

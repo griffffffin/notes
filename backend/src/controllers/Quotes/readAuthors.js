@@ -8,7 +8,7 @@ const escapeRegex = require("./escapeRegex");
    több idézet tartozhat, csoportosítunk (distinct szerző), és a csoport
    legfrissebb createdAt-je adja, mikor használtad utoljára. A névtelen ("")
    szerző nem javaslat. Csak a LEGELSŐ (legutóbb használt) kell: a szerkesztő
-   ghost-textje (authorInput.jsx) egyetlen javaslatot mutat, nincs legördülő —
+   ghost-textje (authorInput.tsx) egyetlen javaslatot mutat, nincs legördülő —
    ezért $limit: 1, hogy fölöslegesen ne küldjünk többet a dróton.
 
    A prefixet stringgé kényszerítjük: egy operátor-objektum ({$ne}) így nem jut

@@ -10,7 +10,7 @@ import {PATHS} from "../../paths";
    megnyitás" és a jobb gombos menü, a képernyőolvasó pedig linkként hirdeti ki.
    Egy onClick-es <div> ezt mind eldobná.
 
-   A húzással a rács kattintás-elnyelője békíti össze (read.jsx): a felengedés
+   A húzással a rács kattintás-elnyelője békíti össze (read.tsx): a felengedés
    után érkező kattintást elnyeli, ha közben húzás történt, így a link
    navigációja nem indul el. A jelző SZÁNDÉKOSAN a rácson ül és nem itt: az a
    kattintás nem feltétlenül azon a kártyán landol, amit húztunk — a szomszédra

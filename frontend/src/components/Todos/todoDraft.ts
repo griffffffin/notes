@@ -36,7 +36,7 @@ export type TodoDraft = {
 
 /* A szerkesztő két KÉSZÍTŐ függvénye. Nem állítanak state-et és nem mutálnak:
    egy ÚJ draftot adnak vissza a kért változtatással, amit a hívó ad tovább a
-   `setTodo`-nak (`setTodo(setTask(...))`). A típusuk itt él, mert a save.jsx-től
+   `setTodo`-nak (`setTodo(setTask(...))`). A típusuk itt él, mert a save.tsx-től
    a Task-ig három szinten utaznak proppként — egy helyen leírva nem tud a három
    leírás elcsúszni egymástól. */
 export type SetTask = (key: number, content: string, isDone: boolean) => TodoDraft;

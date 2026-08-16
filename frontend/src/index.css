@@ -59,13 +59,13 @@ textarea.form-control::placeholder {
 }
 
 
-/*spinner.jsx*/
+/*spinner.tsx*/
 .min-vh-75 {
     min-height: 75vh !important;
 }
 
 
-/*navbar.jsx*/
+/*navbar.tsx*/
 /* A navbar egy sorban maradjon keskeny mobilon is. A Bootstrap .input-group
    alapból width: 100%, amitől a bal (logó + "+") és a jobb blokk (szín,
    Kategória, kijelentkezés, kapcsoló) is az EGÉSZ szélességet kéri, ezért
@@ -123,7 +123,7 @@ textarea.form-control::placeholder {
     }
 }
 
-/* A Quotes-navbar keresője (quoteSearch.jsx). A navbar KÖZEPÉN ül, abszolút
+/* A Quotes-navbar keresője (quoteSearch.tsx). A navbar KÖZEPÉN ül, abszolút
    pozícióban (a container-fluid position-relative-jéhez képest, start-50 +
    translate-middle) — ezért itt csak a SZÉLESSÉGÉT szabjuk meg. A szélesség
    TÖRÉSPONTONKÉNT külön (nincs közös alap-szabály): minden min-width-blokk a saját
@@ -268,7 +268,7 @@ textarea.form-control::placeholder {
    ghost-text elcsúszna. A kizárással az overlay is a 155%-os <input>-hez tapad. */
 div.caveat:not(.form-control) {
     /* A méret a --quote-fs CSS-változóból jön (idézet-kártya, publikus nézet, a
-       Quotes/save.jsx Betűméret-steppere állítja), hiányában 155%. Így a per-idézet
+       Quotes/save.tsx Betűméret-steppere állítja), hiányában 155%. Így a per-idézet
        betűméret akkor is felülírja a !important-os szabályt, ha inline van megadva
        (az inline érték a változóba megy, nem a font-size-ba). A to-do task-sorai
        nem állítanak --quote-fs-t, ezért náluk a 155%-os fallback marad. */
@@ -276,9 +276,9 @@ div.caveat:not(.form-control) {
 }
 
 
-/*entry.jsx*/
+/*entry.tsx*/
 /* --- Téma-színek: az értékeket a ThemeProvider tölti CSS-változókba a THEMES
-   táblából (src/contexts/theme.jsx) — itt csak hivatkozunk rájuk. A .btn
+   táblából (src/contexts/theme.tsx) — itt csak hivatkozunk rájuk. A .btn
    alaposztály (méret, lekerekítés, disabled-átlátszóság) a Bootstrapé marad,
    ezek az osztályok csak a színeket adják. --- */
 /* A szelektor SZÁNDÉKOSAN kétszer szerepel (.text-theme.text-theme): ettől
@@ -414,7 +414,7 @@ div.caveat:not(.form-control) {
    sima háromszög, a hátulja bemetszett. Keretekből ez már nem rajzolható meg,
    kép kell hozzá.
 
-   A képet a ThemeProvider állítja össze és adja át változóban (contexts/theme.jsx):
+   A képet a ThemeProvider állítja össze és adja át változóban (contexts/theme.tsx):
    a beágyazott SVG ugyanis szöveg, nem lát CSS-változót, tehát a téma színét
    magától nem venné fel. Maszkolással a szín megoldható lenne, de azt ez a
    pszeudoelem NEM fogadja el (kipróbálva: a nyíl helyén tömör négyzet maradt) —
@@ -456,7 +456,7 @@ div.caveat:not(.form-control) {
 }
 
 
-/*save.jsx – a szerkesztő első sora (cím + sorszám-toolbar)*/
+/*save.tsx – a szerkesztő első sora (cím + sorszám-toolbar)*/
 /* A card 27px-re lekerekített, de a card-header alapból NEM kap lekerekítést:
    a .card border-radius-át !important-tal írtuk felül (27px), amitől a Bootstrap
    --bs-card-inner-border-radius nem frissül, és a header szögletes marad. Amíg a
@@ -473,7 +473,7 @@ form.card > .input-group:first-child > :last-child {
 
 /* …és ugyanez EGGYEL BELJEBB. Az idézet-szerkesztőben a sor jobb szélén már nem
    közvetlenül a sorszám-toolbar áll, hanem egy ÁTLÁTSZÓ oszlop (.editor-side-column:
-   felül a sorszám-toolbar, alul a megosztás-gomb, l. Quotes/save.jsx). A fenti szabály
+   felül a sorszám-toolbar, alul a megosztás-gomb, l. Quotes/save.tsx). A fenti szabály
    így az átlátszó oszlopot kerekítené le — azon nem látszik semmi —, a fekete/fehér
    hátterű toolbar viszont szögletes sarokkal takarná ki a card ívét. Ezért az oszlop
    ELSŐ elemét (a toolbart) igazítjuk a card sarkához.
@@ -483,8 +483,8 @@ form.card > .input-group:first-child > .editor-side-column > :first-child {
     border-top-right-radius: 27px !important;
 }
 
-/* Az idézet-szerkesztő szövegmezője (Quotes/save.jsx). A szöveg és a placeholder is
-   felül, balra zárt. A magasság a tartalomhoz nő (autoGrow a save.jsx-ben a
+/* Az idézet-szerkesztő szövegmezője (Quotes/save.tsx). A szöveg és a placeholder is
+   felül, balra zárt. A magasság a tartalomhoz nő (autoGrow a save.tsx-ben a
    scrollHeight-re állítja), ezért a görgetősávot elrejtjük és a kézi átméretezőt is
    levesszük — így SOSEM jelenik meg scrollbar. */
 /* A sorszám-választó (order div) a quote-editorban vízszintesen SZIMMETRIKUS: a
@@ -523,7 +523,7 @@ form.card > .input-group:first-child > .editor-side-column > :first-child {
 }
 
 
-/*read.jsx*/
+/*read.tsx*/
 /* A kártyarács vízszintesen SOHA nem hozhat létre görgetést: a kártyák az ablak
    szélességéhez igazodnak, oldalra kilógniuk sosem szabad. Ezt itt kimondjuk,
    mert húzás közben fél pixelen múlott.
@@ -576,7 +576,7 @@ form.card > .input-group:first-child > .editor-side-column > :first-child {
    helyére, hanem LÁTHATÓAN átúszik kékből a téma színébe — ez volt a villanás.
 
    A .theme-ready osztályt a ThemeProvider teszi ki, a változók beállítása UTÁN
-   egy renderrel (contexts/theme.jsx). Így a változók érvényesülése biztosan
+   egy renderrel (contexts/theme.tsx). Így a változók érvényesülése biztosan
    átmenet nélkül történik, a téma későbbi kézi váltása viszont már átúszhat. */
 html:not(.theme-ready) *,
 html:not(.theme-ready) *::before,
@@ -585,7 +585,7 @@ html:not(.theme-ready) *::after {
 }
 
 /* CSAK a háttérszín — magasság szándékosan nincs benne. A teljes képernyőt a
-   lapváz külön kéri (app.jsx: min-vh-100), mert ennek az osztálynak van egy
+   lapváz külön kéri (app.tsx: min-vh-100), mert ennek az osztálynak van egy
    másik fogyasztója is: a törlés-modal ebből veszi a hátterét. Amikor a
    min-height itt volt, a modal is 100vh magas lett, és a gombok alatt hatalmas
    üres tér tátongott. */
@@ -657,7 +657,7 @@ html:not(.theme-ready) *::after {
 }
 
 
-/*save.jsx*/
+/*save.tsx*/
 .card, .modal-content {
     border-radius: 27px !important;
 }
@@ -676,7 +676,7 @@ html:not(.theme-ready) *::after {
    Eddig hat PNG állt itt, színenként egy (done_danger.png, done_info.png, ...),
    pedig ugyanaz az alak volt mind. Most a rajz maszk: csak a FORMÁT adja, a
    színt a background-color, az pedig a currentColor — vagyis az elem color-ja,
-   amit a to-do színe állít be (task.jsx: text-<szín>).
+   amit a to-do színe állít be (task.tsx: text-<szín>).
 
    A -webkit- előtagos pár a régebbi Chromiumnak kell; a szabványos alak
    önmagában csak a 120-as verziótól elég.
@@ -697,7 +697,7 @@ html:not(.theme-ready) *::after {
 }
 
 /* Az X ugyanígy: egy rajz, a színt a currentColor adja — a .btn-close a to-do
-   színének text-<szín> osztályát viseli (modal.jsx), abból jön a szín. Itt nincs
+   színének text-<szín> osztályát viseli (modal.tsx), abból jön a szín. Itt nincs
    keret, amit a maszk levághatna, tehát nem kell a rajzba tenni. */
 /* Az X mérete és helye a kártyán lévő + ikonhoz igazodik: 28 px (körrel együtt),
    és a modal két szélétől ugyanannyira áll.
@@ -733,7 +733,7 @@ html:not(.theme-ready) *::after {
 }
 
 
-/*modal.jsx – a törlés-modal natív <dialog> kerete*/
+/*modal.tsx – a törlés-modal natív <dialog> kerete*/
 /* A <dialog> csak a pozíció és a backdrop hordozója; a látható dobozt a belső
    .modal-content viseli (a fenti modal-szabályok mind arra hatnak). A natív
    UA-keretet és -paddinget levesszük, a szélesség a Bootstrap modal-dialoggal

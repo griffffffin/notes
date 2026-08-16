@@ -374,7 +374,7 @@ describe("QuoteSave — logóra kattintás a szerkesztőben (ellenőrzés + ment
 });
 
 /* VERSENYHELYZET a betöltő effektben — a save.tsx `active` zászlójának őre, a to-do
-   szerkesztőjének tesztjével azonos felállásban (Todos/save.test.jsx). A
+   szerkesztőjének tesztjével azonos felállásban (Todos/save.test.tsx). A
    /quotes/update/:id route-on a szerkesztő NEM mountol újra, ha csak az :id
    változik (a route key="quote-update" mindkét címen ugyanaz), tehát az effekt fut
    le megint. A két betöltés válasza fordított sorrendben is visszaérhet, és a

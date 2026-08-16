@@ -89,7 +89,7 @@ describe("tooltip-pozicionálás telefon-szélességen", () => {
 
     /* A HIBA rögzítése: a react-tooltip alapértelmezésével ugyanez a helyzet
        oldalra billen. Ez a teszt a "miért kellett saját lista" bizonyítéka —
-       enélkül a tooltipMiddlewares.js egy indoklás nélküli extra fájlnak tűnne. */
+       enélkül a tooltipMiddlewares.ts egy indoklás nélküli extra fájlnak tűnne. */
     it("a react-tooltip alapértelmezésével ugyanez OLDALRA billenne (ez volt a hiba)", async () => {
         const {placement} = await place(REACT_TOOLTIP_DEFAULTS);
 

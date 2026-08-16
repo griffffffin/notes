@@ -134,7 +134,7 @@ export default function Entry(props: EntryProps) {
                             passwordConfirm={passwordConfirm}
                             handlePasswordConfirmChange={handlePasswordConfirmChange}
                             errorMessage={error && ENTRY_ERROR_MESSAGES[error]}/>
-                {/* A jelszó-ürítés a linkről elmaradhat: a routes.jsx külön key-t
+                {/* A jelszó-ürítés a linkről elmaradhat: a routes.tsx külön key-t
                     ad a két nézetnek, így a váltás új példányt hoz, üres mezőkkel. */}
                 <SubmitButtonGroup isDisabled={isDisabled} isLogin={isLogin}/>
             </form>

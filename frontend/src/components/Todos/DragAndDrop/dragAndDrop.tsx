@@ -25,7 +25,7 @@ type DragAndDropProps = {
 export default function DragAndDrop({todo, setTodo, setTaskOrder, setTask, color}: DragAndDropProps) {
     const taskOrder = todo.columns["createColumn"].taskOrder;
 
-    // A fogantyú dedikált (a task.jsx-ben a három csík), ezért egyszerű
+    // A fogantyú dedikált (a task.tsx-ben a három csík), ezért egyszerű
     // PointerSensor elég; 5 px mozgás után indul, hogy egy koppintás ne húzzon.
     const sensors = useSensors(useSensor(PointerSensor, {activationConstraint: {distance: 5}}));
 

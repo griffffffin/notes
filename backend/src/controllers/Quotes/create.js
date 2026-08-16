@@ -15,7 +15,7 @@ module.exports = router.post("/", (request, response) => {
             quote: request.body.quote,
             author: request.body.author,
             order: order,
-            // Hiányában a séma alapértéke (155) áll be — l. quote.js.
+            // Hiányában a séma alapértéke (155) áll be — l. models/quotes.js.
             fontSize: request.body.fontSize,
         }).save())
         .then(() => response.json("Idézet létrehozva."))

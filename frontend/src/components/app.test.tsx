@@ -9,7 +9,7 @@ import type {AxiosResponse} from "axios";
 import type {Todo} from "../types/api";
 
 /* Csak a SZERVERHÍVÁST cseréljük ki; a route-tábla, a navbar és a szerkesztő
-   valódi. A providerek sorrendje a main.jsx-ét követi (CookiesProvider →
+   valódi. A providerek sorrendje a main.tsx-ét követi (CookiesProvider →
    ThemeProvider); az AuthProvider helyett a context-mock áll be. */
 
 /* A `satisfies Todo` a fixtúrát a VALÓDI szerződéshez méri: a tulajdonos és az

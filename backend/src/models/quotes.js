@@ -10,7 +10,7 @@ const quoteSchema = new Schema({
        okból, mint a to-dónál: a tulajdonos-ellenőrzés a tokenből jövő szöveggel
        hasonlítja össze, és ObjectId-vé alakítva a típuseltérés MINDIG hamis
        egyezést adna, azaz mindenki 403-at kapna a sajátjára. (Részletesen a
-       todo.js-ben.) */
+       todos.js-ben.) */
     user: {
         type: String,
         required: true

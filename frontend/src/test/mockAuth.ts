@@ -7,7 +7,8 @@ import type {Auth} from "../contexts/auth-context";
 
    Tíz tesztfájl cserélte ki eddig a saját kézzel írt objektumára, például így:
    `{useAuth: () => ({handleAxios})}`. Ezekből hiányzott a `token`, a `login` és a
-   `logout`, és ezt semmi nem vette észre: a `.jsx` fájlokra a fordító rá se néz,
+   `logout`, és ezt semmi nem vette észre: az AKKORI, még `.jsx` fájlokra (a
+   TypeScript-átállás előtt) a fordító rá se nézett,
    a `vi.mock` string-alakú hívása pedig `Partial<unknown>`-t vár a gyártól, tehát
    bármit elfogad. Egy mock akkor ér valamit, ha a VALÓSÁG HELYETT áll be — ha
    lemarad tőle, a tesztek attól kezdve nem azt őrzik, amit hiszünk róluk.

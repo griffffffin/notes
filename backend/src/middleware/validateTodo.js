@@ -85,7 +85,7 @@ function todoErrors(body) {
             errors.push("A listaelemek sorrendje hibás.");
         } else {
             /* A taskOrder a tasks KULCSAIRA hivatkozik. Ha olyanra mutat, ami
-               nincs meg, a lista-nézet elhasal rajta (todoUpdate.jsx:
+               nincs meg, a lista-nézet elhasal rajta (todoUpdate.tsx:
                tasks[order].done egy undefined-on) — a felhasználó a SAJÁT
                főoldalán kapna hibaképernyőt, és onnan nem tudná visszacsinálni,
                mert a hibás elem szerkesztője is elérhetetlenné válna. */

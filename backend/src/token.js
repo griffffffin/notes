@@ -12,7 +12,7 @@ const jwt = require("jsonwebtoken");
    nem az óra — így a token lejárata mindig a legutóbbi tevékenységedhez
    igazodik, és tétlen munkamenetet soha nem hosszabbít meg.
 
-   A 15 perc a kliens tétlenségi határával egyezik (contexts/auth.jsx):
+   A 15 perc a kliens tétlenségi határával egyezik (contexts/auth.tsx):
    a kettőt EGYÜTT kell módosítani. */
 const TOKEN_TTL = "15m";
 

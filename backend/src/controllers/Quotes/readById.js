@@ -21,7 +21,7 @@ const serverError = require("../../serverError");
    A whitelist (nem blacklist) szándékos: ha később új mező kerül a sémába, az
    sem szivároghat ki automatikusan — csak amit itt kiírunk.
 
-   A `quote`, `author` és `fontSize` a publikus nézetnek (Quotes/public.jsx) kell —
+   A `quote`, `author` és `fontSize` a publikus nézetnek (Quotes/public.tsx) kell —
    a megosztott idézet is a saját betűméretével jelenik meg. A sorszámot (order)
    ez a végpont SZÁNDÉKOSAN NEM adja ki: az a listabeli pozíció egy névtelen,
    megosztott-link-látogatóra nem tartozik (least privilege — nem az számít, hogy

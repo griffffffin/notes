@@ -202,7 +202,7 @@ export default function Save(props: SaveProps) {
                 // A to-do nem tölthető be (pl. timeout vagy törölt elem) — vissza
                 // a listához, hogy a szerkesztő betöltője ne pörögjön örökké. A
                 // setIsLoading(false) a betöltött adathoz kötött, tehát hiba után
-                // magától nem oldódna fel; a read.jsx is navigációval kezeli.
+                // magától nem oldódna fel; a read.tsx is navigációval kezeli.
                 logRequestError(error);
                 leaveEditor();
             });

@@ -8,7 +8,7 @@ import {PATHS} from "../../paths";
 
    A szerző-szegmens NEM lehet üres (az útvonal szétesne tőle), ezért a névtelen
    idézetek az "Anonymous" jelölőt kapják — pontosan úgy, mint a szerző-szűrt
-   nézet (l. Quotes/read.jsx és Navbar/quoteSearch.jsx). A publikus nézet magát a
+   nézet (l. Quotes/read.tsx és Navbar/quoteSearch.tsx). A publikus nézet magát a
    szegmenst nem használja (az id egyedi), csak olvashatóvá teszi a linket.
 
    Az `origin` (pl. "http://otthon:3001") azért PARAMÉTER és nem a window-ból
@@ -18,8 +18,8 @@ import {PATHS} from "../../paths";
    A szóköz/ékezet/perjel kódolását a builder végzi: e nélkül egy "Márai Sándor"
    szerzőnév szóköze törné a linket, egy perjel pedig új útvonal-szegmenst
    nyitna. */
-/* A jelölő ma HÁROM helyen él szó szerint (itt, a Quotes/read.jsx szűrőjében és a
-   Navbar/quoteSearch.jsx-ben) — összevonni majd akkor érdemes, ha lesz egy közös
+/* A jelölő ma HÁROM helyen él szó szerint (itt, a Quotes/read.tsx szűrőjében és a
+   Navbar/quoteSearch.tsx-ben) — összevonni majd akkor érdemes, ha lesz egy közös
    idézet-konstansfájl; addig egy exportálatlan const, hogy ne lógjon ki
    használatlan exportként (knip). */
 const ANONYMOUS_AUTHOR = "Anonymous";

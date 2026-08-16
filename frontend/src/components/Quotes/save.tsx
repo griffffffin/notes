@@ -52,7 +52,7 @@ type SaveProps = {
     handleLinkClicked: () => void;
 };
 
-/* Az idézet-szerkesztő (create és update). A to-do save.jsx VÉKONYABB mása: az
+/* Az idézet-szerkesztő (create és update). A to-do save.tsx VÉKONYABB mása: az
    idézet-textarea + szerző-input + a KÖZÖS Order sorszám-választó (a to-doból),
    de nincs szín, listaelem vagy százalék. A KILÉPÉS-viselkedést a to-do mintája
    adja: a Tovább gomb / Escape a formot süti el, majd navigál; a navigációt
@@ -307,7 +307,7 @@ export default function QuoteSave(props: SaveProps) {
     };
 
     /* Ctrl/Cmd+B: a KIJELÖLÉS félkövér BE/KI, a marker-stringen (a tiszta toggleBold
-       végzi a döntést + a `**` átrendezését, l. bold.jsx). A mező sima <textarea>,
+       végzi a döntést + a `**` átrendezését, l. bold.tsx). A mező sima <textarea>,
        tehát a `**` jelek látszanak; a nézetek renderelik félkövérnek. Telefonon a
        `**` kézzel is beírható. A kijelölést a render után állítjuk vissza. */
     const handleQuoteKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -477,7 +477,7 @@ export default function QuoteSave(props: SaveProps) {
             <div className="input-group">
                 {/* Sima textarea: a `**` jelek látszanak szerkesztés közben, a
                     nézetek renderelik félkövérnek. Ctrl+B a kijelölésen kapcsol
-                    (okos toggle, l. bold.jsx); telefonon a `**` kézzel is
+                    (okos toggle, l. bold.tsx); telefonon a `**` kézzel is
                     beírható. A magasság a tartalomhoz nő, scrollbar nélkül
                     (autoGrow). A rows=4 az alsó korlát. */}
                 <textarea ref={textareaRef} id="quoteField" value={quote} onChange={handleQuoteChange}
@@ -541,7 +541,7 @@ export default function QuoteSave(props: SaveProps) {
 
                 <div className="d-grid">
                     {/* A Tovább TILTOTT, amíg a kötelező mező (az idézet szövege) üres —
-                        pontosan a to-do mintájára (Todos/save.jsx: isTitleValid &&
+                        pontosan a to-do mintájára (Todos/save.tsx: isTitleValid &&
                         isCategoryValid). A szerző OPCIONÁLIS, azt nem kérjük számon.
                         A blocker üres-idézet ága ettől NEM válik feleslegessé: a logó,
                         a "+", a Vissza gomb és a szekció-váltó továbbra is elindíthat

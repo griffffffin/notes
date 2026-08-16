@@ -37,7 +37,7 @@ export default function Task({task, todo, setTodo, setTaskOrder, setTask, color}
     // A típus kimondva (l. sortableCard.tsx): az elgépelt CSS-tulajdonság itt bukik.
     const style: CSSProperties = {
         // CSS.Translate (nem Transform): csak eltolás, nyújtás nélkül — a
-        // sortableCard.jsx-nél leírt okból (ott bővebben).
+        // sortableCard.tsx-nél leírt okból (ott bővebben).
         transform: CSS.Translate.toString(transform),
         transition,
         zIndex: isDragging ? 20 : undefined,

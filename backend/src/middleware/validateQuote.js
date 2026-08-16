@@ -24,7 +24,7 @@ const MAX_AUTHOR = 200;
    kereséséhez (a szerzőnév maga is legfeljebb MAX_AUTHOR), viszont megakadályozza,
    hogy egy abszurd hosszú kifejezésből aránytalanul nagy regex épüljön. */
 const MAX_SEARCH = 500;
-// A betűméret (százalék) korlátai — EGYEZZENEK a quote.js séma min/max-jával.
+// A betűméret (százalék) korlátai — EGYEZZENEK a models/quotes.js séma min/max-jával.
 const MIN_FONTSIZE = 100;
 const MAX_FONTSIZE = 200;
 

@@ -75,7 +75,7 @@ export function AuthProvider({children}: {children: ReactNode}) {
     /* A friss tokent egy refben is tartjuk, hogy a handleAxios NE függjön tőle.
        Enélkül a token 5 percenkénti megújulása minden alkalommal új handleAxios-
        referenciát gyártana, amitől a rá épülő effektek (pl. a lista lekérése a
-       read.jsx-ben) fölöslegesen újrafutnának. A refből a hívás PILLANATÁBAN
+       read.tsx-ben) fölöslegesen újrafutnának. A refből a hívás PILLANATÁBAN
        mindig a legfrissebb tokent olvassuk, tehát a fejléc így is helyes. */
     const tokenRef = useRef<AuthToken | null>(token);
     tokenRef.current = token;

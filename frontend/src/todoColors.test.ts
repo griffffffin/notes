@@ -6,7 +6,7 @@ import {TODO_COLORS} from "./todoColors";
 
 /* A SZÍNPALETTA a repó két csomagjában van kimondva:
 
-     - itt, a frontenden (todoColors.js): ebből épül a szerkesztő színválasztója
+     - itt, a frontenden (todoColors.ts): ebből épül a szerkesztő színválasztója
        és a navbar szín-szűrője;
      - a backenden (validateTodo.js: COLORS): ez utasítja el az ismeretlen színt,
        mielőtt Bootstrap-osztálynévként az adatbázisba kerülne.

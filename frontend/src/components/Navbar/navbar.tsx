@@ -35,7 +35,7 @@ export default function Navbar(props: NavbarProps) {
     /* A szín- és kategória-választó a to-do SAJÁTJA (kártyaszín, kategória-szűrés);
        más SZEKCIÓBAN — pl. idézetek — nincs értelme, ezért csak a to-do útjain
        jelenik meg. (A "kategória" itt a to-do belső, elemekre vonatkozó mezője; a
-       "szekció" a felső szint — l. sectionSwitcher.jsx.) A kijelentkezés-ikon és a
+       "szekció" a felső szint — l. sectionSwitcher.tsx.) A kijelentkezés-ikon és a
        téma-váltó mindenhol marad. A useLocation itt működik: a Navbar a Routeren
        BELÜL renderelődik. */
     const pathname = useLocation().pathname;

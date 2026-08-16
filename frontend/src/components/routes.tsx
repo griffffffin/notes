@@ -30,7 +30,7 @@ import type {CategoryAndColorGroupProps} from "./Link/categoryAndColorGroup";
 
 /* Az App a UI-állapotát (kategóriák, "+"-nyilak, handlerek) az App-ból propként
    adja le. A `handleLinkClicked` és a `handleCategoryChange` valóban paraméter
-   nélküli (l. app.jsx: a link-kattintás csak becsukja a nyitott vezérlőket, nem
+   nélküli (l. app.tsx: a link-kattintás csak becsukja a nyitott vezérlőket, nem
    olvassa az eseményt) — a kártyák onClickjeként átadva a szűkebb `() => void` is
    megfelel a `MouseEventHandler`-t váró helyeknek. A két szög-állapot boolean +
    szűk setter (a repo settereinek konvenciója, l. Navbar). A `categories` a to-do
@@ -54,7 +54,7 @@ export type RoutesProps = {
    így a benne rögzített elemek nem látnák az App friss propjait. Megoldás: az App
    propjait egy contexten át adjuk le; a lenti wrapper-komponensek onnan olvassák,
    és a VÁLTOZATLAN prop-interfészű oldal-komponenseknek (Navbar, Read, Save…) adják
-   tovább. Így sem az App.jsx, sem az oldal-komponensek nem változnak a migrációtól.
+   tovább. Így sem az app.tsx, sem az oldal-komponensek nem változnak a migrációtól.
 
    A context alapértéke `null` (nem egy üres objektum-hazugság): a Provider MINDIG
    körbeveszi a route-fát, ezért a `useRoutesProps` a null-ágon dob — a mai repo

@@ -120,7 +120,7 @@ export default function ShareButton({author, quoteId}: ShareButtonProps) {
 
         {/* A buborék BALRA nyílik: alatta közvetlenül a betűméret-léptető ül, egy
             lefelé nyíló tooltip azt takarná el. A middlewares (l.
-            tooltipMiddlewares.js) itt is az appban közös készlet.
+            tooltipMiddlewares.ts) itt is az appban közös készlet.
             A méret a stepper-tooltipekével egyezik (azok fs-4 mérethez képest
             60%-ot kérnek, ami 0,9rem) — külön írjuk ki, hogy ne egy örökölt
             betűméret rejtett mellékhatása legyen.

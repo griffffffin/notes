@@ -4,7 +4,7 @@ import {describe, expect, it, vi} from "vitest";
 import ColorButtonGroup from "./colorButtonGroup";
 import {TODO_COLORS} from "../../todoColors";
 
-/* A navbar szín-szűrője a paletta EGYETLEN forrásából (todoColors.js) épül, de
+/* A navbar szín-szűrője a paletta EGYETLEN forrásából (todoColors.ts) épül, de
    FORDÍTVA rendereli — a korongok float-end-del úsznak, tehát az elsőként kirakott
    kerül legjobbra. Ez a megfordítás némán elromolhatna: a lap ugyanúgy működne,
    csak a színek sorrendje lenne a szerkesztő színválasztójának tükörképe. A jsdom

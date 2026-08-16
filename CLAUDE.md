@@ -90,7 +90,7 @@ elmaradt átvezetés.
   vonatkozó osztályozás a **kategória** (`category`) vagy más domain-specifikus
   mező (film: `genre`, idézet: `author`). A régi kód a felső szintet is
   "kategóriának" hívta — ez ütközött a to-do saját `category` mezőjével, ezért a
-  felső szint kódbeli neve `section` (l. `Navbar/sectionSwitcher.jsx`,
+  felső szint kódbeli neve `section` (l. `Navbar/sectionSwitcher.tsx`,
   `currentSection`). A to-do belső `category` DB-mezője VÁLTOZATLAN marad.
 - Adatmodell: **szekciónként külön tábla/collection**, nem egy közös polimorf
   tábla. A szekción belüli szűrő-oszlopok (pl. film műfaja, to-do kategóriája)
@@ -226,8 +226,8 @@ elmaradt átvezetés.
      vissza, a már elindult kérést nem.
      **És az őr mellé TESZT is kell** — az őr egyetlen `if (!active) return;` sor,
      amit egy refaktor némán kivehet: nem esik szét semmi, a tesztek zöldek
-     maradnak. Minta: `Quotes/public.test.jsx`, `Todos/save.test.jsx`,
-     `Quotes/save.test.jsx` "versenyhelyzet a betöltésben" blokkjai — a mockolt
+     maradnak. Minta: `Quotes/public.test.tsx`, `Todos/save.test.tsx`,
+     `Quotes/save.test.tsx` "versenyhelyzet a betöltésben" blokkjai — a mockolt
      `handleAxios` GYŰJTI a callbackeket ahelyett, hogy válaszolna, a paraméter-
      váltás a böngésző Vissza gombjával megy (`pushState` ×2 +
      `history.back()` — a route `key`-e ugyanaz, tehát nincs remount), és a teszt

@@ -21,14 +21,14 @@ export default function Tooltip() {
             1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93
             6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
         </svg>
-        {/* A CSS-t a main.jsx importálja statikusan, ezért itt kikapcsoljuk a
+        {/* A CSS-t a main.tsx importálja statikusan, ezért itt kikapcsoljuk a
             futásidejű injektálást — abból a stíluslapból jön a position:absolute
             is, ami nélkül a z-index hatástalan lenne (z-index csak pozicionált
             elemen működik).
             z-index 10: a react-tooltip alapértéke 1, ami a fókuszált input
             (Bootstrap: 5) és a szem-gomb (6) alá esne.
 
-            A middlewares (l. tooltipMiddlewares.js) az egész appban közös: telefonon
+            A middlewares (l. tooltipMiddlewares.ts) az egész appban közös: telefonon
             se billenhessen át a buborék oldalra, csak csússzon beljebb. Ez a súgó ma
             elfér (408 px-es nézetben mérve), de a szabály attól közös, hogy a szöveg
             hosszabbra írása se törhesse el némán.
