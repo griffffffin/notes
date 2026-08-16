@@ -4,6 +4,7 @@ import type {Endpoint} from "../../endpoints";
 import type {Validator} from "../../types/api";
 import {useAuth} from "../../contexts/auth-context";
 import {useRememberSection} from "../Navbar/useRememberSection";
+import type {SectionPath} from "../Navbar/sections";
 
 /* Egy SZEKCIÓ lista-nézetének adatoldala: betöltés, húzással átrendezés, és annak
    megjegyzése, hogy a felhasználó ebben a szekcióban járt. A to-do lista, az
@@ -35,8 +36,12 @@ export function useSectionList<T extends SortableCard>(
         schema: Validator<T[]>;
         /* A `section` NEM végpont, hanem NAVIGÁCIÓS út: a szekció gyökere, amit a
            useRememberSection megjegyez, és ahová a gyökér-átirányítás visszatér.
-           Ezért marad `string` — a két fogalom szándékosan külön (l. endpoints.ts). */
-        section: string;
+           A két fogalom szándékosan külön (l. endpoints.ts) — ezért NEM `Endpoint`.
+
+           De nem is `string`: a `SectionPath` a sections.ts listájából származik,
+           tehát csak LÉTEZŐ szekció gyökere adható át. Egy szűrt út vagy egy
+           elgépelés így fordítási hiba, nem néma emlékezet-vesztés. */
+        section: SectionPath;
     },
 ) {
     const {handleAxios} = useAuth();
