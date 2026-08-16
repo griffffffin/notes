@@ -16,7 +16,14 @@ import {dragEndEvent} from "../../../test/dndEvents";
    `vi.mock` import()-tal veszi át a modult: így az `importOriginal()` a modul
    VALÓDI típusát adja (a `...actual` szórás enélkül `unknown`-on dolgozna), és a
    pótlék propjai is a valódi szerződéshez méretnek. */
-const dnd = vi.hoisted(() => ({endDrag: null as ((event: DragEndEvent) => void) | null}));
+/* A kém alakja KIMONDVA, és a gyár VISSZATÉRÉSI TÍPUSAKÉNT megadva — nem
+   `null as (…) | null` alakban. A kettő nem ugyanaz: az `as` csak ÁLLÍTJA, hogy a
+   `null` ilyen típusú (a fordító elhiszi), az annotáció viszont ELLENŐRZI, hogy a
+   visszaadott objektum tényleg ilyen. A `null` kezdőérték típusát így is ki kell
+   mondani (különben a fordító örökre `null`-ra szűkítené a mezőt — l. CLAUDE.md,
+   "Kezdőérték ≠ típus"), csak épp ellenőrzött módon. */
+type DndSpy = {endDrag: ((event: DragEndEvent) => void) | null};
+const dnd = vi.hoisted((): DndSpy => ({endDrag: null}));
 
 vi.mock(import("@dnd-kit/core"), async (importOriginal) => {
     const actual = await importOriginal();

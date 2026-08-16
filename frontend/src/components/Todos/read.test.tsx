@@ -35,10 +35,16 @@ vi.mock(import("../../contexts/auth-context"), () => ({useAuth: () => auth}));
    nyers függvénykomponens nem áll a helyére), a `vi.mock` pedig import()-tal veszi
    át a modult — enélkül az `importOriginal()` `unknown`-t adna, és a `...actual`
    szórás sem fordulna. */
-const dnd = vi.hoisted(() => ({
-    endDrag: null as ((event: DragEndEvent) => void) | null,
-    startDrag: null as ((event: DragStartEvent) => void) | null,
-}));
+/* A kém alakja KIMONDVA, a gyár VISSZATÉRÉSI TÍPUSAKÉNT — nem `null as (…) | null`
+   alakban. Az `as` csak állítaná, hogy a `null` ilyen típusú; az annotáció
+   ellenőrzi, hogy a visszaadott objektum tényleg az. A `null` kezdőérték típusát
+   így is ki kell mondani (l. CLAUDE.md, "Kezdőérték ≠ típus"), csak ellenőrzött
+   módon. Párja: DragAndDrop/dragAndDrop.test.tsx. */
+type DndSpy = {
+    endDrag: ((event: DragEndEvent) => void) | null;
+    startDrag: ((event: DragStartEvent) => void) | null;
+};
+const dnd = vi.hoisted((): DndSpy => ({endDrag: null, startDrag: null}));
 
 vi.mock(import("@dnd-kit/core"), async (importOriginal) => {
     const actual = await importOriginal();
@@ -280,7 +286,7 @@ describe("Szűrő az URL-ből", () => {
    találat), és ez az az őr, amelynek a hiánya már ÉLESBEN is kárt okozott: a
    törlés utáni két lekérés fordított sorrendben ért vissza, és a régi válasz
    ragasztotta vissza a törölt to-do "szellemét". A kiváltó okra van teszt
-   (Todos/modal.test.jsx: a modál gombjai type="button"-ok), magára az őrre — a
+   (Todos/modal.test.tsx: a modál gombjai type="button"-ok), magára az őrre — a
    MÁSODIK védvonalra — eddig nem volt.
 
    A szűrő-váltás (/category/otthon → /category/munka) ugyanazt a route-elemet
