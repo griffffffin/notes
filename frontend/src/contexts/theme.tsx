@@ -3,6 +3,7 @@ import type {ReactNode} from "react";
 import {useCookies} from "react-cookie";
 import {THEMES, ThemeContext} from "./theme-context";
 import {COOKIES, PERSISTENT_COOKIE} from "../cookies";
+import {CSS_VARIABLES, setCssVariable} from "../cssVariables";
 import type {AccentOverride, Theme} from "./theme-context";
 
 export function ThemeProvider({children}: {children: ReactNode}) {
@@ -54,12 +55,16 @@ export function ThemeProvider({children}: {children: ReactNode}) {
         // A html inline háttere az index.html boot-szkriptjéből jön; témaváltáskor
         // itt kell szinkronban tartani, különben a régi szín ragadna be.
         html.style.background = theme.pageBackground;
-        html.style.setProperty("--theme-page-bg", theme.pageBackground);
-        html.style.setProperty("--theme-text", theme.text);
-        html.style.setProperty("--theme-accent", accent);
-        html.style.setProperty("--theme-accent-contrast", theme.accentContrast);
-        html.style.setProperty("--theme-focus-border", focusBorder);
-        html.style.setProperty("--theme-focus-ring", focusRing);
+        /* A változók NEVE a cssVariables.ts-ből jön, nem ideírt szövegként: az
+           index.css ugyanezeket a neveket olvassa `var(--…)`-ral, és a kettő
+           elcsúszása néma (a szabály érvénytelen lesz, a szín az öröklöttre esik
+           vissza). A kötést a cssVariables.test.ts őrzi. */
+        setCssVariable(html.style, CSS_VARIABLES.pageBackground, theme.pageBackground);
+        setCssVariable(html.style, CSS_VARIABLES.text, theme.text);
+        setCssVariable(html.style, CSS_VARIABLES.accent, accent);
+        setCssVariable(html.style, CSS_VARIABLES.accentContrast, theme.accentContrast);
+        setCssVariable(html.style, CSS_VARIABLES.focusBorder, focusBorder);
+        setCssVariable(html.style, CSS_VARIABLES.focusRing, focusRing);
 
         /* A gördítősáv nyilai. Miért ITT áll össze a kép, és nem a CSS-ben?
 
@@ -81,8 +86,8 @@ export function ThemeProvider({children}: {children: ReactNode}) {
             ` viewBox='0 0 10 10'%3E%3Cpath d='${path}' fill='${accent.replace("#", "%23")}'` +
             ` stroke='${accent.replace("#", "%23")}' stroke-width='1'` +
             ` stroke-linejoin='round'/%3E%3C/svg%3E")`;
-        html.style.setProperty("--scrollbar-arrow-up", arrow("M5 2 L8.2 8 L5 6.4 L1.8 8 Z"));
-        html.style.setProperty("--scrollbar-arrow-down", arrow("M5 8 L1.8 2 L5 3.6 L8.2 2 Z"));
+        setCssVariable(html.style, CSS_VARIABLES.scrollbarArrowUp, arrow("M5 2 L8.2 8 L5 6.4 L1.8 8 Z"));
+        setCssVariable(html.style, CSS_VARIABLES.scrollbarArrowDown, arrow("M5 8 L1.8 2 L5 3.6 L8.2 2 Z"));
 
         /* A böngészőfül jin-jang ikonja a témát viseli: az egyik fele a kiemelő-
            szín, a másik a lap háttere (sötét témán sárga-fekete, világoson
