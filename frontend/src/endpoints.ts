@@ -1,6 +1,7 @@
 /* A HÁLÓZATI FELÜLET: minden útvonal, amit a frontend a szervertől kér.
 
-   Eddig ez a 25 útvonal 33 helyen, string-literálként élt a komponensekben, és
+   Eddig ezek az útvonalak (akkor 25, ma 26) 33 helyen, string-literálként éltek a
+   komponensekben, és
    SEMMI nem kötötte őket a backend routeréhez (backend/src/routes.js). Egy
    elgépelés nem hibázik hangosan: a szerver 404-et ad, a hibaág legfeljebb
    naplóz, a képernyőn pedig üres lista vagy örökké pörgő betöltő marad. Pontosan
@@ -17,7 +18,7 @@
    AZ `as const` NEM FORMASÁG. Nélküle minden érték `string` típusú volna, és az
    alábbi `Endpoint` típus is csak `string`-et jelentene — vagyis a `handleAxios`
    továbbra is tetszőleges szöveget elfogadna. Vele az értékek megőrzik a saját
-   literál típusukat, az `Endpoint` a huszonöt konkrét útvonal uniója lesz, és egy
+   literál típusukat, az `Endpoint` a konkrét útvonalak uniója lesz, és egy
    kézzel odaírt "/to-dos/kategoriak" FORDÍTÁSI HIBA, nem futásidejű 404.
 
    KÉNYSZER: EZ A FÁJL NEM IMPORTÁLHAT SEMMIT, és csak "letörölhető"
@@ -37,11 +38,18 @@
 
 export const ENDPOINTS = {
     /* Hitelesítés — szekciótól független, ezért nincs névtér-előtagjuk (a backend
-       routerében is a gyökéren ülnek). A /login és a /user/create a két publikus
-       végpont közül kettő (l. backend/src/authBoundary.test.js PUBLIC_ROUTES). */
+       routerében is a gyökéren ülnek). A /login és a /user/create a szándékosan
+       PUBLIKUS végpontok közé tartozik (a teljes lista az indokokkal:
+       backend/src/authBoundary.test.js PUBLIC_ROUTES). */
     login: "/login",
     signup: "/user/create",
     refresh: "/refresh",
+
+    /* A kliens szerződés-hibáinak jelentése (l. contractFault.ts). Publikus
+       végpont, mint a /login és a /user/create: a szerződés a kijelentkezett
+       felületen (publikus idézet-nézet) is elromolhat. Nem szekcióhoz tartozik,
+       ezért nincs névtér-előtagja. */
+    clientError: "/client-error",
 
     /* A to-do szekció. A `todos` maga a lista (a névtér gyökere), a többi a
        szűrt nézetek, a szerkesztő lekérdezései és az írás-műveletek. */
@@ -77,7 +85,7 @@ export const ENDPOINTS = {
     quoteSearchMode: "/quotes/search-mode",
 } as const;
 
-/* A huszonöt útvonal UNIÓJA mint típus. Ez teszi a `handleAxios` url-paraméterét
+/* AZ ÖSSZES útvonal UNIÓJA mint típus. Ez teszi a `handleAxios` url-paraméterét
    ellenőrizhetővé: oda innentől nem lehet akármilyen szöveget adni, csak egy
    ténylegesen létező végpontot.
 

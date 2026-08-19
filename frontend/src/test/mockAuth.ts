@@ -58,7 +58,23 @@ export function mockAuth(overrides: Partial<Omit<Auth, "handleAxios">> = {}) {
            (undefined-ként), amikor a hívó négy argumentummal hív — és a
            `toHaveBeenCalledWith` ötöt látva bukna. A kém azt kell mutassa, ami
            történt, nem azt, amit a pótlék hozzátoldott. */
-        handleAxios: (...args) => handleAxios(...args),
+        handleAxios: (...args) => {
+            /* A `then`-ben DOBOTT hiba a HIBAÁGRA kerül — ahogy a valódi
+               handleAxios-ban is (contexts/auth.tsx: a `.then(then).catch(…)`
+               lánc a visszahívás kivételét is elkapja).
+
+               Enélkül a pótlék egy fontos ponton eltérne a valóságtól: a hívók a
+               `then`-en belül ellenőrzik a választ sémával, tehát egy elcsúszott
+               szerződés ITT dob. Élesben ez a hibaágra fut (a lista hibát jelez);
+               a mockban viszont a kivétel a komponensbe csapódna, és a teszt
+               egészen mást mérne, mint ami élesben történik. */
+            try {
+                return handleAxios(...args);
+            } catch (error) {
+                args[3](error);
+                return Promise.resolve();
+            }
+        },
         ...overrides,
     };
     return {auth, handleAxios};

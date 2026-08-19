@@ -6,8 +6,8 @@ import {logRequestError} from "../../log";
 import {ENDPOINTS} from "../../endpoints";
 import {responseStatus} from "../../httpError";
 import {ENTRY_ERROR_MESSAGES, entryError, type EntryError} from "./entryError";
-import * as v from "valibot";
 import {authTokenSchema} from "../../types/api";
+import {parseResponse} from "../../contractFault";
 
 /* Ugyanaz a komponens szolgálja ki a belépést és a regisztrációt — a különbséget
    EGYETLEN zászló hordozza, nem két majdnem egyforma fájl. */
@@ -88,7 +88,7 @@ export default function Entry(props: EntryProps) {
                    ({token: "…"}), a bejelentkezés HANGOSAN bukik (hibaüzenet a
                    belépő űrlapon), nem egy "[object Object]" tokennel, amivel
                    utána minden kérés 401-et kapna. */
-                const token = v.parse(authTokenSchema, response.data);
+                const token = parseResponse(authTokenSchema, response.data, url);
                 /* A süti beállítása átbillenti az isLoggedIn-t, a router
                    újrarenderel a belépett route-táblával — és MOST NEM navigálunk
                    kézzel: így ha a user login nélkül egy védett címet nyitott meg

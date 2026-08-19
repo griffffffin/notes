@@ -1,6 +1,6 @@
 /* A CSOMAGHATÁR MÁSIK FELE: LÉTEZIK-E, AMIT A FRONTEND HÍV.
 
-   A frontend huszonöt útvonalon szólítja meg a szervert (frontend/src/endpoints.ts).
+   A frontend két tucatnyi útvonalon szólítja meg a szervert (frontend/src/endpoints.ts).
    Hogy ezek a routerben tényleg léteznek-e, azt eddig SEMMI nem ellenőrizte: egy
    elgépelés vagy egy backend-oldali átnevezés nem hibázik hangosan, csak 404-et ad
    — a hibaág legfeljebb naplóz (fejlesztésben!), a képernyőn pedig üres lista vagy

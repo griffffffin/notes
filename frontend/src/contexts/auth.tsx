@@ -15,10 +15,11 @@ import {responseStatus} from "../httpError";
 import {BACKEND_URL} from "../backendUrl";
 import {COOKIES, SESSION_COOKIE} from "../cookies";
 import {logRequestError} from "../log";
+import {parseResponse, reportContractFault} from "../contractFault";
 
 /* Bejelentkezés és szerverhívás egy helyen.
 
-   A "user" süti értéke a bejelentkezéskor kapott JWT. Minden kérés
+   A token-süti (COOKIES.token) értéke a bejelentkezéskor kapott JWT. Minden kérés
    Authorization fejlécben viszi; a szerver EBBŐL tudja, ki vagy — a kérés
    törzsében küldött azonosítót figyelmen kívül hagyja (a régi app fő
    biztonsági gyengesége pont az volt, hogy hitt neki).
@@ -123,6 +124,17 @@ export function AuthProvider({children}: {children: ReactNode}) {
                valódi (nem `as`-os) ellenőrzés a httpError.ts-ben. */
             .catch((error: unknown) => {
                 if (responseStatus(error) === 401) removeCookie(COOKIES.token, SESSION_COOKIE);
+                /* A SZERZŐDÉS-HIBA KÖZPONTI KEZELÉSE. Ide minden elkapott hiba
+                   befut, tehát ez az egyetlen hely, ahol egyszer kell kimondani:
+                   ha a fenti `then`-ben a séma utasította el a választ, arról a
+                   felhasználót ÉS a szerver naplóját is értesíteni kell
+                   (contractFault.ts). Nem szerződés-hibára nem csinál semmit.
+
+                   A hívási helyek hibaága ATTÓL FÜGGETLENÜL fut tovább: a lista
+                   ugyanúgy kiüríti magát, a szerkesztő ugyanúgy kilép. Ez a hívás
+                   nem VÁLTJA KI a helyi kezelést, hanem melléteszi azt, amit
+                   helyben nem lehet tudni — hogy ez a mi hibánk, nem a hálózaté. */
+                reportContractFault(error);
                 catchError(error);
             });
     }, [removeCookie]);
@@ -145,14 +157,27 @@ export function AuthProvider({children}: {children: ReactNode}) {
             axios.post<unknown>(BACKEND_URL + ENDPOINTS.refresh, {},
                 {headers: {Authorization: "Bearer " + token}})
                 .then((response) =>
-                    setCookie(COOKIES.token, v.parse(authTokenSchema, response.data), SESSION_COOKIE))
+                    setCookie(COOKIES.token,
+                        parseResponse(authTokenSchema, response.data, ENDPOINTS.refresh),
+                        SESSION_COOKIE))
                 /* A FELHASZNÁLÓ felé néma bukás szándékos: ez háttérmunka, amiről
                    nem tud. Ha a token időközben mégis lejárt, a következő valódi
                    kérés 401-et kap, és az jelentkeztet ki — nem kell két helyen
-                   ugyanazt csinálni. A naplózás viszont CSAK fejlesztéskor szólal
-                   meg (log.ts), és éles buildből kiesik: enélkül egy elcsúszott
-                   szerződés (a fenti v.parse bukása) nyomtalan maradna. */
-                .catch(logRequestError);
+                   ugyanazt csinálni.
+
+                   A NAPLÓZÁS (logRequestError) csak fejlesztéskor szólal meg, és
+                   éles buildből kiesik (log.ts) — ezért kevés önmagában. A
+                   SZERZŐDÉS-HIBA viszont más súlyú: az a MI hibánk, tartós, és
+                   éles buildben is tudni akarunk róla, ezért megy külön a
+                   reportContractFault-on (contractFault.ts).
+
+                   Kézzel, mert ez a hívás NEM a handleAxios-on megy (nem akarunk
+                   tőle 401-kiléptetést) — enélkül épp a háttérben megújuló token
+                   elcsúszott alakja maradna néma. */
+                .catch((error: unknown) => {
+                    reportContractFault(error);
+                    logRequestError(error);
+                });
         };
 
         ACTIVITY_EVENTS.forEach((name) => window.addEventListener(name, markActivity, {passive: true}));
