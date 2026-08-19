@@ -8,7 +8,7 @@ import {PATHS} from "../../paths";
 type SectionSwitcherProps = {
     /* Opcionális: kijelentkezve a logó csak dísz (nincs mit becsukni a kattintásra),
        ilyenkor a hívó nem ad kezelőt. */
-    onClick?: () => void;
+    onClick?: (() => void) | undefined;
 };
 
 export default function SectionSwitcher(props: SectionSwitcherProps) {

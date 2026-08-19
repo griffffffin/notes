@@ -24,7 +24,7 @@ export type AuthorInputProps = {
     placeholder?: string;
     /* Megadva → KERESŐ mód (az Enter keres, nem a javaslatot fogadja el); hiánya →
        SZERKESZTŐ mód. A `Boolean(props.onSubmit)` ebből számolja az `isSearch`-öt. */
-    onSubmit?: () => void;
+    onSubmit?: (() => void) | undefined;
     onFocusChange?: (isFocused: boolean) => void;
     wrapperClass?: string;
     /* A beviteli mező azonosítója. Csak ott adjuk meg, ahol HORGONYOZNI kell rá

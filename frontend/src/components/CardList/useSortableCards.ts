@@ -37,7 +37,7 @@ type SortableCardsOptions<T> = {
     /* A szűrő szekció-specifikus (kategória, szín, szerző, keresőkifejezés), ezért a
        hívó adja. MEMOIZÁLVA kell érkeznie: egy rendernként újragyártott
        objektum-literál a betöltő effektet végtelen ciklusba vinné. */
-    filter?: Record<string, unknown> | null;
+    filter?: Record<string, unknown> | null | undefined;
     reorderUrl: Endpoint;
     handleAxios: HandleAxios;
     /* A VÁLASZ ELLENŐRZŐJE — a hívótól, mert csak ő tudja, MILYEN kártyát kért.

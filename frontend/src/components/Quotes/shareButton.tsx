@@ -105,6 +105,10 @@ export default function ShareButton({author, quoteId}: ShareButtonProps) {
         timer.current = setTimeout(() => setFeedback(null), COPIED_FEEDBACK_MS);
     }, [author, quoteId]);
 
+    /* A horgony-pont kulcs NÉLKÜL, ha nincs pozíció — az indoklás (a react-tooltip
+       típusa és az exactOptionalPropertyTypes) az Editor/anchoredTooltip.tsx-ben. */
+    const anchorPosition = feedback?.pos ? {position: feedback.pos} : {};
+
     return (<>
         {/* A rajz a "továbbküldés" ívelt nyila. VONALLAL rajzolt ikon (fill nélkül,
             stroke=currentColor), nem kitöltött folttal, mint a Bootstrap-ikonjaink
@@ -128,7 +132,7 @@ export default function ShareButton({author, quoteId}: ShareButtonProps) {
             A horgony egy PONT (position), nem az ikon-elem — az indoklás a
             kattintás-kezelőnél. Így a buborék nem is hoverre nyílik: nincs
             data-tooltip-id az ikonon, a megjelenítést egyedül a másolás vezérli. */}
-        <ReactTooltip id={TOOLTIP_ID} position={feedback?.pos} place="left" isOpen={isTooltipOpen}
+        <ReactTooltip id={TOOLTIP_ID} {...anchorPosition} place="left" isOpen={isTooltipOpen}
                       middlewares={TOOLTIP_MIDDLEWARES} disableStyleInjection={true}
                       border="1px solid var(--theme-accent)"
                       style={{zIndex: 10, backgroundColor: "var(--theme-page-bg)",

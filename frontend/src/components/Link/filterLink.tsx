@@ -50,7 +50,7 @@ export type FilterLinkProps = {
     value: string;
     onClick: MouseEventHandler<HTMLAnchorElement>;
     /* Ha elmarad, a téma színe érvényes (l. a fenti magyarázatot). */
-    color?: BootstrapColor;
+    color?: BootstrapColor | undefined;
     class: string;
 };
 

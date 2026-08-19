@@ -145,9 +145,16 @@ export function AuthProvider({children}: {children: ReactNode}) {
            A láncot elindítjuk, de NEM adjuk ki (nincs `return`): a hívó a
            visszahívásokból dolgozik, és a lánc végén álló `.catch` miatt ez a
            promise sosem utasítódik el. */
+        /* A FEJLÉC KULCSA is csak akkor kerül bele, ha van mit küldeni — korábban
+           `headers: undefined` állt itt. Az axios `AxiosRequestConfig`-ja a
+           `headers`-t explicit `undefined` nélkül deklarálja, tehát az
+           `exactOptionalPropertyTypes` alatt a kulcs jelenléte döntés, nem
+           mellékhatás. Hogy a két alak a hálózaton ugyanoda fut-e ki, azt eddig az
+           axios BELSŐ viselkedése döntötte el (nem mértük) — most a kódunk dönti
+           el: fejléc csak akkor van, ha van mit beletenni. */
         axios.post<unknown>(BACKEND_URL + url, data, {
             timeout: REQUEST_TIMEOUT_MS,
-            headers: bearer ? {Authorization: "Bearer " + bearer} : undefined,
+            ...(bearer ? {headers: {Authorization: "Bearer " + bearer}} : {}),
         })
             .then(then)
             /* A hibaág típusa `unknown`, mert bármi ideérhet: hálózati hiba,

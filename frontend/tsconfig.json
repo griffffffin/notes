@@ -45,14 +45,34 @@
 
        Ami MÉRVE nem fért bele: a `noUnusedParameters` 72 találatot adott, mind
        tesztfájlban, mind mock-callback fel nem használt paramétere — a "javítás"
-       72 `_` előtag lenne, nulla elkapott hibáért. Az `exactOptionalPropertyTypes`
-       10-et: az valódi munka, külön menetben jön. */
+       72 `_` előtag lenne, nulla elkapott hibáért. */
 
     /* Kötelezővé teszi az `override` kulcsszót az ősosztály tagját felülíró
        metódusra. Amit véd: ha az ős egyszer átnevezi a metódust (React-frissítés),
        a mienk NÉMÁN csak egy sose hívott metódus lesz — a hibakezelő ErrorBoundary
        esetében ez azt jelentené, hogy a hibák elnyelődnek. Az `override` szóval a
        fordító megkövetelné, hogy tényleg legyen mit felülírni. */
+    /* Különbséget tesz "a kulcs NINCS ott" és "a kulcs ott van, `undefined` értékkel"
+       között. A `strict` szerint a kettő ugyanaz; pedig nem mindig az.
+
+       AHOL SZÁMÍT: minden olyan objektum, amit VÉGIGJÁRUNK vagy TOVÁBBKÜLDÜNK. Egy
+       kérés törzsében a hiányzó mező azt jelenti, "ne nyúlj hozzá", az `undefined`
+       értékű pedig azt, "töröld" — a JSON.stringify ráadásul az `undefined` mezőket
+       elhagyja, tehát a kettő NÉMÁN ugyanoda fut össze, amíg valaki nem `Object.keys`-zel
+       nézi. Itt a fordító mostantól kikényszeríti a döntést: vagy tedd bele, vagy
+       hagyd ki (`...(x && {mezo: x})`).
+
+       AHOL NEM SZÁMÍT: a React-propok többsége. A `color ?? theme.color` ugyanazt
+       csinálja a hiányra és az `undefined`-ra, és a továbbadó komponensek (`Omit<…>`
+       + `props.color` átadása) szükségszerűen explicit `undefined`-ot adnak át.
+       Ilyenkor a HELYES alak a kimondott `color?: BootstrapColor | undefined` — ez
+       nem kibúvó a szabály alól, hanem a szándék rögzítése: "ez a prop átadható
+       undefined-ként is, és ugyanazt jelenti, mint a hiánya". Hat propunk kapott
+       ilyet (filterLink color, sectionSwitcher onClick, authorInput onSubmit,
+       deleteAndModal itemId/todoId, useSortableCards filter) — mindegyik
+       továbbadott, egyik sem megy szerver felé. Ahol a `| undefined` NINCS kiírva,
+       ott a fordító ezentúl tiltja az explicit undefined-ot. */
+    "exactOptionalPropertyTypes": true,
     "noImplicitOverride": true,
     /* Ha egy függvény EGYIK ágon értéket ad vissza, a másikon nem, akkor ott
        csendben `undefined` szivárog ki. */

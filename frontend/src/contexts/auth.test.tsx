@@ -146,11 +146,16 @@ describe("AuthProvider", () => {
         renderAuth();
         await userEvent.click(screen.getByRole("button", {name: "kérés"}));
 
-        // Token nélkül a headers undefined — nincs Authorization. (A timeout-ot az
-        // objectContaining itt is figyelmen kívül hagyja.)
+        /* Token nélkül NINCS Authorization fejléc. A vizsgálat a VISELKEDÉST köti, nem
+           az alakot: korábban `headers: undefined` ment a configban, az
+           exactOptionalPropertyTypes óta a KULCS is kimarad (auth.tsx) — a kettő
+           között a felhasználó felé nincs különbség, tehát nem szerződés. Ami
+           szerződés: ne menjen fejléc. Az `expect.anything()` nem illeszkedik az
+           `undefined`-ra, ezért ez az állítás MINDKÉT alakot elfogadja, egy valódi
+           Authorization fejlécet viszont elutasít. */
         expect(axios.post).toHaveBeenCalledWith(
             expect.stringContaining(ENDPOINTS.todos), {a: 1},
-            expect.objectContaining({headers: undefined}));
+            expect.not.objectContaining({headers: expect.anything()}));
     });
 
     it("kijelentkezve is viszi az EXPLICIT kapott tokent (leváláskori mentés)", async () => {

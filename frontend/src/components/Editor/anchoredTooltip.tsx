@@ -76,10 +76,20 @@ export default function AnchoredTooltip({id, anchor, message, onDismiss, tone = 
        hexával ideírva: ha a hiba-piros egyszer változik, itt is változik. */
     const accent = tone === "red" ? ACCENT_RED.accent : "var(--theme-accent)";
 
+    /* A HORGONY-PONT ÁTADÁSA: kulcs NÉLKÜL, ha nincs pozíció — nem `undefined`
+       értékkel. A react-tooltip `ITooltipController` típusa a mezőt
+       `position?: IPosition` alakban deklarálja (explicit `undefined` nélkül) — a
+       típus a csomagban él, nem a repóban, ezért a NEVÉRE hivatkozunk, nem
+       fájl-útvonalra és sorszámra, ami egy frissítéssel elavulna. Mivel a
+       könyvtár típusát nem írhatjuk át, a döntés a hívóra marad: vagy benne van a
+       mező, vagy nincs. Az `exactOptionalPropertyTypes` pont ezt a különbséget
+       teszi láthatóvá — a `position={anchor?.pos}` alak egy `{position: undefined}`
+       kulcsot adott volna át, ami a könyvtár szemében NEM ugyanaz, mint a hiánya. */
+    const anchorPosition = anchor?.pos ? {position: anchor.pos} : {};
 
     return (
         <ReactTooltip id={id} isOpen={isOpen}
-                      position={anchor?.pos} place="bottom" middlewares={middlewares}
+                      {...anchorPosition} place="bottom" middlewares={middlewares}
                       disableStyleInjection={true} border={"1px solid " + accent}
                       style={{zIndex: 20, backgroundColor: "var(--theme-page-bg)",
                           color: accent, userSelect: "none"}}>

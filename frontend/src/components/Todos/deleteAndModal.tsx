@@ -24,8 +24,8 @@ type DeleteAndModalProps = {
     listUrl?: string;
     /* Az azonosító az URL-ből jön, ezért `undefined` is lehet; a gomb viszont csak
        szerkesztés (update) közben jelenik meg, ahol az útvonal kötelezővé teszi. */
-    itemId?: Id | null;
-    todoId?: Id | null;
+    itemId?: Id | null | undefined;
+    todoId?: Id | null | undefined;
     setIsCategoryClicked?: (isClicked: boolean) => void;
     setIsColorClicked?: (isClicked: boolean) => void;
     handleCategoryChange?: () => void;
