@@ -19,6 +19,22 @@
     "jsx": "react-jsx",
 
     "strict": true,
+    /* A `strict` FÖLÖTTI RÉTEG (2026-08-18). A `strict` mellett is `T` a `tömb[i]`
+       típusa: a fordító elhiszi, hogy az index érvényes. Ezzel a kapcsolóval
+       `T | undefined` lesz, vagyis KIKÉNYSZERÍTI a tartományon kívüli eset
+       kezelését — pontosan az a fajta néma hiba, ami ellen ez a projekt a
+       legtöbbet teszi: a `tomb[0]` egy üres listán `undefined`, és a hiba nem ott
+       robban, ahol keletkezett, hanem valahol lentebb, más néven.
+
+       Ugyanez vonatkozik az objektum-INDEXELÉSRE is (`record[kulcs]`), ahol a
+       kulcs futásidejű érték: a fordító nem tudja, van-e ott bejegyzés.
+
+       AMIT NEM CSINÁL: a `tomb.at(-1)`-et és a destrukturálást amúgy is
+       ellenőrizte; és nem érinti a FIX hosszú tuple-öket (`[a, b]` első két
+       eleme továbbra is biztos). A felgyulladó helyeket VALÓDI őrrel rendezzük
+       (`if (!x) return`, `??`), nem `!`-lel vagy `as`-szal — az visszacsempészné
+       ugyanazt a hitet, amit ez a kapcsoló kiirt. */
+    "noUncheckedIndexedAccess": true,
     /* Nem írunk ki semmit: a fordítás a Vite dolga. (Ez egyben feltétele
        az allowImportingTsExtensions-nek, amit majd a backend használ.) */
     "noEmit": true,

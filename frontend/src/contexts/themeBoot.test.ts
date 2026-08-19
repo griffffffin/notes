@@ -56,6 +56,11 @@ function runBoot(cookieValue: string | null): string {
         document.cookie = COOKIES.themeBackground + "=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
     else
         document.cookie = COOKIES.themeBackground + "=" + cookieValue + "; path=/";
+    /* A `new Function` itt SZÁNDÉKOS, és épp ez a teszt lényege: az index.html
+       boot-szkriptjét nem róla írt állításokkal, hanem LEFUTTATVA vizsgáljuk.
+       Idegen bemenet nincs — a szkript a saját repónkból, a build előtti
+       index.html-ből jön. */
+    // oxlint-disable-next-line typescript/no-implied-eval
     new Function(bootScript)();
     return document.documentElement.style.background;
 }

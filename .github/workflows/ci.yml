@@ -36,6 +36,11 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci                 # tiszta, lockfile-hű telepítés (nem "install")
       - run: npm run lint           # oxlint — hibára bukik, a meglévő warningokra nem
+      # A TÍPUS-TUDATOS RÉTEG. Külön lépés, mert külön motort hív
+      # (oxlint-tsgolint): ez már nem a szintaxist nézi, hanem a típusokat —
+      # innen jön a lebegő promise, a kötetlen metódus-hivatkozás és társaik.
+      # Mérve: 144 fájl ~2 s, tehát a CI-nak sem kerül semmibe.
+      - run: npm run lint:types
       # A TÍPUS-KAPU. Külön lépés, és SZÁNDÉKOSAN a build előtt: a `vite build`
       # a típushibás kódot is lefordítja (az esbuild kitörli a típusokat, de nem
       # ellenőrzi őket — lemérve: két típushibával is 0 kilépési kóddal futott le).

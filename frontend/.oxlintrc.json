@@ -35,6 +35,34 @@
        Ha valaha tényleg kell egy `as`, az `oxlint-disable-next-line`
        indoklással járjon — a cél nem a tiltás, hanem hogy a kivétel LÁTSZÓDJON. */
     "typescript/no-non-null-assertion": "error",
-    "typescript/consistent-type-assertions": ["error", { "assertionStyle": "never" }]
-  }
+    "typescript/consistent-type-assertions": ["error", { "assertionStyle": "never" }],
+
+    /* TÍPUS-TUDATOS RÉTEG (2026-08-18, `npm run lint:types`). Ezek a szabályok
+       nem a szintaxist nézik, hanem a TÍPUSOKAT — ehhez az oxlint a
+       `oxlint-tsgolint` motort hívja. Mérve: 144 fájl 2 másodperc alatt.
+
+       A bekapcsoláskor 63 találat volt; ebből 45 a `no-floating-promises`, és a
+       javításuk VALÓDI hasznot hozott, nem elnémítást:
+         - a `handleAxios` visszatérési típusa `Promise<void>`-ról `void`-ra
+           változott (a hívónak sosem volt mit várnia rá — l. auth-context.ts);
+         - az `act(() => vi.advanceTimersByTime(…))` hívások blokk-testet kaptak,
+           így nem adnak vissza thenable-t (16 helyen);
+         - a react-router `navigate(…)` hívásai `void` előtaggal mondják ki, hogy
+           a promise-ára tudatosan nem várunk.
+
+       AMI KI VAN KAPCSOLVA, ÉS MIÉRT: a `unbound-method` a tesztekben a
+       `expect(axios.post)` alakra tüzel. Ott a függvényt NEM meghívjuk, hanem
+       ÁTADJUK a kémvizsgálatnak — a `this` elvesztése fogalmilag sem merül fel.
+       A szabály éles kódban hasznos, ezért csak a tesztfájlokra kapcsoljuk ki,
+       nem globálisan. */
+    "typescript/unbound-method": "error"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx"],
+      "rules": {
+        "typescript/unbound-method": "off"
+      }
+    }
+  ]
 }
