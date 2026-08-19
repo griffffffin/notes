@@ -43,9 +43,9 @@ describe("Order", () => {
         const {container} = render(<Parent/>);
 
         fireEvent.mouseDown(minus(container));
-        act(() => vi.advanceTimersByTime(STEP_DELAY_MS / 2));   // a késleltetésnél rövidebb: még nem lépett
+        act(() => { vi.advanceTimersByTime(STEP_DELAY_MS / 2); });   // a késleltetésnél rövidebb: még nem lépett
         fireEvent.mouseUp(minus(container));
-        act(() => vi.advanceTimersByTime(2000));
+        act(() => { vi.advanceTimersByTime(2000); });
 
         expect(screen.getByText("7")).toBeInTheDocument();
     });
@@ -54,9 +54,9 @@ describe("Order", () => {
         const {container} = render(<Parent/>);
 
         fireEvent.mouseDown(plus(container));
-        act(() => vi.advanceTimersByTime(STEP_DELAY_MS / 2));
+        act(() => { vi.advanceTimersByTime(STEP_DELAY_MS / 2); });
         fireEvent.mouseUp(plus(container));
-        act(() => vi.advanceTimersByTime(2000));
+        act(() => { vi.advanceTimersByTime(2000); });
 
         expect(screen.getByText("9")).toBeInTheDocument();
     });
@@ -65,9 +65,9 @@ describe("Order", () => {
         const {container} = render(<Parent/>);
 
         fireEvent.mouseDown(minus(container));
-        act(() => vi.advanceTimersByTime(STEP_DELAY_MS));
+        act(() => { vi.advanceTimersByTime(STEP_DELAY_MS); });
         expect(screen.getByText("7")).toBeInTheDocument();
-        act(() => vi.advanceTimersByTime(STEP_DELAY_MS));
+        act(() => { vi.advanceTimersByTime(STEP_DELAY_MS); });
         expect(screen.getByText("6")).toBeInTheDocument();
     });
 
@@ -75,11 +75,11 @@ describe("Order", () => {
         const {container} = render(<Parent/>);
 
         fireEvent.mouseDown(minus(container));
-        act(() => vi.advanceTimersByTime(STEP_DELAY_MS));
+        act(() => { vi.advanceTimersByTime(STEP_DELAY_MS); });
         expect(screen.getByText("7")).toBeInTheDocument();
 
         fireEvent.mouseUp(minus(container));
-        act(() => vi.advanceTimersByTime(2000));
+        act(() => { vi.advanceTimersByTime(2000); });
 
         // A már beütemezett következő lépést a takarítás leállítja.
         expect(screen.getByText("7")).toBeInTheDocument();
@@ -89,11 +89,11 @@ describe("Order", () => {
         const {container} = render(<Parent/>);
 
         fireEvent.mouseDown(plus(container));
-        act(() => vi.advanceTimersByTime(STEP_DELAY_MS));
+        act(() => { vi.advanceTimersByTime(STEP_DELAY_MS); });
         expect(screen.getByText("9")).toBeInTheDocument();
 
         fireEvent.mouseUp(plus(container));
-        act(() => vi.advanceTimersByTime(2000));
+        act(() => { vi.advanceTimersByTime(2000); });
 
         expect(screen.getByText("9")).toBeInTheDocument();
     });
@@ -108,12 +108,12 @@ describe("Order", () => {
         const {container} = render(<Parent/>);
 
         fireEvent.mouseDown(plus(container));
-        act(() => vi.advanceTimersByTime(STEP_DELAY_MS));
+        act(() => { vi.advanceTimersByTime(STEP_DELAY_MS); });
         expect(screen.getByText("9")).toBeInTheDocument();
 
         // Elengedés máshol, NEM a + gombon:
         fireEvent.mouseUp(document.body);
-        act(() => vi.advanceTimersByTime(2000));
+        act(() => { vi.advanceTimersByTime(2000); });
 
         expect(screen.getByText("9")).toBeInTheDocument();
     });
@@ -129,12 +129,12 @@ describe("Order", () => {
         const {container, unmount} = render(<Order current={8} setOrder={setOrder} last={10}/>);
 
         fireEvent.mouseDown(minus(container));
-        act(() => vi.advanceTimersByTime(STEP_DELAY_MS / 2));   // a lépés még függőben
+        act(() => { vi.advanceTimersByTime(STEP_DELAY_MS / 2); });   // a lépés még függőben
         fireEvent.mouseUp(minus(container));
         expect(setOrder).not.toHaveBeenCalled();
 
         unmount();
-        act(() => vi.advanceTimersByTime(2000));
+        act(() => { vi.advanceTimersByTime(2000); });
 
         expect(setOrder).not.toHaveBeenCalled();
     });
@@ -143,7 +143,7 @@ describe("Order", () => {
         const {container} = render(<Parent start={1}/>);
 
         fireEvent.mouseDown(minus(container));
-        act(() => vi.advanceTimersByTime(2000));
+        act(() => { vi.advanceTimersByTime(2000); });
 
         expect(screen.getByText("1")).toBeInTheDocument();
     });
@@ -152,7 +152,7 @@ describe("Order", () => {
         const {container} = render(<Parent start={10} last={10}/>);
 
         fireEvent.mouseDown(plus(container));
-        act(() => vi.advanceTimersByTime(2000));
+        act(() => { vi.advanceTimersByTime(2000); });
 
         /* A last a MEGLÉVŐ elemek száma; az új elem eggyel több pozíciót nyit, így
            a legnagyobb választható sorszám last+1 = 11 — eddig enged a stepper, és

@@ -51,7 +51,10 @@ const anchorPoint = {
 let bubble: HTMLDivElement;
 
 beforeEach(() => {
-    for (const [prop, value] of [["clientWidth", PHONE_WIDTH], ["clientHeight", PHONE_HEIGHT]]) {
+    /* `as const`: enélkül a tömb-literál típusa `(string | number)[][]`, tehát a
+       kicsomagolt `prop` is `string | number | undefined` lenne — pedig a párok
+       hossza FIX. A tuple-lel a `prop` string marad, a `value` szám. */
+    for (const [prop, value] of [["clientWidth", PHONE_WIDTH], ["clientHeight", PHONE_HEIGHT]] as const) {
         Object.defineProperty(document.documentElement, prop, {value, configurable: true});
     }
     bubble = document.createElement("div");
@@ -115,7 +118,7 @@ describe("a hibabuborék a szerkesztő kártyáján belül marad", () => {
         const rect = DOMRect.fromRect({x: CARD_LEFT, y: 10, width: CARD_WIDTH, height: 300});
         card.getBoundingClientRect = () => rect;
         for (const [prop, value] of [["clientWidth", CARD_WIDTH], ["clientHeight", 300],
-            ["offsetWidth", CARD_WIDTH], ["offsetHeight", 300]]) {
+            ["offsetWidth", CARD_WIDTH], ["offsetHeight", 300]] as const) {
             Object.defineProperty(card, prop, {value, configurable: true});
         }
         document.body.appendChild(card);
