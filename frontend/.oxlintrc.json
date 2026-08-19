@@ -1,6 +1,25 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["react", "oxc", "typescript"],
+
+  /* A SZINTEKRŐL, MIELŐTT BÁRMIT BEÁLLÍTANÁL: a lint-parancsok
+     `--deny-warnings`-szal futnak (package.json), tehát NÁLUNK A WARNING IS BUKÁS.
+
+     Miért kellett: az oxlint warningra NULLA kilépési kóddal lép ki, a CI pedig a
+     kilépési kódot nézi. A típus-tudatos réteg 120 szabályából a legfontosabbak —
+     köztük a `no-floating-promises`, amiért a réteget egyáltalán bekapcsoltuk, és
+     amiért 45 helyet átírtunk — a saját alapértelmezésük szerint WARNING szintűek.
+     MÉRVE (2026-08-19): egyetlen szándékosan elrontott sorral (`f();` egy async
+     függvényre) az `npm run lint:types` 0 kilépési kódot adott, tehát a CI-lépés
+     zölden átengedte volna. A javítások megvoltak, csak az őr nem állt mögöttük.
+
+     Miért a KAPCSOLÓ, és nem szabályonkénti "error": 120 szabályt felsorolni
+     karbantarthatatlan, és minden oxlint-frissítés újakat hozhat. A kapcsoló egyben
+     mondja ki a szándékot: nálunk nincs olyan, hogy "figyelmeztetés, amit senki nem
+     néz". A bekapcsolás ára MÉRVE nulla volt: mindkét csomag 0 warningot adott.
+
+     Következmény: a "warn" szint elveszti az értelmét ebben a fájlban — ami itt
+     szerepel, az bukás. Ezért kapott a lenti only-export-components is "error"-t. */
   "rules": {
     "react/rules-of-hooks": "error",
     /* HIBA, nem figyelmeztetés. A szabály alapból is fut, de warning szinten — az
@@ -11,7 +30,14 @@
        szándékosan kihagyott függőség "1 warning, 0 error" — a CI átengedte.)
        A szigorítás ára nulla volt: a kód akkor 0 ilyet tartalmazott. */
     "react/exhaustive-deps": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }],
+    /* Korábban "warn" volt, ami a --deny-warnings mellett ugyanazt jelenti, mint az
+       "error" — a kimondott szint viszont többet ér a hallgatólagosnál: aki ezt a
+       fájlt olvassa, ne a package.json kapcsolójából következtesse ki, hogy ez
+       bukás-e. (A szabály a Fast Refresh feltételét őrzi: ha egy komponens-modul
+       nem-komponenst is exportál, a hot reload az egész modult újratölti, és a
+       komponens állapota némán elveszik. Az allowConstantExport a konstansokat
+       kiveszi ez alól — azok újratöltése ártalmatlan.) */
+    "react/only-export-components": ["error", { "allowConstantExport": true }],
 
     /* A CLAUDE.md központi szabálya GÉPRE BÍZVA: "az `as` nem ellenőrzés".
        Eddig ezt emberi figyelem tartotta — és pontosan ott bukott meg, ahol az

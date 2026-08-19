@@ -7,6 +7,12 @@
   // a mező MEGADÁSA felülírja, nem bővíti, ezért az itt megtartott "oxc" és
   // "unicorn" is fel van sorolva.
   "plugins": ["oxc", "unicorn", "node", "import", "promise"],
+
+  /* A lint `--deny-warnings`-szal fut (package.json): NÁLUNK A WARNING IS BUKÁS.
+     Az oxlint warningra nulla kilépési kóddal lép ki, a CI pedig azt nézi — a
+     warning-szintű szabályok tehát kapu nélkül maradnának. A hosszabb indoklás és
+     a mérés a frontend .oxlintrc.json-jában áll, ott derült ki a lyuk. Itt is
+     ingyenes volt: a bekapcsoláskor 78 fájl, 0 warning. */
   "rules": {
     "no-unused-vars": "error"
   }
