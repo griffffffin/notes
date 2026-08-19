@@ -7,6 +7,7 @@ import {ThemeProvider} from "../contexts/theme";
 import {axiosResponse} from "../test/axiosResponse";
 import type {AxiosResponse} from "axios";
 import type {Todo} from "../types/api";
+import {at} from "../test/at";
 
 /* Csak a SZERVERHÍVÁST cseréljük ki; a route-tábla, a navbar és a szerkesztő
    valódi. A providerek sorrendje a main.tsx-ét követi (CookiesProvider →
@@ -104,15 +105,51 @@ describe("App — versenyhelyzet a kategórialista lekérésében", () => {
         await userEvent.click(screen.getByText("Kategória"));
 
         // A FRISS válasz (már tartalmazza a "munka"-t) érkezik meg előbb.
-        act(() => pending[1].then(axiosResponse(["otthon", "munka"])));
+        act(() => at(pending, 1).then(axiosResponse(["otthon", "munka"])));
         await waitFor(() => expect(categoryLink("munka")).toBeInTheDocument());
 
         // És most fut be a lejárt, még a megnyitáskor indult lekérés RÉGI listája.
-        act(() => pending[0].then(axiosResponse(["otthon"])));
+        act(() => at(pending, 0).then(axiosResponse(["otthon"])));
 
         /* A "munka" csak a legördülőben szerepel (a lista kártyája az "otthon"
            kategóriájára linkel), ezért ez az állítás egyértelmű: ha a lejárt válasz
            felülírná a listát, az új kategória eltűnne innen. */
         expect(categoryLink("munka")).toBeInTheDocument();
+    });
+});
+
+/* A KATEGÓRIA-LEKÉRÉS HIBÁJA — a bekötés (2026-08-19).
+
+   A navbar tesztje a MEGJELENÍTÉST méri (kapott hibajelzővel), ez pedig azt,
+   hogy az App a lekérés hibáját tényleg továbbadja. Ez a kötés egyetlen sor,
+   amit egy refaktor némán kivehet: a legördülő attól még megjelenne, csak
+   üresen — vagyis azt állítaná, hogy nincs egyetlen kategóriád sem. */
+describe("App — a kategóriák betöltése elbukott", () => {
+    const MESSAGE = "A kategóriák betöltése sikertelen.";
+
+    it("a legördülőben megjelenik a hibajelzés", async () => {
+        handleAxios.mockImplementation((url, data, then, catchError) => {
+            if (url === "/to-dos/categories") catchError(new Error("Network Error"));
+            else then(axiosResponse([]));
+            return Promise.resolve();
+        });
+        renderApp();
+
+        await userEvent.click(screen.getByText("Kategória"));
+
+        expect(await screen.findByText(MESSAGE)).toBeVisible();
+    });
+
+    it("SIKERES lekérésnél nincs hibajelzés (kontroll)", async () => {
+        handleAxios.mockImplementation((url, data, then) => {
+            then(axiosResponse(url === "/to-dos/categories" ? ["otthon"] : []));
+            return Promise.resolve();
+        });
+        renderApp();
+
+        await userEvent.click(screen.getByText("Kategória"));
+
+        expect(await screen.findByText("otthon")).toBeVisible();
+        expect(screen.queryByText(MESSAGE)).not.toBeInTheDocument();
     });
 });

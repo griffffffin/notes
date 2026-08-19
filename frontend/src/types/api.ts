@@ -132,13 +132,19 @@ const tokenClaimsSchema = v.object({id: v.string(), iat: v.number(), exp: v.numb
    órája szerint, aki ezt egyedül tudhatja. */
 function hasTokenClaims(token: string): boolean {
     const parts = token.split(".");
-    if (parts.length !== 3) return false;
+    const payload = parts[1];
+    /* A darabszám mellett a HASZNÁLT részt is kimondjuk. A `parts.length !== 3`
+       igaz feltétel volt, de abból a fordító nem tudta, hogy a `parts[1]`
+       létezik — és jogosan: az indexelés eredménye elvileg `undefined` is lehet.
+       Így egyetlen ellenőrzés dönt arról, amivel utána dolgozunk: a középső,
+       állításokat tartó részről. */
+    if (parts.length !== 3 || payload === undefined) return false;
     try {
         /* base64url → base64: a JWT a "+" és a "/" helyett "-"-t és "_"-t használ
            (hogy URL-be is írható legyen). A kitöltő "=" jeleket elhagyja, de az
            atob ezt megengedi — csak a 4-gyel osztva 1 maradékot adó hosszt
            utasítja el, ami amúgy sem érvényes base64. */
-        const json = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
+        const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
         return v.is(tokenClaimsSchema, JSON.parse(json));
     } catch {
         // Nem base64, vagy nem JSON — akkor sem token, ha három részes.
@@ -184,7 +190,11 @@ export type Task = v.InferOutput<typeof taskSchema>;
    objektum-kulcs szöveg (mérve a Pi élő adatán: `{"0": {…}}`). A TypeScript a
    szám-indexelést a szöveges indexre magától megengedi, tehát a hívó oldalon
    semmi nem változik — csak most már az áll itt, ami tényleg érkezik. */
-const tasksSchema = v.record(v.string(), taskSchema);
+/* EXPORTÁLVA, mert a to-do szerkesztőjének PISZKOZAT-sémája is ezt használja
+   (components/Todos/save.tsx): a helyben tárolt piszkozat ugyanolyan alakú
+   alsor-térképet tartalmaz, mint a szerver válasza — két kézzel írt leírás
+   biztosan elcsúszna egymástól. */
+export const tasksSchema = v.record(v.string(), taskSchema);
 export type Tasks = v.InferOutput<typeof tasksSchema>;
 
 export const todoSchema = v.object({

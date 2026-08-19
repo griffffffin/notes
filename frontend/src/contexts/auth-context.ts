@@ -54,7 +54,15 @@ export type HandleAxios = (
     // A szerkesztők zárványolt tokene `AuthToken | null` (l. auth.tsx); a null
     // megengedett: a hívott oldalon `?? tokenRef.current` fallback nyeli el.
     authToken?: AuthToken | null,
-) => Promise<void>;
+    /* A VISSZATÉRÉSI ÉRTÉK `void`, nem `Promise<void>` — pedig belül promise fut.
+       Azért, mert a hívónak NINCS mit kezdenie vele: az eredmény a két
+       visszahívásban érkezik, a lánc végén pedig egy `.catch` áll, tehát ez a
+       promise soha nem utasítódik el. Egy kifelé adott promise csak azt sugallná,
+       hogy meg lehet (kell) várni — és a "lebegő promise" figyelmeztetései
+       (oxlint --type-aware, no-floating-promises) negyvenöt helyen épp ezt a nem
+       létező kötelezettséget kérték számon. A típus mostantól azt mondja, ami
+       igaz: indíts kérést, a többi a visszahívásoké. */
+) => void;
 
 /* Amit a context ad: a munkamenet állapota és az egyetlen hívó. A `token` azért
    lehet null, mert kijelentkezve nincs — a `isLoggedIn` ugyanennek a kényelmi
@@ -62,6 +70,10 @@ export type HandleAxios = (
 export type Auth = {
     token: AuthToken | null;
     isLoggedIn: boolean;
+    /* Épp a kijelentkezéshez tartozó mentésre várunk-e. A kijelentkezés MEGVÁRJA a
+       szerkesztő függő mentését (pendingSave.ts); ez a jelző KÉSLELTETVE (300 ms
+       után) gyullad ki, hogy a szokásos, gyors esetben ne villanjon fel semmi. */
+    isLoggingOut: boolean;
     login: (newToken: AuthToken) => void;
     logout: () => void;
     handleAxios: HandleAxios;

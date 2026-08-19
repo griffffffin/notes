@@ -6,6 +6,7 @@ import {axiosResponse} from "../../test/axiosResponse";
 import {requireElement} from "../../test/dom";
 import type {AxiosResponse} from "axios";
 import type {Todo} from "../../types/api";
+import {at} from "../../test/at";
 
 /* A kérés TÖRZSE a kém felől `unknown` — az azonosítót VALÓDI vizsgálattal
    olvassuk ki belőle, nem `as`-szal. Ha a betöltő lekérés törzse egyszer más
@@ -536,8 +537,8 @@ describe("Save — versenyhelyzet a betöltésben", () => {
         const pending = await openTwoEditorsAndGoBack();
 
         // Előbb a FRISS (todo-1) válasza érkezik meg, és csak utána a lejárt todo-2-é.
-        act(() => pending[1].then(axiosResponse({...TODO, _id: "todo-1", title: "Friss to-do"})));
-        act(() => pending[0].then(axiosResponse({
+        act(() => at(pending, 1).then(axiosResponse({...TODO, _id: "todo-1", title: "Friss to-do"})));
+        act(() => at(pending, 0).then(axiosResponse({
             ...TODO, _id: "todo-2", title: "Lejárt to-do", color: "success", category: "munka",
         })));
 
@@ -555,12 +556,144 @@ describe("Save — versenyhelyzet a betöltésben", () => {
         if (!staleCall) throw new Error("nem indult lekérés a todo-2-re");
         const staleError = staleCall[3];
 
-        act(() => pending[1].then(axiosResponse({...TODO, _id: "todo-1", title: "Friss to-do"})));
+        act(() => at(pending, 1).then(axiosResponse({...TODO, _id: "todo-1", title: "Friss to-do"})));
         await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Friss to-do"));
         // A lejárt kérés elszáll (pl. timeout) — az ő hiba-ága a listára navigálna.
         act(() => staleError({message: "timeout of 15000ms exceeded"}));
 
         expect(window.location.pathname).toBe("/to-dos/update/todo-1");
         expect(screen.getByPlaceholderText("Cím")).toHaveValue("Friss to-do");
+    });
+});
+
+/* A SORSZÁM-KORLÁT LEKÉRÉSÉNEK BUKÁSA — ezt az átvizsgálás találta (2026-08-18).
+
+   A szerkesztő két kérést indít: a to-dót (csak /update-nél) és a sorszám felső
+   korlátját (/to-dos/last/order, MINDIG). A betöltő karika akkor tűnik el, ha
+   `lastOrder` megérkezett — a hibaága viszont csak naplózott. Vagyis a korlát
+   lekérésének bukása után a karika ÖRÖKKÉ pörög, és pont azt ígéri, ami sosem
+   jön. A /create ágon ez a KIZÁRÓLAGOS kérés, tehát ott egy hálózati zökkenő
+   használhatatlan képernyőt hagy maga után.
+
+   Ugyanaz a hibaosztály, mint a listáé volt: a felület nem hazudik szándékosan,
+   csak épp semmit nem mond — a felhasználó vár valamire, ami nem fog megjönni. */
+describe("A sorszám-korlát lekérése elbukik", () => {
+    const failLastOrder = () => handleAxios.mockImplementation((url, data, then, catchError) => {
+        if (url === "/to-dos/last/order") catchError(new Error("Network Error"));
+        else if (url === "/to-dos/id") then(axiosResponse(TODO));
+        else if (url === "/to-dos") then(axiosResponse([TODO]));
+        else then(axiosResponse({}));
+        return Promise.resolve();
+    });
+
+    it("/create: nem pörög örökké a karika, hanem kimondja, hogy nem tölthető be", async () => {
+        failLastOrder();
+        window.history.pushState({}, "", "/to-dos/create");
+
+        renderRoutes();
+
+        expect(await screen.findByText(/Hiba az oldal betöltése közben/)).toBeVisible();
+        expect(document.querySelector(".spinner-border")).not.toBeInTheDocument();
+    });
+
+    it("/update: ugyanígy (a to-do maga megjött, a korlát nem)", async () => {
+        failLastOrder();
+        window.history.pushState({}, "", "/to-dos/update/todo-1");
+
+        renderRoutes();
+
+        expect(await screen.findByText(/Hiba az oldal betöltése közben/)).toBeVisible();
+    });
+
+    it("az ÚJRA gomb megismétli a lekérést, és siker után megnyílik a szerkesztő", async () => {
+        let shouldFail = true;
+        handleAxios.mockImplementation((url, data, then, catchError) => {
+            if (url === "/to-dos/last/order" && shouldFail) catchError(new Error("Network Error"));
+            else if (url === "/to-dos/last/order") then(axiosResponse(3));
+            else if (url === "/to-dos/id") then(axiosResponse(TODO));
+            else then(axiosResponse({}));
+            return Promise.resolve();
+        });
+        window.history.pushState({}, "", "/to-dos/create");
+        renderRoutes();
+        expect(await screen.findByText(/Hiba az oldal betöltése közben/)).toBeVisible();
+
+        shouldFail = false;
+        await userEvent.click(screen.getByRole("button", {name: "Adatok ismételt lekérése"}));
+
+        expect(await screen.findByPlaceholderText("Cím")).toBeVisible();
+        expect(screen.queryByText(/Hiba az oldal betöltése közben/)).not.toBeInTheDocument();
+    });
+
+    it("SIKERES betöltésnél nincs hibaüzenet (kontroll)", async () => {
+        window.history.pushState({}, "", "/to-dos/create");
+
+        renderRoutes();
+
+        expect(await screen.findByPlaceholderText("Cím")).toBeVisible();
+        expect(screen.queryByText(/Hiba az oldal betöltése közben/)).not.toBeInTheDocument();
+    });
+});
+
+/* A PISZKOZAT a to-do szerkesztőjében. A mechanizmus közös (drafts.ts), és a
+   részletes eseteket az idézet-szerkesztő tesztje fedi le — itt azt bizonyítjuk,
+   hogy a to-do SAJÁT mezői (alsorok, kategória, szín) is átjönnek. Ez a
+   szekciók közti ELTÉRÉS pontja: az idézetnek négy mezője van, a to-dónak hat,
+   köztük két összetett szerkezet. */
+describe("TodoSave — piszkozat", () => {
+    const DRAFT_KEY = "notes-draft:to-dos:todo-1";
+
+    afterEach(() => localStorage.clear());
+
+    it("a leváláskori mentés bukása után az ALSOROK is megmaradnak a piszkozatban", async () => {
+        window.history.pushState({}, "", "/to-dos/update/todo-1");
+        const view = renderRoutes();
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
+        await userEvent.type(screen.getByPlaceholderText("Cím"), " ma");
+
+        handleAxios.mockImplementation((url, data, then, catchError) => {
+            if (url === "/to-dos/update") catchError(new Error("Network Error"));
+            else then(axiosResponse({}));
+            return Promise.resolve();
+        });
+        // A piszkozat csak a három próba után születik meg (l. saveRetry.ts).
+        vi.useFakeTimers();
+        view.unmount();
+        await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+        vi.useRealTimers();
+
+        const stored = localStorage.getItem(DRAFT_KEY);
+        expect(stored).not.toBeNull();
+        expect(stored).toContain("Bevásárlás ma");
+        // A to-do saját szerkezetei is benne vannak, nem csak a cím.
+        expect(stored).toContain("taskOrder");
+        expect(stored).toContain("category");
+    });
+
+    it("a visszaállítás a címet, a kategóriát ÉS az alsorokat is helyreállítja", async () => {
+        /* A `base` a szerver AKKORI állapota — itt pontosan az, amit a fixtúra ad,
+           tehát a szerveren azóta semmi nem változott: a piszkozat MAGÁTÓL
+           visszaáll, kérdés nélkül. A to-do saját szerkezetei (alsorok, sorrend)
+           is átjönnek — ez a szekciók közti különbség pontja. */
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({
+            savedAt: Date.now(),
+            payload: {
+                title: "Piszkozat-cím", category: "otthon", color: "danger", order: 1,
+                tasks: {7: {id: "7", content: "Piszkozat-alsor", done: false}},
+                taskOrder: [7],
+            },
+            base: {
+                title: TODO.title, category: TODO.category, color: TODO.color, order: TODO.order,
+                tasks: TODO.tasks, taskOrder: TODO.taskOrder,
+            },
+        }));
+        window.history.pushState({}, "", "/to-dos/update/todo-1");
+
+        renderRoutes();
+
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Piszkozat-cím"));
+        expect(screen.getByPlaceholderText("Kategória")).toHaveValue("otthon");
+        expect(screen.getByDisplayValue("Piszkozat-alsor")).toBeInTheDocument();
+        expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
     });
 });

@@ -40,7 +40,8 @@ type HandleAxiosSpy = (
     then: (response: AxiosResponse<unknown>) => void,
     catchError: (error: unknown) => void,
     authToken?: Auth["token"],
-) => Promise<void>;
+    // `void`, ahogy a valódi szerződés (l. contexts/auth-context.ts).
+) => void;
 
 /* Alapból KIJELENTKEZETT állapot (`token: null`), mert az a semlegesebb: aki
    bejelentkezettet akar, mondja ki. A `handleAxios` nem írható felül — az a kém
@@ -50,6 +51,7 @@ export function mockAuth(overrides: Partial<Omit<Auth, "handleAxios">> = {}) {
     const auth: Auth = {
         token: null,
         isLoggedIn: false,
+        isLoggingOut: false,
         login: vi.fn(),
         logout: vi.fn(),
         /* A továbbítás `...args`-szal megy, nem megnevezett paraméterekkel: így a
@@ -63,16 +65,15 @@ export function mockAuth(overrides: Partial<Omit<Auth, "handleAxios">> = {}) {
                handleAxios-ban is (contexts/auth.tsx: a `.then(then).catch(…)`
                lánc a visszahívás kivételét is elkapja).
 
-               Enélkül a pótlék egy fontos ponton eltérne a valóságtól: a hívók a
+               Enélkül a pótlék egy fontos ponton eltért a valóságtól: a hívók a
                `then`-en belül ellenőrzik a választ sémával, tehát egy elcsúszott
                szerződés ITT dob. Élesben ez a hibaágra fut (a lista hibát jelez);
-               a mockban viszont a kivétel a komponensbe csapódna, és a teszt
-               egészen mást mérne, mint ami élesben történik. */
+               a mockban viszont a kivétel a komponensbe csapódott volna, és a
+               teszt egészen mást mérne, mint ami élesben történik. */
             try {
-                return handleAxios(...args);
+                handleAxios(...args);
             } catch (error) {
                 args[3](error);
-                return Promise.resolve();
             }
         },
         ...overrides,

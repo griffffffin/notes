@@ -17,9 +17,14 @@ import {fieldAnchor, type FieldAnchor} from "../Editor/fieldAnchor";
 import ValidationTooltip from "../Editor/validationTooltip";
 import {useEscapeSubmit} from "../Editor/useEscapeSubmit";
 import {useIdleTimer} from "../Editor/useIdleTimer";
-import * as v from "valibot";
 import {quoteForEditSchema, lastOrderSchema} from "../../types/api";
 import {PATHS} from "../../paths";
+import {parseResponse} from "../../contractFault";
+import LoadFailedNotice from "../loadFailedNotice";
+import * as v from "valibot";
+import {clearDraft, draftKey, readDraft, saveDraft} from "../../drafts";
+import {saveWithRetry} from "../../saveRetry";
+import {registerPendingSave} from "../../pendingSave";
 
 /* Az új idézet alap betűmérete SZÁZALÉKBAN — szándékosan a Szerző-mező méretével
    egyezik (a .caveat szabály 155%-a), hogy a szerkesztőben az idézet és a szerző
@@ -32,16 +37,25 @@ const DEFAULT_FONT_SIZE = 155;
    állapot). Az `author` itt már NEM opcionális: betöltéskor `q.author ?? ""`-vel
    üres stringgé normalizáljuk (a mező value-ja is string), így az összevetés két
    sima string közt megy. */
-type QuoteSnapshot = {
-    quote: string;
-    author: string;
-    order: number;
-    fontSize: number;
-};
+const snapshotSchema = v.object({
+    quote: v.string(),
+    author: v.string(),
+    order: v.number(),
+    fontSize: v.number(),
+});
+type QuoteSnapshot = v.InferOutput<typeof snapshotSchema>;
 
 /* A MENTENDŐ adat: a pillanatkép + update-nél a szerkesztett elem id-je. A három
    mentési útvonal (blocker, leváláskori mentés, autosave) ezt küldi. */
 type QuotePayload = QuoteSnapshot & {id?: string};
+
+/* A PISZKOZAT ugyanaz a négy mező, mint a pillanatkép — ezért UGYANAZ a séma áll
+   mögötte, nem egy második leírás. A piszkozat a böngésző tárolójából jön VISSZA,
+   tehát kívülről érkező érték: sémával olvassuk, nem hittel (l. drafts.ts). Mivel
+   a `QuoteSnapshot` típus is ebből a sémából származik, a kettő nem tud elcsúszni
+   egymástól: egy új mező felvétele mindkettőt egyszerre viszi. */
+const draftSchema = snapshotSchema;
+type StoredDraft = QuoteSnapshot;
 
 /* A propokat a routes.tsx QuotesSaveRoute wrapperje adja. Az idézet-szerkesztő
    SZŰKEBB, mint a to-dóé: nincs kategória, ezért se `handleCategoryChange`, se
@@ -68,6 +82,15 @@ export default function QuoteSave(props: SaveProps) {
     // alapból a lista ELEJÉRE kerül (1), onnan léptethető lejjebb.
     const [order, setOrder] = useState(1);
     const [lastOrder, setLastOrder] = useState<number | null>(null);
+    /* A BETÖLTÉS ELBUKOTT-e. A karika eltűnése a `lastOrder` megérkezéséhez van
+       kötve, tehát a lekérés bukása után magától SOSEM tűnne el — a felület
+       örökké várakozna valamire, ami nem jön (a /create ágon ez az EGYETLEN
+       kérés, ott tehát az egész szerkesztő használhatatlan maradna). */
+    const [loadFailed, setLoadFailed] = useState(false);
+    /* ÚJRAPRÓBÁLKOZÁS-SZÁMLÁLÓ: a betöltő effekt függőségei közt áll, tehát a
+       léptetése újrafuttatja a lekéréseket — oldalfrissítés nélkül, ami a
+       szerkesztőben már beírt szöveget is elvinné. */
+    const [retryCount, setRetryCount] = useState(0);
     // Per-idézet betűméret SZÁZALÉKBAN. Create-nél az alap a Szerző mezőével egyező
     // DEFAULT_FONT_SIZE, update-nél a betöltött érték. A "Betűméret" stepper állítja;
     // a nézetek a --quote-fs CSS-változón át rajzolják ekkorára az idézetet.
@@ -94,7 +117,10 @@ export default function QuoteSave(props: SaveProps) {
     const leftViaForm = useRef(false);
     /* A leváláskor futtatandó mentés legfrissebb változata — minden renderben
        frissül, hogy az unmount az aktuális állapotot mentse (l. lentebb). */
-    const saveOnLeaveRef = useRef(() => {});
+    /* A típus KIMONDVA: a kezdőérték egy üres függvény volna, amiből a fordító
+       `() => void`-ot következtetne — a mentés viszont PROMISE-t ad vissza, hogy a
+       kijelentkezés megvárhassa (l. pendingSave.ts). */
+    const saveOnLeaveRef = useRef<() => Promise<void>>(() => Promise.resolve());
     /* A "van-e mentenivaló?" (dirty) legfrissebb értéke — a useBlocker shouldBlock-ja
        ref-ből olvassa, hogy stabil (üres deps) függvény lehessen, mégis a friss
        állapotot lássa. */
@@ -104,11 +130,89 @@ export default function QuoteSave(props: SaveProps) {
     const handledBlockRef = useRef(false);
 
     const isUpdate = Boolean(props.isUpdate);
+
     const url = isUpdate ? ENDPOINTS.quoteUpdate : ENDPOINTS.quoteCreate;
     /* Az azonosító az URL /update/:id szegmenséből jön. A route-ban a :id kötelező,
        tehát update-nél mindig megvan; a csupasz /update-et a "*"-ág fogja el, ide
        nem jut. Create-nél nincs szerkesztett elem: null. */
     const quoteId = isUpdate ? id : null;
+
+    /* A PISZKOZAT kulcsa a szerkesztett ELEMHEZ tartozik (create-nél a szekció
+       közös "create" piszkozatához) — így két idézet piszkozata nem üti egymást,
+       és a create-piszkozat sem keveredik egy meglévő elem szerkesztésével. */
+    const draftStorageKey = draftKey("quotes", quoteId ?? null);
+    /* EGYSZER olvassuk ki, a legelső renderben (lusta kezdőérték): a piszkozat a
+       megnyitás PILLANATÁBAN érvényes állapot. A típus kimondva, mert a kezdőérték
+       `null` is lehet (l. CLAUDE.md, "kezdőérték ≠ típus"). */
+    const [draft, setDraft] = useState<{payload: StoredDraft; base: StoredDraft | null; savedAt: Date} | null>(
+        () => readDraft(draftStorageKey, draftSchema));
+
+    /* A piszkozat legfrissebb értéke REFBEN is: a betöltő effekt zárványa
+       különben a mountkori (esetleg már elavult) állapotot látná, a `draft`-ot
+       pedig nem tehetjük a függőségei közé (a visszatöltés maga állítja át, amitől
+       a betöltés újraindulna). */
+    const draftRef = useRef(draft);
+    draftRef.current = draft;
+
+    /* A piszkozat mezőinek beírása a szerkesztőbe — egy helyen, mert két hívója
+       van: a magától induló visszaállítás (a betöltés végén) és a felajánlás
+       „Visszatöltés" gombja. */
+    const applyDraft = (payload: StoredDraft) => {
+        setQuote(payload.quote);
+        setAuthor(payload.author);
+        setOrder(payload.order);
+        setFontSize(payload.fontSize);
+    };
+
+    /* Két pillanatkép AZONOS-e. Ugyanaz az összevetés, amit a "változott-e az
+       űrlap" vizsgálat is használ — a piszkozatnál arra kell, hogy eldöntsük:
+       a szerveren történt-e bármi azóta, hogy a piszkozat készült. */
+    const isSameSnapshot = (first: StoredDraft, second: StoredDraft) =>
+        first.quote === second.quote && first.author === second.author
+        && first.order === second.order && first.fontSize === second.fontSize;
+
+    /* MI LEGYEN A PISZKOZATTAL, amikor a szerkesztő betöltött. Egyetlen döntés,
+       felhasználói kérdés nélkül:
+
+       - a szerveren SEMMI nem változott azóta, hogy a piszkozat készült (a
+         betöltéskori állapot = a piszkozat `base`-e) → a piszkozat az egyetlen
+         újabb változat, tehát VISSZAÁLL. A mentés elmaradása így fel sem tűnik.
+       - a szerveren VÁLTOZOTT valami (másik eszközön mentettek) → a FRISSEBB
+         változat nyer, a piszkozatot ELDOBJUK. Egy másik eszközön tudatosan
+         elvégzett módosítás többet ér, mint egy el nem mentett szöveg, a
+         választás felkínálása pedig inkább zavarna, mint segítene.
+       - `fromServer === null` (CREATE): nincs mivel ütközni, tehát visszaáll.
+       - nincs `base` (régi formátumú piszkozat) → update-nél nem tudjuk
+         ellenőrizni, ezért a szerver változatát hagyjuk: kétségnél a szerver nyer. */
+    const decideDraft = (fromServer: StoredDraft | null) => {
+        const pending = draftRef.current;
+        if (!pending) return;
+        /* HÁROM ESET, és mindet a TARTALOM dönti el:
+
+           1. a szerver ugyanaz, mint a betöltéskori állapot (`base`) → azóta
+              senki nem mentett, a piszkozat az egyetlen újabb változat → VISSZA;
+           2. a szerver MÁR A PISZKOZAT TARTALMÁT mutatja → a mi mentésünk
+              valójában átment (a válasz veszett el útközben, ezért hittük
+              bukásnak). Külön ág NEM kell hozzá: a visszaállítás úgyis ugyanazt
+              a szöveget írná be, ami már ott van — a piszkozat egyszerűen
+              okafogyott, és törlődik;
+           3. a szerver mást mutat, mint bármelyik → egy MÁSIK eszközön mentettek
+              → a frissebb, mentett változat marad, a piszkozat elvész.
+
+           A 2. és a 3. eset viselkedése tehát azonos (törlés), de az OKUK más —
+           és a 2. nem adatvesztés: a tartalom a szerveren van. */
+        const restore = fromServer === null
+            || (pending.base !== null && isSameSnapshot(pending.base, fromServer));
+        if (restore) applyDraft(pending.payload);
+        clearDraft(draftStorageKey);
+        setDraft(null);
+    };
+
+    /* A döntés REFEN át hívódik a betöltő effektből: a függvény minden renderben
+       újra elkészül, tehát függőségként a lekérést is minden renderben
+       újraindítaná. A ref mindig a legfrissebb változatra mutat. */
+    const decideDraftRef = useRef(decideDraft);
+    decideDraftRef.current = decideDraft;
 
     /* Változatlan-e a szerkesztő ahhoz képest, amit menteni érdemes? Create-nél:
        üres (se idézet, se szerző) — ilyenkor nincs mentenivaló. Update-nél: a
@@ -150,8 +254,8 @@ export default function QuoteSave(props: SaveProps) {
        listára; create után mindig a listára. A navigációt a blocker kapja el, ha
        van mentenivaló — ez indítja a mentést. */
     const leaveEditor = useCallback(() => {
-        if (isUpdate && location.key !== "default") navigate(-1);
-        else navigate(PATHS.quotes);
+        if (isUpdate && location.key !== "default") void navigate(-1);
+        else void navigate(PATHS.quotes);
     }, [isUpdate, location.key, navigate]);
 
     /* Versenyhelyzet-őr: az effekt a `quoteId` változásakor újrafut (pl. /update/:id1 →
@@ -179,7 +283,7 @@ export default function QuoteSave(props: SaveProps) {
                 /* Az ELLENŐRZÉS AZ ELSŐ, minden state-írás előtt: hibás alaknál a
                    v.parse dob, és a szerkesztő a hibaágon lép ki a listára —
                    nem marad félig kitöltve. */
-                const q = v.parse(quoteForEditSchema, response.data);
+                const q = parseResponse(quoteForEditSchema, response.data, ENDPOINTS.quoteForEdit);
                 setQuote(q.quote);
                 setAuthor(q.author ?? "");
                 setOrder(q.order);
@@ -197,6 +301,11 @@ export default function QuoteSave(props: SaveProps) {
                 // nélkül is módosíthatja az idézetet.
                 loaded.current = {quote: q.quote, author: q.author ?? "", order: q.order,
                     fontSize: q.fontSize};
+
+                /* A PISZKOZATRÓL a betöltött állapot ismeretében döntünk:
+                   visszaáll, ha a szerveren azóta semmi nem változott — különben
+                   a frissebb, szerver-oldali változat nyer (l. decideDraft). */
+                decideDraftRef.current(loaded.current);
             }, (error) => {
                 if (!active) return;
                 // Nem tölthető be (törölt elem vagy timeout) — vissza a listához,
@@ -211,11 +320,18 @@ export default function QuoteSave(props: SaveProps) {
            tolható. Üres listánál 0. */
         handleAxios(ENDPOINTS.quoteLastOrder, {}, (response) => {
             if (!active) return;
-            const last = v.parse(lastOrderSchema, response.data);
+            const last = parseResponse(lastOrderSchema, response.data, ENDPOINTS.quoteLastOrder);
             setLastOrder(last === 0 ? 0 : (isUpdate ? last - 1 : last));
-        }, logRequestError);
+        }, (error) => {
+            if (!active) return;
+            logRequestError(error);
+            // Ugyanaz, mint a to-do szerkesztőjében: a karika helyett kimondjuk.
+            setLoadFailed(true);
+        });
+        // CREATE: nincs betöltendő elem, tehát a piszkozatnak nincs mivel ütköznie.
+        if (!quoteId) decideDraftRef.current(null);
         return () => { active = false; };
-    }, [isUpdate, quoteId, handleAxios, leaveEditor]);
+    }, [isUpdate, quoteId, handleAxios, leaveEditor, retryCount, draftStorageKey]);
 
     /* A betöltő feloldása a to-do mintájára: create-nél amint a felső korlát
        megvan; update-nél amint a betöltött idézet is beérkezett (a tartalom
@@ -401,15 +517,19 @@ export default function QuoteSave(props: SaveProps) {
         // mentés már ne fusson újra a proceed utáni leváláskor.
         leftViaForm.current = true;
         handleAxios(url, buildPayload(), (response) => {
-            if (response.status === 200) { props.handleLinkClicked(); blocker.proceed(); }
-            else { leftViaForm.current = false; blocker.reset(); }
+            if (response.status === 200) {
+                // A tartalom a szerveren van: a helyi másolat okafogyott.
+                clearDraft(draftStorageKey);
+                props.handleLinkClicked();
+                blocker.proceed();
+            } else { leftViaForm.current = false; blocker.reset(); }
         }, (error) => {
             // A mentés elbukott: maradunk (reset), és egy későbbi távozás újrapróbálja.
             leftViaForm.current = false;
             logRequestError(error);
             blocker.reset();
         });
-    }, [blocker, isQuoteValid, buildPayload, url, handleAxios, props]);
+    }, [blocker, isQuoteValid, buildPayload, url, handleAxios, props, draftStorageKey]);
 
     /* A Tovább gomb (és az Escape) már csak NAVIGÁL — az ellenőrzést+mentést a
        fenti blocker intézi, ha van mentenivaló. Érintetlen űrlapnál a blocker nem
@@ -439,13 +559,63 @@ export default function QuoteSave(props: SaveProps) {
        tehát 15 percnél már nincs mentetlen szerkesztő. (Kivétel: ha az autosave hálózati
        hibán elbukik, marad az eredeti korlát — 15 percnél a token lejárt, nem menthető.) */
     saveOnLeaveRef.current = () => {
-        if (!hasSilentWork()) return;
-        // A zárványolt `token` (nem az élő tokenRef): kijelentkezéskor az élő már null.
-        handleAxios(url, buildPayload(), () => {}, logRequestError, token);
+        if (!hasSilentWork()) return Promise.resolve();
+        /* A mentés MEGKEZDÉSE előtt jelöljük, hogy elintéztük a távozást: a
+           kijelentkezés MEGVÁRJA ezt a mentést (pendingSave.ts), és a rákövetkező
+           leválás már nem indíthat még egyet — create-nél az duplikálna. */
+        leftViaForm.current = true;
+        /* A LEVÁLÁSKORI MENTÉS a legkockázatosabb út: a képernyő épp megszűnik,
+           tehát ha ez elbukik (lejárt token, alvó szerver, megszakadt hálózat),
+           NINCS kinek szólni — a beírt szöveg nyomtalanul elveszne. Ezért a
+           hibaágon PISZKOZATOT írunk a böngésző tárolójába, és a szerkesztő
+           legközelebbi megnyitásakor magától visszaáll (l. drafts.ts). */
+        /* ÚJRAPRÓBÁLÁS a piszkozat ELŐTT: a bukások nagy része múló (wifi-váltás,
+           épp újrainduló szerver), és arra a helyes válasz még egy próba, nem egy
+           visszaállított piszkozat a következő megnyitáskor (l. saveRetry.ts).
+           A zárványolt `token` (nem az élő tokenRef): kijelentkezéskor az élő már null. */
+        return saveWithRetry(
+            (onSuccess, onFailure) => handleAxios(url, buildPayload(), () => {
+                clearDraft(draftStorageKey);
+                onSuccess();
+            }, onFailure, token),
+            (error) => {
+                // Feladtuk: egy későbbi távozás újrapróbálhatja, a szöveg a piszkozatban.
+                leftViaForm.current = false;
+                logRequestError(error);
+                saveDraft(draftStorageKey, buildPayload(), loaded.current ?? undefined);
+            });
     };
 
+    /* A LAP BEZÁRÁSA (fül, böngésző) — itt a MENTÉSRE már nincs idő.
+
+       A böngésző a lap eltűnésekor eldobja a függő kéréseket, és megállítani sem
+       tudjuk: az újrapróbálás (saveRetry) második-harmadik köre biztosan nem fut
+       le. Ezért itt NEM mentést indítunk, hanem AZONNAL kiírjuk a piszkozatot —
+       az localStorage-írás, tehát szinkron, még a bezárás előtt megtörténik.
+
+       Ha közben mégis átment egy mentés, az a piszkozatot úgyis törli; ha nem, a
+       szöveg megmarad, és a szerkesztő legközelebbi megnyitásakor magától
+       visszaáll (l. drafts.ts). Fölösleges piszkozat így legfeljebb egy marad,
+       adat viszont nem vész el. */
+    useEffect(() => {
+        const keepWork = () => {
+            if (!hasSilentWork()) return;
+            saveDraft(draftStorageKey, buildPayload(), loaded.current ?? undefined);
+        };
+        window.addEventListener("beforeunload", keepWork);
+        return () => window.removeEventListener("beforeunload", keepWork);
+    });
+
+    /* A KIJELENTKEZÉS MEGVÁRJA ezt a mentést. A ref-en át megy, hogy mindig a
+       LEGFRISSEBB állapotot mentse (a regisztráció egyszer fut, mountkor). */
+    useEffect(() => registerPendingSave(() => saveOnLeaveRef.current()), []);
+
     // A fenti mentés a szerkesztő LEVÁLÁSAKOR (kézi kijelentkezés) fut le, egyszer.
-    useEffect(() => () => saveOnLeaveRef.current(), []);
+    /* A cleanup NEM adhatja tovább a promise-t: a React a visszatérési értéket
+       takarító függvénynek nézné. A `void` kimondja, hogy itt nem várunk rá — a
+       leválás pillanatában már úgyis nincs kinek visszajelezni; a kijelentkezés
+       ága az, ami MEGVÁRJA (l. pendingSave.ts). */
+    useEffect(() => () => { void saveOnLeaveRef.current(); }, []);
 
     /* Az AUTOSAVE (tétlenség után) — mint a leváláskori mentés, de siker UTÁN a listára
        navigál (kilép a szerkesztőből). Az órát a közös useIdleTimer adja: minden
@@ -460,13 +630,28 @@ export default function QuoteSave(props: SaveProps) {
            NE mentsen újra (create-nél nehogy duplikáljon — ezért nem kell külön
            create→update váltás). Hibánál visszavonjuk, hogy egy későbbi távozás újrapróbálja. */
         leftViaForm.current = true;
-        handleAxios(url, buildPayload(), () => { props.handleLinkClicked(); navigate(PATHS.quotes); },
-            (error) => { leftViaForm.current = false; logRequestError(error); });
+        handleAxios(url, buildPayload(), () => {
+            clearDraft(draftStorageKey);
+            props.handleLinkClicked();
+            void navigate(PATHS.quotes);
+        }, (error) => {
+            leftViaForm.current = false;
+            logRequestError(error);
+            /* Az autosave bukása után a szerkesztő MEGMARAD (nem navigálunk), tehát
+               a szöveg még a képernyőn van — de a 15 perces tétlenségi kijelentkezés
+               már a lejárt tokennel érné, ahonnan nincs mentés. A piszkozat ezt a
+               rést fedi le. */
+            saveDraft(draftStorageKey, buildPayload(), loaded.current ?? undefined);
+        });
     });
 
     // A betöltő spinner az isLoading-ig; a `lastOrder === null` ág vele EGYÜTT igaz
     // (az isLoading csak a sorszám-korlát beérkezte után lesz false), de kimondva a
     // fordítónak is: innentől a lastOrder number, így az Order `last`-ja nem number|null.
+    if (loadFailed) return (
+        <LoadFailedNotice message="Hiba az oldal betöltése közben."
+                          onRetry={() => { setLoadFailed(false); setRetryCount((count) => count + 1); }}/>
+    );
     if (isLoading || lastOrder === null) return <Spinner class="min-vh-75"/>;
 
     return (

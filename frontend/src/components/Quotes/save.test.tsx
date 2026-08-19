@@ -6,6 +6,8 @@ import {axiosResponse} from "../../test/axiosResponse";
 import {requireElement} from "../../test/dom";
 import type {AxiosResponse} from "axios";
 import type {QuoteForEdit} from "../../types/api";
+import {at} from "../../test/at";
+import {flushPendingSaves} from "../../pendingSave";
 
 /* A lekérés törzséből az azonosítót VALÓDI vizsgálattal olvassuk ki (a kém felől
    `unknown`); egy `as` csak állítaná, hogy ott a mező. */
@@ -427,11 +429,11 @@ describe("QuoteSave — versenyhelyzet a betöltésben", () => {
         const pending = await openTwoEditorsAndGoBack();
 
         // Előbb a FRISS (q-1) válasza érkezik meg, és csak utána a lejárt q-2-é.
-        act(() => pending[1].then(axiosResponse({...QUOTE, quote: "A friss idézet."})));
+        act(() => at(pending, 1).then(axiosResponse({...QUOTE, quote: "A friss idézet."})));
         /* A `_id` KIMARADT a lejárt válaszból: a /quotes/edit whitelistje nem is
            küldi (l. a fixtúra kommentjét) — eddig a fércmű-válaszban benne volt,
            holott a szerkesztő sosem kapja meg. */
-        act(() => pending[0].then(axiosResponse({
+        act(() => at(pending, 0).then(axiosResponse({
             ...QUOTE, quote: "A lejárt idézet.", author: "Másvalaki",
         })));
 
@@ -447,7 +449,7 @@ describe("QuoteSave — versenyhelyzet a betöltésben", () => {
         if (!staleCall) throw new Error("nem indult lekérés a q-2-re");
         const staleError = staleCall[3];
 
-        act(() => pending[1].then(axiosResponse({...QUOTE, quote: "A friss idézet."})));
+        act(() => at(pending, 1).then(axiosResponse({...QUOTE, quote: "A friss idézet."})));
         await waitFor(() => expect(quoteField()).toHaveValue("A friss idézet."));
         /* A lejárt kérés elszáll (idegen vagy közben törölt idézet: 403) — az ő
            hiba-ága a listára navigálna. Ez az az eset, amit a save.tsx komment a
@@ -456,5 +458,286 @@ describe("QuoteSave — versenyhelyzet a betöltésben", () => {
 
         expect(window.location.pathname).toBe("/quotes/update/q-1");
         expect(quoteField()).toHaveValue("A friss idézet.");
+    });
+});
+
+/* A PISZKOZAT — a néma adatvesztés ellen (2026-08-18).
+
+   A leváláskori mentés (kijelentkezés) a legkockázatosabb út: a képernyő épp
+   megszűnik, tehát ha a kérés elbukik, NINCS kinek szólni, és a beírt szöveg
+   nyomtalanul elvész. Ezért a hibaágon helyi másolat készül (drafts.ts), amit a
+   szerkesztő legközelebbi megnyitásakor felajánlunk.
+
+   A tesztek a VALÓDI localStorage-ot használják (a jsdom ad ilyet), és minden
+   eset után ürítik — a piszkozat modul-szintű állapotot nem tart, a tároló
+   viszont igen. */
+describe("QuoteSave — piszkozat sikertelen mentés után", () => {
+    const DRAFT_KEY = "notes-draft:quotes:q-1";
+    const failSave = () => handleAxios.mockImplementation((url, data, then, catchError) => {
+        if (url === "/quotes/update" || url === "/quotes/create") catchError(new Error("Network Error"));
+        else if (url === "/quotes/edit") then(axiosResponse(QUOTE));
+        else if (url === "/quotes/last/order") then(axiosResponse(3));
+        else then(axiosResponse({}));
+        return Promise.resolve();
+    });
+
+    afterEach(() => localStorage.clear());
+
+    it("a leváláskori mentés bukása után a szöveg PISZKOZATKÉNT megmarad", async () => {
+        window.history.pushState({}, "", "/quotes/update/q-1");
+        const view = renderRoutes();
+        await waitFor(() => expect(quoteField()).toHaveValue("Az élet szép."));
+        await userEvent.type(quoteField(), " Tényleg.");
+
+        failSave();
+        /* A PISZKOZAT CSAK A HÁROM PRÓBA UTÁN születik meg (saveRetry.ts: 1 s,
+           majd 3 s várakozás). Az órát ezért előretekerjük — valódi várakozás
+           négy másodpercig lassú lenne, és a gép terhelésétől függene. */
+        vi.useFakeTimers();
+        view.unmount();
+        await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+        vi.useRealTimers();
+
+        const stored = localStorage.getItem(DRAFT_KEY);
+        expect(stored).not.toBeNull();
+        expect(stored).toContain("Az élet szép. Tényleg.");
+    });
+
+    it("a piszkozat a BASE-t is megőrzi (enélkül nem lehetne ütközést vizsgálni)", async () => {
+        window.history.pushState({}, "", "/quotes/update/q-1");
+        const view = renderRoutes();
+        await waitFor(() => expect(quoteField()).toHaveValue("Az élet szép."));
+        await userEvent.type(quoteField(), " Tényleg.");
+
+        failSave();
+        vi.useFakeTimers();
+        view.unmount();
+        await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+        vi.useRealTimers();
+
+        const stored = localStorage.getItem(DRAFT_KEY);
+        expect(stored).not.toBeNull();
+        /* A `base` a BETÖLTÉSKORI szerver-állapot — ehhez képest dől el a
+           legközelebbi megnyitáskor, hogy a piszkozat magától visszaállhat-e. */
+        const envelope: unknown = JSON.parse(stored ?? "null");
+        expect(envelope).toMatchObject({base: {quote: "Az élet szép."}});
+    });
+
+    it("RÉGI formátumú (base nélküli) piszkozatot ELDOB: kétségnél a szerver nyer", async () => {
+        /* A `base` nélkül nem tudjuk ellenőrizni, változott-e a szerveren valami a
+           piszkozat óta. A szabály ilyenkor is ugyanaz, mint ütközésnél: a
+           szerveren lévő (biztosan mentett) változat marad. */
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({
+            savedAt: Date.now(),
+            payload: {quote: "Régi formátumú piszkozat", author: "Valaki", order: 1, fontSize: 155},
+        }));
+        window.history.pushState({}, "", "/quotes/update/q-1");
+
+        renderRoutes();
+
+        await waitFor(() => expect(quoteField()).toHaveValue("Az élet szép."));
+        expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
+    });
+
+    it("SIKERES mentés TÖRLI a korábbi piszkozatot", async () => {
+        /* A kiinduló helyzet: egy korábbi bukás piszkozatot hagyott. A felhasználó
+           most újranyitja, dolgozik, és a mentés SIKERÜL — innentől a szerveren van
+           a friss tartalom. Ha a régi piszkozat bent maradna, a következő
+           megnyitáskor egy ELAVULT szöveget ajánlanánk fel, ami felülírná a
+           frissebb, mentett változatot. */
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({
+            savedAt: Date.now(),
+            payload: {quote: "Régi, elavult piszkozat", author: "", order: 1, fontSize: 155},
+        }));
+        window.history.pushState({}, "", "/quotes/update/q-1");
+        const view = renderRoutes();
+        await waitFor(() => expect(quoteField()).toHaveValue("Az élet szép."));
+        /* A felajánlást SZÁNDÉKOSAN nem érintjük: a felhasználó rá se néz, csak
+           dolgozik tovább. A piszkozatot így a SIKERES MENTÉS kell hogy eltakarítsa. */
+        await userEvent.type(quoteField(), " Tényleg.");
+
+        // Az alapértelmezett mock SIKERREL válaszol a mentésre.
+        view.unmount();
+
+        expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
+    });
+
+    it("nincs piszkozat → a szerver adata marad (kontroll)", async () => {
+        window.history.pushState({}, "", "/quotes/update/q-1");
+
+        renderRoutes();
+
+        await waitFor(() => expect(quoteField()).toHaveValue("Az élet szép."));
+        expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
+    });
+});
+
+/* AZ ÚJRAPRÓBÁLÁS A PISZKOZAT ELŐTT (2026-08-19).
+
+   A háttérben futó mentés bukása nagyrészt MÚLÓ ok miatt történik. Ilyenkor a
+   helyes válasz még egy próba — a piszkozat csak akkor kerüljön elő, ha tényleg
+   nincs kapcsolat. E nélkül a felhasználó minden wifi-zökkenő után egy felajánlott
+   piszkozattal találkozna, ami zaj, nem segítség. */
+describe("QuoteSave — a leváláskori mentés újrapróbál", () => {
+    const DRAFT_KEY = "notes-draft:quotes:q-1";
+
+    afterEach(() => localStorage.clear());
+
+    it("az ELSŐ próba bukik, a MÁSODIK sikerül: nincs piszkozat", async () => {
+        window.history.pushState({}, "", "/quotes/update/q-1");
+        const view = renderRoutes();
+        await waitFor(() => expect(quoteField()).toHaveValue("Az élet szép."));
+        await userEvent.type(quoteField(), " Tényleg.");
+
+        let saveCalls = 0;
+        handleAxios.mockImplementation((url, data, then, catchError) => {
+            if (url === "/quotes/update") {
+                saveCalls += 1;
+                if (saveCalls === 1) catchError(new Error("Network Error"));
+                else then(axiosResponse({}));
+            } else then(axiosResponse({}));
+            return Promise.resolve();
+        });
+
+        vi.useFakeTimers();
+        view.unmount();
+        await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+        vi.useRealTimers();
+
+        expect(saveCalls).toBe(2);
+        expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
+    });
+});
+
+/* A KIJELENTKEZÉS MEGVÁRJA A MENTÉST (2026-08-19).
+
+   Eddig a kijelentkezés azonnal törölte a tokent, a szerkesztő azonnal levált, és
+   a mentése a háttérben, a leválás pillanatában indult el. Most ugyanaz a szabály
+   érvényes rá, mint a navigációra: előbb a mentés, aztán a kilépés — így a kérés
+   még a teljes jogú munkamenetben fut le, és a piszkozatra ritkábban van szükség. */
+describe("QuoteSave — kijelentkezéskor előbb ment", () => {
+    afterEach(() => localStorage.clear());
+
+    it("a kijelentkezés BEVÁRJA a mentést (a token törlése előtt fut le)", async () => {
+        window.history.pushState({}, "", "/quotes/update/q-1");
+        renderRoutes();
+        await waitFor(() => expect(quoteField()).toHaveValue("Az élet szép."));
+        await userEvent.type(quoteField(), " Tényleg.");
+
+        const order: string[] = [];
+        handleAxios.mockImplementation((url, data, then) => {
+            if (url === "/quotes/update") order.push("mentés");
+            then(axiosResponse({}));
+            return Promise.resolve();
+        });
+
+        /* A kijelentkezés a Providerből jön (a próbafa valódi AuthProvidert
+           használ): a flush a mentést a süti törlése ELŐTT futtatja le. */
+        await act(async () => { await flushPendingSaves(); order.push("kilépés"); });
+
+        expect(order).toEqual(["mentés", "kilépés"]);
+    });
+});
+
+/* A PISZKOZAT MAGÁTÓL VISSZAÁLL — ha nincs mivel ütköznie (2026-08-19).
+
+   A user kérése: ne kelljen a felhasználónak döntenie, ha nincs miről. A
+   feltétel: a szerveren azóta SEMMI nem változott, hogy a piszkozat készült — ezt
+   a piszkozatban őrzött `base` (a betöltéskori szerver-állapot) és a most
+   betöltött állapot összevetése dönti el.
+
+   Ha viszont eltér (másik eszközön módosították), marad a felajánlás: ott
+   emberi döntés kell, mert két érvényes változat van. */
+describe("QuoteSave — a piszkozat magától visszaáll", () => {
+    const DRAFT_KEY = "notes-draft:quotes:q-1";
+    const SERVER = {quote: "Az élet szép.", author: "Valaki", order: 1, fontSize: 155};
+
+    afterEach(() => localStorage.clear());
+
+    it("VÁLTOZATLAN szerver mellett magától visszatölt, felajánlás NÉLKÜL", async () => {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({
+            savedAt: Date.now(),
+            payload: {...SERVER, quote: "A mentetlen szövegem"},
+            base: SERVER,
+        }));
+        window.history.pushState({}, "", "/quotes/update/q-1");
+
+        renderRoutes();
+
+        await waitFor(() => expect(quoteField()).toHaveValue("A mentetlen szövegem"));
+        expect(screen.queryByText(/Mentetlen piszkozat maradt/)).not.toBeInTheDocument();
+        // A visszaállítás után a bejegyzés okafogyott: a szöveg a szerkesztőben él.
+        expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
+    });
+
+    it("ha a szerver MÁR A PISZKOZAT tartalmát mutatja, nincs mit visszaállítani", async () => {
+        /* A mentés valójában átment, csak a válasz veszett el — ezért hittük
+           bukásnak, és ezért készült piszkozat. A szerveren már a mi szövegünk
+           van: a visszaállítás ugyanazt írná be, a piszkozat pedig okafogyott. */
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({
+            savedAt: Date.now(),
+            payload: {...SERVER, quote: "Az élet szép."},
+            base: {...SERVER, quote: "Egy RÉGEBBI szöveg"},
+        }));
+        window.history.pushState({}, "", "/quotes/update/q-1");
+
+        renderRoutes();
+
+        await waitFor(() => expect(quoteField()).toHaveValue("Az élet szép."));
+        expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
+    });
+
+    it("ha a szerveren KÖZBEN változott valami, a SZERVER nyer, a piszkozat elvész", async () => {
+        /* A `base` egy RÉGEBBI szerver-állapotot őriz, mint amit most kaptunk —
+           tehát más eszközön MENTETTEK azóta. A user döntése: a tudatosan
+           elvégzett, mentett módosítás többet ér, mint egy el nem mentett szöveg.
+           Kérdés sincs, és a piszkozat sem marad ott kísérteni. */
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({
+            savedAt: Date.now(),
+            payload: {...SERVER, quote: "A mentetlen szövegem"},
+            base: {...SERVER, quote: "Egy RÉGEBBI szöveg"},
+        }));
+        window.history.pushState({}, "", "/quotes/update/q-1");
+
+        renderRoutes();
+
+        await waitFor(() => expect(quoteField()).toHaveValue("Az élet szép."));
+        expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
+    });
+});
+
+/* A LAP BEZÁRÁSA — itt a mentésre már nincs idő (2026-08-19).
+
+   A böngésző a lap eltűnésekor eldobja a függő kéréseket: az újrapróbálás
+   második-harmadik köre biztosan nem fut le. Ezért a `beforeunload` nem mentést
+   indít, hanem AZONNAL kiírja a piszkozatot — az localStorage-írás, tehát
+   szinkron, még a bezárás előtt megtörténik. */
+describe("QuoteSave — a lap bezárása", () => {
+    const DRAFT_KEY = "notes-draft:quotes:q-1";
+
+    afterEach(() => localStorage.clear());
+
+    it("beforeunload-ra AZONNAL piszkozatot ír (nem vár mentésre)", async () => {
+        window.history.pushState({}, "", "/quotes/update/q-1");
+        renderRoutes();
+        await waitFor(() => expect(quoteField()).toHaveValue("Az élet szép."));
+        await userEvent.type(quoteField(), " Tényleg.");
+        handleAxios.mockClear();
+
+        act(() => { window.dispatchEvent(new Event("beforeunload")); });
+
+        expect(localStorage.getItem(DRAFT_KEY)).toContain("Az élet szép. Tényleg.");
+        // És NEM indított kérést: arra már úgysem lenne idő.
+        expect(handleAxios.mock.calls.map((call) => call[0])).not.toContain("/quotes/update");
+    });
+
+    it("ÉRINTETLEN szerkesztőnél nem ír piszkozatot (kontroll)", async () => {
+        window.history.pushState({}, "", "/quotes/update/q-1");
+        renderRoutes();
+        await waitFor(() => expect(quoteField()).toHaveValue("Az élet szép."));
+
+        act(() => { window.dispatchEvent(new Event("beforeunload")); });
+
+        expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
     });
 });

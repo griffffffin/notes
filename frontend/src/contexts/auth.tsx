@@ -1,6 +1,6 @@
 import axios from "axios";
 import type {AxiosResponse} from "axios";
-import {useCallback, useEffect, useMemo, useRef} from "react";
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import type {ReactNode} from "react";
 import {useCookies} from "react-cookie";
 import * as v from "valibot";
@@ -16,6 +16,7 @@ import {BACKEND_URL} from "../backendUrl";
 import {COOKIES, SESSION_COOKIE} from "../cookies";
 import {logRequestError} from "../log";
 import {parseResponse, reportContractFault} from "../contractFault";
+import {flushPendingSaves} from "../pendingSave";
 
 /* Bejelentkezés és szerverhívás egy helyen.
 
@@ -83,12 +84,38 @@ export function AuthProvider({children}: {children: ReactNode}) {
     /* Refek és nem state-ek: másodpercenként sokszor frissülnek, és senki nem
        jeleníti meg őket — state-ként minden egérmozdulat újrarajzolná az egész
        appot. */
+    /* Épp a kijelentkezés mentésére várunk-e (l. a logout késleltetett jelzőjét).
+       A felület ebből tudja, hogy karikát mutasson a szerkesztő helyett. */
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
     const lastActivity = useRef(Date.now());
     const lastRefresh = useRef(Date.now());
 
     const login = useCallback((newToken: AuthToken) =>
         setCookie(COOKIES.token, newToken, SESSION_COOKIE), [setCookie]);
-    const logout = useCallback(() => removeCookie(COOKIES.token, SESSION_COOKIE), [removeCookie]);
+    /* A KIJELENTKEZÉS MEGVÁRJA a szerkesztő függő mentését — ugyanaz a szabály,
+       ami a navigációra már érvényes (a blocker csak a mentés után enged tovább).
+       Eddig a süti törlése azonnal megtörtént, a szerkesztő azonnal levált, és a
+       mentése a háttérben, MÁR TÖRÖLT élő token mellett indult el (a zárványolt
+       tokenre épült). Így viszont a mentés még a teljes jogú munkamenetben fut le.
+
+       A `void` KIMONDVA: a `logout` szerződése szerint semmit nem ad vissza (a
+       hívók gombok onClickje és a tétlenségi óra), de belül aszinkron munka van —
+       a promise-t itt nyeljük el, a hibáit pedig a flush maga (l. pendingSave.ts:
+       egy sikertelen mentés sem akadályozhatja meg a kilépést). */
+    /* A kijelentkezés VÁRAKOZIK a mentésre — és ha a várakozás ÉRZÉKELHETŐ, azt
+       meg is mutatjuk (l. isLoggingOut lentebb). */
+    const logout = useCallback(() => {
+        /* A JELZŐ KÉSLELTETVE gyullad ki. Egészséges esetben a mentés
+           századmásodpercek alatt lefut — egy azonnal megjelenő karika ilyenkor
+           csak VILLANNA egyet, ami zavaróbb, mint a semmi. A 300 ms az a küszöb,
+           ami alatt a felhasználó a késleltetést nem érzékeli várakozásnak. */
+        const showSpinner = setTimeout(() => setIsLoggingOut(true), 300);
+        void flushPendingSaves().finally(() => {
+            clearTimeout(showSpinner);
+            setIsLoggingOut(false);
+            removeCookie(COOKIES.token, SESSION_COOKIE);
+        });
+    }, [removeCookie]);
 
     /* Az `authToken` OPCIONÁLIS felülírás: alapból az ÉLŐ tokent (tokenRef) küldjük.
        A kijelentkezéskori unmount-mentés (Quotes/save.tsx) viszont a MÁR TÖRÖLT élő
@@ -108,12 +135,17 @@ export function AuthProvider({children}: {children: ReactNode}) {
         // (a legutóbbi render tokene). A `?? tokenRef.current` a null-t is elnyeli:
         // nincs override → az élő tokent küldi. Ezért a null megengedett bemenet.
         authToken?: AuthToken | null,
-    ): Promise<void> => {
+        // A típus `void`: a promise befelé kell, kifelé nem (l. auth-context.ts).
+    ): void => {
         const bearer = authToken ?? tokenRef.current;
         /* A `<unknown>` KIMONDVA: az axios alapértelmezése `any` volna, ami
            csendben mindent átengedne — épp azt a védelmet kapcsolná ki, amiért a
-           válasz típusa `unknown` lett (l. auth-context.ts). */
-        return axios.post<unknown>(BACKEND_URL + url, data, {
+           válasz típusa `unknown` lett (l. auth-context.ts).
+
+           A láncot elindítjuk, de NEM adjuk ki (nincs `return`): a hívó a
+           visszahívásokból dolgozik, és a lánc végén álló `.catch` miatt ez a
+           promise sosem utasítódik el. */
+        axios.post<unknown>(BACKEND_URL + url, data, {
             timeout: REQUEST_TIMEOUT_MS,
             headers: bearer ? {Authorization: "Bearer " + bearer} : undefined,
         })
@@ -199,8 +231,9 @@ export function AuthProvider({children}: {children: ReactNode}) {
         isLoggedIn: Boolean(token),
         login,
         logout,
+        isLoggingOut,
         handleAxios,
-    }), [token, login, logout, handleAxios]);
+    }), [token, login, logout, isLoggingOut, handleAxios]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

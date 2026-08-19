@@ -19,28 +19,41 @@ import {fieldAnchor, type FieldAnchor} from "../Editor/fieldAnchor";
 import ValidationTooltip from "../Editor/validationTooltip";
 import {useEscapeSubmit} from "../Editor/useEscapeSubmit";
 import {useIdleTimer} from "../Editor/useIdleTimer";
-import {isTodoColor, type TodoColor} from "../../todoColors";
-import * as v from "valibot";
-import {todoSchema, lastOrderSchema} from "../../types/api";
-import type {Tasks} from "../../types/api";
+import {isTodoColor} from "../../todoColors";
+import {todoSchema, lastOrderSchema, tasksSchema} from "../../types/api";
 import type {TodoDraft, SetTask, SetTaskOrder} from "./todoDraft";
 import {PATHS} from "../../paths";
+import {parseResponse} from "../../contractFault";
+import LoadFailedNotice from "../loadFailedNotice";
+import * as v from "valibot";
+import {clearDraft, draftKey, readDraft, saveDraft} from "../../drafts";
+import {saveWithRetry} from "../../saveRetry";
+import {registerPendingSave} from "../../pendingSave";
 
 /* A szerkesztő és a szerver közti ÖSSZEHASONLÍTHATÓ pillanatkép: az a hat mező,
    amit a "változott-e?" ellenőrzés néz. A `loadedTodo` ref ezt tárolja (a szerver
    adta állapot), és a currentData() is ebbe az alakba gyűjti a jelenlegi mezőket. */
-type TodoSnapshot = {
-    title: string;
-    category: string;
-    color: TodoColor;
-    order: number;
-    tasks: Tasks;
-    taskOrder: number[];
-};
+const snapshotSchema = v.object({
+    /* A négy egyszerű mező a SZERVER SÉMÁJÁBÓL származik (`v.pick`), nem kézi
+       másolatból: egy szín-lista bővítés vagy mező-átnevezés így egy helyen
+       történik. A `tasks`/`taskOrder` itt KÖTELEZŐ (a szerkesztő mindig kitölti,
+       akár üresen), míg a szerver válaszában opcionális. */
+    ...v.pick(todoSchema, ["title", "category", "color", "order"]).entries,
+    tasks: tasksSchema,
+    taskOrder: v.array(v.number()),
+});
+type TodoSnapshot = v.InferOutput<typeof snapshotSchema>;
 
 /* A MENTENDŐ adat: a pillanatkép + update-nél a szerkesztett elem id-je. A három
    mentési útvonal (blocker, leváláskori mentés, autosave) ezt küldi. */
 type TodoPayload = TodoSnapshot & {id?: string};
+
+/* A PISZKOZAT ugyanaz, mint a pillanatkép — ezért UGYANAZ a séma áll mögötte,
+   nem egy második leírás. A piszkozat a böngésző tárolójából jön VISSZA, tehát
+   kívülről érkező érték: sémával olvassuk, nem hittel (l. drafts.ts). A típus is
+   innen származik, így a kettő nem tud elcsúszni egymástól. */
+const draftSchema = snapshotSchema;
+type StoredDraft = TodoSnapshot;
 
 /* A propokat a routes.tsx TodosSaveRoute wrapperje adja (a categoriest + a két
    handlert az App-tól). A `handleLinkClicked`/`handleCategoryChange` paraméter
@@ -84,6 +97,15 @@ export default function Save(props: SaveProps) {
     const {id} = useParams();
     const location = useLocation();
     const [lastOrder, setLastOrder] = useState<number | null>(null);
+    /* A BETÖLTÉS ELBUKOTT-e. A karika eltűnése a `lastOrder` megérkezéséhez van
+       kötve, tehát a lekérés bukása után magától SOSEM tűnne el — a felület
+       örökké várakozna valamire, ami nem jön (a /create ágon ez az EGYETLEN
+       kérés, ott tehát az egész szerkesztő használhatatlan maradna). */
+    const [loadFailed, setLoadFailed] = useState(false);
+    /* ÚJRAPRÓBÁLKOZÁS-SZÁMLÁLÓ: a betöltő effekt függőségei közt áll, tehát a
+       léptetése újrafuttatja a lekéréseket — oldalfrissítés nélkül, ami a
+       szerkesztőben már beírt szöveget is elvinné. */
+    const [retryCount, setRetryCount] = useState(0);
     const [isCategoryAngleClicked, setIsCategoryAngleClicked] = useState(false);
     const navigate = useNavigate();
     const {handleAxios, token} = useAuth();
@@ -110,6 +132,18 @@ export default function Save(props: SaveProps) {
        irányítja), ide már nem jut el. Create-nél nincs szerkesztett elem: null. */
     const todoId = isUpdate ? id : null;
 
+    /* A PISZKOZAT kulcsa a szerkesztett ELEMHEZ tartozik (create-nél a szekció
+       közös "create" piszkozatához) — l. drafts.ts. */
+    const draftStorageKey = draftKey("to-dos", todoId ?? null);
+    /* EGYSZER olvassuk ki, a legelső renderben (lusta kezdőérték). A típus
+       kimondva, mert a kezdőérték `null` is lehet. */
+    const [draft, setDraft] = useState<{payload: StoredDraft; base: StoredDraft | null; savedAt: Date} | null>(
+        () => readDraft(draftStorageKey, draftSchema));
+    /* A piszkozat legfrissebb értéke REFBEN is (l. Quotes/save.tsx azonos pontját):
+       a betöltő effekt zárványa különben a mountkori állapotot látná. */
+    const draftRef = useRef(draft);
+    draftRef.current = draft;
+
     /* A szerverről betöltött állapot — a beküldéskor ehhez mérjük, változott-e
        bármi. Ref és nem state: senki nem jeleníti meg, és a változása nem
        járhat újrarajzolással. */
@@ -121,7 +155,10 @@ export default function Save(props: SaveProps) {
     const leftViaForm = useRef(false);
     /* A leváláskor futtatandó mentés legfrissebb változata — minden renderben frissül,
        hogy az unmount az aktuális állapotot mentse (l. lentebb). */
-    const saveOnLeaveRef = useRef(() => {});
+    /* A típus KIMONDVA: a kezdőérték egy üres függvény volna, amiből a fordító
+       `() => void`-ot következtetne — a mentés viszont PROMISE-t ad vissza, hogy a
+       kijelentkezés megvárhassa (l. pendingSave.ts). */
+    const saveOnLeaveRef = useRef<() => Promise<void>>(() => Promise.resolve());
     /* A "van-e mentenivaló?" (dirty) legfrissebb értéke — a useBlocker shouldBlock-ja
        ref-ből olvassa, hogy stabil (üres deps) függvény lehessen, mégis a friss
        állapotot lássa. */
@@ -136,8 +173,8 @@ export default function Save(props: SaveProps) {
        link: a location kulcsa "default"), vagy ha új to-do-t hoztunk létre, a
        to-do listára megyünk. A navigációt a blocker kapja el, ha van mentenivaló. */
     const leaveEditor = useCallback(() => {
-        if (isUpdate && location.key !== "default") navigate(-1);
-        else navigate(PATHS.todos);
+        if (isUpdate && location.key !== "default") void navigate(-1);
+        else void navigate(PATHS.todos);
     }, [isUpdate, location.key, navigate]);
 
     /* A színválasztó gomb `value`-ja DOM-szinten sima string; az isTodoColor VALÓDI
@@ -171,7 +208,7 @@ export default function Save(props: SaveProps) {
                    to-do alakú, a v.parse dob, és a hibaágon a szerkesztő kilép a
                    listára. Fordított sorrendben (előbb írni, aztán ellenőrizni) a
                    szerkesztő félig kitöltött, felemás állapotban maradna. */
-                const loaded = v.parse(todoSchema, response.data);
+                const loaded = parseResponse(todoSchema, response.data, ENDPOINTS.todoById);
                 // Pillanatkép arról, AMIT a szerver adott — a beküldéskor ehhez
                 // hasonlítunk, hogy egy változatlan űrlap ne írjon feleslegesen.
                 loadedTodo.current = {
@@ -197,6 +234,12 @@ export default function Save(props: SaveProps) {
                 setCategory(loaded.category);
                 setIsCategoryValid(true);
                 setIsDisabled(false);
+
+                /* A PISZKOZAT MAGÁTÓL VISSZAÁLL, ha nincs mivel ütköznie — a
+                   feltétel és az indoklás a Quotes/save.tsx azonos pontján. Az
+                   összevetés az `isUnchanged`, ugyanaz, amivel a "változott-e az
+                   űrlap" kérdést is eldöntjük. */
+                if (loadedTodo.current) decideDraftRef.current(loadedTodo.current);
             }, (error) => {
                 if (!active) return;
                 // A to-do nem tölthető be (pl. timeout vagy törölt elem) — vissza
@@ -207,15 +250,24 @@ export default function Save(props: SaveProps) {
                 leaveEditor();
             });
         }
+        // CREATE: nincs betöltendő elem, tehát a piszkozatnak nincs mivel ütköznie.
+        if (!todoId) decideDraftRef.current(null);
         handleAxios(ENDPOINTS.todoLastOrder, {},
             (response) => {
                 if (!active) return;
-                const lastOrder = v.parse(lastOrderSchema, response.data);
+                const lastOrder = parseResponse(lastOrderSchema, response.data, ENDPOINTS.todoLastOrder);
                 setLastOrder(lastOrder === 0 ? 0 : (isUpdate ? lastOrder - 1 : lastOrder));
             },
-            logRequestError);
+            (error) => {
+                if (!active) return;
+                logRequestError(error);
+                /* NEM navigálunk el (mint a to-do betöltésének hibaágán): itt a
+                   felhasználó lehet, hogy már gépel is. A karika helyett
+                   kimondjuk, mi történt — a szöveg a helyén marad. */
+                setLoadFailed(true);
+            });
         return () => { active = false; };
-    }, [isUpdate, todoId, handleAxios, leaveEditor]);
+    }, [isUpdate, todoId, handleAxios, leaveEditor, retryCount, draftStorageKey]);
 
     const setTask = useCallback<SetTask>((key, content, isDone) => {
         return {
@@ -254,6 +306,53 @@ export default function Save(props: SaveProps) {
 
     const handleColorAngleClick = useCallback(() => setIsColorAngleClicked(!isColorAngleClicked),
         [isColorAngleClicked]);
+
+    /* A piszkozat mezőinek beírása a szerkesztőbe. */
+    const applyDraft = (payload: StoredDraft) => {
+        setTitle(payload.title);
+        setCategory(payload.category);
+        setColor(payload.color);
+        setOrder(payload.order);
+        setTodo((current) => ({
+            ...current,
+            tasks: payload.tasks,
+            columns: {createColumn: {...current.columns["createColumn"], taskOrder: payload.taskOrder}},
+        }));
+    };
+
+    /* MI LEGYEN A PISZKOZATTAL a betöltés után — a szabály és az indoklás a
+       Quotes/save.tsx `decideDraft`-jánál: változatlan szerver → visszaáll,
+       megváltozott szerver → a FRISSEBB (szerver-oldali) változat nyer, a
+       piszkozatot eldobjuk. */
+    const decideDraft = (fromServer: TodoSnapshot | null) => {
+        const pending = draftRef.current;
+        if (!pending) return;
+        /* HÁROM ESET, és mindet a TARTALOM dönti el:
+
+           1. a szerver ugyanaz, mint a betöltéskori állapot (`base`) → azóta
+              senki nem mentett, a piszkozat az egyetlen újabb változat → VISSZA;
+           2. a szerver MÁR A PISZKOZAT TARTALMÁT mutatja → a mi mentésünk
+              valójában átment (a válasz veszett el útközben, ezért hittük
+              bukásnak). Külön ág NEM kell hozzá: a visszaállítás úgyis ugyanazt
+              a szöveget írná be, ami már ott van — a piszkozat egyszerűen
+              okafogyott, és törlődik;
+           3. a szerver mást mutat, mint bármelyik → egy MÁSIK eszközön mentettek
+              → a frissebb, mentett változat marad, a piszkozat elvész.
+
+           A 2. és a 3. eset viselkedése tehát azonos (törlés), de az OKUK más —
+           és a 2. nem adatvesztés: a tartalom a szerveren van. */
+        const restore = fromServer === null
+            || (pending.base !== null && isUnchanged(pending.base, fromServer));
+        if (restore) applyDraft(pending.payload);
+        clearDraft(draftStorageKey);
+        setDraft(null);
+    };
+
+    /* A döntés REFEN át hívódik a betöltő effektből: a függvény minden renderben
+       újra elkészül, tehát függőségként a lekérést is minden renderben
+       újraindítaná. A ref mindig a legfrissebb változatra mutat. */
+    const decideDraftRef = useRef(decideDraft);
+    decideDraftRef.current = decideDraft;
 
     /* Az AKTUÁLIS űrlap adata egy objektumban — a mentés és a "változott-e"
        ellenőrzés is ezt használja. A user-azonosítót NEM küldjük: a szerver a
@@ -335,6 +434,8 @@ export default function Save(props: SaveProps) {
         if (todoId) data.id = todoId;
         handleAxios(url, data, (response) => {
             if (response.status === 200) {
+                // A tartalom a szerveren van: a helyi másolat okafogyott.
+                clearDraft(draftStorageKey);
                 props.handleLinkClicked();
                 props.handleCategoryChange();
                 blocker.proceed();
@@ -346,7 +447,7 @@ export default function Save(props: SaveProps) {
             blocker.reset();
         });
     }, [blocker, isTitleValid, isCategoryValid, title, category, color, order, todo,
-        isUpdate, todoId, url, handleAxios, props]);
+        isUpdate, todoId, url, handleAxios, props, draftStorageKey]);
 
     /* A Tovább gomb (és az Escape) már csak NAVIGÁL — az ellenőrzést+mentést a
        fenti blocker intézi, ha van mentenivaló. Érintetlen űrlapnál a blocker nem
@@ -365,17 +466,62 @@ export default function Save(props: SaveProps) {
        törli az ÉLŐ tokent, ezért azt EXPLICIT átadjuk a handleAxios-nak, különben a
        mentés token nélkül, 401-gyel elveszne. */
     saveOnLeaveRef.current = () => {
-        if (!hasSilentWork()) return;
+        if (!hasSilentWork()) return Promise.resolve();
+        // L. a Quotes/save.tsx azonos pontját: a kijelentkezés megvárja ezt a mentést.
+        leftViaForm.current = true;
         const data = currentData();
         if (todoId) data.id = todoId;
         // A zárványolt `token` (nem az élő tokenRef): kijelentkezéskor az élő már null.
-        handleAxios(url, data, (response) => {
-            if (response.status === 200) props.handleCategoryChange();
-        }, logRequestError, token);
+        /* A LEVÁLÁSKORI MENTÉS a legkockázatosabb út: a képernyő épp megszűnik,
+           tehát ha ez elbukik (lejárt token, alvó szerver, megszakadt hálózat),
+           NINCS kinek szólni — a beírt szöveg nyomtalanul elveszne. Ezért a
+           hibaágon PISZKOZATOT írunk a böngésző tárolójába (l. drafts.ts). */
+        /* ÚJRAPRÓBÁLÁS a piszkozat ELŐTT (l. saveRetry.ts): a bukások nagy része
+           múló (wifi-váltás, épp újrainduló szerver), és arra a helyes válasz még
+           egy próba — nem egy felajánlott piszkozat a következő megnyitáskor. */
+        return saveWithRetry(
+            (onSuccess, onFailure) => handleAxios(url, data, (response) => {
+                if (response.status !== 200) return;
+                clearDraft(draftStorageKey);
+                props.handleCategoryChange();
+                onSuccess();
+            }, onFailure, token),
+            (error) => {
+                leftViaForm.current = false;
+                logRequestError(error);
+                saveDraft(draftStorageKey, currentData(), loadedTodo.current ?? undefined);
+            });
     };
 
+    /* A LAP BEZÁRÁSA (fül, böngésző) — itt a MENTÉSRE már nincs idő.
+
+       A böngésző a lap eltűnésekor eldobja a függő kéréseket, és megállítani sem
+       tudjuk: az újrapróbálás (saveRetry) második-harmadik köre biztosan nem fut
+       le. Ezért itt NEM mentést indítunk, hanem AZONNAL kiírjuk a piszkozatot —
+       az localStorage-írás, tehát szinkron, még a bezárás előtt megtörténik.
+
+       Ha közben mégis átment egy mentés, az a piszkozatot úgyis törli; ha nem, a
+       szöveg megmarad, és a szerkesztő legközelebbi megnyitásakor magától
+       visszaáll (l. drafts.ts). Fölösleges piszkozat így legfeljebb egy marad,
+       adat viszont nem vész el. */
+    useEffect(() => {
+        const keepWork = () => {
+            if (!hasSilentWork()) return;
+            saveDraft(draftStorageKey, currentData(), loadedTodo.current ?? undefined);
+        };
+        window.addEventListener("beforeunload", keepWork);
+        return () => window.removeEventListener("beforeunload", keepWork);
+    });
+
+    // A kijelentkezés MEGVÁRJA ezt a mentést (l. pendingSave.ts).
+    useEffect(() => registerPendingSave(() => saveOnLeaveRef.current()), []);
+
     // A fenti mentés a szerkesztő LEVÁLÁSAKOR (pl. kijelentkezés) fut le, egyszer.
-    useEffect(() => () => saveOnLeaveRef.current(), []);
+    /* A cleanup NEM adhatja tovább a promise-t: a React a visszatérési értéket
+       takarító függvénynek nézné. A `void` kimondja, hogy itt nem várunk rá — a
+       leválás pillanatában már úgyis nincs kinek visszajelezni; a kijelentkezés
+       ága az, ami MEGVÁRJA (l. pendingSave.ts). */
+    useEffect(() => () => { void saveOnLeaveRef.current(); }, []);
 
     /* Az AUTOSAVE (tétlenség után) — mint a leváláskori mentés, de siker UTÁN a
        listára navigál (kilép a szerkesztőből). Az órát a közös useIdleTimer adja;
@@ -395,10 +541,18 @@ export default function Save(props: SaveProps) {
         const data = currentData();
         if (todoId) data.id = todoId;
         handleAxios(url, data, () => {
+            clearDraft(draftStorageKey);
             props.handleLinkClicked();
             props.handleCategoryChange();
-            navigate(PATHS.todos);
-        }, (error) => { leftViaForm.current = false; logRequestError(error); });
+            void navigate(PATHS.todos);
+        }, (error) => {
+            leftViaForm.current = false;
+            logRequestError(error);
+            /* Az autosave bukása után a szerkesztő MEGMARAD, tehát a szöveg még a
+               képernyőn van — de a 15 perces tétlenségi kijelentkezés már a lejárt
+               tokennel érné, ahonnan nincs mentés. A piszkozat ezt a rést fedi le. */
+            saveDraft(draftStorageKey, currentData(), loadedTodo.current ?? undefined);
+        });
     });
 
     /* A színre már nem kell várni (a témából indul, nem egy kérés hozza), csak
@@ -416,8 +570,17 @@ export default function Save(props: SaveProps) {
     // A betöltő spinner az isLoading-ig; a `lastOrder === null` ág vele EGYÜTT igaz
     // (az isLoading csak a sorszám-korlát beérkezte után lesz false), de kimondva a
     // fordítónak is: innentől a lastOrder number, így az Order `last`-ja nem number|null.
+    if (loadFailed) return (
+        <LoadFailedNotice message="Hiba az oldal betöltése közben."
+                          onRetry={() => { setLoadFailed(false); setRetryCount((count) => count + 1); }}/>
+    );
     if (isLoading || lastOrder === null) return <Spinner class="min-vh-75"/>;
 
+    /* A PISZKOZAT VISSZATÖLTÉSE: a mezőket írja felül, a bejegyzést pedig
+       eltünteti — a visszatöltött tartalom innentől a szerkesztőben él, és a
+       következő mentés viszi a szerverre. A `tasks`/`taskOrder` a szerkesztő
+       saját szerkezetébe (TodoDraft columns) kerül vissza, ahonnan a felület
+       rajzol. */
     return (
         <form ref={formRef} noValidate onSubmit={handleSubmit}
               className={"col-11 col-sm-10 col-md-8 col-lg-7 col-xl-6 card " +

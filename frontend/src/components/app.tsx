@@ -11,6 +11,7 @@ import {logRequestError} from "../log";
 import {categoryListSchema} from "../types/api";
 import type {Todo} from "../types/api";
 import {parseResponse} from "../contractFault";
+import Spinner from "./spinner";
 
 /* CSAK a ténylegesen használt ikonokat regisztráljuk, nem a teljes `fas`
    készletet (~1600 ikon). A régi `library.add(fas)` mindet a bundle-be húzta,
@@ -40,7 +41,7 @@ export default function App() {
        meg kell tudni figyelmeztetni — az első betöltésnél az üres lista különben
        azt állítaná, hogy nincs egyetlen kategóriája sem. */
     const [categoriesFailed, setCategoriesFailed] = useState(false);
-    const {isLoggedIn, handleAxios} = useAuth();
+    const {isLoggedIn, isLoggingOut, handleAxios} = useAuth();
 
     const handleLinkClicked = useCallback(() => {
         setIsColorAngleClicked(false);
@@ -97,12 +98,18 @@ export default function App() {
        használja a hátteréért, és annak nem kell képernyőnyi magasság. */
     return (
         <div className="container-fluid px-0 bg-theme-page min-vh-100">
+            {/* A KIJELENTKEZÉS MENTÉSE közben karika — de csak akkor, ha a
+                várakozás ÉRZÉKELHETŐ (a jelző 300 ms után gyullad ki, l.
+                contexts/auth.tsx). A tartalom helyén jelenik meg, mert ilyenkor a
+                szerkesztőben nem érdemes tovább gépelni: a munkamenet zárul. */}
+            {isLoggingOut && <Spinner class="min-vh-75"/>}
+            {!isLoggingOut &&
             <Routes handleLinkClicked={handleLinkClicked}
                     setIsColorAngleClicked={setIsColorAngleClicked} isColorAngleClicked={isColorAngleClicked}
                     setIsCategoryAngleClicked={setIsCategoryAngleClicked}
                     isCategoryAngleClicked={isCategoryAngleClicked}
                     categories={categories} categoriesFailed={categoriesFailed}
-                    handleCategoryChange={handleCategoryChange}/>
+                    handleCategoryChange={handleCategoryChange}/>}
         </div>
     );
 }

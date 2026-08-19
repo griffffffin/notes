@@ -4,15 +4,16 @@ import axios from "axios";
 import {useState} from "react";
 import {Cookies, CookiesProvider} from "react-cookie";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
-import * as v from "valibot";
 import {AuthProvider} from "./auth";
 import {useAuth} from "./auth-context";
 import {axiosResponse} from "../test/axiosResponse";
 import {fakeToken} from "../test/fakeToken";
 import {ENDPOINTS} from "../endpoints";
-import {authTokenSchema} from "../types/api";
+import {authTokenSchema, quoteListSchema} from "../types/api";
 import {COOKIES} from "../cookies";
+import {parseResponse} from "../contractFault";
 import {ACTIVITY_EVENTS} from "../idle";
+import {registerPendingSave} from "../pendingSave";
 
 /* Az axios AUTOMOCKOLVA: a modul minden exportja kémmé válik, tehát valódi
    hálózat nincs, de az AuthProvider (és benne a handleAxios) a maga teljes
@@ -35,10 +36,22 @@ const postSpy = () => vi.mocked(axios.post);
 const TOKEN = fakeToken();
 const CAPTURED_TOKEN = fakeToken("u-zarvany");
 
+/* A JELENTÉS TÖRZSÉBŐL a végpont — VALÓDI vizsgálattal, nem `as`-szal.
+
+   A kém `unknown`-t ad (azt, amit a kód a hálózatra küldött volna), és ez a
+   helyes: a teszt sem tudhatja előre, mi van benne. Egy `as {endpoint: string}`
+   csak ÁLLÍTANÁ az alakot — ha a jelentés mezője egyszer átnevezésre kerülne, a
+   teszt `undefined`-ot hasonlítana, és a hibaüzenet a végpontról szólna, nem a
+   megváltozott törzsről. (A projekt lint-szabálya is ezt tiltja.) */
+function reportedEndpoint(body: unknown): unknown {
+    if (typeof body !== "object" || body === null || !("endpoint" in body)) return body;
+    return body.endpoint;
+}
+
 /* Próbakomponens: kiírja, amit a Contextből kap, és gombokkal hívja a
    műveleteit — így a hookot komponensfa nélkül vizsgálhatjuk. */
 function AuthProbe() {
-    const {token, isLoggedIn, login, logout, handleAxios} = useAuth();
+    const {token, isLoggedIn, isLoggingOut, login, logout, handleAxios} = useAuth();
     /* A séma-ellenőrzés a HÍVÓ oldalán történik (l. types/api.ts): a próba ezért
        pontosan úgy jár el, ahogy egy valódi hívó — a választ átengedi a sémán, és
        az EREDMÉNYT írja ki. Így a teszt azt látja, melyik ág futott le. */
@@ -46,14 +59,25 @@ function AuthProbe() {
     return (
         <div>
             <span data-testid="belepett">{String(isLoggedIn)}</span>
+            <span data-testid="kilepes-alatt">{String(isLoggingOut)}</span>
             <span data-testid="token">{token ?? "nincs"}</span>
             <span data-testid="eredmeny">{outcome}</span>
             <button onClick={() => handleAxios(ENDPOINTS.login, {}, 
-                (response) => setOutcome("siker: " + v.parse(authTokenSchema, response.data)),
+                (response) => setOutcome("siker: " +
+                    parseResponse(authTokenSchema, response.data, ENDPOINTS.login)),
                 () => setOutcome("hibaág"))}>kérés-sémával</button>
             <button onClick={() => login(TOKEN)}>belépés</button>
             <button onClick={logout}>kilépés</button>
             <button onClick={() => handleAxios(ENDPOINTS.todos, {a: 1}, () => {}, () => {})}>kérés</button>
+            {/* MÁSIK végpont, sémával. Azért kell külön, mert a szerződés-hiba
+                jelentése végpontonként EGYSZER megy el (contractFault.ts): ha a
+                jelentést vizsgáló teszt ugyanazt a végpontot használná, mint a
+                fenti "kérés-sémával" gomb, akkor a sorrendjüktől függene, melyik
+                látja a jelentést — a teszt hol zöld, hol piros lenne. */}
+            <button onClick={() => handleAxios(ENDPOINTS.quotes, {},
+                (response) => setOutcome("siker: " +
+                    parseResponse(quoteListSchema, response.data, ENDPOINTS.quotes).length),
+                () => setOutcome("hibaág"))}>idézet-kérés sémával</button>
             {/* Explicit token-felülírással — ezt használja a leváláskori (kijelentkezés
                 utáni) mentés, amikor az élő token már törlődött. */}
             <button onClick={() => handleAxios(ENDPOINTS.todos, {a: 1}, () => {}, () => {}, CAPTURED_TOKEN)}>
@@ -70,7 +94,13 @@ const renderAuth = () => render(
 
 beforeEach(() => {
     postSpy().mockReset();
-    postSpy().mockResolvedValue(axiosResponse("ok"));
+    /* AZ ALAPÉRTELMEZETT VÁLASZ VALÓDI ALAKÚ TOKEN. Korábban egy "ok" szöveg volt,
+       ami egyik végpont válaszára sem hasonlít: a /login és a /refresh JWT-t ad. A
+       különbség nem elméleti volt — a séma minden ilyen válasznál elutasított,
+       vagyis a tesztek észrevétlenül SZERZŐDÉS-HIBÁKAT gyártottak, és az azokat
+       vizsgáló teszt már csak a (végpontonként egyszeri) jelentés hiányát látta.
+       A mock a valóságot tükrözze; amelyik teszt rossz alakot akar, mondja ki. */
+    postSpy().mockResolvedValue(axiosResponse(fakeToken("u-alapertelmezett")));
 });
 
 afterEach(() => {
@@ -343,6 +373,46 @@ describe("Elutasított (értelmezhetetlen) válasz", () => {
     });
 });
 
+/* A SZERZŐDÉS-HIBA ÚTJA VÉGIG, a valódi handleAxios-on. A contractFault.ts saját
+   tesztje a gépezetet méri (jelöl, értesít, jelent); ez azt méri, hogy a lánc
+   ÖSSZE IS VAN KÖTVE — a hívási helyen dobott hiba tényleg eljut a handleAxios
+   catch-ágába, és onnan a jelentésig. Ez a kötés egyetlen sor, amit egy refaktor
+   némán kivehet: a tesztek attól még zöldek maradnának, csak élesben nem tudnánk
+   meg soha, hogy elromlott a szerződés. */
+describe("Szerződés-hiba a handleAxios hibaágán", () => {
+    /* A jelentést a /client-error végpontra menő KÉRÉSEN figyeljük meg — ugyanaz
+       az axios-kém, amivel a többi teszt is dolgozik. Ez azt is méri, ami a
+       felhasználó felé nem látszik: hogy a hiba tényleg eljut a szerver naplójáig. */
+    const reportedEndpoints = () => postSpy().mock.calls
+        .filter(([url]) => String(url).endsWith(ENDPOINTS.clientError))
+        .map(([, body]) => reportedEndpoint(body));
+
+    it("a séma bukása szerződés-hibaként jelentődik, a végpont nevével", async () => {
+        // A válasz nem JWT-alakú: a próba parseResponse-a el fogja utasítani.
+        postSpy().mockResolvedValue(axiosResponse("nem-egy-jwt"));
+        renderAuth();
+
+        await userEvent.click(screen.getByRole("button", {name: "idézet-kérés sémával"}));
+
+        await waitFor(() => expect(reportedEndpoints()).toEqual([ENDPOINTS.quotes]));
+        // A hívási hely saját hibaága ATTÓL FÜGGETLENÜL lefut — a kettő nem váltja ki egymást.
+        expect(screen.getByTestId("eredmeny")).toHaveTextContent("hibaág");
+    });
+
+    it("a HÁLÓZATI hiba NEM szerződés-hiba (kontroll)", async () => {
+        /* Enélkül a fenti teszt abból is zöld lehetne, hogy MINDEN hibát
+           jelentünk — és akkor minden hálózati zökkenő a szerver naplójába
+           kerülne, ami pont a napló használhatóságát venné el. */
+        postSpy().mockRejectedValue(new Error("Network Error"));
+        renderAuth();
+
+        await userEvent.click(screen.getByRole("button", {name: "kérés-sémával"}));
+
+        await waitFor(() => expect(screen.getByTestId("eredmeny")).toHaveTextContent("hibaág"));
+        expect(reportedEndpoints()).toEqual([]);
+    });
+});
+
 describe("Tétlenségi kijelentkezés", () => {
     /* A negyed óra kivárása helyett az órát tekerjük előre: az időzítőket a
        vitest hamis órája adja, így a teszt ezredmásodpercek alatt lefut. */
@@ -389,6 +459,11 @@ describe("Tétlenségi kijelentkezés", () => {
 
     it("aktivitáskor megújítja a tokent, de legfeljebb 5 percenként", async () => {
         await signIn();
+        /* A megújítás válasza VALÓDI ALAKÚ token. Korábban itt a beforeEach
+           általános "ok" szövege maradt, ami nem JWT — a séma elutasította, és a
+           teszt észrevétlenül szerződés-hibát gyártott (jelentéssel együtt). A
+           mock a valóságot tükrözze: ez a végpont tokent ad. */
+        postSpy().mockResolvedValue(axiosResponse(fakeToken("u-megujitott")));
         postSpy().mockClear();
 
         // Sűrű egérmozgás: ettől még nem szabad kérést indítania.
@@ -419,13 +494,26 @@ describe("Tétlenségi kijelentkezés", () => {
         });
     };
 
-    it("HIBÁS alakú megújítás után a RÉGI token marad", async () => {
+    it("HIBÁS alakú megújítás után a RÉGI token marad, és a hiba JELENTŐDIK", async () => {
+        /* A két állítás SZÁNDÉKOSAN egy tesztben van. Külön írva a második attól
+           függne, melyikük fut előbb: a szerződés-hibát végpontonként EGYSZER
+           jelentjük (contractFault.ts), tehát a másodikként futó teszt már nem
+           látná a jelentést. Egy teszt, egy megújítás, két következmény.
+
+           Miért fontos a jelentés épp itt: a megújítás a HÁTTÉRBEN fut, a
+           felhasználó tudta nélkül — ez a legkönnyebben elnémuló út. Ráadásul nem
+           a handleAxios-on megy (nem akarunk tőle 401-kiléptetést), tehát a
+           jelentést kézzel kötöttük be; ha valaki kiveszi, ez a teszt bukik. */
         await signIn();
         postSpy().mockResolvedValue(axiosResponse({token: "burkolt"}));
 
         await refreshOnActivity();
 
         expect(screen.getByTestId("token")).toHaveTextContent(TOKEN);
+        const reported = postSpy().mock.calls
+            .filter(([url]) => String(url).endsWith(ENDPOINTS.clientError))
+            .map(([, body]) => reportedEndpoint(body));
+        expect(reported).toEqual([ENDPOINTS.refresh]);
     });
 
     it("ÉRVÉNYES megújítás a friss tokenre cseréli a sütit", async () => {
@@ -436,5 +524,70 @@ describe("Tétlenségi kijelentkezés", () => {
         await refreshOnActivity();
 
         expect(screen.getByTestId("token")).toHaveTextContent(refreshed);
+    });
+});
+
+/* A KIJELENTKEZÉS MEGVÁRJA A FÜGGŐ MENTÉST (2026-08-19).
+
+   A szerkesztőből NAVIGÁLNI csak mentés után lehet (blocker); a kijelentkezés
+   viszont nem navigáció, tehát eddig azonnal eldobta a munkamenetet, és a mentés
+   a leválás pillanatában, a háttérben indult. Most ugyanaz a szabály él rá.
+
+   A SORRENDET mérjük, nem csak azt, hogy "lefutott": a mentésnek AKKOR kell
+   lefutnia, amikor a token még megvan — különben ugyanott vagyunk, ahol
+   voltunk. */
+describe("Kijelentkezés és a függő mentés", () => {
+    it("a mentés a token TÖRLÉSE ELŐTT fut le", async () => {
+        let tokenAtSave: string | null = null;
+        const unregister = registerPendingSave(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 5));
+            tokenAtSave = document.cookie.includes(COOKIES.token + "=") ? "megvan" : "törölve";
+        });
+        renderAuth();
+        await userEvent.click(screen.getByRole("button", {name: "belépés"}));
+        await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("true"));
+
+        await userEvent.click(screen.getByRole("button", {name: "kilépés"}));
+
+        await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("false"));
+        expect(tokenAtSave).toBe("megvan");
+        unregister();
+    });
+});
+
+/* A KIJELENTKEZÉS JELZŐJE — késleltetve (2026-08-19).
+
+   A kijelentkezés megvárja a szerkesztő mentését. Egészséges esetben ez
+   századmásodperc, tehát egy azonnal megjelenő karika csak VILLANNA — ezért a
+   jelző 300 ms után gyullad ki. A tesztek az órát tekerik, nem várnak. */
+describe("A kijelentkezés jelzője", () => {
+    it("GYORS mentésnél NEM gyullad ki (nem villan a karika)", async () => {
+        const unregister = registerPendingSave(async () => {});
+        renderAuth();
+        await userEvent.click(screen.getByRole("button", {name: "belépés"}));
+        await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("true"));
+
+        await userEvent.click(screen.getByRole("button", {name: "kilépés"}));
+
+        await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("false"));
+        expect(screen.getByTestId("kilepes-alatt")).toHaveTextContent("false");
+        unregister();
+    });
+
+    it("LASSÚ mentésnél kigyullad, és a végén elalszik", async () => {
+        let release = () => {};
+        const unregister = registerPendingSave(() => new Promise<void>((resolve) => { release = resolve; }));
+        renderAuth();
+        await userEvent.click(screen.getByRole("button", {name: "belépés"}));
+        await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("true"));
+
+        await userEvent.click(screen.getByRole("button", {name: "kilépés"}));
+        await waitFor(() => expect(screen.getByTestId("kilepes-alatt")).toHaveTextContent("true"));
+
+        await act(async () => { release(); await Promise.resolve(); });
+
+        await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("false"));
+        expect(screen.getByTestId("kilepes-alatt")).toHaveTextContent("false");
+        unregister();
     });
 });
