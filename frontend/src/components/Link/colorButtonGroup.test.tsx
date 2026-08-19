@@ -2,7 +2,7 @@ import {render, screen} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import {describe, expect, it, vi} from "vitest";
 import ColorButtonGroup from "./colorButtonGroup";
-import {TODO_COLORS} from "../../todoColors";
+import {TODO_COLOR_NAMES} from "../../todoColors";
 
 /* A navbar szín-szűrője a paletta EGYETLEN forrásából (todoColors.ts) épül, de
    FORDÍTVA rendereli — a korongok float-end-del úsznak, tehát az elsőként kirakott
@@ -35,12 +35,12 @@ describe("ColorButtonGroup (navbar szín-szűrő)", () => {
            számoknál ettől lesz [1, 10, 2]. Itt színnevek állnak, tehát az
            eredmény ma helyes, de a szándékot kimondjuk: ábécésorrend. */
         const byName = (first: string, second: string) => first.localeCompare(second);
-        expect(renderedColors().toSorted(byName)).toEqual(Object.keys(TODO_COLORS).toSorted(byName));
+        expect(renderedColors().toSorted(byName)).toEqual(TODO_COLOR_NAMES.toSorted(byName));
     });
 
     it("a DOM-sorrend a paletta FORDÍTOTTJA (a float-end miatt lesz belőle helyes látvány)", () => {
         renderGroup();
 
-        expect(renderedColors()).toEqual(Object.keys(TODO_COLORS).toReversed());
+        expect(renderedColors()).toEqual(TODO_COLOR_NAMES.toReversed());
     });
 });

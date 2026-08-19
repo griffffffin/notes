@@ -12,7 +12,7 @@ import {TODO_COLOR_NAMES} from "../../todoColors";
 
    A sorrend FORDÍTOTT, és ez nem elírás: a korongok `float-end`-del úsznak
    (l. colorButton.tsx), tehát az ELSŐKÉNT kirakott elem kerül LEGJOBBRA. A
-   megfordítással a vizuális sorrend balról jobbra pontosan a TODO_COLORS
+   megfordítással a vizuális sorrend balról jobbra pontosan a TODO_COLOR_NAMES
    sorrendje lesz — ugyanaz, amit a szerkesztő színválasztója mutat. Ha valaki a
    float-end-et flexre cserélné, a megfordítást is el kell hagyni. */
 type LinkColorButtonGroupProps = {

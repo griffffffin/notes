@@ -2,7 +2,7 @@ import {existsSync, readFileSync} from "node:fs";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
 import {describe, expect, it} from "vitest";
-import {TODO_COLORS} from "./todoColors";
+import {TODO_COLOR_NAMES} from "./todoColors";
 import {at} from "./test/at";
 
 /* A SZÍNPALETTA a repó két csomagjában van kimondva:
@@ -55,22 +55,15 @@ const readBackendColors = () => {
 
 describe("a to-do színpaletta a két csomagban", () => {
     it("a backend PONTOSAN ugyanazokat a színeket ismeri, mint a frontend", () => {
-        expect(readBackendColors().toSorted()).toEqual(Object.keys(TODO_COLORS).toSorted());
+        expect(readBackendColors().toSorted()).toEqual(TODO_COLOR_NAMES.toSorted());
     });
 
     /* A paletta nevei Bootstrap-osztálynévbe kerülnek ("btn-" + szín, "border-" +
        szín). Egy szóközös vagy nagybetűs név némán elrontaná a stílust: a kártya
        keret nélkül maradna, hibaüzenet nélkül. */
     it("minden szín neve érvényes Bootstrap-osztálynév-darab", () => {
-        for (const color of Object.keys(TODO_COLORS)) {
+        for (const color of TODO_COLOR_NAMES) {
             expect(color).toMatch(/^[a-z]+$/);
-        }
-    });
-
-    // A hexek a sorszám-tooltip keretéhez kellenek — hiányuk üres keretszínt adna.
-    it("minden színhez tartozik hex-kód", () => {
-        for (const [color, hex] of Object.entries(TODO_COLORS)) {
-            expect(hex, `a(z) ${color} színnek nincs hexe`).toMatch(/^#[0-9a-f]{6}$/i);
         }
     });
 });
