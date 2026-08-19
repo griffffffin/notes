@@ -1,7 +1,8 @@
-import {readdirSync, readFileSync} from "node:fs";
-import {dirname, join, relative} from "node:path";
+import {readFileSync} from "node:fs";
+import {relative} from "node:path";
 import {fileURLToPath} from "node:url";
 import {describe, expect, it} from "vitest";
+import {sourceFiles, SRC_ROOT} from "./test/sourceFiles";
 
 /* AMIT A LINTER NEM TUD MEGFOGNI: a DOM-lekérdezés típusparamétere.
 
@@ -29,19 +30,8 @@ import {describe, expect, it} from "vitest";
    ELLENŐRIZETLEN külső értékről állít alakot. A DOM-lekérdezés ennek a
    visszatérő, konkrét esete — a többi továbbra is felülvizsgálat kérdése. */
 
-/* Ez a fájl a src/ gyökerében ül, tehát a saját könyvtára maga a forrásfa.
-   Az útvonal-számolás alakja KÖTÖTT (`fileURLToPath`, nem
-   `new URL(…, import.meta.url)`): az utóbbit a Vite eszköz-hivatkozásnak nézi és
-   fordításkor átírja — l. contexts/themeBoot.test.ts. */
-const SRC_ROOT = dirname(fileURLToPath(import.meta.url));
-
-function sourceFiles(dir: string): string[] {
-    return readdirSync(dir, {withFileTypes: true}).flatMap((entry) => {
-        const full = join(dir, entry.name);
-        if (entry.isDirectory()) return sourceFiles(full);
-        return /\.tsx?$/.test(entry.name) ? [full] : [];
-    });
-}
+/* A forrásfa bejárása a közös segédből jön (test/sourceFiles.ts) — a
+   `fileURLToPath` kényszere és a kiterjesztés-szűrő ott van kimondva. */
 
 /* A `querySelectorAll` a HOSSZABB név, ezért áll elöl — de ez itt ÓVATOSSÁG, nem
    kényszer, és fontos, hogy a komment ezt pontosan mondja.
@@ -61,7 +51,7 @@ const TYPE_PARAMETER = /\.\s*(?:querySelectorAll|querySelector|closest)\s*</;
 /* ÖNMAGÁT KIHAGYJA: ebben a fájlban szándékosan szerepel a tiltott alak (a fenti
    magyarázatban és a mintában), ami különben saját magát jelentené fel. Ára, hogy
    EBBEN az egy fájlban nem véd — cserébe a minta és az indoklás leírható. */
-const files = sourceFiles(SRC_ROOT).filter((file) => file !== fileURLToPath(import.meta.url));
+const files = sourceFiles().filter((file) => file !== fileURLToPath(import.meta.url));
 
 describe("a DOM-lekérdezés típusparamétere tilos (nem ellenőrzés, csak állítás)", () => {
     /* KONTROLL. Ha a bejárás egyszer elromlik (átrendezett könyvtárak, más
