@@ -24,10 +24,19 @@ import type {ReactCookieProps} from "react-cookie";
 type CookieOptions = NonNullable<ReactCookieProps["defaultSetOptions"]>;
 
 export const COOKIES = {
-    /* A bejelentkezési token (JWT). A neve öröklött: a régi app a felhasználót
-       tartotta benne, ma az aláírt tokent — az átnevezés egy külön menet dolga
-       lesz, mert minden élő munkamenetet kijelentkeztetne. */
-    token: "user",
+    /* A bejelentkezési token (JWT). A neve 2026-08-18-ig "user" volt, a régi
+       apptól örökölve, ami tényleg a FELHASZNÁLÓT tartotta benne — az volt a fő
+       biztonsági gyengesége. Ma aláírt token van benne, tehát a régi név már
+       félrevezette az olvasót.
+
+       Az átnevezés ára egyszeri: a régi néven tárolt sütit az app nem találja
+       meg, tehát akinek épp nyitva volt a lapja, annak újra be kell
+       jelentkeznie. Ez azért nem több ennél, mert ez MUNKAMENET-süti (l.
+       SESSION_COOKIE lentebb), tehát a böngésző bezárásakor amúgy is eltűnik, és
+       maga a token is 15 perc után lejár. Átmeneti visszaolvasás SZÁNDÉKOSAN
+       nincs: egy ideiglenes ág, aminek a törlését el lehet felejteni, több kárt
+       tenne, mint egy újbóli bejelentkezés. */
+    token: "token",
     // A választott téma: az értéke a THEMES.*.cookieValue ("black" / "white").
     theme: "backgroundColor",
     /* A téma háttérszíne hexben. EZT NEM A REACT OLVASSA, hanem az index.html

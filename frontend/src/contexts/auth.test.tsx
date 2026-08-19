@@ -74,7 +74,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    document.cookie = "user=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+    document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
 });
 
 describe("AuthProvider", () => {
@@ -89,7 +89,7 @@ describe("AuthProvider", () => {
         await userEvent.click(screen.getByRole("button", {name: "belépés"}));
 
         expect(screen.getByTestId("belepett")).toHaveTextContent("true");
-        expect(document.cookie).toContain("user=" + TOKEN);
+        expect(document.cookie).toContain("token=" + TOKEN);
     });
 
     it("kilépés után visszaáll kijelentkezettre", async () => {
@@ -242,7 +242,7 @@ describe("A süti tartalma", () => {
     it("érvényes token esetén bejelentkezettként indul", () => {
         // Kontroll: enélkül a lenti két teszt attól is „zöld" lenne, hogy a
         // provider egyáltalán nem olvas sütit.
-        document.cookie = "user=" + TOKEN + "; path=/";
+        document.cookie = "token=" + TOKEN + "; path=/";
         renderAuth();
 
         expect(screen.getByTestId("belepett")).toHaveTextContent("true");
@@ -253,7 +253,7 @@ describe("A süti tartalma", () => {
         /* A universal-cookie a JSON-nak látszó értéket objektumként adja vissza.
            Ellenőrzés nélkül ebből "Bearer [object Object]" fejléc lenne: a felület
            bejelentkezettnek látszana, a szerver viszont mindent elutasítana. */
-        document.cookie = 'user={"a":1}; path=/';
+        document.cookie = 'token={"a":1}; path=/';
         renderAuth();
 
         expect(screen.getByTestId("belepett")).toHaveTextContent("false");
@@ -264,7 +264,7 @@ describe("A süti tartalma", () => {
            Ellenőrzés nélkül a felület bejelentkezettnek látszana, és csak az első
            kérés 401-e derítené ki az igazságot — addig a felhasználó a saját
            adatai helyett üres listákat látna. */
-        document.cookie = "user=nem-egy-jwt; path=/";
+        document.cookie = "token=nem-egy-jwt; path=/";
         renderAuth();
 
         expect(screen.getByTestId("belepett")).toHaveTextContent("false");
@@ -274,14 +274,14 @@ describe("A süti tartalma", () => {
         /* A pontok száma önmagában semmit nem bizonyít: ez a teszt köti ki, hogy
            az ellenőrzés tényleg DEKÓDOLJA a középső részt, és a szerver
            állításait (id/iat/exp) keresi benne. */
-        document.cookie = "user=abc.def.ghi; path=/";
+        document.cookie = "token=abc.def.ghi; path=/";
         renderAuth();
 
         expect(screen.getByTestId("belepett")).toHaveTextContent("false");
     });
 
     it("ÜRES süti sem számít bejelentkezésnek", () => {
-        document.cookie = "user=; path=/";
+        document.cookie = "token=; path=/";
         renderAuth();
 
         expect(screen.getByTestId("belepett")).toHaveTextContent("false");

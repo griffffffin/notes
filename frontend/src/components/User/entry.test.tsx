@@ -57,7 +57,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    document.cookie = "user=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+    document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
 });
 
 describe("Entry — bejelentkezés", () => {
