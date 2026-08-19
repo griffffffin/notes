@@ -5,7 +5,8 @@ const auth = require("./middleware/auth");
    szekció-specifikus szabályok maradnak a saját moduljukban. */
 const {validateObjectId, validateOrderOnly} = require("./middleware/validators");
 const {validateTodoBody, validateCategoryFilter, validateColorFilter} = require("./middleware/validateTodo");
-const {validateQuoteBody, validateAuthorFilter, validateSearchTerm} = require("./middleware/validateQuote");
+const {validateQuoteBody, validateAuthorFilter, validateSearchTerm,
+    validateAuthorPrefix} = require("./middleware/validateQuote");
 const validateCredentials = require("./middleware/validateCredentials");
 
 const usersCreate = require("./controllers/Users/create");
@@ -87,7 +88,7 @@ const quotesRouter = require("express").Router();
 
 quotesRouter.use("/create", validateQuoteBody, quotesCreate);
 quotesRouter.use("/last/order", quotesReadLastOrder);
-quotesRouter.use("/authors", quotesReadAuthors);
+quotesRouter.use("/authors", validateAuthorPrefix, quotesReadAuthors);
 quotesRouter.use("/author", validateAuthorFilter, quotesReadByAuthor);
 /* A szerkesztő idézet-betöltése — auth MÖGÖTT, tulajdonos-ellenőrzéssel (l.
    readForEdit.js). A publikus /quotes/id (auth ELŐTT, fent) csak a megjelenítő

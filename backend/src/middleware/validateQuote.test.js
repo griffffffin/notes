@@ -6,7 +6,8 @@ const assert = require("node:assert");
 const express = require("express");
 const request = require("supertest");
 
-const {validateQuoteBody, validateAuthorFilter, validateSearchTerm} = require("./validateQuote");
+const {validateQuoteBody, validateAuthorFilter, validateSearchTerm,
+    validateAuthorPrefix} = require("./validateQuote");
 
 const app = express();
 app.use(express.json());
@@ -86,4 +87,35 @@ test("keresés: objektumot string helyett elutasít — NoSQL-injekció ellen (4
 
 test("keresés: túl hosszú kifejezést elutasít (400)", async () => {
     assert.strictEqual((await request(searchApp).post("/search").send({term: "a".repeat(501)})).status, 400);
+});
+
+/* A SZERZŐ-JAVASLAT PREFIXE (/quotes/authors). A testvére a keresés, de a
+   szabályai szándékosan mások — a tesztek ezt a KÜLÖNBSÉGET is rögzítik, hogy egy
+   későbbi "egységesítés" ne csendben történjen. */
+const prefixApp = express();
+prefixApp.use(express.json());
+prefixApp.post("/authors", validateAuthorPrefix, (request_, response) => response.json({ok: true}));
+const postPrefix = (body) => request(prefixApp).post("/authors").send(body);
+
+test("szerző-előtag: stringet átenged, hiányzót elutasít (400)", async () => {
+    assert.strictEqual((await postPrefix({prefix: "Már"})).status, 200);
+    assert.strictEqual((await postPrefix({})).status, 400);
+});
+
+test("szerző-előtag: az ÜRES előtag érvényes (ELTÉRÉS a kereséstől)", async () => {
+    /* Az üres keresés értelmetlen (400), az üres előtagnak viszont van jelentése:
+       a legutóbb használt szerző (controllers/Quotes/readAuthors.js). Ha ez a
+       teszt egyszer megbukik, az azt jelenti, hogy valaki a két végpontot
+       "egységesítette" — ami némán elvenné a javaslatot az üres mezőnél. */
+    assert.strictEqual((await postPrefix({prefix: ""})).status, 200);
+});
+
+test("szerző-előtag: objektumot string helyett elutasít — NoSQL-injekció ellen (400)", async () => {
+    assert.strictEqual((await postPrefix({prefix: {$ne: null}})).status, 400);
+});
+
+test("szerző-előtag: túl hosszút elutasít (400)", async () => {
+    // A korlát a szerzőnév korlátja (200), nem a keresésé (500).
+    assert.strictEqual((await postPrefix({prefix: "a".repeat(200)})).status, 200);
+    assert.strictEqual((await postPrefix({prefix: "a".repeat(201)})).status, 400);
 });

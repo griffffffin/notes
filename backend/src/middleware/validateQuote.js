@@ -80,6 +80,33 @@ const validateSearchTerm = (request, response, next) => {
     next();
 };
 
+/* A szerző-JAVASLAT prefixe (/quotes/authors): ugyanúgy escape-elve regexbe kerül,
+   mint a keresőkifejezés, tehát ugyanúgy string legyen (NoSQL-injekció ellen), és
+   ugyanúgy legyen felső korlátja — enélkül egy abszurd hosszú prefixből
+   aránytalanul nagy regex épülne.
+
+   Ez a validátor 2026-08-18-án született: addig ez volt az EGYETLEN bemenetet
+   fogadó útvonal validáló middleware nélkül. Nem volt sebezhető (a controller a
+   `typeof`-fal stringgé kényszeríti a prefixet, l. readAuthors.js), de a
+   hosszkorlát hiányzott, és a testvér-végpontjától eltérő viselkedést semmi nem
+   indokolta. A controller `typeof`-ja SZÁNDÉKOSAN marad a helyén: a védelem ne
+   azon múljon, hogy a routes.js-ben a helyes sorrendben áll-e a middleware.
+
+   ELTÉRÉS a validateSearchTerm-től (fentebb): ott az ÜRES kifejezés hiba, itt
+   ÉRVÉNYES. Az ok a két végpont különböző jelentése — a keresés üres szövegre
+   értelmetlen, az üres prefix viszont definiált: "a legutóbb használt szerző"
+   (readAuthors.js). A hossz felső korlátja pedig a szerzőnév korlátja
+   (MAX_AUTHOR), nem a keresésé: egy szerzőnév ELEJE nem lehet hosszabb, mint
+   maga a leghosszabb megengedett szerzőnév — ami ennél hosszabb, az biztosan
+   nem javaslatot keres. */
+const validateAuthorPrefix = (request, response, next) => {
+    const prefix = request.body?.prefix;
+    if (!isText(prefix)) return response.status(400).json("Érvénytelen szerző-előtag.");
+    if (prefix.length > MAX_AUTHOR)
+        return response.status(400).json(`A szerző-előtag legfeljebb ${MAX_AUTHOR} karakter lehet.`);
+    next();
+};
+
 /* Az id- és a sorszám-ellenőrzés NEM innen jön: azok minden szekcióban azonosak,
    ezért a közös validators.js-ben élnek, és a routes.js onnan is importálja őket. */
-module.exports = {validateQuoteBody, validateAuthorFilter, validateSearchTerm};
+module.exports = {validateQuoteBody, validateAuthorFilter, validateSearchTerm, validateAuthorPrefix};

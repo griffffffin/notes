@@ -66,3 +66,26 @@ test("nem string prefixet üresre kényszerít (operátor ne jusson a szűrőbe)
     await post({prefix: {$ne: null}});
     assert.strictEqual(lastPipeline[0].$match.author.$regex, "^");
 });
+
+/* A VALÓDI ROUTER: ott ül-e a validátor a végpont előtt?
+
+   A fenti tesztek a controllert MAGÁT mérik, tehát zöldek maradnának akkor is, ha
+   valaki a routes.js-ből kiveszi a `validateAuthorPrefix`-et — a controller
+   `typeof`-ja továbbra is megvédené az injekciótól, csak a HOSSZKORLÁT tűnne el
+   némán. Ezért ez a teszt a felépült routert szólítja meg.
+
+   A modell-mockok fentebb már a require.cache-ben ülnek, tehát a routes.js is
+   azokat kapja — adatbázis itt sem kell. */
+const routes = require("../../routes");
+
+const realApp = express();
+realApp.use(express.json());
+realApp.use(routes);
+const postReal = (body) =>
+    request(realApp).post("/quotes/authors").set("Authorization", token).send(body);
+
+test("a routerben a /quotes/authors a hossz-validátor MÖGÖTT ül", async () => {
+    assert.strictEqual((await postReal({prefix: "Má"})).status, 200);
+    assert.strictEqual((await postReal({prefix: "a".repeat(201)})).status, 400,
+        "a túl hosszú előtag 200-at kapott — a validateAuthorPrefix nincs bekötve a routes.js-ben");
+});
