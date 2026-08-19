@@ -69,7 +69,14 @@ export default function Task({task, todo, setTodo, setTaskOrder, setTask, color}
     const handleTaskChange = (event: ChangeEvent<HTMLInputElement>) => {
         const value = event.target.value;
         const id = parseInt((event.target.id));
-        const done = todo.tasks[id].done;
+        /* Az azonosító a DOM-ból jön (`event.target.id`), tehát a programon
+           KÍVÜLRŐL: egy elavult vagy időközben törölt alsor mezőjéből érkező
+           esemény olyan kulcsot hozhat, ami a térképben már nincs meg. Eddig ez
+           `undefined.done` olvasás lett volna — hangos összeomlás gépelés
+           közben. Ha nincs mit módosítani, nem csinálunk semmit. */
+        const edited = todo.tasks[id];
+        if (!edited) return;
+        const done = edited.done;
 
         if (value === "") {
             const taskOrder = todo.columns["createColumn"].taskOrder;

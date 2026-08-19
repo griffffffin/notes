@@ -51,13 +51,22 @@ export function toggleBold(text: string, selStart: number, selEnd: number): {
     let plain = 0;
     let i = 0;
     while (i < text.length) {
+        /* A karaktert ELŐBB vesszük ki, és kimondjuk, hogy létezik. A
+           ciklusfeltétel szerint így is van, de az indexelés eredménye a
+           típusrendszerben `string | undefined` (noUncheckedIndexedAccess) — és
+           ez itt nem formaság: egy `undefined` karakter a `chars` listába
+           kerülve a szerializálásnál csendben az "undefined" SZÓVÁ válna a
+           felhasználó idézetében. */
+        const ch = text[i];
+        if (ch === undefined) break;
         plainBefore[i] = plain;
-        if (text[i] === "*" && text[i + 1] === "*") {
+        // A `text[i + 1]` a szöveg végén `undefined` — az összehasonlítás így is helyes.
+        if (ch === "*" && text[i + 1] === "*") {
             plainBefore[i + 1] = plain;
             bold = !bold;
             i += 2;
         } else {
-            chars.push({ch: text[i], bold});
+            chars.push({ch, bold});
             plain += 1;
             i += 1;
         }
@@ -67,29 +76,42 @@ export function toggleBold(text: string, selStart: number, selEnd: number): {
     // 2) A kijelölt tartomány + döntés a látható karakterek alapján.
     const pStart = plainBefore[selStart];
     const pEnd = plainBefore[selEnd];
+    /* A kijelölés pozíciói a DOM-ból jönnek (a textarea selectionStart/End-je),
+       tehát a programon KÍVÜLRŐL: egy időközben megváltozott szöveg mellett a
+       tartományon kívülre eshetnek. Ilyenkor nem formázunk — a szöveget és a
+       kijelölést változatlanul adjuk vissza. */
+    if (pStart === undefined || pEnd === undefined) return {text, selStart, selEnd};
     const selected = chars.slice(pStart, pEnd);
     const visible = selected.filter((c) => !/\s/.test(c.ch));
     if (visible.length === 0) return {text, selStart, selEnd};   // csak whitespace: nincs mit tenni
     const makeBold = visible.some((c) => !c.bold);               // van nem-bold → mind bold; különben unbold
-    for (let k = pStart; k < pEnd; k++) chars[k].bold = makeBold;
+    /* A `slice` a TÖMBRŐL ad másolatot, az ELEMEK ugyanazok az objektumok —
+       tehát az itteni írás a `chars`-ban is látszik, indexelés nélkül. */
+    for (const c of chars.slice(pStart, pEnd)) c.bold = makeBold;
 
     // 3) Újraszerializálás: `**` a félkövér-futamok határán; a kijelölés a
     //    TARTALMON marad (a ** kívül esik).
     let out = "";
     const rawAt: number[] = new Array(chars.length + 1);
     let cur = false;
-    for (let k = 0; k < chars.length; k++) {
-        if (chars[k].bold !== cur) { out += "**"; cur = chars[k].bold; }
+    chars.forEach((c, k) => {
+        if (c.bold !== cur) { out += "**"; cur = c.bold; }
         rawAt[k] = out.length;
-        out += chars[k].ch;
-    }
+        out += c.ch;
+    });
     if (cur) out += "**";
     rawAt[chars.length] = out.length;
 
+    /* A `rawAt` minden tartalmi indexhez tartalmaz bejegyzést (0…chars.length),
+       a `pStart`/`pEnd` pedig ebbe a tartományba esik — a `?? out.length` tehát
+       nem várt ág, hanem KIMONDOTT végállapot: ha valaha mégis kicsúsznánk, a
+       kurzor a szöveg végére kerül, nem `undefined`-ra (ami a textareát némán
+       az elejére ugratná). */
+    const rawStart = rawAt[pStart] ?? out.length;
     return {
         text: out,
-        selStart: rawAt[pStart],
-        selEnd: pEnd > pStart ? rawAt[pEnd - 1] + 1 : rawAt[pStart],
+        selStart: rawStart,
+        selEnd: pEnd > pStart ? (rawAt[pEnd - 1] ?? out.length) + 1 : rawStart,
     };
 }
 
@@ -119,44 +141,64 @@ export function normalizeBold(text: string): string {
     let markerCount = 0;
     let i = 0;
     while (i < text.length) {
-        if (text[i] === "*" && text[i + 1] === "*") { bold = !bold; markerCount += 1; i += 2; }
-        else { chars.push({ch: text[i], bold}); i += 1; }
+        // Ugyanaz a kimondott vizsgálat, mint a toggleBold-ban (l. ott az indokot).
+        const ch = text[i];
+        if (ch === undefined) break;
+        if (ch === "*" && text[i + 1] === "*") { bold = !bold; markerCount += 1; i += 2; }
+        else { chars.push({ch, bold}); i += 1; }
     }
 
     if (markerCount % 2 === 1) {
         // a párját vesztett jel utáni trailing bold-futam kezdete
+        /* A `?.` itt VALÓDI vizsgálat, nem rövidítés: a hiányzó elem `undefined`,
+           amitől a feltétel hamis lesz, és a ciklus megáll — pontosan az a
+           viselkedés, amit akarunk. */
         let runStart = chars.length;
-        while (runStart > 0 && chars[runStart - 1].bold) runStart -= 1;
+        while (runStart > 0 && chars[runStart - 1]?.bold) runStart -= 1;
         if (runStart < chars.length) {
             // NYITÓ: van tartalom a jel után → csak a következő szó bold
             let j = runStart;
-            while (j < chars.length && isWs(chars[j].ch)) { chars[j].bold = false; j += 1; }   // kezdő ws
-            while (j < chars.length && !isWs(chars[j].ch)) j += 1;                             // első szó vége
-            for (let m = j; m < chars.length; m++) chars[m].bold = false;
+            for (const c of chars.slice(runStart)) {          // kezdő ws át
+                if (!isWs(c.ch)) break;
+                c.bold = false;
+                j += 1;
+            }
+            for (const c of chars.slice(j)) {                 // az első szó vége
+                if (isWs(c.ch)) break;
+                j += 1;
+            }
+            for (const c of chars.slice(j)) c.bold = false;   // utána semmi nem bold
         } else {
             // ZÁRÓ a szöveg végén: a tapadó utolsó szó összeolvasztása (ha van benne bold)
-            let end = chars.length - 1;
-            if (end >= 0 && !isWs(chars[end].ch)) {
-                let start = end;
-                while (start > 0 && !isWs(chars[start - 1].ch)) start -= 1;
-                let anyBold = false;
-                for (let m = start; m <= end; m++) if (chars[m].bold) { anyBold = true; break; }
-                if (anyBold) for (let m = start; m <= end; m++) chars[m].bold = true;
+            const last = chars[chars.length - 1];
+            if (last && !isWs(last.ch)) {
+                let start = chars.length - 1;
+                /* A hiányzó elemet SZÓKÖZNEK vesszük: a szó eleje a tömb eleje,
+                   tehát a ciklus ott is megáll, ahol a szöveg elfogy. */
+                while (start > 0 && !isWs(chars[start - 1]?.ch ?? " ")) start -= 1;
+                const word = chars.slice(start);
+                if (word.some((c) => c.bold)) for (const c of word) c.bold = true;
             }
         }
     }
 
     // A bold-futamok elején/végén lévő whitespace-eket kivesszük a boldból.
-    for (let k = 0; k < chars.length; k++) {
-        if (chars[k].bold && (k === 0 || !chars[k - 1].bold)) {
-            let j = k;
-            while (j < chars.length && chars[j].bold && isWs(chars[j].ch)) chars[j++].bold = false;
+    // Elölről: minden bold-futam ELEJÉN (ahol az előző karakter nem bold).
+    chars.forEach((c, k) => {
+        if (!c.bold || chars[k - 1]?.bold) return;
+        for (const run of chars.slice(k)) {
+            if (!run.bold || !isWs(run.ch)) break;
+            run.bold = false;
         }
-    }
-    for (let k = chars.length - 1; k >= 0; k--) {
-        if (chars[k].bold && (k === chars.length - 1 || !chars[k + 1].bold)) {
-            let j = k;
-            while (j >= 0 && chars[j].bold && isWs(chars[j].ch)) chars[j--].bold = false;
+    });
+    // Hátulról: minden bold-futam VÉGÉN (ahol a következő karakter nem bold).
+    for (let k = chars.length - 1; k >= 0; k -= 1) {
+        const c = chars[k];
+        if (!c?.bold || chars[k + 1]?.bold) continue;
+        for (let j = k; j >= 0; j -= 1) {
+            const run = chars[j];
+            if (!run?.bold || !isWs(run.ch)) break;
+            run.bold = false;
         }
     }
 

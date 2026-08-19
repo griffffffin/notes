@@ -53,9 +53,17 @@ export default function DragAndDrop({todo, setTodo, setTaskOrder, setTask, color
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={taskOrder.map((id) => id.toString())} strategy={verticalListSortingStrategy}>
                 <div className="d-flex flex-column col input-group">
-                    {taskOrder.map((taskId) =>
-                        <Task key={taskId} task={todo.tasks[taskId]} todo={todo} setTodo={setTodo}
-                              setTaskOrder={setTaskOrder} setTask={setTask} color={color}/>)}
+                    {/* A sorrend-lista és az alsorok térképe elcsúszhat (l.
+                        Link/todoUpdate.tsx ugyanezen a kettősségen): a sorrendben
+                        maradt, de már nem létező azonosítót kihagyjuk, nem
+                        `undefined` alsorral rendereljük. */}
+                    {taskOrder.map((taskId) => {
+                        const task = todo.tasks[taskId];
+                        return task ? (
+                            <Task key={taskId} task={task} todo={todo} setTodo={setTodo}
+                                  setTaskOrder={setTaskOrder} setTask={setTask} color={color}/>
+                        ) : null;
+                    })}
                 </div>
             </SortableContext>
         </DndContext>

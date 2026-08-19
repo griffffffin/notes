@@ -42,14 +42,26 @@ export default function TodoUpdate(props: LinkTodoUpdateProps) {
                 {props.todo.title}
             </div>
             <div className="card-body py-1">
-                {tasks != null && taskOrder != null && taskOrder.map((order) =>
-                    <div key={order.toString()}>
-                        <div className={tasks[order].done ?
-                            "text-decoration-line-through caveat text-" + props.todo.color :
-                            "caveat text-" + props.todo.color}>
-                            {tasks[order].content}
+                {/* A `taskOrder` (sorrend) és a `tasks` (tartalom) KÉT KÜLÖN
+                    szerkezet ugyanarról az alsorlistáról — semmi nem garantálja,
+                    hogy fedik egymást: egy régi mentés, egy félbemaradt törlés
+                    vagy egy kézzel javított rekord után a sorrendben ott lehet
+                    olyan azonosító, amihez már nincs alsor. Eddig ez `undefined`-ra
+                    olvasást jelentett (néma összeomlás renderelés közben); most a
+                    hiányzó alsort egyszerűen kihagyjuk. */}
+                {tasks != null && taskOrder != null && taskOrder.map((order) => {
+                    const task = tasks[order];
+                    if (!task) return null;
+                    return (
+                        <div key={order.toString()}>
+                            <div className={task.done ?
+                                "text-decoration-line-through caveat text-" + props.todo.color :
+                                "caveat text-" + props.todo.color}>
+                                {task.content}
+                            </div>
                         </div>
-                    </div>)}
+                    );
+                })}
             </div>
         </Link>
     );
