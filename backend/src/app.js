@@ -66,7 +66,14 @@ app.get("/health", async (request, response) => {
         response.json({status: "ok", database: "ok"});
     } catch (error) {
         console.error("Health: az adatbázis nem válaszol:", error);
-        response.status(503).json({status: "ok", database: "unreachable"});
+        /* A `status` NEM maradhat "ok", ha az adatbázis nem válaszol (az
+           átvizsgálás találata, 2026-08-18): a válasz eddig egyszerre mondta a
+           503-at és azt, hogy minden rendben. A mi figyelőnk a HTTP-kódot nézi
+           (deploy/health-check.sh, `%{http_code}`), tehát a hiba ma nem sülne el
+           — de egy jövőbeli eszköz (vagy egy ember) a törzset olvasva pont az
+           ellenkezőjét hinné a valóságnak. Az app maga válaszol, az adatbázisa
+           viszont nem: ez a "degraded". */
+        response.status(503).json({status: "degraded", database: "unreachable"});
     }
 });
 
