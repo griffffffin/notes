@@ -621,8 +621,13 @@ describe("A sorszám-korlát lekérése elbukik", () => {
         shouldFail = false;
         await userEvent.click(screen.getByRole("button", {name: "Adatok ismételt lekérése"}));
 
-        expect(await screen.findByPlaceholderText("Cím")).toBeVisible();
-        expect(screen.queryByText(/Hiba az oldal betöltése közben/)).not.toBeInTheDocument();
+        /* EGY waitFor, KÉT állítással: itt ÁTMENET van (a hibaüzenet fentebb még
+           látszott), és két külön pillanatban kérdezve a második elkaphatja a
+           félidőt. A részletes indoklás és a mérés: Quotes/read.test.tsx. */
+        await waitFor(() => {
+            expect(screen.getByPlaceholderText("Cím")).toBeVisible();
+            expect(screen.queryByText(/Hiba az oldal betöltése közben/)).not.toBeInTheDocument();
+        });
     });
 
     it("SIKERES betöltésnél nincs hibaüzenet (kontroll)", async () => {

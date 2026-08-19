@@ -158,8 +158,23 @@ describe("QuoteRead — sikertelen betöltés", () => {
         shouldFail = false;
         window.history.back();
 
-        expect(await screen.findByText("Első idézet")).toBeVisible();
-        expect(screen.queryByText(MESSAGE)).not.toBeInTheDocument();
+        /* EGY waitFor, KÉT állítással — és ez nem stílus-kérdés.
+
+           Korábban két lépésben állt itt: `await findByText(…)`, majd egy SZINKRON
+           `queryByText(MESSAGE)`. Az kettő KÜLÖN pillanatot néz, és a köztük eltelő
+           időben a React még dolgozhat. MÉRVE (2026-08-19): a teljes tesztsorban —
+           ahol a vitest a Pi négy magján párhuzamos munkásokat futtat — ez a teszt
+           EGYSZER elbukott azon, hogy a lista már ott volt, a hibaüzenet még szintén;
+           izoláltan viszont 10/10 zöld maradt. Vagyis nem a KÓD romlott el, hanem a
+           teszt kérdezett rosszkor.
+
+           Így egyetlen KONZISTENS pillanatot követelünk meg: van olyan állapot,
+           amelyben a lista LÁTSZIK és a hibaüzenet MÁR NINCS ott. Ez nem gyengébb
+           állítás — ugyanazt mondja, csak nem köti egy tetszőleges ütemezéshez. */
+        await waitFor(() => {
+            expect(screen.getByText("Első idézet")).toBeVisible();
+            expect(screen.queryByText(MESSAGE)).not.toBeInTheDocument();
+        });
     });
 
     it("az ÚJRA gomb megismétli a lekérést, és siker után megjelenik a lista", async () => {
@@ -179,8 +194,12 @@ describe("QuoteRead — sikertelen betöltés", () => {
         shouldFail = false;
         await userEvent.click(screen.getByRole("button", {name: "Adatok ismételt lekérése"}));
 
-        expect(await screen.findByText("Első idézet")).toBeVisible();
-        expect(screen.queryByText(MESSAGE)).not.toBeInTheDocument();
+        // Egy waitFor, két állítás — ugyanaz az átmenet (hibából sikerbe), ugyanaz az
+        // ok, mint a fenti tesztnél.
+        await waitFor(() => {
+            expect(screen.getByText("Első idézet")).toBeVisible();
+            expect(screen.queryByText(MESSAGE)).not.toBeInTheDocument();
+        });
     });
 
     it("ha az ÚJRA is elbukik, a jelzés marad (nem tűnik el hamis sikerrel)", async () => {
@@ -197,6 +216,9 @@ describe("QuoteRead — sikertelen betöltés", () => {
     });
 
     it("SIKERES betöltésnél nincs hibaüzenet (kontroll)", async () => {
+        /* Itt SZÁNDÉKOSAN marad a kétlépéses alak, nem waitFor: ebben a tesztben nincs
+           átmenet, amit el lehetne kapni félúton — a hibaüzenet SOHA nem jelenik meg,
+           tehát a második állítás nem versenyezhet semmivel. */
         renderRoutes("/quotes");
 
         expect(await screen.findByText("Első idézet")).toBeVisible();

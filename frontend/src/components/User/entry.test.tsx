@@ -219,8 +219,13 @@ describe("Bejelentkezés és regisztráció közti váltás", () => {
 
         await userEvent.click(screen.getByRole("button", {name: "Fiók létrehozása"}));
 
-        expect(await screen.findByLabelText("Jelszó megerősítése")).toBeInTheDocument();
-        expect(screen.queryByText(ENTRY_ERROR_MESSAGES.credentials)).not.toBeInTheDocument();
+        /* EGY waitFor, KÉT állítással: itt ÁTMENET van (a hibaüzenet fentebb még
+           látszott), és két külön pillanatban kérdezve a második elkaphatja a
+           félidőt. A részletes indoklás és a mérés: Quotes/read.test.tsx. */
+        await waitFor(() => {
+            expect(screen.getByLabelText("Jelszó megerősítése")).toBeInTheDocument();
+            expect(screen.queryByText(ENTRY_ERROR_MESSAGES.credentials)).not.toBeInTheDocument();
+        });
     });
 });
 
