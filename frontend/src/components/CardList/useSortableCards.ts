@@ -2,11 +2,11 @@ import {useCallback, useEffect, useRef, useState} from "react";
 import {MouseSensor, TouchSensor, useSensor, useSensors} from "@dnd-kit/core";
 import type {DragEndEvent} from "@dnd-kit/core";
 import {arrayMove} from "@dnd-kit/sortable";
-import * as v from "valibot";
 import {logRequestError} from "../../log";
 import type {HandleAxios} from "../../contexts/auth-context";
 import type {Endpoint} from "../../endpoints";
 import type {Id, Validator} from "../../types/api";
+import {parseResponse} from "../../contractFault";
 
 /* Ujjal ennyit kell a kártyán tartani, mire a húzás elindul. Ez választja szét a
    GÖRGETÉST a húzástól: enélkül minden felfelé simítás megfogná a kártyát. A
@@ -65,6 +65,20 @@ export function useSortableCards<T extends SortableCard>(
 ) {
     const [cards, setCards] = useState<T[]>();
     const [isLoading, setIsLoading] = useState(true);
+    /* A BETÖLTÉS ELBUKOTT-e. Külön a `cards`-tól, mert az üres lista és a
+       sikertelen betöltés KÉT KÜLÖNBÖZŐ dolog, és eddig ugyanúgy néztek ki: hiba
+       esetén üres tömböt tettünk be, amitől a képernyő azt mondta, "még nincs
+       egyetlen elemed sem". A felhasználó a hibát nem tudta megkülönböztetni a
+       hiánytól, a szűrt nézetek pedig némán át is irányítottak a főlistára (l.
+       CardListView emptyRedirect). */
+    const [loadFailed, setLoadFailed] = useState(false);
+    /* ÚJRAPRÓBÁLKOZÁS-SZÁMLÁLÓ. A betöltő effekt függőségei közt szerepel, tehát a
+       léptetése újra lefuttatja a lekérést — anélkül, hogy az egész oldalt
+       újratöltenénk (az minden állapotot elvesztene: nyitott legördülők, görgetés,
+       a szerkesztőben beírt szöveg). A `reload` a nézetnek szól: a hibajelzés
+       „Újra" gombja hívja. */
+    const [retryCount, setRetryCount] = useState(0);
+    const reload = useCallback(() => setRetryCount((count) => count + 1), []);
 
     /* Versenyhelyzet ellen. Ez az effekt egy betöltésen belül többször is
        elindulhat (a törlés utáni navigáció két lekérést indít), és két
@@ -74,22 +88,31 @@ export function useSortableCards<T extends SortableCard>(
        cleanup false-ra állítja; csak a LEGUTÓBBI kérés írhat. */
     useEffect(() => {
         let active = true;
+        setLoadFailed(false);
+        setIsLoading(true);
         handleAxios(url, filter ?? {}, (response) => {
             /* A séma a hívóé, a `T` is az övé — a kettő ugyanonnan jön, tehát a
                `cards` most már ELLENŐRZÖTT adatot tart, nem ígéretet. A bukó
-               ellenőrzés dob, és a lenti hibaágon köt ki (üres lista + naplózás),
-               mint egy időtúllépés. */
-            const loaded = v.parse(schema, response.data);
+               ellenőrzés dob, és a lenti hibaágon köt ki, mint egy időtúllépés. */
+            const loaded = parseResponse(schema, response.data, url);
             if (active) setCards(loaded);
         }, (error) => {
             if (!active) return;
             logRequestError(error);
-            // A pörgő karika azt ígéri, MINDJÁRT jön az adat — hiba után inkább
-            // üres lista, mint örök várakozás.
+            /* A pörgő karika azt ígéri, MINDJÁRT jön az adat — hiba után tehát
+               nem várakoztatunk tovább. De üres listát sem mutatunk: az azt
+               ÁLLÍTANÁ, hogy nincs egyetlen elem sem. A `loadFailed` a kettő
+               közti különbség; a nézet ebből tud a hiányzó adatról szólni.
+
+               Mindegy, MIÉRT bukott: hálózati hiba, időtúllépés vagy elcsúszott
+               szerződés (séma-bukás) — a felhasználó számára ugyanaz a tény, hogy
+               most nem tudjuk megmutatni a listát. A szerződés-hiba külön útja a
+               szerver naplója felé megy (contractFault.ts), nem a képernyőre. */
+            setLoadFailed(true);
             setCards([]);
         });
         return () => {active = false;};
-    }, [url, filter, handleAxios, schema]);
+    }, [url, filter, handleAxios, schema, retryCount]);
 
     useEffect(() => {
         if (cards) setIsLoading(false);
@@ -170,7 +193,15 @@ export function useSortableCards<T extends SortableCard>(
            sorszámmal; egy szűrt nézetben a lista részhalmaz, ott a 3. helyre
            húzott elem nem a 3. sorszámot kapja. A "tedd oda, ahol ez a kártya
            áll" viszont mindkét esetben ugyanazt jelenti. */
-        const targetOrder = cards[to].order;
+        /* A `to` a `findIndex`-ből jön, és a -1 esetet fentebb kizártuk — a
+           fordító viszont ezt nem tudja végigvezetni, és jól teszi: az
+           `Array.prototype[i]` bármelyik indexre adhat `undefined`-ot (ritka
+           tömb, közben módosított lista). A valódi vizsgálat olcsó, és ha valaha
+           mégis bekövetkezik, itt áll meg, nem a szervernek küldött
+           `undefined` sorszámnál. */
+        const target = cards[to];
+        if (!target) return;
+        const targetOrder = target.order;
         const previous = cards;
 
         // Optimista: azonnal a helyére ugrik. Ha a mentés megbukik, visszaállunk
@@ -187,7 +218,7 @@ export function useSortableCards<T extends SortableCard>(
     }, [cards, reorderUrl, handleAxios]);
 
     return {
-        cards, isLoading, isSingleColumn, sensors,
+        cards, isLoading, loadFailed, reload, isSingleColumn, sensors,
         handleDragStart, handleDragEnd, handlePointerDownCapture,
     };
 }
@@ -205,4 +236,4 @@ export function useSortableCards<T extends SortableCard>(
    függ tőle, azt pedig épp kihagyjuk, ahogy a betöltés-jelzőt is (mindkettőt
    külön propként kapja a nézet). */
 export type CardGridControls =
-    Omit<ReturnType<typeof useSortableCards<SortableCard>>, "cards" | "isLoading">;
+    Omit<ReturnType<typeof useSortableCards<SortableCard>>, "cards" | "isLoading" | "loadFailed" | "reload">;

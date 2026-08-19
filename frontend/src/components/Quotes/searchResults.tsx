@@ -36,13 +36,13 @@ export default function QuoteSearchResults(props: QuoteSearchResultsProps) {
     // nem kell újra decodeURIComponent, az kétszeres dekódolás lenne.
     const filter = useMemo(() => ({term}), [term]);
 
-    const {cards, isLoading, grid} = useSectionList<Quote>({
+    const {cards, isLoading, loadFailed, reload, grid} = useSectionList<Quote>({
         url: ENDPOINTS.quoteSearch, filter, reorderUrl: ENDPOINTS.quoteReorder, section: PATHS.quotes,
         schema: quoteListSchema,
     });
 
     return (
-        <CardListView cards={cards} isLoading={isLoading} grid={grid} emptyRedirect={PATHS.quotes}
+        <CardListView cards={cards} isLoading={isLoading} loadFailed={loadFailed} onRetry={reload} grid={grid} emptyRedirect={PATHS.quotes}
                       renderCard={(quote) =>
                           <QuoteCard quote={quote} handleLinkClicked={props.handleLinkClicked}/>}/>
     );

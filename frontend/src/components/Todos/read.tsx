@@ -43,7 +43,7 @@ export default function Read(props: TodoReadProps) {
        és a renderCard is, hogy `todo.color`-t és `todo.category`-t olvashat. A
        `schema` ugyanennek a FUTÁSIDEJŰ párja: a típus az ígéret, a séma az
        ellenőrzés, és a kettő egy forrásból származik (types/api.ts). */
-    const {cards, isLoading, grid} = useSectionList<Todo>({
+    const {cards, isLoading, loadFailed, reload, grid} = useSectionList<Todo>({
         url: props.url, filter, reorderUrl: ENDPOINTS.todoReorder, section: PATHS.todos,
         schema: todoListSchema,
     });
@@ -52,7 +52,7 @@ export default function Read(props: TodoReadProps) {
        elemet átsorolták vagy törölték). A FŐLISTA legitimen lehet üres, ezért ott
        nincs átirányítás — l. a CardListView indoklását. */
     return (
-        <CardListView cards={cards} isLoading={isLoading} grid={grid}
+        <CardListView cards={cards} isLoading={isLoading} loadFailed={loadFailed} onRetry={reload} grid={grid}
                       emptyRedirect={needsFilter ? PATHS.todos : null}
                       renderCard={(todo) =>
                           <TodoCard todo={todo} handleLinkClicked={props.handleLinkClicked}/>}/>

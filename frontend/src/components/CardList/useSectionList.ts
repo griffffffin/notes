@@ -45,11 +45,12 @@ export function useSectionList<T extends SortableCard>(
     },
 ) {
     const {handleAxios} = useAuth();
-    const {cards, isLoading, ...grid} = useSortableCards<T>({url, filter, reorderUrl, handleAxios, schema});
+    const {cards, isLoading, loadFailed, reload, ...grid} =
+        useSortableCards<T>({url, filter, reorderUrl, handleAxios, schema});
 
     // A gyökér-átirányítás ide tér vissza: a szűrt nézetek is a szekció GYÖKERÉT
     // jegyzik meg, nem az éppen aktív szűrőt.
     useRememberSection(section);
 
-    return {cards, isLoading, grid};
+    return {cards, isLoading, loadFailed, reload, grid};
 }

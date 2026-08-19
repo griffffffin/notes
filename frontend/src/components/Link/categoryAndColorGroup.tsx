@@ -7,6 +7,7 @@ export type CategoryAndColorGroupProps = {
     isCategoryClicked: boolean;
     isColorClicked: boolean;
     categories: CategoryGroupProps["categories"];
+    categoriesFailed: CategoryGroupProps["categoriesFailed"];
     /* A kategória-kattintás LINKRE megy (szűrt nézetre navigál), a szín-kattintás
        GOMBRA — ezért különbözik a két eseménykezelő elem-típusa. */
     handleCategoryClick: CategoryGroupProps["onClick"];
@@ -17,7 +18,8 @@ export default function CategoryAndColorGroup(props: CategoryAndColorGroupProps)
     return (
         <div className="row w-100">
             {props.isCategoryClicked &&
-                <LinkCategoryGroup categories={props.categories} onClick={props.handleCategoryClick}/>}
+                <LinkCategoryGroup categories={props.categories} categoriesFailed={props.categoriesFailed}
+                                   onClick={props.handleCategoryClick}/>}
             {props.isColorClicked &&
                 <LinkColorButtonGroup onClick={props.handleColorClick}/>}
         </div>

@@ -27,7 +27,8 @@ vi.mock(import("../../contexts/auth-context"), () => ({useAuth: () => auth}));
 
 const setup = (overrides: Partial<NavbarProps> = {}, route = "/") => {
     const props = {
-        isVisible: true, categories: ["otthon", "munka"], handleLinkClicked: vi.fn(),
+        isVisible: true, categories: ["otthon", "munka"], categoriesFailed: false,
+        handleLinkClicked: vi.fn(),
         setIsCategoryClicked: vi.fn(), isCategoryClicked: false,
         setIsColorClicked: vi.fn(), isColorClicked: false, ...overrides,
     } satisfies NavbarProps;
@@ -103,5 +104,38 @@ describe("Navbar — kereső fókusz (mobil kifeszülés)", () => {
 
         fireEvent.blur(input);
         expect(container).not.toHaveClass("quote-search-focused");
+    });
+});
+
+/* A KATEGÓRIA-LEKÉRÉS HIBÁJA a legördülőben (2026-08-19).
+
+   Eddig a hiba után a régi lista maradt — az első betöltésnél viszont az ÜRES
+   lista azt állította, hogy a felhasználónak nincs egyetlen kategóriája sem. */
+describe("Navbar — a kategóriák betöltése elbukott", () => {
+    const LOAD_FAILED = "A kategóriák betöltése sikertelen.";
+    const REFRESH_FAILED = "A további kategóriák betöltése sikertelen.";
+
+    it("ÜRES listánál: a betöltés bukott el", async () => {
+        setup({categories: [], categoriesFailed: true, isCategoryClicked: true});
+
+        expect(await screen.findByText(LOAD_FAILED)).toBeVisible();
+    });
+
+    it("ha VAN mit mutatni: a FRISSÍTÉS nem sikerült — és a régi lista látszik", async () => {
+        /* A lekérés EGY kérés a TELJES listáért, tehát "egy kategória" sosem tud
+           külön elbukni. Amit a felhasználó lát, az a korábbi (esetleg elavult)
+           lista — a szövegnek pontosan ezt kell mondania. */
+        setup({categoriesFailed: true, isCategoryClicked: true});
+
+        expect(await screen.findByText(REFRESH_FAILED)).toBeVisible();
+        expect(screen.queryByText(LOAD_FAILED)).not.toBeInTheDocument();
+        expect(screen.getByText("otthon")).toBeVisible();
+    });
+
+    it("sikeres betöltésnél egyik üzenet sincs (kontroll)", () => {
+        setup({categoriesFailed: false, isCategoryClicked: true});
+
+        expect(screen.queryByText(REFRESH_FAILED)).not.toBeInTheDocument();
+        expect(screen.queryByText(LOAD_FAILED)).not.toBeInTheDocument();
     });
 });

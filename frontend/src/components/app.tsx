@@ -8,9 +8,9 @@ import Routes from "./routes";
 import {useAuth} from "../contexts/auth-context";
 import {ENDPOINTS} from "../endpoints";
 import {logRequestError} from "../log";
-import * as v from "valibot";
 import {categoryListSchema} from "../types/api";
 import type {Todo} from "../types/api";
+import {parseResponse} from "../contractFault";
 
 /* CSAK a ténylegesen használt ikonokat regisztráljuk, nem a teljes `fas`
    készletet (~1600 ikon). A régi `library.add(fas)` mindet a bundle-be húzta,
@@ -35,6 +35,11 @@ export default function App() {
     // váltja ki). A `Todo["category"]` a to-do saját, elemekre vonatkozó mezője —
     // ugyanaz a típus, amit a lenti Routes→Navbar lánc kategóriaként vár.
     const [categories, setCategories] = useState<Todo["category"][]>([]);
+    /* A kategória-lekérés ELBUKOTT-e. Külön a listától: hiba után a KORÁBBI lista
+       marad (egy pillanattal ezelőtti valóság, általában igaz), de a felhasználót
+       meg kell tudni figyelmeztetni — az első betöltésnél az üres lista különben
+       azt állítaná, hogy nincs egyetlen kategóriája sem. */
+    const [categoriesFailed, setCategoriesFailed] = useState(false);
     const {isLoggedIn, handleAxios} = useAuth();
 
     const handleLinkClicked = useCallback(() => {
@@ -68,10 +73,15 @@ export default function App() {
                    a catchError-ba (logRequestError) fut — a legördülő inkább
                    marad a régi listával, mint hogy értelmezhetetlen adatot vegyen
                    át. */
-                const categories = v.parse(categoryListSchema, response.data);
-                if (requestId === latestCategoryRequest.current) setCategories(categories);
+                const categories = parseResponse(categoryListSchema, response.data, ENDPOINTS.todoCategories);
+                if (requestId !== latestCategoryRequest.current) return;
+                setCategories(categories);
+                setCategoriesFailed(false);
             },
-            logRequestError);
+            (error) => {
+                logRequestError(error);
+                if (requestId === latestCategoryRequest.current) setCategoriesFailed(true);
+            });
     }, [isLoggedIn, handleAxios]);
 
     useEffect(() => {
@@ -91,7 +101,8 @@ export default function App() {
                     setIsColorAngleClicked={setIsColorAngleClicked} isColorAngleClicked={isColorAngleClicked}
                     setIsCategoryAngleClicked={setIsCategoryAngleClicked}
                     isCategoryAngleClicked={isCategoryAngleClicked}
-                    categories={categories} handleCategoryChange={handleCategoryChange}/>
+                    categories={categories} categoriesFailed={categoriesFailed}
+                    handleCategoryChange={handleCategoryChange}/>
         </div>
     );
 }

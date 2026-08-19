@@ -46,6 +46,7 @@ export type RoutesProps = {
     setIsCategoryAngleClicked: (isClicked: boolean) => void;
     isCategoryAngleClicked: boolean;
     categories: CategoryAndColorGroupProps["categories"];
+    categoriesFailed: CategoryAndColorGroupProps["categoriesFailed"];
     handleCategoryChange: () => void;
 };
 
@@ -75,7 +76,7 @@ function AppLayout() {
                 setIsCategoryClicked={p.setIsCategoryAngleClicked}
                 isCategoryClicked={p.isCategoryAngleClicked}
                 handleLinkClicked={p.handleLinkClicked} isVisible={true}
-                categories={p.categories}/>
+                categories={p.categories} categoriesFailed={p.categoriesFailed}/>
         <Outlet/>
     </>);
 }

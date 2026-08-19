@@ -1,4 +1,5 @@
 import {screen, waitFor} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import {renderRoutes} from "../../test/renderRoutes";
 import {axiosResponse} from "../../test/axiosResponse";
@@ -85,5 +86,146 @@ describe("QuoteRead", () => {
         // A szekció-override (useQuoteAccent) egy effektben áll be — waitForrel várjuk ki.
         await waitFor(() =>
             expect(document.documentElement.style.getPropertyValue("--theme-accent")).toBe("#284ec0"));
+    });
+});
+
+/* A SIKERTELEN BETÖLTÉS — és hogy miért nem üres lista.
+
+   Amíg a hibaág üres tömböt tett a listába, két dolog történt némán: a főlista
+   azt állította, hogy nincs egyetlen idézet sem, egy SZŰRT nézet pedig magától
+   visszavitte a felhasználót a főlistára (az `emptyRedirect` üres listára
+   irányít). Egyik sem volt igaz: az adat nem üres volt, hanem meg sem érkezett.
+
+   A hiba OKA nem számít a felhasználónak (hálózat, időtúllépés vagy elcsúszott
+   szerződés) — ezért mindkét fajtára ugyanazt a viselkedést várjuk el. */
+describe("QuoteRead — sikertelen betöltés", () => {
+    const MESSAGE = /Hiba az oldal betöltése közben/;
+
+    it("hálózati hibánál kiírja, hogy nem érhető el a lista (nem üres nézetet mutat)", async () => {
+        handleAxios.mockImplementation((url, data, then, catchError) => {
+            catchError(new Error("Network Error"));
+            return Promise.resolve();
+        });
+
+        renderRoutes("/quotes");
+
+        expect(await screen.findByText(MESSAGE)).toBeVisible();
+    });
+
+    it("elcsúszott SZERZŐDÉSNÉL ugyanígy viselkedik (a séma bukása is betöltési hiba)", async () => {
+        // A válasz nem idézet-tömb: a séma elutasítja, a hiba a hibaágra kerül.
+        handleAxios.mockImplementation((url, data, then) => {
+            then(axiosResponse({nem: "idézet"}));
+            return Promise.resolve();
+        });
+
+        renderRoutes("/quotes");
+
+        expect(await screen.findByText(MESSAGE)).toBeVisible();
+    });
+
+    it("SZŰRT nézetben nem irányít át a főlistára (az üres és a hibás nem ugyanaz)", async () => {
+        handleAxios.mockImplementation((url, data, then, catchError) => {
+            catchError(new Error("Network Error"));
+            return Promise.resolve();
+        });
+
+        renderRoutes("/quotes/M%C3%A1rai");
+
+        expect(await screen.findByText(MESSAGE)).toBeVisible();
+        /* A cím maradjon a szűrt nézeten: az átirányítás azt üzenné, hogy ehhez a
+           szerzőhöz nincs idézet — miközben csak a lekérés bukott el. */
+        expect(window.location.pathname).toBe("/quotes/M%C3%A1rai");
+    });
+
+    it("egy SIKERES újratöltés eltünteti a hibaüzenetet (a hiba nem ragad be)", async () => {
+        /* Enélkül a jelzés örökre ottmaradna: az első bukás után egy másik
+           szűrőre váltva a friss, sikeres lista mellett is a hibaszöveg
+           látszana. Ez néma hiba — a felület "működik", csak hazudik. */
+        let shouldFail = true;
+        handleAxios.mockImplementation((url, data, then, catchError) => {
+            if (shouldFail) catchError(new Error("Network Error"));
+            else if (url === "/quotes" || url === "/quotes/author") then(axiosResponse(QUOTES));
+            else then(axiosResponse({}));
+            return Promise.resolve();
+        });
+
+        // Az előzménybe két cím kerül, hogy a böngésző Vissza gombja új betöltést váltson ki.
+        window.history.pushState({}, "", "/quotes");
+        renderRoutes("/quotes/M%C3%A1rai");
+        expect(await screen.findByText(MESSAGE)).toBeVisible();
+
+        shouldFail = false;
+        window.history.back();
+
+        expect(await screen.findByText("Első idézet")).toBeVisible();
+        expect(screen.queryByText(MESSAGE)).not.toBeInTheDocument();
+    });
+
+    it("az ÚJRA gomb megismétli a lekérést, és siker után megjelenik a lista", async () => {
+        /* A gomb nem oldalt frissít (az minden állapotot elvinne), hanem PONTOSAN
+           azt a lekérést ismétli meg, ami elbukott. A hiba oka jellemzően múló,
+           tehát a második nekifutás sikerülhet — ezt méri ez a teszt. */
+        let shouldFail = true;
+        handleAxios.mockImplementation((url, data, then, catchError) => {
+            if (shouldFail) catchError(new Error("Network Error"));
+            else if (url === "/quotes" || url === "/quotes/author") then(axiosResponse(QUOTES));
+            else then(axiosResponse({}));
+            return Promise.resolve();
+        });
+        renderRoutes("/quotes");
+        expect(await screen.findByText(MESSAGE)).toBeVisible();
+
+        shouldFail = false;
+        await userEvent.click(screen.getByRole("button", {name: "Adatok ismételt lekérése"}));
+
+        expect(await screen.findByText("Első idézet")).toBeVisible();
+        expect(screen.queryByText(MESSAGE)).not.toBeInTheDocument();
+    });
+
+    it("ha az ÚJRA is elbukik, a jelzés marad (nem tűnik el hamis sikerrel)", async () => {
+        handleAxios.mockImplementation((url, data, then, catchError) => {
+            catchError(new Error("Network Error"));
+            return Promise.resolve();
+        });
+        renderRoutes("/quotes");
+        expect(await screen.findByText(MESSAGE)).toBeVisible();
+
+        await userEvent.click(screen.getByRole("button", {name: "Adatok ismételt lekérése"}));
+
+        expect(await screen.findByText(MESSAGE)).toBeVisible();
+    });
+
+    it("SIKERES betöltésnél nincs hibaüzenet (kontroll)", async () => {
+        renderRoutes("/quotes");
+
+        expect(await screen.findByText("Első idézet")).toBeVisible();
+        expect(screen.queryByText(MESSAGE)).not.toBeInTheDocument();
+    });
+});
+
+/* AZ EGÉSZ LAP PIROSRA VÁLT a betöltési hibánál (2026-08-19).
+
+   Nem csak a hibajelzés kártyája: a navbar, a keretek és a gombok is. A
+   mechanizmus a téma HIBA-akcentusa, ami a szekció-akcentus FÖLÖTT áll — mert a
+   kettő sorrendje nem megbízható (a React a gyerek effektjeit futtatja előbb,
+   tehát a szekció akcentusa felülírná a hibáét). */
+describe("A hiba jelzésének színe", () => {
+    it("a KÁRTYA piros, de a LAP a téma színén marad", async () => {
+        /* Volt egy változat, ami az egész lapot (a navbart is) pirosra váltotta.
+           Világos témán az riasztásnak hatott, és a navigáció is „hibás" színt
+           kapott, pedig azzal semmi baj — a hiba ott jelezzen, AHOL VAN. */
+        handleAxios.mockImplementation((url, data, then, catchError) => {
+            catchError(new Error("Network Error"));
+            return Promise.resolve();
+        });
+
+        renderRoutes("/quotes");
+        const notice = await screen.findByRole("alert");
+
+        // A jelzés kártyája piros keretű…
+        expect(notice.closest(".border-danger")).not.toBeNull();
+        // …a lap kiemelőszíne viszont NEM a hiba-piros (l. contexts/theme.tsx).
+        expect(document.documentElement.style.getPropertyValue("--theme-accent")).not.toBe("#db1937");
     });
 });

@@ -1,6 +1,7 @@
 import {Navigate} from "react-router-dom";
 import type {ReactNode} from "react";
 import Spinner from "../spinner";
+import LoadFailedNotice from "../loadFailedNotice";
 import SortableCardGrid from "./SortableCardGrid";
 import type {CardGridControls, SortableCard} from "./useSortableCards";
 
@@ -13,6 +14,12 @@ type CardListViewProps<T extends SortableCard> = {
        a különbség az `emptyRedirect` döntésén múlik (l. lentebb). */
     cards: T[] | undefined;
     isLoading: boolean;
+    /* A betöltés elbukott (hálózat, időtúllépés vagy elcsúszott szerződés). Külön
+       a `cards`-tól: az ÜRES lista és a SIKERTELEN betöltés két különböző dolog. */
+    loadFailed: boolean;
+    /* A bukott lekérés újraindítása (a hook `reload`-ja) — a hibajelzés „Újra"
+       gombja hívja. */
+    onRetry: () => void;
     grid: CardGridControls;
     emptyRedirect?: string | null;
     renderCard: (card: T) => ReactNode;
@@ -36,8 +43,24 @@ type CardListViewProps<T extends SortableCard> = {
    a hossz-vizsgálat hamis eredményt adna — enélkül minden szűrt nézet átirányítana
    a saját betöltése közben, még mielőtt az adat megérkezne. */
 export default function CardListView<T extends SortableCard>({
-    cards, isLoading, grid, emptyRedirect, renderCard,
+    cards, isLoading, loadFailed, onRetry, grid, emptyRedirect, renderCard,
 }: CardListViewProps<T>) {
+    /* A HIBA ÁGA MINDEN MÁS ELŐTT. Két dolgot előz meg, és mindkettő némán
+       félrevezetne:
+
+       1. az ÁTIRÁNYÍTÁST — a sikertelen betöltés eddig üres listának látszott,
+          amitől egy szűrt nézet (kategória, szerző, keresés) magától visszavitte a
+          felhasználót a főlistára. Úgy nézett ki, mintha a szűrőhöz nem lenne
+          egyetlen elem sem, pedig csak a válasz nem érkezett meg;
+       2. az ÜRES NÉZETET — az azt ÁLLÍTJA, hogy nincs adat. Nem tudjuk, hogy
+          nincs-e; azt tudjuk, hogy most nem tudtuk lekérni.
+
+       A szöveg SZÁNDÉKOSAN semmitmondó a részletek felől: se végpont, se
+       hibakód, se séma-üzenet. Az a fejlesztőnek szól, és a szerver naplójába
+       megy (contractFault.ts → /client-error). A felhasználónak az a hasznos, hogy
+       nem ő rontott el semmit, és mit tehet. */
+    if (loadFailed) return <LoadFailedNotice message="Hiba az oldal betöltése közben." onRetry={onRetry}/>;
+
     if (emptyRedirect && Array.isArray(cards) && cards.length === 0)
         return <Navigate to={emptyRedirect} replace/>;
 

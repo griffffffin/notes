@@ -4,6 +4,7 @@ import {renderRoutes} from "../../test/renderRoutes";
 import {axiosResponse} from "../../test/axiosResponse";
 import type {AxiosResponse} from "axios";
 import type {Quote} from "../../types/api";
+import {at} from "../../test/at";
 
 
 /* A fixtúra a szerver VALÓDI válaszának alakjában: a tulajdonos, a betűméret és
@@ -100,10 +101,54 @@ describe("QuotePublic — versenyhelyzet a betöltésben", () => {
         expect(pending.map((call) => call.id)).toEqual(["q-2", "q-1"]);
 
         // Előbb a FRISS (q-1) válasza érkezik meg, és csak utána a lejárt q-2-é.
-        act(() => pending[1].then(axiosResponse({...QUOTE, _id: "q-1", quote: "A friss idézet."})));
-        act(() => pending[0].then(axiosResponse({...QUOTE, _id: "q-2", quote: "A lejárt idézet."})));
+        act(() => at(pending, 1).then(axiosResponse({...QUOTE, _id: "q-1", quote: "A friss idézet."})));
+        act(() => at(pending, 0).then(axiosResponse({...QUOTE, _id: "q-2", quote: "A lejárt idézet."})));
 
         expect(await screen.findByText("A friss idézet.")).toBeVisible();
         expect(screen.queryByText("A lejárt idézet.")).not.toBeInTheDocument();
+    });
+});
+
+/* NEM LÉTEZŐ kontra NEM ELÉRHETŐ — az átvizsgálás találata (2026-08-18).
+
+   A megosztott link egy konkrét idézetre mutat. Ha a szerver azt mondja, hogy
+   nincs ilyen (400/404), azt ki KELL mondani. Ha viszont a kérés el sem jutott
+   odáig (időtúllépés, megszakadt hálózat, elcsúszott szerződés), akkor a
+   látogató nem tudhatja meg, hogy az idézet létezik-e — és mi sem állíthatjuk,
+   hogy nem. Eddig mindkettő "Nem létező idézet." volt: egy pillanatnyi hálózati
+   zökkenő így úgy nézett ki, mintha az idézetet törölték volna. */
+describe("QuotePublic — a hiba FAJTÁJA", () => {
+    it("a szerver 404-ére kimondja, hogy nem létező idézet", async () => {
+        handleAxios.mockImplementation((url, data, then, catchError) => {
+            if (url === "/quotes/id") catchError({response: {status: 404, data: "Nincs ilyen idézet."}});
+            return Promise.resolve();
+        });
+
+        renderRoutes("/quotes/M%C3%A1rai/q-1");
+
+        expect(await screen.findByText("Nem létező idézet.")).toBeVisible();
+    });
+
+    it("HÁLÓZATI hibánál NEM állítja, hogy nem létezik", async () => {
+        handleAxios.mockImplementation((url, data, then, catchError) => {
+            if (url === "/quotes/id") catchError(new Error("Network Error"));
+            return Promise.resolve();
+        });
+
+        renderRoutes("/quotes/M%C3%A1rai/q-1");
+
+        expect(await screen.findByText(/Hiba az oldal betöltése közben/)).toBeVisible();
+        expect(screen.queryByText("Nem létező idézet.")).not.toBeInTheDocument();
+    });
+
+    it("elcsúszott SZERZŐDÉSNÉL sem állítja (a séma bukása sem jelent hiányt)", async () => {
+        handleAxios.mockImplementation((url, data, then) => {
+            if (url === "/quotes/id") then(axiosResponse({nem: "idézet"}));
+            return Promise.resolve();
+        });
+
+        renderRoutes("/quotes/M%C3%A1rai/q-1");
+
+        expect(await screen.findByText(/Hiba az oldal betöltése közben/)).toBeVisible();
     });
 });

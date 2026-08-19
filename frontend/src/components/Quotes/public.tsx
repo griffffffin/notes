@@ -7,9 +7,11 @@ import {useQuoteAccent} from "./useQuoteAccent";
 import {renderBold} from "./bold";
 import {logRequestError} from "../../log";
 import {ENDPOINTS} from "../../endpoints";
-import * as v from "valibot";
 import {publicQuoteSchema} from "../../types/api";
 import type {PublicQuote} from "../../types/api";
+import {parseResponse} from "../../contractFault";
+import {responseStatus} from "../../httpError";
+import LoadFailedNotice from "../loadFailedNotice";
 
 /* Egy megosztott idézet PUBLIKUS nézete (/quotes/:author/:id). Token nélkül is
    megnyitható (a backend readById az auth ELŐTT ül), ezért ez a route a
@@ -26,6 +28,14 @@ export default function QuotePublic() {
     // A betöltés végéig undefined (nem null): a `!quote` őr a spinnert tartja.
     const [quote, setQuote] = useState<PublicQuote | undefined>(undefined);
     const [notFound, setNotFound] = useState(false);
+    /* A NEM LÉTEZŐ és a NEM ELÉRHETŐ idézet KÉT KÜLÖN dolog — eddig egyformán
+       "Nem létező idézet."-nek látszottak (az átvizsgálás találta, 2026-08-18).
+       Egy megosztott linket megnyitó látogató így azt hihette, hogy az idézetet
+       törölték, holott csak a hálózat akadt meg (vagy a szerver válasza csúszott
+       el a sémától). Ez rosszabb, mint a semmi: HAMIS állítást tesz. */
+    const [loadFailed, setLoadFailed] = useState(false);
+    // Újrapróbálkozás-számláló: a betöltő effekt függősége (l. a szerkesztőknél).
+    const [retryCount, setRetryCount] = useState(0);
 
     /* Versenyhelyzet-őr: a route :id-je változásakor az effekt újrafut, és két
        párhuzamos válasz fordított sorrendben is visszaérhet — a RÉGI id válasza
@@ -40,14 +50,26 @@ export default function QuotePublic() {
                sorszámot, tulajdonost, időbélyeget SOHA. A komponens korábban a
                teljes Quote-ot ígérte magának; a futásidejű ellenőrzés bevezetése
                mutatta meg, hogy az az ígéret hamis volt (l. types/api.ts). */
-            const loaded = v.parse(publicQuoteSchema, response.data);
+            const loaded = parseResponse(publicQuoteSchema, response.data, ENDPOINTS.quoteById);
             if (active) setQuote(loaded);
         }, (error) => {
             logRequestError(error);
-            if (active) setNotFound(true);
+            if (!active) return;
+            /* A SZERVER VÁLASZÁRA hagyatkozunk, nem a hiba puszta tényére: ha
+               megjött egy státusz (400 érvénytelen azonosító, 404 nincs ilyen),
+               akkor a szerver TUDJA, hogy nincs ilyen idézet. Ha nincs státusz —
+               időtúllépés, megszakadt kapcsolat, séma-bukás —, akkor mi nem
+               tudunk semmit az idézet létezéséről, és nem is állítunk róla. */
+            if (responseStatus(error) === undefined) setLoadFailed(true);
+            else setNotFound(true);
         });
         return () => { active = false; };
-    }, [id, handleAxios]);
+    }, [id, handleAxios, retryCount]);
+
+    if (loadFailed) return (
+        <LoadFailedNotice message="Hiba az oldal betöltése közben."
+                          onRetry={() => { setLoadFailed(false); setRetryCount((count) => count + 1); }}/>
+    );
 
     // A "nincs ilyen idézet" üzenet 200%-os (a --quote-fs a .caveat 155%-át írja
     // felül, l. index.css) — hangsúlyosabb, mint a törzsszöveg.

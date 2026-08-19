@@ -17,6 +17,7 @@ import {ENTRY_ERROR_MESSAGES} from "./entryError";
 import {axiosResponse} from "../../test/axiosResponse";
 import {fakeToken} from "../../test/fakeToken";
 import type {RoutesProps} from "../routes";
+import {at} from "../../test/at";
 
 /* A login/regisztrációs űrlap viselkedése. A jelszó-szabály és a "Tovább" gomb
    tiltása a felhasználó első találkozása az appal — ha ez elromlik, senki nem
@@ -127,7 +128,8 @@ describe("Entry — regisztráció", () => {
         const mezo = screen.getByLabelText("Jelszó");
         expect(mezo).toHaveAttribute("type", "password");
 
-        await userEvent.click(screen.getAllByRole("button", {name: /jelszó megjelenítése/i})[0]);
+        await userEvent.click(
+            at(screen.getAllByRole("button", {name: /jelszó megjelenítése/i}), 0, "szem-gomb"));
         expect(mezo).toHaveAttribute("type", "text");
     });
 });
@@ -146,7 +148,7 @@ describe("Entry — regisztráció", () => {
    viszont kötelezővé teszi őket. Semleges alapértékeket adunk, hogy a hiányuk ne
    típus-lyukként, hanem kimondott döntésként álljon. */
 const ROUTE_PROPS = {
-    categories: [], handleLinkClicked: vi.fn(), handleCategoryChange: vi.fn(),
+    categories: [], categoriesFailed: false, handleLinkClicked: vi.fn(), handleCategoryChange: vi.fn(),
     setIsColorAngleClicked: vi.fn(), isColorAngleClicked: false,
     setIsCategoryAngleClicked: vi.fn(), isCategoryAngleClicked: false,
 } satisfies RoutesProps;

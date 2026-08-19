@@ -12,6 +12,7 @@ import {requireElement} from "../../test/dom";
 import type {DragEndEvent, DragStartEvent} from "@dnd-kit/core";
 import type {AxiosResponse} from "axios";
 import type {Todo} from "../../types/api";
+import {at} from "../../test/at";
 
 /* A Context-mock ÁLLANDÓ objektumot adjon vissza: a komponens effektje a
    handleAxios azonosságára van felfüggesztve, így egy rendernként újra gyártott
@@ -276,8 +277,14 @@ describe("Szűrő az URL-ből", () => {
             return Promise.resolve();
         });
         renderRoutes("/");
-        // A pörgő karika azt ígéri, mindjárt jön az adat — hiba után ez hazugság.
-        await waitFor(() => expect(document.querySelector(".min-vh-75")).not.toBeInTheDocument());
+
+        /* A pörgő karika azt ígéri, mindjárt jön az adat — hiba után ez hazugság.
+           A helyére viszont NEM üres lista kerül (az meg azt állítaná, hogy nincs
+           egyetlen to-dód sem), hanem a hiány kimondása. A `.spinner-border` a
+           Bootstrap karikája; a magasság-osztályt (`min-vh-75`) a hibajelzés is
+           használja, tehát arra keresni félrevezető lenne. */
+        expect(await screen.findByText(/Hiba az oldal betöltése közben/)).toBeVisible();
+        expect(document.querySelector(".spinner-border")).not.toBeInTheDocument();
     });
 });
 
@@ -293,8 +300,13 @@ describe("Szűrő az URL-ből", () => {
    használja, csak a :name paraméter más, tehát a komponens NEM mountol újra: a
    `filter` memo változik, és a betöltő effekt fut le megint. */
 describe("Read — versenyhelyzet a lista betöltésében", () => {
-    const HOME = [{...TODOS[0], _id: "h", title: "Otthoni teendő", category: "otthon"}];
-    const WORK = [{...TODOS[0], _id: "w", title: "Munkahelyi teendő", category: "munka"}];
+    /* A fixtúra első elemét EGYSZER vesszük ki, hangos hibával, ha nincs: a
+       `TODOS[0]` szétterítése `undefined` esetén CSENDBEN üres objektumot adna,
+       és a "válasz" egy csupa-hiányzó-mezős to-do lenne — a teszt pedig nem azt
+       mérné, amit hisz róla. */
+    const BASE = at(TODOS, 0, "fixtúra to-do");
+    const HOME = [{...BASE, _id: "h", title: "Otthoni teendő", category: "otthon"}];
+    const WORK = [{...BASE, _id: "w", title: "Munkahelyi teendő", category: "munka"}];
 
     /* A szűrt lekérések callbackjeit gyűjti ahelyett, hogy válaszolna; a főlista
        marad automatikus (arra esik vissza az üres szűrt nézet átirányítása). */
@@ -331,9 +343,9 @@ describe("Read — versenyhelyzet a lista betöltésében", () => {
         const pending = await openTwoFiltersAndGoBack();
 
         // Előbb a FRISS ("munka") válasza érkezik meg, és csak utána a lejárt "otthon"-é.
-        act(() => pending[1].then(axiosResponse(WORK)));
+        act(() => at(pending, 1).then(axiosResponse(WORK)));
         expect(await screen.findByText("Munkahelyi teendő")).toBeVisible();
-        act(() => pending[0].then(axiosResponse(HOME)));
+        act(() => at(pending, 0).then(axiosResponse(HOME)));
 
         expect(screen.getByText("Munkahelyi teendő")).toBeVisible();
         // Ez a "szellem": a lejárt szűrő eleme nem jelenhet meg a friss nézetben.
@@ -348,7 +360,7 @@ describe("Read — versenyhelyzet a lista betöltésében", () => {
         if (!staleCall) throw new Error("nem indult lekérés az 'otthon' szűrőre");
         const staleError = staleCall[3];
 
-        act(() => pending[1].then(axiosResponse(WORK)));
+        act(() => at(pending, 1).then(axiosResponse(WORK)));
         expect(await screen.findByText("Munkahelyi teendő")).toBeVisible();
         /* A hiba-ág üres listát tesz ki (hogy a betöltő ne pörögjön örökké) — egy
            SZŰRT nézetben viszont az üres lista átirányítást jelent a főlistára.

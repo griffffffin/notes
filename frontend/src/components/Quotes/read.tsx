@@ -35,7 +35,7 @@ export default function QuoteRead(props: QuoteReadProps) {
         [author],
     );
 
-    const {cards, isLoading, grid} = useSectionList<Quote>({
+    const {cards, isLoading, loadFailed, reload, grid} = useSectionList<Quote>({
         url: props.url, filter, reorderUrl: ENDPOINTS.quoteReorder, section: PATHS.quotes,
         schema: quoteListSchema,
     });
@@ -56,7 +56,7 @@ export default function QuoteRead(props: QuoteReadProps) {
     // Üres SZŰRT nézet (az utolsó ilyen szerzőjű idézetet átírták/törölték) —
     // vissza a teljes listára. A teljes lista LEGITIMEN lehet üres.
     return (
-        <CardListView cards={cards} isLoading={isLoading} grid={grid}
+        <CardListView cards={cards} isLoading={isLoading} loadFailed={loadFailed} onRetry={reload} grid={grid}
                       emptyRedirect={needsFilter ? PATHS.quotes : null}
                       renderCard={(quote) =>
                           <QuoteCard quote={quote} handleLinkClicked={props.handleLinkClicked}/>}/>
