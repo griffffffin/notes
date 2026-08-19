@@ -32,6 +32,11 @@ export function ThemeProvider({children}: {children: ReactNode}) {
        "szűk kezdőérték" csapdája — ugyanaz, mint a tooltipRegistry openId-jénél. */
     const [accentOverride, setAccentOverride] = useState<AccentOverride | null>(null);
     const accent = accentOverride?.accent ?? theme.accent;
+    /* A hibajelzés gombja EZT viseli. Ma megegyezik az `accent`-tel — de a kettő
+       SZÁNDÉKOSAN külön név: a jelzés a „megoldás" színét kéri, nem az éppen
+       aktuális akcentust. (Volt egy változat, ami hibánál az egész lapot pirosra
+       váltotta; a kettő ott vált szét, és a különbség fogalmilag azóta is él.) */
+    const accentBase = accent;
     const focusBorder = accentOverride?.focusBorder ?? theme.focusBorder;
     const focusRing = accentOverride?.focusRing ?? theme.focusRing;
 
@@ -62,6 +67,7 @@ export function ThemeProvider({children}: {children: ReactNode}) {
         setCssVariable(html.style, CSS_VARIABLES.pageBackground, theme.pageBackground);
         setCssVariable(html.style, CSS_VARIABLES.text, theme.text);
         setCssVariable(html.style, CSS_VARIABLES.accent, accent);
+        setCssVariable(html.style, CSS_VARIABLES.accentBase, accentBase);
         setCssVariable(html.style, CSS_VARIABLES.accentContrast, theme.accentContrast);
         setCssVariable(html.style, CSS_VARIABLES.focusBorder, focusBorder);
         setCssVariable(html.style, CSS_VARIABLES.focusRing, focusRing);
@@ -149,7 +155,7 @@ export function ThemeProvider({children}: {children: ReactNode}) {
            nem plusz sor, csak erősebb feltétel. */
         const link = document.querySelector("link[rel=icon]");
         if (link instanceof HTMLLinkElement) link.href = favicon;
-    }, [theme, accent, focusBorder, focusRing, isLight]);
+    }, [theme, accent, accentBase, focusBorder, focusRing, isLight]);
 
     /* Sima useEffect (a festés UTÁN fut) — SZÁNDÉKOSAN, két okból is.
 

@@ -35,6 +35,12 @@ export const CSS_VARIABLES = {
     pageBackground: "--theme-page-bg",
     text: "--theme-text",
     accent: "--theme-accent",
+    /* A HIBA NÉLKÜLI akcentus: a lap saját kiemelőszíne, hibaállapot nélkül.
+       A betöltési hibát jelző kártya pirosat visel (keret + üzenet), de a KIÚT —
+       az adatok újbóli lekérését kérő gomb — nem a hiba, hanem a megoldás
+       színét hordja. Ezért kell a lap eredeti színe akkor is, amikor épp más
+       szín uralja a jelzést. */
+    accentBase: "--theme-accent-base",
     accentContrast: "--theme-accent-contrast",
     focusBorder: "--theme-focus-border",
     focusRing: "--theme-focus-ring",

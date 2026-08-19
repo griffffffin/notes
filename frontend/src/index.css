@@ -779,3 +779,76 @@ dialog.todo-modal {
 dialog.todo-modal::backdrop {
     background: rgba(0, 0, 0, 0.85);
 }
+
+/* EGYETLEN PIROS AZ EGÉSZ APPBAN.
+
+   Két piros élt egymás mellett: a Bootstrapé (#dc3545 — a törlés-gomb, a
+   `text-danger`, és a to-do paletta "danger" színe) és az appé (#db1937 — a
+   szerző-szűrt idézet-nézet akcentusa, a betöltési hiba egész lapos színe, a
+   hibabuborék). Fekete háttéren a kettő szemmel is elválik, és egy felületen két
+   "piros" nem stílus, hanem következetlenség.
+
+   Itt a BOOTSTRAP pirosát húzzuk át a mienkre — így minden érintett elem együtt
+   vált: a gombok (`btn-danger`), a szövegek (`text-danger`), a keretek
+   (`border-danger`) és a to-do kártyák piros színe is.
+
+   A `--bs-danger-rgb` külön kell: a Bootstrap az áttetsző változatokat
+   (`text-danger` opacitással, háttérszínek) rgb-komponensekből számolja, tehát a
+   hex önmagában nem elég.
+
+   A `.btn-danger` a Bootstrapben NEM a `--bs-danger`-ből dolgozik, hanem beégetett
+   értékekből — ezért a gomb saját változóit külön kell átírni. A `filter:
+   brightness()` a hover/aktív árnyalatokra: így egyetlen szám határozza meg az
+   egész családot, nem kell három kézzel kevert hexát karbantartani.
+
+   A KÖTÉS A JS-SEL: ugyanez az érték a theme-context.ts ACCENT_RED-jében is
+   szerepel (a téma onnan állítja a --theme-accent-et). Két helyen élő érték =
+   elcsúszás-veszély, ezért van rá szerződés-teszt: src/appRed.test.ts. */
+:root {
+    --app-red: #db1937;
+    --bs-danger: var(--app-red);
+    --bs-danger-rgb: 219, 25, 55;
+}
+
+.btn.btn-danger {
+    --bs-btn-bg: var(--app-red);
+    --bs-btn-border-color: var(--app-red);
+    --bs-btn-hover-bg: color-mix(in srgb, var(--app-red) 85%, black);
+    --bs-btn-hover-border-color: color-mix(in srgb, var(--app-red) 85%, black);
+    --bs-btn-active-bg: color-mix(in srgb, var(--app-red) 75%, black);
+    --bs-btn-active-border-color: color-mix(in srgb, var(--app-red) 75%, black);
+    --bs-btn-disabled-bg: var(--app-red);
+    --bs-btn-disabled-border-color: var(--app-red);
+}
+
+.btn.btn-outline-danger {
+    --bs-btn-color: var(--app-red);
+    --bs-btn-border-color: var(--app-red);
+    --bs-btn-hover-bg: var(--app-red);
+    --bs-btn-hover-border-color: var(--app-red);
+    --bs-btn-active-bg: var(--app-red);
+    --bs-btn-active-border-color: var(--app-red);
+    --bs-btn-disabled-color: var(--app-red);
+    --bs-btn-disabled-border-color: var(--app-red);
+}
+
+/* A HIBAJELZÉS KIÚT-GOMBJA a MEGOLDÁS színét viseli, nem a hibáét.
+
+   A betöltési hiba az egész lapot pirosra váltja (--theme-accent), és ez így
+   helyes: a baj látszódjon. A gomb viszont nem a baj, hanem a kiút belőle —
+   ezért a hiba ELŐTTI akcentust kapja (--theme-accent-base, a ThemeProvider
+   írja). Így a piros mezőben az egyetlen NEM piros elem pontosan az, amit a
+   felhasználónak meg kell nyomnia.
+
+   Külön osztály (és nem inline stílus), mert a Bootstrap gomb-változóiból hetet
+   kell átírni — az inline alak itt olvashatatlan lenne. */
+.btn.btn-outline-accent-base {
+    --bs-btn-color: var(--theme-accent-base);
+    --bs-btn-border-color: var(--theme-accent-base);
+    --bs-btn-hover-bg: var(--theme-accent-base);
+    --bs-btn-hover-border-color: var(--theme-accent-base);
+    --bs-btn-hover-color: var(--theme-accent-contrast);
+    --bs-btn-active-bg: var(--theme-accent-base);
+    --bs-btn-active-border-color: var(--theme-accent-base);
+    --bs-btn-active-color: var(--theme-accent-contrast);
+}
