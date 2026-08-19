@@ -6,6 +6,7 @@ import AuthorInput from "./authorInput";
 import type {AuthorInputProps} from "./authorInput";
 import {axiosResponse} from "../../test/axiosResponse";
 import type {AxiosResponse} from "axios";
+import {at} from "../../test/at";
 
 const {auth, handleAxios} = await vi.hoisted(async () => {
     const {mockAuth} = await import("../../test/mockAuth");
@@ -125,12 +126,12 @@ describe("AuthorInput — versenyhelyzet a javaslat-lekérésben", () => {
         expect(pending.map((call) => call.prefix)).toEqual(["M", "Má"]);
 
         // A FRISS ("Má") válasza érkezik meg előbb: a ghost kirajzolja a folytatást.
-        act(() => pending[1].then(axiosResponse(["Márai"])));
+        act(() => at(pending, 1).then(axiosResponse(["Márai"])));
         expect(await screen.findByText("rai")).toBeInTheDocument();
 
         /* És most fut be a lejárt "M" válasza. A "Molnár" a "Má"-val nem kezdődik,
            tehát ha felülírná a javaslatot, a ghost némán eltűnne. */
-        act(() => pending[0].then(axiosResponse(["Molnár"])));
+        act(() => at(pending, 0).then(axiosResponse(["Molnár"])));
 
         expect(screen.getByText("rai")).toBeInTheDocument();
     });

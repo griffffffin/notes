@@ -81,3 +81,29 @@ export function fieldAnchor(selector: string, name?: string): FieldAnchor {
         },
     };
 }
+
+/* ELEMHEZ igazított horgony — a mező VÍZSZINTES KÖZEPE alatt.
+
+   ELTÉRÉS a fenti `fieldAnchor`-tól (ugyanebben a fájlban): az a placeholder
+   SZÖVEGÉNEK közepére mutat, ez pedig magára a MEZŐRE. A különbség ott számít,
+   ahol a mező szélesebb a szövegénél: a navbar keresősávja teljes szélességű,
+   tehát a szöveghez igazított nyíl a bal széle közelében állna, mintha valami
+   máshoz tartozna. A keresés hibája az EGÉSZ sávra vonatkozik, ezért a sáv
+   közepe alá kerül.
+
+   A `name` és a `boundary` itt nincs értelmezve: a hibaüzenetet a hívó adja
+   szövegként (nem mezőnévből épül), és a keresősáv nem űrlapon belül ül, tehát
+   nincs mihez képest bent maradnia — a képernyő az egyetlen határ. */
+export function elementAnchor(selector: string): FieldAnchor | null {
+    const el = document.querySelector(selector);
+    if (!(el instanceof HTMLElement)) return null;
+
+    const r = el.getBoundingClientRect();
+    return {
+        anchor: selector,
+        name: "",
+        boundary: undefined,
+        // A doboz ALJA, hogy a lefelé nyíló buborék nyila a mező alatt kezdődjön.
+        pos: {x: r.left + r.width / 2, y: r.bottom},
+    };
+}

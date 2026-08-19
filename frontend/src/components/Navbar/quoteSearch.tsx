@@ -5,9 +5,12 @@ import {useAuth} from "../../contexts/auth-context";
 import {useTheme} from "../../contexts/theme-context";
 import {logRequestError} from "../../log";
 import {ENDPOINTS} from "../../endpoints";
-import * as v from "valibot";
 import {searchModeSchema} from "../../types/api";
 import {PATHS} from "../../paths";
+import {parseResponse} from "../../contractFault";
+import AnchoredTooltip from "../Editor/anchoredTooltip";
+import {elementAnchor} from "../Editor/fieldAnchor";
+import type {FieldAnchor} from "../Editor/fieldAnchor";
 
 /* A Quotes-navbar keresője (a "+" és a kijelentkezés között, középen). A ghost-
    text szerző-ajánlást a szerkesztővel KÖZÖS AuthorInput adja (onSubmit móddal:
@@ -28,6 +31,11 @@ type QuoteSearchProps = {
     onFocusChange: (isFocused: boolean) => void;
 };
 
+/* A keresősáv beviteli mezőjének azonosítója — a hibabuborék EHHEZ horgonyzik.
+   Konstansként, mert két helyen kell (a mezőn és a horgonyzásnál), és a kettő
+   elcsúszása néma lenne: a buborék a képernyő bal felső sarkába kerülne. */
+const SEARCH_INPUT_ID = "quoteSearchField";
+
 export default function QuoteSearch(props: QuoteSearchProps) {
     const {handleAxios} = useAuth();
     const {color} = useTheme();
@@ -36,6 +44,9 @@ export default function QuoteSearch(props: QuoteSearchProps) {
     // A mező a hívó által az URL-ből számolt kezdőértékkel indul, és követi is az
     // URL változását (más szerzőre/keresésre lépve a mező is átáll).
     const [term, setTerm] = useState(props.initialTerm);
+    /* A keresés HIBÁJÁNAK horgonya (null = nincs hiba). A típus kimondva, mert a
+       kezdőérték null (l. CLAUDE.md, "kezdőérték ≠ típus"). */
+    const [searchError, setSearchError] = useState<FieldAnchor | null>(null);
     useEffect(() => setTerm(props.initialTerm), [props.initialTerm]);
 
     const runSearch = () => {
@@ -43,7 +54,7 @@ export default function QuoteSearch(props: QuoteSearchProps) {
         // Üres keresés (üres mező vagy csak szóköz) → vissza a teljes listára (főoldal).
         if (!trimmed) {
             props.handleLinkClicked?.();
-            navigate(PATHS.quotes);
+            void navigate(PATHS.quotes);
             return;
         }
         /* Az "Anonymous" a névtelen (üres szerzőjű) idézetek URL-jelölője — a
@@ -54,23 +65,32 @@ export default function QuoteSearch(props: QuoteSearchProps) {
            kanonikus "Anonymous" jelölő. */
         if (trimmed.toLowerCase() === "anonymous") {
             props.handleLinkClicked?.();
-            navigate(PATHS.quotesByAuthor("Anonymous"));
+            void navigate(PATHS.quotesByAuthor("Anonymous"));
             return;
         }
         handleAxios(ENDPOINTS.quoteSearchMode, {term: trimmed}, (response) => {
+            setSearchError(null);
             /* A séma nem csak megnevezi a választ, ELLENŐRZI is: a diszkriminált
                unió miatt a `mode.author` sor CSAK a mode-vizsgálat ága alatt fordul
                le (l. types/api.ts), és futásidőben is csak akkor van ott. Egy
                "author" módú válasz szerző NÉLKÜL így nem az URL-be írt "undefined"
                szót eredményezi, hanem elutasított választ: maradunk a helyünkön, a
                hiba a naplóba megy. */
-            const mode = v.parse(searchModeSchema, response.data);
+            const mode = parseResponse(searchModeSchema, response.data, ENDPOINTS.quoteSearchMode);
             props.handleLinkClicked?.();
             if (mode.mode === "author")
-                navigate(PATHS.quotesByAuthor(mode.author));
+                void navigate(PATHS.quotesByAuthor(mode.author));
             else
-                navigate(PATHS.quoteSearch(trimmed));
-        }, logRequestError);
+                void navigate(PATHS.quoteSearch(trimmed));
+        }, (error) => {
+            logRequestError(error);
+            /* A KERESÉS NEM INDULT EL — és eddig ez pontosan úgy nézett ki, mint
+               ha a felület meg sem hallotta volna az Entert: nem navigáltunk, nem
+               írtunk semmit. A buborék a keresősáv ALÁ kerül, a SÁV közepéhez
+               igazítva (nem a beírt szöveghez): a hiba az egész műveletre
+               vonatkozik, nem egy szó helyére. */
+            setSearchError(elementAnchor("#" + SEARCH_INPUT_ID));
+        });
     };
 
     return (
@@ -79,9 +99,18 @@ export default function QuoteSearch(props: QuoteSearchProps) {
         /* Az `event` típusát innen az AuthorInput onChange-propja adja (ValueChange:
            {target:{value}}) — a korábbi kézi ChangeEvent-annotáció elhagyható lett,
            amint az AuthorInput átkerült TypeScriptre. */
-        <AuthorInput value={term} onChange={(event) => setTerm(event.target.value)}
-                     onSubmit={runSearch} onFocusChange={props.onFocusChange}
-                     placeholder="Keresés..." wrapperClass="w-100"
-                     class={"caveat text-" + color}/>
+        <>
+            <AuthorInput value={term} inputId={SEARCH_INPUT_ID}
+                         onChange={(event) => { setTerm(event.target.value); setSearchError(null); }}
+                         onSubmit={runSearch} onFocusChange={props.onFocusChange}
+                         placeholder="Keresés..." wrapperClass="w-100"
+                         class={"caveat text-" + color}/>
+            {/* A hibabuborék ugyanaz a komponens, amit a szerkesztők kötelező-mező
+                jelzése is használ (AnchoredTooltip) — azonos keret, szín és
+                viselkedés. Gépelésre és bárhova kattintásra eltűnik. */}
+            <AnchoredTooltip id="quote-search-error" anchor={searchError} tone="danger"
+                             message="Hiba a keresés indításakor."
+                             onDismiss={() => setSearchError(null)}/>
+        </>
     );
 }

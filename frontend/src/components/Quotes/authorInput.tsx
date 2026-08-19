@@ -2,8 +2,8 @@ import {useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent, type 
 import {useAuth} from "../../contexts/auth-context";
 import {logRequestError} from "../../log";
 import {ENDPOINTS} from "../../endpoints";
-import * as v from "valibot";
 import {authorListSchema} from "../../types/api";
+import {parseResponse} from "../../contractFault";
 
 // Ennyi szünet után kérünk javaslatot: gépelés közben minden billentyűnél
 // fölösleges a szerverhez fordulni, csak ha a felhasználó "megállt".
@@ -27,6 +27,10 @@ export type AuthorInputProps = {
     onSubmit?: () => void;
     onFocusChange?: (isFocused: boolean) => void;
     wrapperClass?: string;
+    /* A beviteli mező azonosítója. Csak ott adjuk meg, ahol HORGONYOZNI kell rá
+       (a navbar keresője a hibabuborékját teszi alá) — a szerkesztőben nincs rá
+       szükség, ezért opcionális. */
+    inputId?: string;
 };
 
 /* Szerző-mező ghost-text kiegészítéssel. A látható input MÖGÖTT egy azonos
@@ -102,7 +106,7 @@ export default function AuthorInput(props: AuthorInputProps) {
                 (response) => {
                     // A szerver legfeljebb EGY javaslatot küld ($limit 1), de a
                     // szerződése tömb — a séma is azt kéri számon.
-                    const authors = v.parse(authorListSchema, response.data);
+                    const authors = parseResponse(authorListSchema, response.data, ENDPOINTS.quoteAuthors);
                     if (isLatest) setSuggestion(authors[0] ?? "");
                 },
                 // A hibaág nem ír state-et (csak naplóz), ezért nem kér őrt.
@@ -222,7 +226,7 @@ export default function AuthorInput(props: AuthorInputProps) {
                 <span style={{color: "transparent"}}>{value}</span>
                 <span style={{opacity: 0.45}}>{completion}</span>
             </div>
-            <input ref={inputRef} value={value} onChange={handleChange} onKeyDown={handleKeyDown}
+            <input ref={inputRef} id={props.inputId} value={value} onChange={handleChange} onKeyDown={handleKeyDown}
                    onPointerUp={handlePointerUp}
                    onFocus={() => { setFocused(true); props.onFocusChange?.(true); }}
                    onBlur={() => { setFocused(false); props.onFocusChange?.(false); }}
