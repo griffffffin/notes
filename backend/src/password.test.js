@@ -21,9 +21,18 @@ test("az álca-hash UGYANAZZAL a költségtényezővel készül, mint a valódi 
 
 /* A tényező alsó korlátja nem ízlés kérdése: a bcrypt lassúsága maga a védelem.
    Ha valaki "gyorsításként" 4-re vinné (a bcrypt megengedi), a jelszavak offline
-   törése nagyságrendekkel olcsóbb lenne — és semmi nem jelezne hibát. */
+   törése nagyságrendekkel olcsóbb lenne — és semmi nem jelezne hibát.
+
+   ALSÓ KORLÁT, NEM EGYENLŐSÉG. Egyenlőséggel a szám két helyen élne (itt és a
+   password.js-ben), és minden emeléskor a tesztet is át kellene írni — az ilyen
+   "kézzel szinkronizált másolat" előbb-utóbb elcsúszik. Alsó korláttal az EMELÉS
+   szabadon megy, a CSÖKKENTÉS viszont hangosan bukik, és épp ez a veszélyes irány.
+
+   A korlát 2026-08-18-án 10-ről 11-re nőtt, a tényezővel együtt. MÉRVE aznap:
+   e nélkül a lépés nélkül a 11 → 10 visszavétel az egész backend tesztsort
+   zölden hagyta volna — vagyis a döntést semmi nem őrizte. */
 test("a költségtényező nem csökkenhet a mai szint alá", () => {
-    assert.ok(SALT_WORK_FACTOR >= 10, `a költségtényező ${SALT_WORK_FACTOR}, elvárt legalább 10`);
+    assert.ok(SALT_WORK_FACTOR >= 11, `a költségtényező ${SALT_WORK_FACTOR}, elvárt legalább 11`);
 });
 
 /* Az álca-hash ÉRVÉNYES bcrypt-hash: a compare lefut rajta, és hamisat ad. Ha

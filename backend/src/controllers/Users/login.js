@@ -35,13 +35,52 @@ const BAD_LOGIN_STATUS = 400;
    Mérés a Pi-n, 40-40 kérés (2026-07-16): ismeretlen név átlag 134 ms
    (min 130 / max 139), létező név átlag 134 ms (min 130 / max 146) — az
    eloszlások fedik egymást, nincs kinyerhető jel. */
-const {DUMMY_HASH} = require("../../password");
+const {DUMMY_HASH, SALT_WORK_FACTOR} = require("../../password");
+
+/* A JELSZÓ ÁTHASHELÉSE, ha a tárolt hash még a RÉGI költségtényezővel készült.
+
+   Miért kell. A bcrypt a tényezőt beleírja a hashbe, tehát egy emelés (2026-08-18:
+   10 → 11) a MEGLÉVŐ jelszavakat nem érinti: azok továbbra is a régi, olcsóbb
+   tényezővel ellenőrződnek. Két baj származik ebből, és a második a súlyosabb:
+
+     - a régi jelszó nem kapja meg a védelmet, amiért az emelés történt;
+     - KEVERT tényezők mellett a bejelentkezés ideje felhasználónként eltér, az
+       álca-hash pedig már az ÚJ tényezőt használja — vagyis a válaszidőből megint
+       kiolvasható lenne, létezik-e a fiók (l. password.js).
+
+   Ezért az emelés után az ELSŐ sikeres belépés újraírja a hasht. Csak akkor, ha a
+   jelszó helyes volt: ilyenkor a nyílt szöveg a kezünkben van, és csak ilyenkor
+   van jogunk hozzányúlni a fiókhoz.
+
+   NEM VÁRJUK MEG a mentést a válasszal (`await` nélkül, saját hibaággal): a
+   felhasználót nem hátráltathatja egy karbantartó művelet, és ha a mentés
+   elbukik, a belépés akkor is sikeres — a következő belépéskor újra megpróbáljuk.
+   A hiba a szerver naplójába megy, nem a válaszba.
+
+   A `getRounds` ÉRVÉNYES bcrypt-hasht vár; ha az adatbázisban valaha más állna, a
+   dobott kivétel egy egyébként sikeres belépést rontana el. Ezért van try/catch:
+   a felismerhetetlen hasht nem hasheljük át, csak naplózzuk. */
+function rehashIfOutdated(user, password) {
+    let rounds;
+    try {
+        rounds = bcrypt.getRounds(user.password);
+    } catch (error) {
+        return console.error("A tárolt jelszó-hash nem olvasható (költségtényező):", error);
+    }
+    if (rounds === SALT_WORK_FACTOR) return;
+
+    bcrypt.hash(password, SALT_WORK_FACTOR)
+        .then((hashedPassword) => Users.updateOne({_id: user._id}, {password: hashedPassword}))
+        .then(() => console.log(`A(z) ${user._id} jelszava átállt a ${SALT_WORK_FACTOR}-es költségtényezőre.`))
+        .catch((error) => console.error("Sikertelen jelszó-áthashelés:", error));
+}
 
 module.exports = router.post("/", async (request, response) => {
     try {
         const user = await Users.findOne({name: request.body.name});
         const isMatch = await bcrypt.compare(request.body.password, user?.password ?? DUMMY_HASH);
         if (!user || !isMatch) return response.status(BAD_LOGIN_STATUS).json(BAD_LOGIN);
+        rehashIfOutdated(user, request.body.password);
         return response.json(signToken(user._id));
     } catch (error) {
         // A részletek a szerver naplójába valók, nem a válaszba.
