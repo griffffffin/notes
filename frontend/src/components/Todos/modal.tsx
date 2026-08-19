@@ -10,6 +10,13 @@ export type ModalProps = {
     handleClose: () => void;
     handleDelete: () => void;
     color: BootstrapColor;
+    /* A törlés FOLYAMATBAN van (a kérés elindult, a válasz még nem jött meg). A
+       gomb ilyenkor letiltva, "Törlés…" felirattal: enélkül a dialógus azonnal
+       bezárult, és a felhasználó nem tudta, elindult-e egyáltalán a művelet. */
+    isDeleting: boolean;
+    /* A törlés ELBUKOTT. A dialógus nyitva marad, és megmondja — eddig némán
+       bezárult, mintha mi sem történt volna (l. failure-looks-like-normal audit). */
+    deleteFailed: boolean;
 };
 
 /* Törlés-megerősítő dialógus a natív <dialog> elemre építve (a react-bootstrap
@@ -25,6 +32,12 @@ export type ModalProps = {
    .modal-content viseli — ugyanaz a szerkezet, amit a react-bootstrap generált,
    így a rá hangolt index.css-szabályok (.modal-content/-header/-body/-title,
    .btn-close) mind változatlanul érvényesek. */
+/* A megerősítő gomb azonosítója. Konstans, mert két helyen kell (a gombon és a
+   fókuszálásnál) — és mert a SZÍN-osztály nem alkalmas horgonynak: a Vissza gomb
+   ugyanazt a `btn-danger`-t viselheti, ha a szerkesztett to-do színe piros.
+   MÉRVE (2026-08-19): a szín-alapú szelektorral a fókusz a Visszán maradt. */
+const DELETE_BUTTON_ID = "deleteConfirmButton";
+
 export default function Modal(props: ModalProps) {
     /* A típus KIMONDVA, nem a `null` kezdőértékből következtetve — különben a
        fordító örökre `null`-ra szűkítené a refet, és a `dialog.showModal()` sor
@@ -53,6 +66,27 @@ export default function Modal(props: ModalProps) {
             if (safeButton instanceof HTMLElement) safeButton.focus();
         } else if (!props.isShow && dialog.open) dialog.close();
     }, [props.isShow]);
+
+    /* A BUKÁS UTÁN A TÖRLÉS GOMBRA KERÜL A FÓKUSZ.
+
+       Megnyitáskor a biztonságos gomb (Vissza) kapja meg, hogy egy véletlen Enter
+       ne töröljön — ott a felhasználó még csak most kérdez rá. A HIBA UTÁN viszont
+       már döntött: törölni akart, és a művelet bukott el. Ilyenkor a következő
+       lépése majdnem biztosan az újrapróbálás, tehát az legyen kéznél: egy Enter
+       elég hozzá.
+
+       A `querySelector` `Element`-et ad, azon nincs `focus()`; az `instanceof` a
+       valódi vizsgálat (ugyanaz, mint a megnyitásnál).
+
+       AZ EFFEKT SORRENDJE SZÁMÍT: a megnyitás-effekt UTÁN áll, mert az a
+       biztonságos gombra teszi a fókuszt. Ha egy dialógus egyszerre nyílna meg és
+       lenne hibás állapotban (a tesztben ez előfordul), a később futó effekt nyer
+       — és ilyenkor a helyes a Törlés gomb. */
+    useEffect(() => {
+        if (!props.deleteFailed) return;
+        const retry = dialogRef.current?.querySelector("#" + DELETE_BUTTON_ID);
+        if (retry instanceof HTMLElement) retry.focus();
+    }, [props.deleteFailed]);
 
     /* Unmount-biztonság. Ha a szülő úgy tűnik el, hogy a dialógus még nyitva van
        — jellemzően a törlés UTÁNi navigáció: a DeleteAndModal a szerkesztővel
@@ -84,23 +118,55 @@ export default function Modal(props: ModalProps) {
     return (
         <dialog ref={dialogRef} className="todo-modal" onClose={handleClose} onClick={handleDialogClick}>
             <div className={"modal-content border border-3 border-" + props.color + " bg-theme-page text-" + props.color}>
-                <div className="modal-header text-center ms-1 py-2 border-0">
-                    <h5 className="modal-title text-center m-0">Törlés</h5>
+                <div className="modal-header ms-1 py-2 border-0">
+                    {/* A FOLYAMATBAN-állapot a FEJLÉCBEN jelenik meg ("Törlés…"), és a
+                        törzs ilyenkor eltűnik: nincs kérdés, amire válaszolni kell,
+                        és nincs gomb, amit meg lehetne nyomni. Így a dialógus a
+                        művelet idejére egyetlen sorrá zsugorodik — maga a méret is
+                        jelzés. A kérdés és a hibaüzenet marad a törzsben.
+
+                        A CÍM BALRA ÁLL, mindkét állapotban. Nem `text-center`-rel:
+                        a `.modal-header` flex-doboz (`justify-content: space-between`),
+                        amiben a cím a saját szélességére zsugorodik — ott a
+                        szövegigazítás semmit nem csinál. A régi `text-center`
+                        osztályok pont ezért kerültek le a fejlécről és a címről:
+                        azt ígérték, hogy középre igazítanak, közben a bal oldali
+                        helyzetet a flex-elrendezés adta (mérve, 2026-08-19). */}
+                    <h5 className="modal-title m-0">
+                        {props.isDeleting ? "Törlés…" : "Törlés"}
+                    </h5>
                     {/* A bezáró X-et magunk rendereljük, eleve a to-do színével —
                         így elmarad a régi, elemre utólag rátett osztály (DOM-kotrás
                         a render után), ami a react-bootstrap closeButton-t színezte. */}
                     <button type="button" aria-label="Bezárás" onClick={handleClose}
                             className={"btn-close text-" + props.color}/>
                 </div>
-                <div className="modal-body pt-0">
-                    <div className="ms-2 pb-3">Biztosan törlöd?</div>
-                    <div className="d-grid">
-                        <SubmitButton type="button" onClick={handleClose} isOutline={false} color={props.color}
-                                      isDisabled={false} text="Vissza"/>
-                        <SubmitButton type="button" onClick={props.handleDelete} isOutline={false} color="danger"
-                                      isDisabled={false} text="Törlés"/>
+                {/* Törlés közben NINCS törzs. A `modal-body` saját (1rem) alsó
+                    paddingje enélkül aszimmetrikus térközt hagyna a fejléc alatt —
+                    a fejléc `py-2`-je így felül-alul egyformán tartja a címet. */}
+                {!props.isDeleting && <div className="modal-body pt-0">
+                    {/* EGY SOR, HÁROM ÁLLAPOT — ugyanazon a helyen, azonos betűvel
+                        és vastagsággal. A dialógusnak egyszerre egy mondanivalója
+                        van: kérdez, dolgozik, vagy jelent. Külön hibasor a kérdés
+                        MELLETT azt sugallná, hogy még mindig a megerősítésre
+                        várunk, közben pedig már válasz érkezett.
+
+                        A `role="alert"` csak a hiba-állapotban van rajta: a
+                        képernyőolvasó így a felbukkanó üzenetet azonnal
+                        felolvassa, a kérdést viszont nem riasztásként hallja. */}
+                    <div className="ms-2 pb-3" role={props.deleteFailed ? "alert" : undefined}>
+                        {props.deleteFailed ? "A törlés nem sikerült!" : "Biztosan törlöd?"}
                     </div>
-                </div>
+                    <div className="d-grid">
+                        <SubmitButton type="button" onClick={handleClose} isOutline={false}
+                                      color={props.color} isDisabled={false} text="Vissza"/>
+                        {/* A TÖRLÉS GOMB HIBA UTÁN IS KELL: a bukás oka jellemzően
+                            múló (hálózati zökkenő, épp újrainduló szerver, lejárt
+                            token), tehát a második próbálkozás valóban sikerülhet. */}
+                        <SubmitButton id={DELETE_BUTTON_ID} type="button" onClick={props.handleDelete}
+                                      isOutline={false} color="danger" isDisabled={false} text="Törlés"/>
+                    </div>
+                </div>}
             </div>
         </dialog>
     );

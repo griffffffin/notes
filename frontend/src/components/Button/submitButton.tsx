@@ -2,6 +2,10 @@ import type {MouseEventHandler} from "react";
 import type {BootstrapColor} from "../../contexts/theme-context";
 
 type SubmitButtonProps = {
+    /* Csak ott adjuk meg, ahol HORGONYOZNI kell a gombra (a törlés-modal a bukás
+       után ide teszi a fókuszt). A szín-osztály erre alkalmatlan: ugyanazt a
+       `btn-danger`-t viselheti a másik gomb is, ha a to-do színe épp piros. */
+    id?: string;
     type?: "submit" | "button";
     onClick?: MouseEventHandler<HTMLButtonElement>;
     isDisabled: boolean;
@@ -19,7 +23,7 @@ export default function SubmitButton(props: SubmitButtonProps) {
         // törlés-modal gombjai "button"-ok, különben a körülvevő Save-űrlapot is
         // elsütnék — az idézne elő egy versenyt (a lista a törlés BEFEJEZÉSE
         // előtt töltene újra), amitől a törölt to-do "szelleme" bent ragadt.
-        <button type={props.type ?? "submit"} onClick={props.onClick} disabled={props.isDisabled}
+        <button id={props.id} type={props.type ?? "submit"} onClick={props.onClick} disabled={props.isDisabled}
                 className={props.isOutline ? "btn rounded-pill w-100 btn-outline-" + props.color :
                     "btn rounded-pill my-1 btn-" + props.color}>
             {props.text}
