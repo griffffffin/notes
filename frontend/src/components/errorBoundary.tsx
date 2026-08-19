@@ -66,18 +66,18 @@ function describeError(error: unknown): string {
 }
 
 export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-    state: ErrorBoundaryState = {error: null, info: null};
+    override state: ErrorBoundaryState = {error: null, info: null};
 
     static getDerivedStateFromError(error: unknown): Pick<ErrorBoundaryState, "error"> {
         return {error};
     }
 
-    componentDidCatch(error: unknown, info: ErrorInfo) {
+    override componentDidCatch(error: unknown, info: ErrorInfo) {
         this.setState({info});
         logDev("Elkapott hiba:", error, info.componentStack);
     }
 
-    render() {
+    override render() {
         const {error, info} = this.state;
         if (!error) return this.props.children;
 

@@ -35,6 +35,66 @@
        (`if (!x) return`, `??`), nem `!`-lel vagy `as`-szal — az visszacsempészné
        ugyanazt a hitet, amit ez a kapcsoló kiirt. */
     "noUncheckedIndexedAccess": true,
+
+    /* A HARMADIK RÉTEG (2026-08-19): a `strict`-en KÍVÜL álló kapcsolók, egyenként
+       lemérve a valódi kódbázison. Ami itt szerepel, az MIND 0 hibát adott a
+       bekapcsoláskor (a noImplicitOverride hármat, azok javítva) — vagyis nem a
+       meglévő kódot rendezik, hanem a JÖVŐT zárják: mostantól az az alak, amit
+       tiltanak, be sem kerülhet. Az ilyen szigorítás a legolcsóbb fajta, ezért
+       érdemes akkor meglépni, amikor a kód épp tiszta.
+
+       Ami MÉRVE nem fért bele: a `noUnusedParameters` 72 találatot adott, mind
+       tesztfájlban, mind mock-callback fel nem használt paramétere — a "javítás"
+       72 `_` előtag lenne, nulla elkapott hibáért. Az `exactOptionalPropertyTypes`
+       10-et: az valódi munka, külön menetben jön. */
+
+    /* Kötelezővé teszi az `override` kulcsszót az ősosztály tagját felülíró
+       metódusra. Amit véd: ha az ős egyszer átnevezi a metódust (React-frissítés),
+       a mienk NÉMÁN csak egy sose hívott metódus lesz — a hibakezelő ErrorBoundary
+       esetében ez azt jelentené, hogy a hibák elnyelődnek. Az `override` szóval a
+       fordító megkövetelné, hogy tényleg legyen mit felülírni. */
+    "noImplicitOverride": true,
+    /* Ha egy függvény EGYIK ágon értéket ad vissza, a másikon nem, akkor ott
+       csendben `undefined` szivárog ki. */
+    "noImplicitReturns": true,
+    // `break` nélkül átcsorgó `case` — majdnem mindig elfelejtett sor, nem szándék.
+    "noFallthroughCasesInSwitch": true,
+    /* Elérhetetlen kód (pl. korai `return` után) és nem használt címke: mindkettő
+       arról árulkodik, hogy a kód mást csinál, mint amit az író hitt. Ezek NEM a
+       `strict` részei, mert stílus-jellegűnek számítanak — nálunk viszont pont a
+       "semmi nem hibázik, csak az eredmény rossz" osztályba tartoznak. */
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    // Fel nem használt helyi változó és import (az oxlint ezt részben már nézi).
+    "noUnusedLocals": true,
+    /* Index-szignatúrás típusnál (`Record<string, X>`) kötelezővé teszi a
+       `obj["kulcs"]` alakot a `obj.kulcs` helyett. A pont-jelölés ott azt sugallja,
+       hogy a mező BIZTOSAN létezik, holott csak egy tetszőleges kulcs. */
+    "noPropertyAccessFromIndexSignature": true,
+    /* A mellékhatás-import (`import "./valami";` — nincs benne név, amit fel kellene
+       oldani) ma némán átmegy akkor is, ha a modul nem létezik. Ezzel a fordító a
+       LÉTEZÉSÉT is megköveteli.
+
+       MÉRVE, KONTROLLAL (2026-08-19), mert a kapcsoló nem azt csinálja, amit elsőre
+       hinnénk: egy `import "./nincs-modul"` a kapcsoló NÉLKÜL 0 kilépési kóddal
+       átment, VELE 1-gyel bukott — tehát valódi hasznot ad. A `.css` importokra
+       viszont VAK marad: a `vite/client.d.ts` 43. sora `declare module "*.css" {}`,
+       vagyis a fordító szemében MINDEN .css modul létezik, akkor is, ha a fájl
+       nincs meg (mérve: `import "./nincs.css"` a kapcsolóval is 0-t adott). A
+       stíluslapok elgépelt útját tehát továbbra sem ez fogja meg, hanem a build. */
+    "noUncheckedSideEffectImports": true,
+    /* Megtiltja azokat a TypeScript-alakokat, amiket nem lehet PUSZTA TÖRLÉSSEL
+       eltávolítani: `enum`, `namespace`, konstruktor-paraméter-mező. Nálunk ez nem
+       ízlés, hanem a build valósága: a JavaScriptet az esbuild gyártja, ami csak
+       kitörli a típusokat. A tiltott alakok kódot GENERÁLNÁNAK, tehát vagy elromlik
+       a kimenet, vagy környezetfüggően viselkedik. A backend TS-átállásánál külön
+       fontos lesz (a Node natív típus-törlése ugyanezt követeli meg). */
+    "erasableSyntaxOnly": true,
+    /* Az osztálymezők szabvány szerinti (defineProperty-s) szemantikája. A
+       `target: ES2023` mellett ez MA IS az alapérték — kimondva viszont egy
+       későbbi target-csökkentés nem váltana némán a régi (hozzárendelős)
+       viselkedésre, ami az ErrorBoundary állapotmezőjén látszódna meg. */
+    "useDefineForClassFields": true,
     /* Nem írunk ki semmit: a fordítás a Vite dolga. (Ez egyben feltétele
        az allowImportingTsExtensions-nek, amit majd a backend használ.) */
     "noEmit": true,
