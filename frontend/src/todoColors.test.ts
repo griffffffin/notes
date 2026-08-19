@@ -3,6 +3,7 @@ import path from "node:path";
 import {fileURLToPath} from "node:url";
 import {describe, expect, it} from "vitest";
 import {TODO_COLORS} from "./todoColors";
+import {at} from "./test/at";
 
 /* A SZÍNPALETTA a repó két csomagjában van kimondva:
 
@@ -47,7 +48,7 @@ const readBackendColors = () => {
     const source = readFileSync(backendValidator, "utf8");
     const declaration = source.match(/const COLORS = \[([^\]]*)]/);
     if (!declaration) throw new Error(`A COLORS deklaráció nem található: ${backendValidator}`);
-    return declaration[1].split(",")
+    return at(declaration, 1, "COLORS-csoport").split(",")
         .map((entry) => entry.trim().replace(/^"|"$/g, ""))
         .filter(Boolean);
 };

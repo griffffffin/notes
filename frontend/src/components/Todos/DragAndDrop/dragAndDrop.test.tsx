@@ -6,6 +6,7 @@ import DragAndDrop from "./dragAndDrop";
 import type {DragEndEvent} from "@dnd-kit/core";
 import type {TodoDraft} from "../todoDraft";
 import {dragEndEvent} from "../../../test/dndEvents";
+import {at} from "../../../test/at";
 
 /* Valódi húzást jsdom-ban nem tudunk lejátszani (nincs elrendezés). A húzás VÉGE
    viszont egy sima függvényhívás (onDragEnd), amit a DndContext ad át — ezt
@@ -70,7 +71,7 @@ describe("Listaelem-húzás sorrendezése", () => {
         // mert a backend azt várja (a régi @hello-pangea óta).
         endDrag("10", "30");
         expect(setTodo).toHaveBeenCalledOnce();
-        const saved = setTodo.mock.calls[0][0].columns.createColumn.taskOrder;
+        const saved = at(at(setTodo.mock.calls, 0, "setTodo-hívás"), 0).columns.createColumn.taskOrder;
         expect(saved).toEqual([20, 30, 10]);
         expect(saved.every((id: unknown) => typeof id === "number")).toBe(true);
     });

@@ -8,8 +8,14 @@ afterEach(resetTooltips);
    A hookot azért teszteljük (és nem csak a modul belsejét), mert a komponensek
    ezen át kapják az isOpen propjukat — az újrarajzolás elmaradása ugyanolyan
    hiba, mint a rossz érték. */
-const arrangeTooltips = (...ids: string[]) =>
-    ids.map((id) => renderHook(() => useTooltipOpen(id)));
+/* KETTŐ tooltipet állít be, és FIX HOSSZÚ tuple-t ad vissza (`as const`), nem
+   tömböt. A különbség a destrukturálásnál látszik: egy `string[]`-ből származó
+   tömb elemei elvileg hiányozhatnak (`| undefined`), egy két elemű tuple-éi
+   nem — a tesztek pedig mindig pontosan kettővel dolgoznak. A második
+   azonosító elhagyható: van egy eset, ami egyetlen tooltipet vizsgál. */
+const arrangeTooltips = (firstId: string, secondId = "masodik-tooltip") =>
+    [renderHook(() => useTooltipOpen(firstId)),
+     renderHook(() => useTooltipOpen(secondId))] as const;
 
 describe("tooltipRegistry", () => {
     it("alapból egyik tooltip sincs nyitva", () => {

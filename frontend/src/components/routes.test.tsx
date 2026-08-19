@@ -209,7 +209,12 @@ describe("a route-fa útvonalai", () => {
            sortörés is ÁTCSÚSZOTT — némán, hiszen a nem illeszkedő sor egyszerűen
            kimarad a gyűjtésből, és a lenti szűrő üres marad. Egy detektornál a
            merev formázás-feltevés pont a hamis zöld receptje. */
-        const declared = [...source.matchAll(/\spath\s*=\s*(\{[^}]*\}|"[^"]*")/g)].map((m) => m[1]);
+        /* A `.filter(…)` nem kozmetika: egy regex-csoport elvileg üresen is
+           illeszkedhet, és az `undefined` a lenti `startsWith`-en némán elszállna
+           — a teszt hibaüzenete pedig a detektorról szólna, nem a route-fáról. */
+        const declared = [...source.matchAll(/\spath\s*=\s*(\{[^}]*\}|"[^"]*")/g)]
+            .map((match) => match[1])
+            .filter((value) => value !== undefined);
 
         /* Kontroll a hamis zöld ellen. Ha a minta egyszer nem illeszkedne (mert a
            JSX írásmódja megváltozik), az üres lista mindent átengedne — pont az a
