@@ -39,7 +39,7 @@ const styles = {
 } as const;
 
 /* A hibahatár BÁRMIT elkaphat: JavaScriptben nem csak Error-t lehet dobni,
-   ezért az `error` típusa `unknown`. A megjelenítés `String(error)`-ral megy —
+   ezért az `error` típusa `unknown`. A megjelenítés a `describeError`-ral megy —
    az minden értékre működik, míg egy `error.message` `undefined`-ot adna egy
    dobott stringre. */
 type ErrorBoundaryProps = {
@@ -50,6 +50,20 @@ type ErrorBoundaryState = {
     error: unknown;
     info: ErrorInfo | null;
 };
+
+/* A HIBA OLVASHATÓ ALAKJA a fejlesztői részletekhez. A `String(error)` egy
+   sima objektumra "[object Object]"-et ad — ami pont akkor mond semmit, amikor a
+   legjobban kellene. Az `Error` a stack trace-t adja (abban benne van az üzenet
+   is), minden másra JSON-t próbálunk, és ha az sem megy (körkörös hivatkozás),
+   marad a szöveggé alakítás. */
+function describeError(error: unknown): string {
+    if (error instanceof Error) return error.stack ?? error.message;
+    try {
+        return JSON.stringify(error) ?? String(error);
+    } catch {
+        return String(error);
+    }
+}
 
 export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     state: ErrorBoundaryState = {error: null, info: null};
@@ -77,7 +91,7 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
 
                 {import.meta.env.DEV &&
                     <pre style={styles.details}>
-                        {String(error)}
+                        {describeError(error)}
                         {info?.componentStack}
                     </pre>}
             </div>
