@@ -108,7 +108,7 @@ export default function QuoteSearch(props: QuoteSearchProps) {
             {/* A hibabuborék ugyanaz a komponens, amit a szerkesztők kötelező-mező
                 jelzése is használ (AnchoredTooltip) — azonos keret, szín és
                 viselkedés. Gépelésre és bárhova kattintásra eltűnik. */}
-            <AnchoredTooltip id="quote-search-error" anchor={searchError} tone="danger"
+            <AnchoredTooltip id="quote-search-error" anchor={searchError} tone="red"
                              message="Hiba a keresés indításakor."
                              onDismiss={() => setSearchError(null)}/>
         </>

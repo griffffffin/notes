@@ -31,10 +31,17 @@ type AnchoredTooltipProps = {
     onDismiss: () => void;
     /* A SZÍNE. Az alapértelmezett a téma kiemelőszíne — ez a kötelező-mező
        buborékoké: ott a felhasználó még csak nem töltött ki valamit, nem történt
-       BAJ. A "danger" a valódi hibáé (a keresés nem indult el): ugyanaz a piros,
-       amit a törlés-modal és a to-do "danger" színe használ, tehát a felület
-       eddigi nyelvén beszél. */
-    tone?: "accent" | "danger";
+       BAJ. A "red" a valódi hibáé (a keresés nem indult el): az app egyetlen
+       pirosa (ACCENT_RED), tehát a felület eddigi nyelvén beszél.
+
+       MIÉRT "red" ÉS NEM "error" (2026-08-19). Kézenfekvő volna a SZEREPPEL
+       nevezni, ahogy az "accent" is szerepet nevez — de ez a piros nálunk NEM a
+       hiba színe: ugyanez az érték az akcentusa a szerző-szűrt idézet-nézetnek is
+       (Link/author.tsx), ahol semmi baj nem történt. Egy "error" név tehát a
+       használatainak a felét meghazudtolná. A "danger" ugyanezért volt rossz, és
+       ráadásul összekeverhető a Bootstrap `danger` osztályával — ami azóta amúgy is
+       EZT a pirosat mutatja (index.css: --bs-danger → --app-red). */
+    tone?: "accent" | "red";
 };
 
 export default function AnchoredTooltip({id, anchor, message, onDismiss, tone = "accent"}: AnchoredTooltipProps) {
@@ -67,7 +74,8 @@ export default function AnchoredTooltip({id, anchor, message, onDismiss, tone = 
 
        Az értéket a KÖZÖS konstansból vesszük (theme-context.ts ACCENT_RED), nem
        hexával ideírva: ha a hiba-piros egyszer változik, itt is változik. */
-    const accent = tone === "danger" ? ACCENT_RED.accent : "var(--theme-accent)";
+    const accent = tone === "red" ? ACCENT_RED.accent : "var(--theme-accent)";
+
 
     return (
         <ReactTooltip id={id} isOpen={isOpen}
