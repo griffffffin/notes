@@ -8,10 +8,13 @@ const {validateTodoBody, validateCategoryFilter, validateColorFilter} = require(
 const {validateQuoteBody, validateAuthorFilter, validateSearchTerm,
     validateAuthorPrefix} = require("./middleware/validateQuote");
 const validateCredentials = require("./middleware/validateCredentials");
+const validateClientError = require("./middleware/validateClientError");
+const rateLimit = require("./middleware/rateLimit");
 
 const usersCreate = require("./controllers/Users/create");
 const usersLogin = require("./controllers/Users/login");
 const usersRefresh = require("./controllers/Users/refresh");
+const clientError = require("./controllers/clientError");
 
 const todosCreate = require("./controllers/Todos/create");
 
@@ -40,13 +43,59 @@ const quotesDelete = require("./controllers/Quotes/delete");
 const quotesReorder = require("./controllers/Quotes/reorder");
 
 
-router.use("/user/create", validateCredentials, usersCreate);
-router.use("/login", validateCredentials, usersLogin);
+/* A HITELESÍTÉSI VÉGPONTOK KORLÁTOZÁSA. Mindkettő publikus ÉS drága: egy bcrypt
+   hívás ~245 ms CPU-t eszik (password.js), ráadásul a libuv NÉGY szálas
+   threadpooljából — négy párhuzamos kérés tehát az egész kiszolgálást megfogja.
+   Korlát nélkül ez egyszerre jelszó-szótár próbálgatására ÉS a gép leterhelésére
+   is nyitva állna.
+
+   A LOGIN kerete a bőségesebb, mert a jogos használat is ide esik: elgépelt
+   jelszó, több eszköz, fejlesztés közbeni ki-be lépegetés. Húsz próbálkozás
+   negyed óránként egy embernek sok, egy szótárnak viszont semmi (napi ~1900
+   próba — egy értelmes jelszóhoz évmilliók kellenének).
+
+   A REGISZTRÁCIÓ kerete szűkebb: fiókot valóban ritkán hoz létre az ember, itt
+   a jogos igény napi néhány. Ez egyben azt is korlátozza, hogy valaki fiókok
+   ezreivel töltse meg az adatbázist.
+
+   A sikeres és a sikertelen próbálkozás EGYFORMÁN számít. Ez tudatos: a
+   megkülönböztetés csak azt jelentené, hogy a helyes jelszavú kérés ingyen van —
+   márpedig a terhelést az is okozza. */
+router.use("/user/create",
+    rateLimit({
+        windowMs: 60 * 60 * 1000,
+        max: 5,
+        message: "Túl sok regisztrációs kísérlet, próbáld egy óra múlva.",
+    }),
+    validateCredentials, usersCreate);
+router.use("/login",
+    rateLimit({
+        windowMs: 15 * 60 * 1000,
+        max: 20,
+        message: "Túl sok bejelentkezési kísérlet, próbáld negyed óra múlva.",
+    }),
+    validateCredentials, usersLogin);
 
 /* Egy idézet PUBLIKUSAN olvasható az azonosítója alapján (a megosztott link egy
    konkrét idézetre mutat) — ezért ül ez az EGYETLEN idézet-végpont az auth
    ELŐTT. A lista és minden írás-művelet auth mögött van. */
 router.use("/quotes/id", validateObjectId, quotesReadById);
+
+/* A kliens szerződés-hibáinak fogadása (l. controllers/clientError.js). Az auth
+   ELŐTT, mert a publikus idézet-nézet is sémán ellenőrzött választ kap: a
+   kijelentkezett úton elromlott szerződésről is tudni akarunk.
+
+   KORLÁTOZVA, mert publikus és NAPLÓBA ÍR — korlát nélkül a naplót (és a lemezt)
+   tele lehetne írni. Az érték bőséges a valódi használathoz: a kliens
+   végpontonként EGYSZER jelent egy oldalbetöltésen belül, tehát
+   a 25 végpontból egy elromlott build is jóval húsz alatt marad öt perc alatt. */
+router.use("/client-error",
+    rateLimit({
+        windowMs: 5 * 60 * 1000,
+        max: 20,
+        message: "Túl sok hibajelentés érkezett, próbáld később.",
+    }),
+    validateClientError, clientError);
 
 // Innentől minden végpont csak érvényes tokennel érhető el.
 router.use(auth);

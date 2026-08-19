@@ -68,6 +68,9 @@ const PUBLIC_ROUTES = {
     "/user/create": "regisztráció — értelemszerűen nincs még tokenje",
     "/login": "bejelentkezés — ez ADJA a tokent",
     "/quotes/id": "egyetlen idézet megosztható, publikus nézete (l. routes.js)",
+    "/client-error": "a kliens szerződés-hibáit a KIJELENTKEZETT úton is fogadnunk kell " +
+        "(a publikus idézet-nézet is sémán ellenőriz) — korlátozva és szűk bemenettel, " +
+        "l. controllers/clientError.js",
 };
 
 /* A minták TÉRKÖZ-TŰRŐEK (`\s*` a pont, a zárójel és az idézőjel körül), és
