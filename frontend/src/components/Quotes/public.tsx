@@ -55,13 +55,23 @@ export default function QuotePublic() {
         }, (error) => {
             logRequestError(error);
             if (!active) return;
-            /* A SZERVER VÁLASZÁRA hagyatkozunk, nem a hiba puszta tényére: ha
-               megjött egy státusz (400 érvénytelen azonosító, 404 nincs ilyen),
-               akkor a szerver TUDJA, hogy nincs ilyen idézet. Ha nincs státusz —
-               időtúllépés, megszakadt kapcsolat, séma-bukás —, akkor mi nem
-               tudunk semmit az idézet létezéséről, és nem is állítunk róla. */
-            if (responseStatus(error) === undefined) setLoadFailed(true);
-            else setNotFound(true);
+            /* A SZERVER VÁLASZÁRA hagyatkozunk, nem a hiba puszta tényére — de
+               a KONKRÉT válaszra, nem arra, hogy VAN-e válasz.
+
+               Két státusz jelenti azt, hogy nincs ilyen idézet: a 400 (a
+               validateObjectId elutasította az azonosító ALAKJÁT, tehát ilyen id
+               nem is létezhet) és a 404 (a szerver megnézte: nincs).
+
+               Minden más csak annyit jelent, hogy MOST nem tudjuk betölteni.
+               Státusz nélkül (időtúllépés, megszakadt kapcsolat, séma-bukás) el
+               sem jutottunk a szerverig; 500-nál (serverError.js) pedig a
+               szerver akadt meg — az idézet attól még ott lehet. Korábban ez a
+               vizsgálat `=== undefined` volt, ami az 500-at is a "nem létezik"
+               ágra küldte: egy adatbázis-zökkenő így azt állította a megosztott
+               link megnyitójának, hogy az idézetet törölték. */
+            const status = responseStatus(error);
+            if (status === 400 || status === 404) setNotFound(true);
+            else setLoadFailed(true);
         });
         return () => { active = false; };
     }, [id, handleAxios, retryCount]);

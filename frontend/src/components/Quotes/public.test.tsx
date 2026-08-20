@@ -141,6 +141,34 @@ describe("QuotePublic — a hiba FAJTÁJA", () => {
         expect(screen.queryByText("Nem létező idézet.")).not.toBeInTheDocument();
     });
 
+    it("a szerver 400-ára is: a rossz ALAKÚ azonosítóhoz nem tartozhat idézet", async () => {
+        handleAxios.mockImplementation((url, data, then, catchError) => {
+            if (url === "/quotes/id") catchError({response: {status: 400}});
+            return Promise.resolve();
+        });
+
+        renderRoutes("/quotes/M%C3%A1rai/nem-objectid");
+
+        expect(await screen.findByText("Nem létező idézet.")).toBeVisible();
+    });
+
+    /* AZ 500 NEM HIÁNY. A backend a váratlan hibáit is elküldi (serverError.js:
+       egy adatbázis-zökkenő is 500), és ez a vizsgálat korábban `=== undefined`
+       volt — vagyis MINDEN státuszos választ a "nem létezik" ágra küldött. Egy
+       megosztott link megnyitója így azt hihette, hogy az idézetet törölték,
+       pedig csak a szerver akadt meg egy pillanatra. */
+    it("az 500 NEM jelenti azt, hogy nincs ilyen idézet", async () => {
+        handleAxios.mockImplementation((url, data, then, catchError) => {
+            if (url === "/quotes/id") catchError({response: {status: 500, data: "Sikertelen művelet."}});
+            return Promise.resolve();
+        });
+
+        renderRoutes("/quotes/M%C3%A1rai/q-1");
+
+        expect(await screen.findByText(/Hiba az oldal betöltése közben/)).toBeVisible();
+        expect(screen.queryByText("Nem létező idézet.")).not.toBeInTheDocument();
+    });
+
     it("elcsúszott SZERZŐDÉSNÉL sem állítja (a séma bukása sem jelent hiányt)", async () => {
         handleAxios.mockImplementation((url, data, then) => {
             if (url === "/quotes/id") then(axiosResponse({nem: "idézet"}));
