@@ -32,6 +32,12 @@ export type NavbarProps =
         categoriesFailed: CategoryAndColorGroupProps["categoriesFailed"];
         categoriesLoading: CategoryAndColorGroupProps["categoriesLoading"];
         onRetryCategories: CategoryAndColorGroupProps["onRetryCategories"];
+        /* FUT-E ÉPP MENTÉS a szerkesztőben. Csak a kinézetet érinti: a navbar
+           LINKJEI ilyenkor a normál egérmutatót kapják a mutató kéz helyett,
+           mert a mentés ideje alatt a blocker úgyis elnyeli a navigációt.
+           Kijelentkezve nincs értelme (ott nincs szerkesztő), ezért csak az
+           isVisible: true ágon szerepel. */
+        isSaving: boolean;
     };
 
 export default function Navbar(props: NavbarProps) {
@@ -71,8 +77,16 @@ export default function Navbar(props: NavbarProps) {
         props.setIsColorClicked(false);
     };
 
+    /* A `navbar-saving` osztály CSAK az egérmutatót állítja át a navbar LINKJEIN
+       (index.css) — a téma-kapcsolót és a kijelentkezést nem érinti, mert azok
+       mentés közben is tényleg működnek. A `props.isVisible &&` azért kell, mert a
+       kijelentkezett ág propjai közt nincs isSaving: a union-típus itt még nincs
+       szűkítve. */
+    const navClass = "navbar navbar-black bg-transparent pb-0"
+        + (props.isVisible && props.isSaving ? " navbar-saving" : "");
+
     return (
-        <nav className="navbar navbar-black bg-transparent pb-0">
+        <nav className={navClass}>
             {/* position-relative: a kereső ehhez képest kerül ABSZOLÚT középre
                 (start-50 + translate-middle), így pontosan a navbar közepén ül,
                 függetlenül a bal (logó+"+") és jobb (kijelentkezés+kapcsoló) blokk

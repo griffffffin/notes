@@ -764,6 +764,25 @@ dialog.todo-modal {
        <dialog> a showModal()-ra rögtön látszik, a close()-ra rögtön eltűnik. */
 }
 
+/* MENTÉS KÖZBEN A NAVBAR LINKJEI NEM VISZNEK SEHOVA — és ezt az egérmutató
+   előre megmondja.
+
+   Amíg a szerkesztő mentése úton van, a useBlocker elnyeli a navigációt (logó,
+   "+", szekció-váltó, szűrő-linkek): a kattintás nem hibázik, egyszerűen nem
+   történik semmi. Ez épp az a "néma, normálisnak látszó" állapot, amit ez az app
+   máshol is kerül, ezért a mutató kéz helyett a sima nyilat adjuk — a felület így
+   a kattintás ELŐTT árulja el, hogy most nincs hova menni.
+
+   CSAK a linkekre (`a`) hat, szándékosan. A téma-kapcsoló és a kijelentkezés
+   gomb, nem link, és mentés közben is MŰKÖDIK (a kijelentkezés megvárja a
+   mentést, l. pendingSave.ts) — rájuk tehetetlenséget mutatni hazugság volna.
+
+   Az osztályt a Navbar teszi ki (components/Navbar/navbar.tsx), az állapot pedig
+   az App-ban él, mert a szerkesztő írja és a navbar olvassa. */
+.navbar-saving a {
+    cursor: default;
+}
+
 /* A <dialog> SAJÁT FÓKUSZGYŰRŰJE KIOLTVA.
 
    Törlés közben ("Törlés…") a dialógusban NINCS egyetlen fókuszálható elem sem: a

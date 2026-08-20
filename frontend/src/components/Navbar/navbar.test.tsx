@@ -31,7 +31,9 @@ const setup = (overrides: Partial<NavbarProps> = {}, route = "/") => {
         categoriesLoading: false, onRetryCategories: vi.fn(),
         handleLinkClicked: vi.fn(),
         setIsCategoryClicked: vi.fn(), isCategoryClicked: false,
-        setIsColorClicked: vi.fn(), isColorClicked: false, ...overrides,
+        setIsColorClicked: vi.fn(), isColorClicked: false,
+        // Alapból NEM mentünk; a mentés-közbeni egérmutatót külön teszt állítja be.
+        isSaving: false, ...overrides,
     } satisfies NavbarProps;
     render(
         <CookiesProvider>
@@ -155,5 +157,31 @@ describe("Navbar — a kategóriák betöltése elbukott", () => {
 
         expect(screen.queryByText(REFRESH_FAILED)).not.toBeInTheDocument();
         expect(screen.queryByText(LOAD_FAILED)).not.toBeInTheDocument();
+    });
+});
+
+/* MENTÉS KÖZBEN A NAVBAR LINKJEI NEM VISZNEK SEHOVA.
+
+   Amíg a szerkesztő mentése úton van, a useBlocker elnyeli a navigációt: a
+   kattintás nem hibázik, egyszerűen nem történik semmi. A felület ezt előre
+   megmondja — a linkek a mutató kéz helyett a sima nyilat kapják.
+
+   AMIT EZ A TESZT MÉR, ÉS AMIT NEM. Itt az OSZTÁLY jelenlétét kérjük számon; hogy
+   az osztályhoz tartozó `cursor: default` szabály tényleg hat-e, azt a jsdom nem
+   tudja megmondani (nem tölt stíluslapot). Azt élő böngészőben, getComputedStyle-lal
+   mértük meg (2026-08-20). A kettő együtt fedi le a láncot. */
+describe("Navbar — mentés közben az egérmutató", () => {
+    const nav = () => requireElement("nav", HTMLElement);
+
+    it("mentés közben a navbar megkapja a jelző osztályt", () => {
+        setup({isSaving: true});
+
+        expect(nav()).toHaveClass("navbar-saving");
+    });
+
+    it("mentés nélkül NEM kapja meg (kontroll)", () => {
+        setup({isSaving: false});
+
+        expect(nav()).not.toHaveClass("navbar-saving");
     });
 });

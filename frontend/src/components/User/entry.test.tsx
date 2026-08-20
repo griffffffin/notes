@@ -153,6 +153,7 @@ const ROUTE_PROPS = {
     handleLinkClicked: vi.fn(), handleCategoryChange: vi.fn(),
     setIsColorAngleClicked: vi.fn(), isColorAngleClicked: false,
     setIsCategoryAngleClicked: vi.fn(), isCategoryAngleClicked: false,
+    isSaving: false, setIsSaving: vi.fn(),
 } satisfies RoutesProps;
 
 describe("Bejelentkezés és regisztráció közti váltás", () => {

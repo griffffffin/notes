@@ -49,6 +49,19 @@ export type RoutesProps = {
     categoriesFailed: CategoryAndColorGroupProps["categoriesFailed"];
     categoriesLoading: CategoryAndColorGroupProps["categoriesLoading"];
     handleCategoryChange: () => void;
+    /* FUT-E ÉPP MENTÉS valamelyik szerkesztőben. Az állapot az App-ban él, mert
+       KÉT, egymástól független helyre kell: a szerkesztő ÁLLÍTJA (setIsSaving), a
+       navbar pedig OLVASSA (isSaving) — közös ősük az App.
+
+       Mire kell: mentés közben a blocker elnyeli a navigációt (logó, "+", …), de
+       ebből a felhasználó semmit nem lát. A navbar linkjei ilyenkor a normál
+       egérmutatót kapják a mutató kéz helyett, tehát a felület ELŐRE megmondja,
+       hogy ezek most nem visznek sehova. A téma-kapcsoló és a kijelentkezés
+       SZÁNDÉKOSAN érintetlen: azok tényleg működnek mentés közben is (a
+       kijelentkezés megvárja a mentést, l. pendingSave.ts), tehát hazugság volna
+       őket tehetetlennek mutatni. */
+    isSaving: boolean;
+    setIsSaving: (isSaving: boolean) => void;
 };
 
 /* Az App a UI-állapotát (kategóriák, "+"-nyilak, handlerek) EDDIG propként adta
@@ -73,7 +86,8 @@ function useRoutesProps() {
 function AppLayout() {
     const p = useRoutesProps();
     return (<>
-        <Navbar setIsColorClicked={p.setIsColorAngleClicked} isColorClicked={p.isColorAngleClicked}
+        <Navbar isSaving={p.isSaving}
+                setIsColorClicked={p.setIsColorAngleClicked} isColorClicked={p.isColorAngleClicked}
                 setIsCategoryClicked={p.setIsCategoryAngleClicked}
                 isCategoryClicked={p.isCategoryAngleClicked}
                 handleLinkClicked={p.handleLinkClicked} isVisible={true}
@@ -107,7 +121,7 @@ function TodosReadRoute({url}: {url: Endpoint}) {
 
 function TodosSaveRoute({isUpdate}: {isUpdate: boolean}) {
     const p = useRoutesProps();
-    return <Save isUpdate={isUpdate} handleLinkClicked={p.handleLinkClicked}
+    return <Save isUpdate={isUpdate} handleLinkClicked={p.handleLinkClicked} setIsSaving={p.setIsSaving}
                  categories={p.categories} handleCategoryChange={p.handleCategoryChange}/>;
 }
 
@@ -123,7 +137,7 @@ function QuotesSearchRoute() {
 
 function QuotesSaveRoute({isUpdate}: {isUpdate: boolean}) {
     const p = useRoutesProps();
-    return <QuoteSave isUpdate={isUpdate} handleLinkClicked={p.handleLinkClicked}/>;
+    return <QuoteSave isUpdate={isUpdate} handleLinkClicked={p.handleLinkClicked} setIsSaving={p.setIsSaving}/>;
 }
 
 /* Az utolsó megnyitott szekcióra visz — a gyökér ÉS az ismeretlen út közös célja.

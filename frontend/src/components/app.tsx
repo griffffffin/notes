@@ -36,6 +36,9 @@ export default function App() {
     // A to-do kategórialista (a kimondott típus a `useState([])` `never[]`-jét
     // váltja ki). A `Todo["category"]` a to-do saját, elemekre vonatkozó mezője —
     // ugyanaz a típus, amit a lenti Routes→Navbar lánc kategóriaként vár.
+    /* FUT-E ÉPP MENTÉS a szerkesztőben. Itt él, mert a szerkesztő írja, a navbar
+       olvassa, és az App a legszűkebb közös ősük (l. RoutesProps). */
+    const [isSaving, setIsSaving] = useState(false);
     const [categories, setCategories] = useState<Todo["category"][]>([]);
     /* A kategória-lekérés ELBUKOTT-e. Külön a listától: hiba után a KORÁBBI lista
        marad (egy pillanattal ezelőtti valóság, általában igaz), de a felhasználót
@@ -124,7 +127,8 @@ export default function App() {
                     isCategoryAngleClicked={isCategoryAngleClicked}
                     categories={categories} categoriesFailed={categoriesFailed}
                     categoriesLoading={categoriesLoading}
-                    handleCategoryChange={handleCategoryChange}/>}
+                    handleCategoryChange={handleCategoryChange}
+                    isSaving={isSaving} setIsSaving={setIsSaving}/>}
         </div>
     );
 }
