@@ -46,6 +46,10 @@ const snapshotSchema = v.object({
 });
 type QuoteSnapshot = v.InferOutput<typeof snapshotSchema>;
 
+/* A Mentés gomb azonosítója — a bukás utáni fókuszáláshoz kell (l. lentebb).
+   Ugyanaz a fogás, mint a to-do szerkesztőjében és a törlés-modalban. */
+const SAVE_BUTTON_ID = "quoteSaveButton";
+
 /* A MENTENDŐ adat: a pillanatkép + update-nél a szerkesztett elem id-je. A három
    mentési útvonal (blocker, leváláskori mentés, autosave) ezt küldi. */
 type QuotePayload = QuoteSnapshot & {id?: string};
@@ -116,6 +120,31 @@ export default function QuoteSave(props: SaveProps) {
        nehogy duplán hozzon létre). A blocker shouldBlock-ja is ezt nézi: ha igaz, nem
        blokkol (a törlés-navigáció és a már-elintézett proceed szabadon átmehet). */
     const leftViaForm = useRef(false);
+    /* FUT-E ÉPP MENTÉS — l. a Todos/save.tsx azonos pontját a részletes indoklásért.
+       Röviden: a `leftViaForm` korábban egyszerre jelentette azt, hogy "most mentek"
+       és azt, hogy "kész, megyek", ezért a mentés teljes ideje alatt BÁRKI navigációja
+       átment, és a szerkesztő eltűnhetett a mentés alól. A ref a shouldBlock-é (az
+       stabil függvény, csak refből lát frisset), a state a gomb feliratáé. */
+    const savingRef = useRef(false);
+    const [isSaving, setIsSaving] = useState(false);
+    /* A FUTÓ MENTÉS ÍGÉRETE — hogy a KIJELENTKEZÉS MEGVÁRHASSA.
+
+       A pendingSave.ts szabálya: "előbb a mentés, aztán a kilépés". A leváláskori
+       mentés ezt eddig úgy teljesítette, hogy ő MAGA indított egy mentést és azt
+       adta vissza. Csakhogy a hasSilentWork() mostantól hamisat ad, amíg fut egy
+       mentés (különben mellé indítana egy másodikat, l. ott; a részletes indoklás a Todos/save.tsx-ben) — így a kijelentkezés
+       ÜRES ígéretet kapott volna, és a token törlése megelőzhette volna a választ.
+       A megoldás nem az őr gyengítése: itt a MÁR FUTÓ mentés ígéretét adjuk oda. */
+    const inFlightRef = useRef<Promise<void> | null>(null);
+
+    /* A MENTÉS ELBUKOTT — csak a fókusz-visszajelzéshez (l. lentebb az effektet). */
+    const [saveFailed, setSaveFailed] = useState(false);
+    const markSaving = useCallback((value: boolean) => {
+        savingRef.current = value;
+        setIsSaving(value);
+        if (value) setSaveFailed(false);
+        else inFlightRef.current = null;
+    }, []);
     /* A leváláskor futtatandó mentés legfrissebb változata — minden renderben
        frissül, hogy az unmount az aktuális állapotot mentse (l. lentebb). */
     /* A típus KIMONDVA: a kezdőérték egy üres függvény volna, amiből a fordító
@@ -240,14 +269,18 @@ export default function QuoteSave(props: SaveProps) {
        menteni", hanem HIBA — hibabuborékot kap és a szerkesztőben maradunk. Itt
        nincs kinek visszajelezni (nincs képernyő, ahol maradni lehetne), ezért a
        hiányos munkát csendben eldobjuk. */
+    /* A `!savingRef.current` KÖTELEZŐ: enélkül egy kijelentkezés a MÁR FUTÓ mentés
+       mellé indítana egy másodikat (create-nél két idézet jönne létre). */
     const hasSilentWork = () =>
-        !leftViaForm.current && isQuoteValid && !isPristine(normalizeBold(quote));
+        !leftViaForm.current && !savingRef.current && isQuoteValid && !isPristine(normalizeBold(quote));
 
     /* A useBlocker DATA ROUTERT kér (l. routes.tsx). shouldBlock: akkor blokkoljuk a
        navigációt, ha van mentenivaló (dirty) ÉS nem a mentés/törlés maga navigál
        (leftViaForm). A függvény üres deps-szel stabil, de refekből olvas, így a friss
        állapotot látja — a react-router így nem regisztrálja újra minden rendernél. */
-    const shouldBlock = useCallback(() => !leftViaForm.current && isDirtyRef.current, []);
+    /* A `savingRef` ág: amíg a kérés úton van, a logó, a "+", az Escape és a
+       böngésző Vissza gombja sem visz ki innen (l. Todos/save.tsx). */
+    const shouldBlock = useCallback(() => !leftViaForm.current && (savingRef.current || isDirtyRef.current), []);
     const blocker = useBlocker(shouldBlock);
 
     /* Kilépés a szerkesztőből: update esetén VISSZA oda, ahonnan indult (a
@@ -521,23 +554,47 @@ export default function QuoteSave(props: SaveProps) {
         if (!isQuoteValid) { setValidation(fieldAnchor("#quoteField", "idézet")); blocker.reset(); return; }
         setValidation(null);
 
-        // Innentől mentünk; a mentés sikeréig NEM navigálunk. leftViaForm: az unmount-
-        // mentés már ne fusson újra a proceed utáni leváláskor.
-        leftViaForm.current = true;
-        handleAxios(url, buildPayload(), (response) => {
-            if (response.status === 200) {
-                // A tartalom a szerveren van: a helyi másolat okafogyott.
-                clearDraft(draftStorageKey);
-                props.handleLinkClicked();
-                blocker.proceed();
-            } else { leftViaForm.current = false; blocker.reset(); }
-        }, (error) => {
-            // A mentés elbukott: maradunk (reset), és egy későbbi távozás újrapróbálja.
-            leftViaForm.current = false;
+        // Innentől mentünk; a mentés sikeréig NEM navigálunk.
+        markSaving(true);
+        /* A BUKÁS ÁGA — l. a Todos/save.tsx azonos pontját. Három dolog: a felirat
+           visszaáll "Mentés"-re (ez a visszajelzés), PISZKOZAT készül (különben egy
+           későbbi eltűnés nyomtalanul vinné a szöveget), és a fókusz a Mentés gombra
+           ugrik (a navigációval indított mentésnél ez az egyetlen látható jel). */
+        const failSave = (error: unknown) => {
+            markSaving(false);
+            setSaveFailed(true);
             logRequestError(error);
+            saveDraft(draftStorageKey, buildPayload(), loaded.current ?? undefined);
             blocker.reset();
-        });
-    }, [blocker, isQuoteValid, buildPayload, url, handleAxios, props, draftStorageKey]);
+        };
+        /* A futó mentés ígérete (l. inFlightRef): a `settled` a promise saját
+           resolve-ja, amit a konstruktor SZINKRON törzse állít be. Így a
+           kijelentkezés megvárja ezt a mentést, másodikat nem indítva mellé. */
+        let settled: () => void = () => undefined;
+        inFlightRef.current = new Promise<void>((resolve) => { settled = resolve; });
+        handleAxios(url, buildPayload(), (response) => {
+            settled();
+            if (response.status !== 200) return failSave(new Error("HTTP " + response.status));
+            // A tartalom a szerveren van: a helyi másolat okafogyott.
+            clearDraft(draftStorageKey);
+            props.handleLinkClicked();
+            /* A SORREND KÖTÖTT: előbb a mentés-állapot lezárása és a "megyünk" jelző,
+               csak azután a proceed() — fordítva a shouldBlock a saját folytatásunkat
+               blokkolná. */
+            markSaving(false);
+            leftViaForm.current = true;
+            blocker.proceed();
+        }, (error) => { settled(); failSave(error); });
+    }, [blocker, isQuoteValid, buildPayload, url, handleAxios, props, draftStorageKey, markSaving]);
+
+    /* A BUKÁS UTÁN A MENTÉS GOMBRA KERÜL A FÓKUSZ — a részletes indoklás a
+       Todos/save.tsx azonos effektjénél. Külön effekt, mert a gomb a mentés alatt
+       `disabled`, és arra nem lehet fókuszt tenni: ez az újrarajzolás után fut. */
+    useEffect(() => {
+        if (!saveFailed) return;
+        const button = formRef.current?.querySelector("#" + SAVE_BUTTON_ID);
+        if (button instanceof HTMLElement) button.focus();
+    }, [saveFailed]);
 
     /* A Mentés gomb (és az Escape) már csak NAVIGÁL — az ellenőrzést+mentést a
        fenti blocker intézi, ha van mentenivaló. Érintetlen űrlapnál a blocker nem
@@ -567,6 +624,8 @@ export default function QuoteSave(props: SaveProps) {
        tehát 15 percnél már nincs mentetlen szerkesztő. (Kivétel: ha az autosave hálózati
        hibán elbukik, marad az eredeti korlát — 15 percnél a token lejárt, nem menthető.) */
     saveOnLeaveRef.current = () => {
+        // Már fut egy mentés: azt VÁRATJUK meg a kijelentkezéssel (l. inFlightRef).
+        if (savingRef.current && inFlightRef.current) return inFlightRef.current;
         if (!hasSilentWork()) return Promise.resolve();
         /* A mentés MEGKEZDÉSE előtt jelöljük, hogy elintéztük a távozást: a
            kijelentkezés MEGVÁRJA ezt a mentést (pendingSave.ts), és a rákövetkező
@@ -634,16 +693,31 @@ export default function QuoteSave(props: SaveProps) {
         // Nincs mentenivaló (érintetlen vagy érvénytelen): NEM navigálunk el — hagyjuk a
         // felhasználót, a 15 perces tétlenségi kijelentkezés majd a szokott módon jön.
         if (!hasSilentWork()) return;
-        /* A mentés MEGKEZDÉSE előtt jelöljük: a rákövetkező leválás (navigáció → unmount)
-           NE mentsen újra (create-nél nehogy duplikáljon — ezért nem kell külön
-           create→update váltás). Hibánál visszavonjuk, hogy egy későbbi távozás újrapróbálja. */
-        leftViaForm.current = true;
+        /* AZ AUTOSAVE UGYANÚGY VISELKEDIK, MINT A KÉZI MENTÉS (a user döntése):
+           "Mentés…" felirat, tiltott gombok, blokkolt navigáció. Hogy nem ő indította,
+           nem érv a némaság mellett — az volna baj, ha közben elveszne a munkája. */
+        markSaving(true);
+        // Az autosave ígérete is a kijelentkezésnek szól (l. inFlightRef).
+        let settled: () => void = () => undefined;
+        inFlightRef.current = new Promise<void>((resolve) => { settled = resolve; });
         handleAxios(url, buildPayload(), () => {
+            settled();
             clearDraft(draftStorageKey);
             props.handleLinkClicked();
+            /* A SORREND ITT A LEGKÉNYESEBB: az autosave a SAJÁT navigációját is
+               blokkolná, ha előbb nem zárnánk le a mentés-állapotot. A blocker
+               reset()-je azért kell, mert közben a felhasználó megpróbálhatott
+               navigálni (a kísérletét elnyeltük) — a függő blokkolt állapotot fel
+               kell oldani, mielőtt mi navigálunk. */
+            markSaving(false);
+            leftViaForm.current = true;
+            if (blocker.state === "blocked") blocker.reset();
             void navigate(PATHS.quotes);
         }, (error) => {
-            leftViaForm.current = false;
+            settled();
+            markSaving(false);
+            setSaveFailed(true);
+            if (blocker.state === "blocked") blocker.reset();
             logRequestError(error);
             /* Az autosave bukása után a szerkesztő MEGMARAD (nem navigálunk), tehát
                a szöveg még a képernyőn van — de a 15 perces tétlenségi kijelentkezés
@@ -733,17 +807,23 @@ export default function QuoteSave(props: SaveProps) {
                 </div>
 
                 <div className="d-grid">
-                    {/* A Mentés TILTOTT, amíg a kötelező mező (az idézet szövege) üres —
+                    {/* A gomb TILTOTT, amíg a kötelező mező (az idézet szövege) üres —
                         pontosan a to-do mintájára (Todos/save.tsx: isTitleValid &&
                         isCategoryValid). A szerző OPCIONÁLIS, azt nem kérjük számon.
                         A blocker üres-idézet ága ettől NEM válik feleslegessé: a logó,
                         a "+", a Vissza gomb és a szekció-váltó továbbra is elindíthat
-                        navigációt üres mezővel — ott a hibabuborék + maradás jár. */}
-                    <SubmitButton isDisabled={!isQuoteValid} isOutline={false} color={color} text="Mentés"/>
+                        navigációt üres mezővel — ott a hibabuborék + maradás jár.
+
+                        A FELIRAT "Mentés" (nem "Tovább"), mentés közben "Mentés…", és
+                        a gomb ilyenkor tiltott — l. a Todos/save.tsx azonos pontját. */}
+                    <SubmitButton id={SAVE_BUTTON_ID} isDisabled={!isQuoteValid || isSaving} isOutline={false}
+                                  color={color} text={isSaving ? "Mentés…" : "Mentés"}/>
 
                     {isUpdate &&
+                        /* A TÖRLÉS IS TILTOTT MENTÉS KÖZBEN (l. Todos/save.tsx). */
                         <DeleteAndModal handleLinkClicked={props.handleLinkClicked} color={color}
                                         deleteUrl={ENDPOINTS.quoteDelete} listUrl={PATHS.quotes} itemId={quoteId}
+                                        isDisabled={isSaving}
                                         onDelete={() => { leftViaForm.current = true; }}/>}
                 </div>
             </div>

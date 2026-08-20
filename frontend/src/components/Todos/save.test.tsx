@@ -7,6 +7,7 @@ import {requireElement} from "../../test/dom";
 import type {AxiosResponse} from "axios";
 import type {Todo} from "../../types/api";
 import {at} from "../../test/at";
+import {flushPendingSaves} from "../../pendingSave";
 
 /* A kérés TÖRZSE a kém felől `unknown` — az azonosítót VALÓDI vizsgálattal
    olvassuk ki belőle, nem `as`-szal. Ha a betöltő lekérés törzse egyszer más
@@ -769,5 +770,205 @@ describe("TodoSave — piszkozat", () => {
         expect(screen.getByPlaceholderText("Kategória")).toHaveValue("otthon");
         expect(screen.getByDisplayValue("Piszkozat-alsor")).toBeInTheDocument();
         expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
+    });
+});
+
+/* MENTÉS KÖZBEN A SZERKESZTŐ NEM HAGYHATÓ EL.
+
+   Ez a blokk a projekt egyik legdrágább hibáját őrzi. Korábban EGYETLEN jelző
+   (`leftViaForm`) jelentette azt is, hogy "most mentek", és azt is, hogy "a mentés
+   kész, megyek" — a shouldBlock pedig ezt nézte. Emiatt a mentés TELJES ideje alatt
+   (a 15 másodperces időkorlátig!) bárki navigációja szabadon átment: a türelmetlen
+   második kattintás vagy a logó elvitte a felhasználót a szerkesztőből, a mentés
+   utána bukott el, és a beírt szöveg NYOMTALANUL elveszett — se mentés, se
+   piszkozat, se üzenet. Mérve, 2026-08-20.
+
+   A mai őr a `savingRef`: amíg a kérés úton van, a shouldBlock igazat ad, tehát a
+   logó, a "+", az Escape és a böngésző Vissza gombja is tehetetlen. Az őr egyetlen
+   sor, amit egy refaktor némán kivehet — ezért kell rá teszt. */
+describe("Save — mentés közben nem lehet elhagyni a szerkesztőt", () => {
+    /* A mentés VÁLASZÁT visszatartjuk: így a teszt abban az ablakban vizsgálódik,
+       amikor a kérés már elment, de még nem jött rá felelet. Élesben ez akár 15
+       másodperc (a kérés időkorlátja) — bőven elég ahhoz, hogy a felhasználó
+       türelmetlen legyen. */
+    const pendingSave = (): Array<{ok: () => void; fail: () => void}> => {
+        const pending: Array<{ok: () => void; fail: () => void}> = [];
+        handleAxios.mockImplementation((url, data, then, catchError) => {
+            if (url === "/to-dos/id") then(axiosResponse(TODO));
+            else if (url === "/to-dos/last/order") then(axiosResponse(3));
+            else if (url === "/to-dos") then(axiosResponse([TODO]));
+            else if (url === "/to-dos/update") pending.push({
+                ok: () => then(axiosResponse({})),
+                fail: () => catchError({message: "timeout of 15000ms exceeded"}),
+            });
+            else then(axiosResponse({}));
+            return Promise.resolve();
+        });
+        return pending;
+    };
+
+    const openAndEdit = async () => {
+        window.history.pushState({}, "", "/to-dos");
+        const view = renderRoutes();
+        await userEvent.click(await screen.findByText("Bevásárlás"));
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
+        await userEvent.type(screen.getByPlaceholderText("Cím"), " ma");
+        return view;
+    };
+
+    afterEach(() => localStorage.clear());
+
+    it("a LOGÓ nem visz ki a futó mentés alól (a szöveg nem veszhet el)", async () => {
+        const pending = pendingSave();
+        await openAndEdit();
+
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
+        await waitFor(() => expect(pending).toHaveLength(1));
+
+        // A válasz MÉG NINCS itt. A logó a szekció gyökerére vivő link a navbarban.
+        await userEvent.click(requireElement("a", HTMLAnchorElement));
+
+        /* EGY PILLANATOT kérdezünk, két állítással: ott vagyunk-e még, és megvan-e
+           a beírt szöveg. Korábban itt a /to-dos-on találtuk magunkat, üres kézzel. */
+        await waitFor(() => {
+            expect(window.location.pathname).toBe("/to-dos/update/todo-1");
+            expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás ma");
+        });
+    });
+
+    it("visszaírt eredeti szöveg mellett SEM enged ki a futó mentés alól", async () => {
+        /* EZ A TESZT MÉRI A `savingRef`-ET, a fenti logós NEM.
+
+           Amíg az űrlap "piszkos" (eltér a szerverétől), a shouldBlock a dirty
+           jelző miatt amúgy is blokkol — a mutáció-próba ezt le is leplezte: a
+           `savingRef.current ||` kivételére EGYETLEN teszt sem bukott meg. Itt
+           viszont a felhasználó a mentés MEGINDÍTÁSA UTÁN visszaírja az eredeti
+           szöveget, tehát az űrlap újra érintetlennek látszik — pedig a kérés úton
+           van. Ilyenkor egyedül a `savingRef` tart bent minket; nélküle a logó
+           kivinne, a szerkesztő leválna, és a bukó mentés válaszát már senki nem
+           kezelné (se piszkozat, se üzenet). */
+        const pending = pendingSave();
+        await openAndEdit();
+
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
+        await waitFor(() => expect(pending).toHaveLength(1));
+
+        // A mentés fut; a felhasználó közben visszaállítja az eredeti címet.
+        await userEvent.clear(screen.getByPlaceholderText("Cím"));
+        await userEvent.type(screen.getByPlaceholderText("Cím"), TODO.title);
+        await userEvent.click(requireElement("a", HTMLAnchorElement));
+
+        await waitFor(() => {
+            expect(window.location.pathname).toBe("/to-dos/update/todo-1");
+            expect(screen.getByPlaceholderText("Cím")).toHaveValue(TODO.title);
+        });
+    });
+
+    it("a MENTÉS gomb tiltott és 'Mentés…' feliratú, amíg a válasz meg nem jön", async () => {
+        const pending = pendingSave();
+        await openAndEdit();
+
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
+
+        await waitFor(() => expect(screen.getByRole("button", {name: "Mentés…"})).toBeDisabled());
+        // A Törlés is tiltva: ne lehessen törölni azt, aminek épp úton van a mentése.
+        expect(screen.getByRole("button", {name: "Törlés"})).toBeDisabled();
+
+        // A siker után a felirat okafogyott: elhagyjuk a szerkesztőt.
+        at(pending, 0).ok();
+        await waitFor(() => expect(window.location.pathname).toBe("/to-dos"));
+    });
+
+    it("a bukás visszaállítja a feliratot, PISZKOZATOT ír, és a gombra teszi a fókuszt", async () => {
+        const pending = pendingSave();
+        await openAndEdit();
+
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
+        await waitFor(() => expect(pending).toHaveLength(1));
+        act(() => at(pending, 0).fail());
+
+        /* KÉT JELZÉS: a felirat visszaáll (ez maga a visszajelzés), és közben a
+           szöveg biztonságba került a piszkozatba. A FÓKUSZ nem itt vizsgálandó —
+           ezt a mentést a GOMB indította, tehát a kattintás miatt amúgy is rajta
+           van a fókusz; a mutáció-próba pontosan ezt a hamis zöldet mutatta meg.
+           A fókusz-visszajelzésnek a logóval indított mentésnél van értelme, és a
+           tesztje is ott áll (l. lentebb). */
+        const saveButton = await screen.findByRole("button", {name: "Mentés"});
+        await waitFor(() => expect(saveButton).toBeEnabled());
+        expect(window.location.pathname).toBe("/to-dos/update/todo-1");
+
+        const draft: unknown = JSON.parse(localStorage.getItem("notes-draft:to-dos:todo-1") ?? "null");
+        expect(draft).toMatchObject({payload: {title: "Bevásárlás ma"}});
+    });
+
+    it("a LOGÓval indított mentés bukása után a Mentés gombra kerül a fókusz", async () => {
+        /* EZ A FUNKCIÓ ITT SZÜLETETT. A mentést nem csak a gomb indítja: a logó, a
+           "+", az Escape és a böngésző Vissza gombja is (a blockeren át). Ilyenkor a
+           felhasználó a LOGÓRA néz, nem az űrlap aljára — a "Mentés…" → "Mentés"
+           visszaváltás elkerülné a figyelmét, és annyit látna, hogy a logó nem
+           csinál semmit. A fókuszgyűrű odaviszi a szemet, ÚJ elem és
+           elrendezés-tolás nélkül (a user kifejezett kérése volt, hogy ne ugorjon
+           fel semmi). */
+        const pending = pendingSave();
+        await openAndEdit();
+
+        // A mentést a LOGÓ indítja el, nem a gomb: a fókusz a linken van.
+        await userEvent.click(requireElement("a", HTMLAnchorElement));
+        await waitFor(() => expect(pending).toHaveLength(1));
+        act(() => at(pending, 0).fail());
+
+        await waitFor(() => expect(screen.getByRole("button", {name: "Mentés"})).toHaveFocus());
+        expect(window.location.pathname).toBe("/to-dos/update/todo-1");
+    });
+
+    it("a KIJELENTKEZÉS MEGVÁRJA a futó mentést (nem indít másodikat, de nem is hagyja ott)", async () => {
+        /* A pendingSave.ts szabálya: "előbb a mentés, aztán a kilépés". Ez a
+           szabály KÉTFELŐL sérülhet, és mindkét irány néma:
+
+             - ha a leváláskori mentés a futó MELLÉ indít egy másodikat, az
+               create-nél két elemet hoz létre;
+             - ha viszont csak annyit mondunk rá, hogy "nincs mit menteni", akkor a
+               kijelentkezés MEG SEM VÁRJA a már úton lévő mentést.
+
+           A második pontosan előfordult, amikor a `hasSilentWork()` megkapta a
+           `!savingRef.current` feltételt: az őr helyes volt, de vele együtt a
+           várakozás is elveszett. Ezért ad a szerkesztő a KIJELENTKEZÉSNEK a már
+           futó mentés ígéretét (inFlightRef) — se dupla mentés, se otthagyott. */
+        const pending = pendingSave();
+        await openAndEdit();
+
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
+        await waitFor(() => expect(pending).toHaveLength(1));
+
+        let exited = false;
+        const logout = flushPendingSaves().then(() => { exited = true; });
+
+        /* A mentés MÉG FUT: a kilépésnek várnia kell rá. Egy mikrotaszk-forduló
+           bőven elég ahhoz, hogy egy AZONNAL teljesülő ígéret lefusson — tehát ha
+           a flush nem várna (a hibás viselkedés), az `exited` MÁR itt igaz lenne. */
+        await act(async () => { await Promise.resolve(); });
+        expect(exited).toBe(false);
+
+        // Most beérkezik a mentés válasza — innentől mehet a kilépés.
+        await act(async () => { at(pending, 0).ok(); });
+        await logout;
+
+        expect(exited).toBe(true);
+    });
+
+    it("futó mentés MELLÉ a leválás nem indít másodikat (nincs dupla mentés)", async () => {
+        /* A kijelentkezés nem router-navigáció, ezért a blocker nem látja: a
+           szerkesztő egyszerűen leválik. Ilyenkor a leváláskori mentés a MÁR FUTÓ
+           mentés mellé indítana egy másodikat — create-nél az két to-do volna.
+           Az őr a hasSilentWork() `!savingRef.current` feltétele. */
+        const pending = pendingSave();
+        const view = await openAndEdit();
+
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
+        await waitFor(() => expect(pending).toHaveLength(1));
+        handleAxios.mockClear();
+        view.unmount();
+
+        expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/to-dos/update");
     });
 });

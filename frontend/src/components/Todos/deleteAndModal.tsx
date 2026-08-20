@@ -30,6 +30,11 @@ type DeleteAndModalProps = {
     setIsColorClicked?: (isClicked: boolean) => void;
     handleCategoryChange?: () => void;
     onDelete?: () => void;
+    /* Le van-e tiltva a Törlés gomb. A szerkesztő MENTÉS KÖZBEN állítja igazra:
+       különben el lehetne törölni egy elemet, miközben ugyanannak a mentése épp
+       úton van a szerver felé. Opcionális, mert az idézet-szerkesztő is ezt a
+       komponenst használja. */
+    isDisabled?: boolean;
 };
 
 export default function DeleteAndModal(props: DeleteAndModalProps) {
@@ -113,7 +118,8 @@ export default function DeleteAndModal(props: DeleteAndModalProps) {
     };
 
     return (<>
-        <button type="button" className="btn rounded-pill mt-1 mb-1 btn-danger" onClick={handleModalShow}>
+        <button type="button" className="btn rounded-pill mt-1 mb-1 btn-danger" onClick={handleModalShow}
+                disabled={props.isDisabled ?? false}>
             Törlés
         </button>
         <Modal isShow={isModalShow} handleClose={handleModalClose} color={props.color}

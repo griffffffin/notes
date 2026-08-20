@@ -823,3 +823,128 @@ describe("QuoteSave — a lap bezárása", () => {
         expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
     });
 });
+
+/* MENTÉS KÖZBEN A SZERKESZTŐ NEM HAGYHATÓ EL — az idézet-szerkesztő oldala.
+
+   A mechanizmus és az indoklás a to-do szerkesztőjével AZONOS (l.
+   Todos/save.test.tsx ugyanezt a blokkot): a `savingRef` tart bent, amíg a kérés
+   úton van, a bukás visszaállítja a feliratot és piszkozatot ír, és a
+   navigációval indított mentés bukása után a Mentés gombra kerül a fókusz.
+   Azért van külön teszt, mert a két szerkesztő KÜLÖN kódot futtat: egy javítás,
+   ami csak az egyikbe megy át, itt bukna el. */
+describe("QuoteSave — mentés közben nem lehet elhagyni a szerkesztőt", () => {
+    const pendingSave = () => {
+        const pending: Array<{ok: () => void; fail: () => void}> = [];
+        handleAxios.mockImplementation((url, data, then, catchError) => {
+            if (url === "/quotes/edit") then(axiosResponse(QUOTE));
+            else if (url === "/quotes/last/order") then(axiosResponse(3));
+            else if (url === "/quotes" || url === "/quotes/author" || url === "/quotes/authors")
+                then(axiosResponse([]));
+            else if (url === "/quotes/update") pending.push({
+                ok: () => then(axiosResponse({})),
+                fail: () => catchError({message: "timeout of 15000ms exceeded"}),
+            });
+            else then(axiosResponse({}));
+            return Promise.resolve();
+        });
+        return pending;
+    };
+
+    const openAndEdit = async () => {
+        window.history.pushState({}, "", "/quotes/update/q-1");
+        const view = renderRoutes();
+        await waitFor(() => expect(screen.getByPlaceholderText("Idézet szövege")).toHaveValue(QUOTE.quote));
+        await userEvent.type(screen.getByPlaceholderText("Idézet szövege"), " Nagyon.");
+        return view;
+    };
+
+    afterEach(() => localStorage.clear());
+
+    it("a LOGÓ nem visz ki a futó mentés alól (a szöveg nem veszhet el)", async () => {
+        const pending = pendingSave();
+        await openAndEdit();
+
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
+        await waitFor(() => expect(pending).toHaveLength(1));
+
+        await userEvent.click(requireElement("a", HTMLAnchorElement));
+
+        await waitFor(() => {
+            expect(window.location.pathname).toBe("/quotes/update/q-1");
+            expect(screen.getByPlaceholderText("Idézet szövege")).toHaveValue(QUOTE.quote + " Nagyon.");
+        });
+    });
+
+    it("visszaírt eredeti szöveg mellett SEM enged ki a futó mentés alól", async () => {
+        /* EZ A TESZT MÉRI A `savingRef`-ET (a fenti logós nem): amíg az űrlap eltér
+           a szerverétől, a shouldBlock a dirty jelző miatt amúgy is blokkolna. Itt a
+           felhasználó a mentés MEGINDÍTÁSA UTÁN visszaírja az eredeti szöveget,
+           tehát az űrlap újra érintetlennek látszik — pedig a kérés úton van.
+           A to-do oldalán a mutáció-próba pontosan ezt a rést mutatta meg. */
+        const pending = pendingSave();
+        await openAndEdit();
+
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
+        await waitFor(() => expect(pending).toHaveLength(1));
+
+        await userEvent.clear(screen.getByPlaceholderText("Idézet szövege"));
+        await userEvent.type(screen.getByPlaceholderText("Idézet szövege"), QUOTE.quote);
+        await userEvent.click(requireElement("a", HTMLAnchorElement));
+
+        await waitFor(() => {
+            expect(window.location.pathname).toBe("/quotes/update/q-1");
+            expect(screen.getByPlaceholderText("Idézet szövege")).toHaveValue(QUOTE.quote);
+        });
+    });
+
+    it("a MENTÉS gomb tiltott és 'Mentés…' feliratú, amíg a válasz meg nem jön", async () => {
+        const pending = pendingSave();
+        await openAndEdit();
+
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
+
+        await waitFor(() => expect(screen.getByRole("button", {name: "Mentés…"})).toBeDisabled());
+        expect(screen.getByRole("button", {name: "Törlés"})).toBeDisabled();
+
+        at(pending, 0).ok();
+        await waitFor(() => expect(window.location.pathname).toBe("/quotes"));
+    });
+
+    it("a bukás PISZKOZATOT ír és visszaállítja a feliratot", async () => {
+        const pending = pendingSave();
+        await openAndEdit();
+
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
+        await waitFor(() => expect(pending).toHaveLength(1));
+        act(() => at(pending, 0).fail());
+
+        await waitFor(() => expect(screen.getByRole("button", {name: "Mentés"})).toBeEnabled());
+        expect(window.location.pathname).toBe("/quotes/update/q-1");
+
+        const draft: unknown = JSON.parse(localStorage.getItem("notes-draft:quotes:q-1") ?? "null");
+        expect(draft).toMatchObject({payload: {quote: QUOTE.quote + " Nagyon."}});
+    });
+
+    it("a LOGÓval indított mentés bukása után a Mentés gombra kerül a fókusz", async () => {
+        const pending = pendingSave();
+        await openAndEdit();
+
+        await userEvent.click(requireElement("a", HTMLAnchorElement));
+        await waitFor(() => expect(pending).toHaveLength(1));
+        act(() => at(pending, 0).fail());
+
+        await waitFor(() => expect(screen.getByRole("button", {name: "Mentés"})).toHaveFocus());
+    });
+
+    it("futó mentés MELLÉ a leválás nem indít másodikat (nincs dupla mentés)", async () => {
+        const pending = pendingSave();
+        const view = await openAndEdit();
+
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
+        await waitFor(() => expect(pending).toHaveLength(1));
+        handleAxios.mockClear();
+        view.unmount();
+
+        expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/quotes/update");
+    });
+});

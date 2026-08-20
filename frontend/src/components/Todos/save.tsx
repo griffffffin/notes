@@ -31,6 +31,12 @@ import {clearDraft, draftKey, readDraft, saveDraft} from "../../drafts";
 import {saveWithRetry} from "../../saveRetry";
 import {registerPendingSave} from "../../pendingSave";
 
+/* A Mentés gomb azonosítója. Konstans, mert két helyen kell (a gombon és a bukás
+   utáni fókuszálásnál) — pontosan úgy, ahogy a törlés-modal DELETE_BUTTON_ID-je.
+   A szín-osztály itt sem volna alkalmas horgonynak: ugyanazt a színt viselheti a
+   Törlés gomb is, ha a szerkesztett to-do színe épp piros. */
+const SAVE_BUTTON_ID = "todoSaveButton";
+
 /* A szerkesztő és a szerver közti ÖSSZEHASONLÍTHATÓ pillanatkép: az a hat mező,
    amit a "változott-e?" ellenőrzés néz. A `loadedTodo` ref ezt tárolja (a szerver
    adta állapot), és a currentData() is ebbe az alakba gyűjti a jelenlegi mezőket. */
@@ -154,6 +160,39 @@ export default function Save(props: SaveProps) {
        nehogy duplán hozzon létre). A blocker shouldBlock-ja is ezt nézi: ha igaz, nem
        blokkol (a törlés-navigáció és a már-elintézett proceed szabadon átmehet). */
     const leftViaForm = useRef(false);
+    /* FUT-E ÉPP MENTÉS. Két példányban, mert két különböző fogyasztója van:
+       a `savingRef` a shouldBlock-é (az stabil, üres deps-ű függvény, tehát csak
+       refből tud friss értéket olvasni), az `isSaving` state pedig a gomb feliratáé
+       és tiltásáé (ahhoz újrarajzolás kell). A kettőt a markSaving tartja együtt.
+
+       MIÉRT KÜLÖN A leftViaForm-TÓL? Korábban egyetlen jelző jelentette azt is,
+       hogy "most mentek", és azt is, hogy "a mentés kész, megyek" — a shouldBlock
+       pedig ezt nézte. Emiatt a mentés TELJES ideje alatt bárki navigációja
+       átment (logó, "+", Vissza, Escape): a szerkesztő eltűnt, a mentés utána
+       bukott el, és a beírt szöveg nyomtalanul elveszett (mérve, 2026-08-20).
+       Innentől: mentés alatt BLOKKOLUNK, és csak a befejezett mentés enged tovább. */
+    const savingRef = useRef(false);
+    const [isSaving, setIsSaving] = useState(false);
+    /* A FUTÓ MENTÉS ÍGÉRETE — hogy a KIJELENTKEZÉS MEGVÁRHASSA.
+
+       A pendingSave.ts szabálya: "előbb a mentés, aztán a kilépés". A leváláskori
+       mentés ezt eddig úgy teljesítette, hogy ő MAGA indított egy mentést és azt
+       adta vissza. Csakhogy a hasSilentWork() mostantól hamisat ad, amíg fut egy
+       mentés (különben mellé indítana egy másodikat, l. ott) — így a kijelentkezés
+       ÜRES ígéretet kapott volna, és a token törlése megelőzhette volna a választ.
+       A megoldás nem az őr gyengítése: itt a MÁR FUTÓ mentés ígéretét adjuk oda. */
+    const inFlightRef = useRef<Promise<void> | null>(null);
+
+    /* A MENTÉS ELBUKOTT — csak a fókusz-visszajelzéshez kell (l. lentebb az
+       effektet). Új mentés indulásakor visszaáll, hogy a KÖVETKEZŐ bukás is
+       lefuttassa az effektet. */
+    const [saveFailed, setSaveFailed] = useState(false);
+    const markSaving = useCallback((value: boolean) => {
+        savingRef.current = value;
+        setIsSaving(value);
+        if (value) setSaveFailed(false);
+        else inFlightRef.current = null;
+    }, []);
     /* A leváláskor futtatandó mentés legfrissebb változata — minden renderben frissül,
        hogy az unmount az aktuális állapotot mentse (l. lentebb). */
     /* A típus KIMONDVA: a kezdőérték egy üres függvény volna, amiből a fordító
@@ -407,13 +446,22 @@ export default function Save(props: SaveProps) {
        nincs kinek visszajelezni, ezért a hiányos munkát csendben eldobjuk. (Az
        idézet-szerkesztőben ugyanez a függvény, ugyanezzel a névvel — a harmadik
        szerkesztőnél a két mentési útvonal közös hookba kerül.) */
+    /* A `!savingRef.current` KÖTELEZŐ ELEM: enélkül egy kijelentkezés a MÁR FUTÓ
+       mentés mellé indítana egy másodikat, ami create-nél két to-dót hozna létre.
+       (Korábban ezt a `leftViaForm` fedte, de az most már csak a BEFEJEZETT
+       mentést jelöli — l. a savingRef bevezetését.) */
     const hasSilentWork = () =>
-        !leftViaForm.current && isTitleValid && isCategoryValid && !isPristine();
+        !leftViaForm.current && !savingRef.current && isTitleValid && isCategoryValid && !isPristine();
 
     /* A useBlocker DATA ROUTERT kér (l. routes.tsx). shouldBlock: akkor blokkoljuk a
-       navigációt, ha van mentenivaló (dirty) ÉS nem a mentés/törlés maga navigál
-       (leftViaForm). Üres deps-szel stabil, de refekből olvas, így friss állapotot lát. */
-    const shouldBlock = useCallback(() => !leftViaForm.current && isDirtyRef.current, []);
+       navigációt, ha ÉPP MENTÜNK (savingRef) VAGY van mentenivaló (dirty) — és nem a
+       befejezett mentés/törlés maga navigál (leftViaForm). Üres deps-szel stabil, de
+       refekből olvas, így friss állapotot lát.
+
+       A `savingRef` ág a lényegi újdonság: amíg a kérés úton van, a logó, a "+", az
+       Escape és a böngésző Vissza gombja sem visz ki innen. Enélkül a szerkesztő
+       eltűnhetett a mentés alól, és a bukó mentés szövegét nem volt hova visszatenni. */
+    const shouldBlock = useCallback(() => !leftViaForm.current && (savingRef.current || isDirtyRef.current), []);
     const blocker = useBlocker(shouldBlock);
 
     /* A NAVIGÁCIÓ-ELKAPÓ mentés magja: a blocker akkor billen "blocked"-ba, ha van
@@ -438,13 +486,17 @@ export default function Save(props: SaveProps) {
         }
         setValidation(null);
 
-        // Innentől mentünk; a mentés sikeréig NEM navigálunk. leftViaForm: az unmount-
-        // mentés már ne fusson újra a proceed utáni leváláskor. Az adatot itt INLINE
+        // Innentől mentünk; a mentés sikeréig NEM navigálunk. Az adatot itt INLINE
         // építjük (nem a currentData() helperrel), hogy az effekt függőségei — amiket
         // amúgy is figyel (title, todo, category…) — pontosan lefedjék a felhasznált
         // értékeket (exhaustive-deps).
-        leftViaForm.current = true;
-        const data: TodoPayload = {
+        markSaving(true);
+        /* A PILLANATKÉP és a KÉRÉS TÖRZSE külön: a piszkozatba a pillanatkép megy
+           (azonosító nélkül, mert a piszkozat séma szerint az elem TARTALMA), a
+           szerverre az azonosítóval kiegészített törzs. Külön néven, nem utólagos
+           mezőhozzáadással: a bukás-ág visszahívása később fut, és egy közben
+           módosított objektumon már a kiegészített alakot látná. */
+        const snapshot: TodoSnapshot = {
             title: title,
             tasks: todo.tasks,
             taskOrder: todo.columns["createColumn"].taskOrder,
@@ -452,23 +504,64 @@ export default function Save(props: SaveProps) {
             color: color,
             order: order,
         };
-        if (todoId) data.id = todoId;
-        handleAxios(url, data, (response) => {
-            if (response.status === 200) {
-                // A tartalom a szerveren van: a helyi másolat okafogyott.
-                clearDraft(draftStorageKey);
-                props.handleLinkClicked();
-                props.handleCategoryChange();
-                blocker.proceed();
-            } else { leftViaForm.current = false; blocker.reset(); }
-        }, (error) => {
-            // A mentés elbukott: maradunk (reset), egy későbbi távozás újrapróbálja.
-            leftViaForm.current = false;
+        const data: TodoPayload = todoId ? {...snapshot, id: todoId} : snapshot;
+        /* A BUKÁS ÁGA. Maradunk a szerkesztőben (reset), és HÁROM dolgot teszünk:
+           (1) a mentés-állapotot lezárjuk, tehát a gomb felirata "Mentés…"-ről
+               visszaáll "Mentés"-re — ez maga a visszajelzés, hogy gikszer volt;
+           (2) PISZKOZATOT írunk. Enélkül, ha a szerkesztő ezután mégis eltűnik
+               (kijelentkezés, lap-bezárás), a beírt szöveg sehol nem maradna meg;
+           (3) jelezzük a bukást, amire a fókusz a Mentés gombra ugrik (l. az
+               effektet) — a NAVIGÁCIÓVAL indított mentésnél (logó, "+", Vissza)
+               ez az egyetlen jel, ami a felhasználó szeme elé kerül. */
+        const failSave = (error: unknown) => {
+            markSaving(false);
+            setSaveFailed(true);
             logRequestError(error);
+            saveDraft(draftStorageKey, snapshot, loadedTodo.current ?? undefined);
             blocker.reset();
-        });
+        };
+        /* A FUTÓ MENTÉS ÍGÉRETE (l. inFlightRef): a `settled` a promise saját
+           resolve-ja, amit a Promise-konstruktor SZINKRON futó törzse állít be —
+           mire a kérés elindul, már megvan. Így a kijelentkezés meg tudja várni
+           ezt a mentést anélkül, hogy egy másodikat indítanánk mellé. */
+        let settled: () => void = () => undefined;
+        inFlightRef.current = new Promise<void>((resolve) => { settled = resolve; });
+        handleAxios(url, data, (response) => {
+            settled();
+            if (response.status !== 200) return failSave(new Error("HTTP " + response.status));
+            // A tartalom a szerveren van: a helyi másolat okafogyott.
+            clearDraft(draftStorageKey);
+            props.handleLinkClicked();
+            props.handleCategoryChange();
+            /* A SORREND KÖTÖTT: előbb a mentés-állapot lezárása és a "megyünk"
+               jelző, csak azután a proceed(). Fordítva a shouldBlock még mentésben
+               hinné magát, és a saját folytatásunkat blokkolná. */
+            markSaving(false);
+            leftViaForm.current = true;
+            blocker.proceed();
+        }, (error) => { settled(); failSave(error); });
     }, [blocker, isTitleValid, isCategoryValid, title, category, color, order, todo,
-        isUpdate, todoId, url, handleAxios, props, draftStorageKey]);
+        isUpdate, todoId, url, handleAxios, props, draftStorageKey, markSaving]);
+
+    /* A BUKÁS UTÁN A MENTÉS GOMBRA KERÜL A FÓKUSZ — ugyanaz a fogás, amit a
+       törlés-modal használ a hibája után (Todos/modal.tsx).
+
+       Miért kell egyáltalán? A mentést nem csak a Mentés gomb indítja: a logó, a
+       "+", az Escape és a böngésző Vissza gombja is (a blockeren át). Ilyenkor a
+       felhasználó nem a gombot nézi, tehát a "Mentés…" → "Mentés" visszaváltás
+       elkerülné a figyelmét, és annyit látna, hogy a logó nem csinál semmit. A
+       fókuszgyűrű odaviszi a szemet, billentyűzetről ingyen jár, a képernyőolvasó
+       pedig ki is mondja a gombot — és mindezt ÚJ elem nélkül, elrendezés-tolás
+       nélkül (a user kifejezett kérése volt, hogy ne ugorjon fel semmi).
+
+       KÜLÖN EFFEKT, nem a bukás-ágban hívott focus(): a gomb a mentés alatt
+       `disabled`, arra pedig nem lehet fókuszt tenni. Az effekt a bukást követő
+       ÚJRARAJZOLÁS után fut, amikor a gomb már újra él. */
+    useEffect(() => {
+        if (!saveFailed) return;
+        const button = formRef.current?.querySelector("#" + SAVE_BUTTON_ID);
+        if (button instanceof HTMLElement) button.focus();
+    }, [saveFailed]);
 
     /* A Mentés gomb (és az Escape) már csak NAVIGÁL — az ellenőrzést+mentést a
        fenti blocker intézi, ha van mentenivaló. Érintetlen űrlapnál a blocker nem
@@ -487,6 +580,10 @@ export default function Save(props: SaveProps) {
        törli az ÉLŐ tokent, ezért azt EXPLICIT átadjuk a handleAxios-nak, különben a
        mentés token nélkül, 401-gyel elveszne. */
     saveOnLeaveRef.current = () => {
+        /* MÁR FUT EGY MENTÉS: nem indítunk másikat, hanem MEGVÁRATJUK vele a
+           kijelentkezést. (A pendingSave felső korlátja 3 másodperc, tehát ez nem
+           tud beragadni.) */
+        if (savingRef.current && inFlightRef.current) return inFlightRef.current;
         if (!hasSilentWork()) return Promise.resolve();
         // L. a Quotes/save.tsx azonos pontját: a kijelentkezés megvárja ezt a mentést.
         leftViaForm.current = true;
@@ -555,19 +652,37 @@ export default function Save(props: SaveProps) {
         // Nincs mentenivaló (érintetlen vagy hiányos): NEM navigálunk el — hagyjuk a
         // felhasználót, a 15 perces tétlenségi kijelentkezés majd a szokott módon jön.
         if (!hasSilentWork()) return;
-        /* A mentés MEGKEZDÉSE előtt jelöljük: a rákövetkező leválás (navigáció →
-           unmount) NE mentsen újra (create-nél nehogy duplikáljon). Hibánál
-           visszavonjuk, hogy egy későbbi távozás újrapróbálja. */
-        leftViaForm.current = true;
-        const data = currentData();
-        if (todoId) data.id = todoId;
+        /* AZ AUTOSAVE UGYANÚGY VISELKEDIK, MINT A KÉZI MENTÉS (a user döntése):
+           "Mentés…" felirat, tiltott gombok, és a navigáció blokkolva, amíg a
+           kérés úton van. Az, hogy nem ő indította, nem érv a némaság mellett —
+           az volna baj, ha közben elveszne a munkája. A markSaving egyszerre
+           állítja a shouldBlock refjét és a felirat state-jét. */
+        markSaving(true);
+        const snapshot = currentData();
+        const data: TodoPayload = todoId ? {...snapshot, id: todoId} : snapshot;
+        // Az autosave ígérete is a kijelentkezésnek szól (l. inFlightRef).
+        let settled: () => void = () => undefined;
+        inFlightRef.current = new Promise<void>((resolve) => { settled = resolve; });
         handleAxios(url, data, () => {
+            settled();
             clearDraft(draftStorageKey);
             props.handleLinkClicked();
             props.handleCategoryChange();
+            /* A SORREND ITT IS KÖTÖTT, és itt a legkönnyebb elrontani: az autosave
+               a SAJÁT navigációját is blokkolná, ha előbb nem zárnánk le a
+               mentés-állapotot és nem mondanánk ki, hogy a mentés visz el minket.
+               A blocker reset()-je azért kell, mert közben a felhasználó
+               megpróbálhatott navigálni (a kísérletét elnyeltük) — a függő
+               blokkolt állapotot fel kell oldani, mielőtt mi navigálunk. */
+            markSaving(false);
+            leftViaForm.current = true;
+            if (blocker.state === "blocked") blocker.reset();
             void navigate(PATHS.todos);
         }, (error) => {
-            leftViaForm.current = false;
+            settled();
+            markSaving(false);
+            setSaveFailed(true);
+            if (blocker.state === "blocked") blocker.reset();
             logRequestError(error);
             /* Az autosave bukása után a szerkesztő MEGMARAD, tehát a szöveg még a
                képernyőn van — de a 15 perces tétlenségi kijelentkezés már a lejárt
@@ -628,13 +743,29 @@ export default function Save(props: SaveProps) {
                               handleAngleClick={handleCategoryAngleClick} isAngleClicked={isCategoryAngleClicked}
                               categories={props.categories}/>
 
-                    <SubmitButton isDisabled={isDisabled} isOutline={false} color={color} text="Mentés"/>
+                    {/* A FELIRAT "Mentés", nem "Tovább". A "Tovább" két különböző dolgot
+                        jelentett az appban (belépés és mentés); a szerkesztőben az történik,
+                        hogy MENTÜNK, tehát azt is mondjuk. A "Tovább" megmarad ott, ahol
+                        igaz: a belépő/regisztrációs űrlapon (Button/submitButtonGroup.tsx).
+
+                        MENTÉS KÖZBEN "Mentés…", és a gomb TILTOTT. A tiltás nem csak
+                        kozmetika: enélkül a türelmetlen második kattintás elvitte a
+                        felhasználót a szerkesztőből a mentés alól (mérve). A bukás után a
+                        felirat visszaáll "Mentés"-re — ez maga a visszajelzés, és a
+                        felirat egyben felszólítás is az újrapróbálásra.
+
+                        Az `isDisabled` VAGY-olva, nem lecserélve: az érvénytelen űrlap
+                        gombja a mentés lezárultával sem válhat aktívvá. */}
+                    <SubmitButton id={SAVE_BUTTON_ID} isDisabled={isDisabled || isSaving} isOutline={false}
+                                  color={color} text={isSaving ? "Mentés…" : "Mentés"}/>
 
                     {isUpdate &&
+                        /* A TÖRLÉS IS TILTOTT MENTÉS KÖZBEN: különben egy elemet
+                           törölni lehetne, miközben ugyanannak a mentése épp úton van. */
                         <DeleteAndModal handleLinkClicked={props.handleLinkClicked}
                                         setIsColorClicked={setIsColorAngleClicked} color={color} todoId={todoId}
                                         setIsCategoryClicked={setIsCategoryAngleClicked}
-                                        handleCategoryChange={props.handleCategoryChange}
+                                        handleCategoryChange={props.handleCategoryChange} isDisabled={isSaving}
                                         onDelete={() => { leftViaForm.current = true; }}/>}
 
                     <NoFocusButton onClick={handleColorAngleClick} class="pb-0" color={color}
