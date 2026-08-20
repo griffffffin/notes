@@ -1,6 +1,6 @@
 import {useEffect, useRef} from "react";
 import SubmitButton from "../Button/submitButton";
-import type {MouseEvent} from "react";
+import type {MouseEvent, SyntheticEvent} from "react";
 import type {BootstrapColor} from "../../contexts/theme-context";
 
 /* A szín kétféle lehet, mert a modal két szerkesztőt szolgál ki: a to-do a saját
@@ -112,11 +112,25 @@ export default function Modal(props: ModalProps) {
        <dialog> (a belső .modal-content elnyeli a rá esőt), így a tartalmon KÍVÜLI
        kattintás zár — pontosan úgy, ahogy a react-bootstrap is tette. */
     const handleDialogClick = (event: MouseEvent<HTMLDialogElement>) => {
+        /* TÖRLÉS KÖZBEN NINCS KIÚT. A művelet fut, megszakítani nem tudjuk —
+           ugyanaz az érv, amiért a "Vissza" gomb is eltűnik ilyenkor: hazug
+           ígéret volna. A kattintás így egyszerűen nem csinál semmit; a dialógus
+           modális, tehát a mögötte lévő felület (kijelentkezés, navbar) sem
+           elérhető, amíg nyitva van. */
+        if (props.isDeleting) return;
         if (event.target === dialogRef.current) props.handleClose();
     };
 
+    /* AZ ESC IS ZÁRVA. A natív <dialog> "cancel" eseménye a bezárás ELŐTT szól, és
+       megelőzhető — enélkül az ESC kiengedne a folyamatban lévő törlésből, és a
+       felhasználó a navbaron (pl. kijelentkezéssel) félbeszakíthatná a műveletet. */
+    const handleCancel = (event: SyntheticEvent<HTMLDialogElement>) => {
+        if (props.isDeleting) event.preventDefault();
+    };
+
     return (
-        <dialog ref={dialogRef} className="todo-modal" onClose={handleClose} onClick={handleDialogClick}>
+        <dialog ref={dialogRef} className="todo-modal" onClose={handleClose} onClick={handleDialogClick}
+                onCancel={handleCancel}>
             <div className={"modal-content border border-3 border-" + props.color + " bg-theme-page text-" + props.color}>
                 <div className="modal-header ms-1 py-2 border-0">
                     {/* A FOLYAMATBAN-állapot a FEJLÉCBEN jelenik meg ("Törlés…"), és a
@@ -137,9 +151,22 @@ export default function Modal(props: ModalProps) {
                     </h5>
                     {/* A bezáró X-et magunk rendereljük, eleve a to-do színével —
                         így elmarad a régi, elemre utólag rátett osztály (DOM-kotrás
-                        a render után), ami a react-bootstrap closeButton-t színezte. */}
-                    <button type="button" aria-label="Bezárás" onClick={handleClose}
-                            className={"btn-close text-" + props.color}/>
+                        a render után), ami a react-bootstrap closeButton-t színezte.
+
+                        TÖRLÉS KÖZBEN NINCS OTT. Nem tiltott gombként, hanem sehogy: egy
+                        jól látható, de halott X pont az a "kattinthatónak látszik,
+                        közben néma" vezérlő, amit ez az app máshol is kerül. Ha nincs
+                        mit tenni, ne is kínáljunk gombot — a dialógus ilyenkor egyetlen
+                        sorrá zsugorodik, és maga a méret a jelzés.
+
+                        Következménye, amire külön ügyelni kell: a törzs ilyenkor
+                        szintén nincs kirajzolva, tehát X nélkül NULLA fókuszálható elem
+                        marad a dialógusban. A böngésző ilyenkor magára a <dialog>-ra
+                        teszi a fókuszt, és kirajzolja köré a saját fókuszgyűrűjét —
+                        ezt az index.css oltja ki (mérve headless renderrel). */}
+                    {!props.isDeleting &&
+                        <button type="button" aria-label="Bezárás" onClick={handleClose}
+                                className={"btn-close text-" + props.color}/>}
                 </div>
                 {/* Törlés közben NINCS törzs. A `modal-body` saját (1rem) alsó
                     paddingje enélkül aszimmetrikus térközt hagyna a fejléc alatt —

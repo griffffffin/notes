@@ -110,10 +110,13 @@ describe("Törlés-modal — folyamatban és bukás", () => {
         expect(screen.queryByText("Biztosan törlöd?")).not.toBeInTheDocument();
         /* Nincs törzs, tehát gomb sincs: a Törlésen nincs mit nyomni, a "Vissza"
            felirat pedig megszakítást ígérne — olyat, amit nem tudunk betartani.
-           A kiút az X (és az ESC): azok nem ígérnek visszavonást. */
+           ÉS AZ X SINCS OTT: a művelet fut, megszakítani nem tudjuk, tehát nincs
+           mit felkínálni. Egy jól látható, de halott X pont az a "kattinthatónak
+           látszik, közben néma" vezérlő, amit ez az app kerül. A dialógus így a
+           törlés idejére EGYETLEN sorrá zsugorodik — maga a méret a jelzés. */
         expect(deleteButton()).not.toBeInTheDocument();
         expect(screen.queryByRole("button", {name: "Vissza"})).not.toBeInTheDocument();
-        expect(screen.getByRole("button", {name: "Bezárás"})).toBeInTheDocument();
+        expect(screen.queryByRole("button", {name: "Bezárás"})).not.toBeInTheDocument();
     });
 
     it("bukás után a TÖRLÉS gombon a fókusz (a következő lépés az újrapróbálás)", () => {
@@ -157,5 +160,57 @@ describe("Törlés-modal — folyamatban és bukás", () => {
         // UGYANAZ a DOM-elem, csak más szöveggel — nem egy második, ráépülő sor.
         expect(line).toHaveTextContent("A törlés nem sikerült!");
         expect(line.className).toBe("ms-2 pb-3");
+    });
+});
+
+/* TÖRLÉS KÖZBEN NINCS KIÚT A DIALÓGUSBÓL.
+
+   A művelet fut, megszakítani nem tudjuk — ugyanaz az érv, amiért a "Vissza" gomb
+   is eltűnik ilyenkor: hazug ígéret volna. Korábban HÁROM kiút maradt (backdrop-
+   kattintás, X, ESC), és mindhárom ugyanoda vezetett: a felhasználó visszakerült a
+   szerkesztőbe, ahol a navbaron akár ki is jelentkezhetett egy futó törlés közben.
+
+   A három őr három külön helyen ül (handleDialogClick, a feltételes X, handleCancel),
+   tehát három külön teszt jár nekik — egy közös teszt egy őr kivételét elrejtené. */
+describe("Törlés-modal — a folyamatban lévő törlés nem szakítható félbe", () => {
+    it("a backdrop-kattintás NEM zár (törlés közben)", async () => {
+        const props = renderModal({isDeleting: true});
+
+        /* A ::backdrop-ra eső kattintás célpontja maga a <dialog> — a komponens
+           ebből ismeri fel a "tartalmon kívüli" kattintást. */
+        await userEvent.click(dialog());
+
+        expect(props.handleClose).not.toHaveBeenCalled();
+    });
+
+    it("a backdrop-kattintás ZÁR, amikor NEM törlünk (a kontroll)", async () => {
+        /* Kontroll-teszt: e nélkül a fenti akkor is zöld volna, ha a backdrop-zárás
+           egyáltalán nem működne. */
+        const props = renderModal({isDeleting: false});
+
+        await userEvent.click(dialog());
+
+        expect(props.handleClose).toHaveBeenCalled();
+    });
+
+    it("az ESC NEM zár (törlés közben)", () => {
+        const props = renderModal({isDeleting: true});
+
+        /* A natív <dialog> az ESC-re "cancel" eseményt küld a bezárás ELŐTT, és az
+           megelőzhető. A jsdom nem implementálja az ESC → cancel utat, ezért az
+           eseményt magunk küldjük — a vizsgált viselkedés a komponens kezelője. */
+        const cancelled = dialog().dispatchEvent(new Event("cancel", {cancelable: true, bubbles: true}));
+
+        expect(cancelled).toBe(false);
+        expect(props.handleClose).not.toHaveBeenCalled();
+    });
+
+    it("az ESC ZÁR, amikor NEM törlünk (a kontroll)", () => {
+        const props = renderModal({isDeleting: false});
+
+        const cancelled = dialog().dispatchEvent(new Event("cancel", {cancelable: true, bubbles: true}));
+
+        expect(cancelled).toBe(true);
+        expect(props.handleClose).not.toHaveBeenCalled();
     });
 });

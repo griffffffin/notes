@@ -764,6 +764,22 @@ dialog.todo-modal {
        <dialog> a showModal()-ra rögtön látszik, a close()-ra rögtön eltűnik. */
 }
 
+/* A <dialog> SAJÁT FÓKUSZGYŰRŰJE KIOLTVA.
+
+   Törlés közben ("Törlés…") a dialógusban NINCS egyetlen fókuszálható elem sem: a
+   törzs (a kérdés és a gombok) nincs kirajzolva, és a bezáró X is eltűnik. A
+   böngésző ilyenkor magára a <dialog>-ra teszi a fókuszt, és kirajzolja köré az
+   alapértelmezett fókuszgyűrűt — egy fehér, szögletes keretet a lekerekített doboz
+   körül. Headless renderrel mérve, 2026-08-20.
+
+   Kioltani biztonságos: ez a fókusz nem a felhasználó billentyűs navigációjából
+   származik (nincs hova lépni), tehát nincs mit láthatóvá tenni. A dialóguson
+   BELÜLI gombok saját fókuszgyűrűje érintetlen marad — a szelektor csak magára a
+   <dialog> elemre hat. */
+dialog.todo-modal:focus {
+    outline: none;
+}
+
 /* 576px fölött a Bootstrap a margót 1.75rem-re növeli (--bs-modal-margin), a
    modal a max 500px-en, középen — a mobil 0.5rem helyett több levegő nagy
    képernyőn. (A width: calc(100% - 1rem) marad, de a max-width 500px korlátoz.) */
