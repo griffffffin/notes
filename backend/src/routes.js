@@ -65,14 +65,14 @@ router.use("/user/create",
     rateLimit({
         windowMs: 60 * 60 * 1000,
         max: 5,
-        message: "Túl sok regisztrációs kísérlet, próbáld egy óra múlva.",
+        message: "Túl sok regisztrációs kísérlet.",
     }),
     validateCredentials, usersCreate);
 router.use("/login",
     rateLimit({
         windowMs: 15 * 60 * 1000,
         max: 20,
-        message: "Túl sok bejelentkezési kísérlet, próbáld negyed óra múlva.",
+        message: "Túl sok bejelentkezési kísérlet.",
     }),
     validateCredentials, usersLogin);
 
@@ -93,7 +93,7 @@ router.use("/client-error",
     rateLimit({
         windowMs: 5 * 60 * 1000,
         max: 20,
-        message: "Túl sok hibajelentés érkezett, próbáld később.",
+        message: "Túl sok hiba.",
     }),
     validateClientError, clientError);
 
