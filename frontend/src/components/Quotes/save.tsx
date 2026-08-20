@@ -12,6 +12,7 @@ import {useAuth} from "../../contexts/auth-context";
 import {useTheme} from "../../contexts/theme-context";
 import {useQuoteAccent} from "./useQuoteAccent";
 import {logRequestError} from "../../log";
+import {responseStatus} from "../../httpError";
 import {ENDPOINTS} from "../../endpoints";
 import {fieldAnchor, type FieldAnchor} from "../Editor/fieldAnchor";
 import ValidationTooltip from "../Editor/validationTooltip";
@@ -308,10 +309,17 @@ export default function QuoteSave(props: SaveProps) {
                 decideDraftRef.current(loaded.current);
             }, (error) => {
                 if (!active) return;
-                // Nem tölthető be (törölt elem vagy timeout) — vissza a listához,
-                // hogy a betöltő ne pörögjön örökké.
                 logRequestError(error);
-                leaveEditor();
+                /* A SZERVER VÁLASZA DÖNT — az indoklás teljes egészében a to-do
+                   szerkesztőjében (Todos/save.tsx, ugyanezen a hibaágon), mert a
+                   két végpont szabálya azonos: a readForEdit.js is 403-at ad a
+                   nem létezőre és az idegenre egyaránt. Röviden: a 403 az
+                   EGYETLEN válasz, amiből tudjuk, hogy nincs mit betölteni —
+                   minden más (státusz nélküli hiba, 500) csak annyit jelent,
+                   hogy most nem sikerült, és arra az újrapróbálás a válasz, nem
+                   a szerkesztőből való kinavigálás. */
+                if (responseStatus(error) === 403) leaveEditor();
+                else setLoadFailed(true);
             });
         }
         /* Az Order felső korlátja PONTOSAN a to-do mintáját követi (a viselkedés ne

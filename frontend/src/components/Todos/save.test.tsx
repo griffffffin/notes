@@ -111,24 +111,93 @@ describe("Save útvonalai", () => {
         expect(screen.getByPlaceholderText("Kategória")).toHaveValue("");
     });
 
-    it("ha a to-do betöltése hibázik, a főoldalra visz, nem pörög a betöltő", async () => {
-        // A /id kérés elszáll (pl. timeout) — a szerkesztő NEM ragadhat a
-        // spinneren, mert a setIsLoading(false) a betöltött adathoz kötött.
-        handleAxios.mockImplementation((url, data, then, catchError) => {
-            if (url === "/to-dos/id") catchError({message: "timeout of 15000ms exceeded"});
-            else if (url === "/to-dos/last/order") then(axiosResponse(3));
-            else if (url === "/to-dos") then(axiosResponse([TODO]));
-            else then(axiosResponse({}));
-            return Promise.resolve();
-        });
-        renderRoutes();
+    /* A BETÖLTÉS HIBAÁGA — a SZERVER VÁLASZA dönt, nem a hiba puszta ténye.
+
+       Korábban itt EGYETLEN teszt állt, és az a régi viselkedést rögzítette: egy
+       időtúllépés a listára navigált. Vagyis a szerkesztő egy múló hálózati
+       zökkenőt (wifi-váltás, épp újrainduló szerver) ugyanúgy kezelt, mint egy
+       törölt elemet — kirakta a felhasználót, és ezzel azt ÁLLÍTOTTA, hogy az
+       eleme odalett. A backend viszont pontosan megmondja, melyikről van szó:
+       403 a nem létező ÉS az idegen elemre (ownership.js), 500 a saját hibájára
+       (serverError.js), és semmilyen státusz a hálózatiakra.
+
+       A három eset ezért három teszt. Ugyanaz a szabály, mint a publikus
+       idézetnél (Quotes/public.tsx) — ott a `notFound`, itt a kinavigálás az,
+       amit csak valódi szerver-válaszra szabad kimondani. */
+    describe("a to-do betöltése elbukik", () => {
+        const failTodoLoad = (error: unknown) =>
+            handleAxios.mockImplementation((url, data, then, catchError) => {
+                if (url === "/to-dos/id") catchError(error);
+                else if (url === "/to-dos/last/order") then(axiosResponse(3));
+                else if (url === "/to-dos") then(axiosResponse([TODO]));
+                else then(axiosResponse({}));
+                return Promise.resolve();
+            });
 
         // A listáról a kártyára kattintva indul a szerkesztő betöltése.
-        await userEvent.click(await screen.findByText("Bevásárlás"));
+        const openEditor = async () => {
+            renderRoutes();
+            await userEvent.click(await screen.findByText("Bevásárlás"));
+        };
 
-        // A betöltés hibája visszavisz a főoldalra; a Cím mező meg sem jelenik.
-        await waitFor(() => expect(window.location.pathname).toBe("/to-dos"));
-        expect(screen.queryByPlaceholderText("Cím")).not.toBeInTheDocument();
+        it("hálózati hibánál a szerkesztőben maradunk, újrapróbálási lehetőséggel", async () => {
+            failTodoLoad({message: "timeout of 15000ms exceeded"});
+
+            await openEditor();
+
+            expect(await screen.findByText(/Hiba az oldal betöltése közben/)).toBeVisible();
+            expect(screen.getByRole("button", {name: "Adatok ismételt lekérése"})).toBeVisible();
+            // NEM navigáltunk el: a szerkesztő címén állunk.
+            expect(window.location.pathname).toBe("/to-dos/update/todo-1");
+            /* A karika sem pörög tovább — ez volt a kinavigálás EREDETI indoka, és
+               a jelzés ezt is megoldja (a loadFailed a spinner előtt térít el). */
+            expect(document.querySelector(".spinner-border")).not.toBeInTheDocument();
+        });
+
+        it("500-nál is maradunk: a szerver akadt meg, nem az elem tűnt el", async () => {
+            failTodoLoad({response: {status: 500}});
+
+            await openEditor();
+
+            expect(await screen.findByText(/Hiba az oldal betöltése közben/)).toBeVisible();
+            expect(window.location.pathname).toBe("/to-dos/update/todo-1");
+        });
+
+        it("403-nál a listára visz: az elem tényleg nem érhető el", async () => {
+            failTodoLoad({response: {status: 403}});
+
+            await openEditor();
+
+            await waitFor(() => expect(window.location.pathname).toBe("/to-dos"));
+            expect(screen.queryByPlaceholderText("Cím")).not.toBeInTheDocument();
+            expect(screen.queryByText(/Hiba az oldal betöltése közben/)).not.toBeInTheDocument();
+        });
+
+        it("az ÚJRA gomb megismétli a to-do lekérését, és megnyílik a szerkesztő", async () => {
+            let shouldFail = true;
+            handleAxios.mockImplementation((url, data, then, catchError) => {
+                if (url === "/to-dos/id" && shouldFail) catchError(new Error("Network Error"));
+                else if (url === "/to-dos/id") then(axiosResponse(TODO));
+                else if (url === "/to-dos/last/order") then(axiosResponse(3));
+                else if (url === "/to-dos") then(axiosResponse([TODO]));
+                else then(axiosResponse({}));
+                return Promise.resolve();
+            });
+
+            await openEditor();
+            expect(await screen.findByText(/Hiba az oldal betöltése közben/)).toBeVisible();
+
+            shouldFail = false;
+            await userEvent.click(screen.getByRole("button", {name: "Adatok ismételt lekérése"}));
+
+            /* EGY waitFor, KÉT állítással: itt ÁTMENET van (a hibaüzenet fentebb
+               még látszott), és két külön pillanatban kérdezve a második
+               elkaphatja a félidőt (l. Quotes/read.test.tsx mérése). */
+            await waitFor(() => {
+                expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás");
+                expect(screen.queryByText(/Hiba az oldal betöltése közben/)).not.toBeInTheDocument();
+            });
+        });
     });
 });
 

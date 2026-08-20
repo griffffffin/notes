@@ -14,6 +14,7 @@ import ColorButtonGroup from "../Button/colorButtonGroup";
 import {useTheme} from "../../contexts/theme-context";
 import {useAuth} from "../../contexts/auth-context";
 import {logRequestError} from "../../log";
+import {responseStatus} from "../../httpError";
 import {ENDPOINTS} from "../../endpoints";
 import {fieldAnchor, type FieldAnchor} from "../Editor/fieldAnchor";
 import ValidationTooltip from "../Editor/validationTooltip";
@@ -242,12 +243,32 @@ export default function Save(props: SaveProps) {
                 if (loadedTodo.current) decideDraftRef.current(loadedTodo.current);
             }, (error) => {
                 if (!active) return;
-                // A to-do nem tölthető be (pl. timeout vagy törölt elem) — vissza
-                // a listához, hogy a szerkesztő betöltője ne pörögjön örökké. A
-                // setIsLoading(false) a betöltött adathoz kötött, tehát hiba után
-                // magától nem oldódna fel; a read.tsx is navigációval kezeli.
                 logRequestError(error);
-                leaveEditor();
+                /* A SZERVER VÁLASZA DÖNT, nem a hiba puszta ténye — ugyanaz a
+                   szabály, mint a publikus idézetnél (Quotes/public.tsx).
+
+                   403: az elem nem érhető el nekünk. A backend ezt adja a nem
+                   létezőre ÉS az idegenre is (ownership.js, szándékosan
+                   megkülönböztethetetlenül), a szerkesztőt viszont csak a SAJÁT
+                   elemünkre lehet megnyitni — a gyakorlatban tehát az elem
+                   időközben megszűnt (pl. másik eszközön törölted). Ilyenkor a
+                   listára megyünk: nincs mit betölteni, és az újrapróbálás is
+                   ugyanezt a 403-at kapná.
+
+                   MINDEN MÁS: nem tudjuk, hogy az elem eltűnt-e, tehát nem is
+                   állítunk róla semmit. Státusz nélkül (időtúllépés, megszakadt
+                   kapcsolat, séma-bukás) el sem jutottunk a szerverig; 500-nál
+                   (serverError.js) a szerver akadt meg, nem az elem szűnt meg.
+                   A kinavigálás ilyenkor AZT ÁLLÍTANÁ, hogy az elem odalett —
+                   holott csak egy wifi-váltás vagy egy épp újrainduló szerver
+                   jött közbe, és a felhasználó a szerkesztőjét veszíti el egy
+                   múló zökkenőért. Maradunk, és felkínáljuk az újrapróbálást.
+
+                   A betöltő ettől sem pörög örökké (ez volt a navigáció eredeti
+                   indoka): a `loadFailed` a spinner ELŐTT térít el a renderben,
+                   tehát a karika helyett a jelzés látszik. */
+                if (responseStatus(error) === 403) leaveEditor();
+                else setLoadFailed(true);
             });
         }
         // CREATE: nincs betöltendő elem, tehát a piszkozatnak nincs mivel ütköznie.

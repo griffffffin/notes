@@ -256,6 +256,88 @@ describe("QuoteSave — update", () => {
     });
 });
 
+/* A BETÖLTÉS HIBAÁGA — a SZERVER VÁLASZA dönt, nem a hiba puszta ténye.
+
+   A to-do szerkesztőjének AZONOS blokkja (Todos/save.test.tsx) a részletes
+   indoklás helye; itt azért áll meg a saját párja, mert a két szerkesztő
+   viselkedése nem csúszhat szét némán. A backend szabálya is azonos: a
+   readForEdit.js 403-at ad a nem létező ÉS az idegen idézetre egyaránt, 500-at a
+   saját hibájára — a hálózati hibának pedig egyáltalán nincs státusza.
+
+   A tétel: a kinavigálás azt ÁLLÍTJA, hogy nincs mit szerkeszteni. Ezt csak a
+   403-ból tudjuk; minden másra maradunk és újrapróbálást kínálunk. */
+describe("QuoteSave — az idézet betöltése elbukik", () => {
+    const failQuoteLoad = (error: unknown) =>
+        handleAxios.mockImplementation((url, data, then, catchError) => {
+            if (url === "/quotes/edit") catchError(error);
+            else if (url === "/quotes/last/order") then(axiosResponse(3));
+            else if (url === "/quotes" || url === "/quotes/author" || url === "/quotes/authors")
+                then(axiosResponse([]));
+            else then(axiosResponse({}));
+            return Promise.resolve();
+        });
+
+    it("hálózati hibánál a szerkesztőben maradunk, újrapróbálási lehetőséggel", async () => {
+        failQuoteLoad({message: "timeout of 15000ms exceeded"});
+        window.history.pushState({}, "", "/quotes/update/q-1");
+
+        renderRoutes();
+
+        expect(await screen.findByText(/Hiba az oldal betöltése közben/)).toBeVisible();
+        expect(screen.getByRole("button", {name: "Adatok ismételt lekérése"})).toBeVisible();
+        // NEM navigáltunk el: a szerkesztő címén állunk.
+        expect(window.location.pathname).toBe("/quotes/update/q-1");
+        // A karika sem pörög tovább (ez volt a kinavigálás eredeti indoka).
+        expect(document.querySelector(".spinner-border")).not.toBeInTheDocument();
+    });
+
+    it("500-nál is maradunk: a szerver akadt meg, nem az idézet tűnt el", async () => {
+        failQuoteLoad({response: {status: 500}});
+        window.history.pushState({}, "", "/quotes/update/q-1");
+
+        renderRoutes();
+
+        expect(await screen.findByText(/Hiba az oldal betöltése közben/)).toBeVisible();
+        expect(window.location.pathname).toBe("/quotes/update/q-1");
+    });
+
+    it("403-nál a listára visz: az idézet tényleg nem érhető el", async () => {
+        failQuoteLoad({response: {status: 403}});
+        window.history.pushState({}, "", "/quotes/update/q-1");
+
+        renderRoutes();
+
+        await waitFor(() => expect(window.location.pathname).toBe("/quotes"));
+        expect(screen.queryByText(/Hiba az oldal betöltése közben/)).not.toBeInTheDocument();
+    });
+
+    it("az ÚJRA gomb megismétli a lekérést, és megnyílik a szerkesztő", async () => {
+        let shouldFail = true;
+        handleAxios.mockImplementation((url, data, then, catchError) => {
+            if (url === "/quotes/edit" && shouldFail) catchError(new Error("Network Error"));
+            else if (url === "/quotes/edit") then(axiosResponse(QUOTE));
+            else if (url === "/quotes/last/order") then(axiosResponse(3));
+            else if (url === "/quotes" || url === "/quotes/author" || url === "/quotes/authors")
+                then(axiosResponse([]));
+            else then(axiosResponse({}));
+            return Promise.resolve();
+        });
+        window.history.pushState({}, "", "/quotes/update/q-1");
+        renderRoutes();
+        expect(await screen.findByText(/Hiba az oldal betöltése közben/)).toBeVisible();
+
+        shouldFail = false;
+        await userEvent.click(screen.getByRole("button", {name: "Adatok ismételt lekérése"}));
+
+        /* EGY waitFor, KÉT állítással: ÁTMENET van, és két külön pillanatban
+           kérdezve a második elkaphatja a félidőt (l. Quotes/read.test.tsx). */
+        await waitFor(() => {
+            expect(quoteField()).toHaveValue("Az élet szép.");
+            expect(screen.queryByText(/Hiba az oldal betöltése közben/)).not.toBeInTheDocument();
+        });
+    });
+});
+
 /* A szerkesztő ELHAGYÁSA (logóra kattintás, Vissza gomb, bármely navigáció) a
    szerkesztő leválását (unmount) jelenti — ilyenkor ugyanaz a mentés fusson le, mint
    a Tovább/Escape-nél, csak navigáció nélkül. A leválást a teszt az unmount()-tal
