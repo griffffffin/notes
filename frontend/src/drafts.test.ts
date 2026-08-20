@@ -76,29 +76,28 @@ describe("saveDraft + readDraft", () => {
         expect(localStorage.getItem(KEY)).toBeNull();
     });
 
-    it("EGY HÓNAPNÁL régebbi piszkozatot eldob, és törli", () => {
-        /* Nem valódi várakozás: az órát tekerjük. A véges korlát azért kell, hogy
-           egy évekig ott felejtett piszkozat ne maradjon a tárolóban — de a korlát
-           BŐSÉGES: a piszkozat egy elmaradt mentés pótlása, és attól még a
-           felhasználó szövege, hogy hetekig nem nyitotta meg. */
+    it("EGY HÉTNÉL régebbi piszkozatot eldob, és törli", () => {
+        /* Nem valódi várakozás: az órát tekerjük. A korlát a user döntése
+           (2026-08-20, korábban egy hónap): a piszkozat egy elmaradt mentés
+           pótlása, nem archívum — és egy hétnél tovább a Safari sem tartja meg a
+           script-ből írt tárolót, ha közben nem használják az oldalt. */
         vi.useFakeTimers();
         saveDraft(KEY, {quote: "Nagyon régi", order: 1});
-        vi.advanceTimersByTime(30 * 24 * 60 * 60 * 1000 + 1000);
+        vi.advanceTimersByTime(7 * 24 * 60 * 60 * 1000 + 1000);
 
         expect(readDraft(KEY, schema)).toBeNull();
         expect(localStorage.getItem(KEY)).toBeNull();
     });
 
-    it("HÁROM HETEST viszont megtart (kontroll a lejárathoz)", () => {
-        /* A kontroll SZÁNDÉKOSAN jóval a korlát alatt, de a KORÁBBI (egy hetes)
-           korláton TÚL van: így ez a teszt megbukik, ha valaki visszaviszi a
-           lejáratot egy hétre — a puszta "30 napnál régebbi elévül" állítás ezt
-           nem venné észre. */
+    it("HAT NAPOSAT viszont megtart (kontroll a lejárathoz)", () => {
+        /* A kontroll a korlát ALATT, de közel hozzá: így a teszt akkor is megbukik,
+           ha valaki a lejáratot lejjebb viszi (pl. egy napra) — a puszta "egy
+           hétnél régebbi elévül" állítás azt nem venné észre. */
         vi.useFakeTimers();
-        saveDraft(KEY, {quote: "Három hete írtam", order: 1});
-        vi.advanceTimersByTime(21 * 24 * 60 * 60 * 1000);
+        saveDraft(KEY, {quote: "Hat napja írtam", order: 1});
+        vi.advanceTimersByTime(6 * 24 * 60 * 60 * 1000);
 
-        expect(readDraft(KEY, schema)?.payload).toEqual({quote: "Három hete írtam", order: 1});
+        expect(readDraft(KEY, schema)?.payload).toEqual({quote: "Hat napja írtam", order: 1});
     });
 
     it("a BASE-t is megőrzi (ehhez képest dől el, ütközik-e a piszkozat)", () => {

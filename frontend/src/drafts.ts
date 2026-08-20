@@ -33,11 +33,18 @@ import {logDev} from "./log";
 
 const PREFIX = "notes-draft:";
 
-/* EGY HÓNAP. A piszkozat egy elmaradt mentés pótlása: ha valaki hetekig nem nyitja
-   meg újra az elemet, a szövege attól még az övé — a rövid lejárat inkább veszít
-   adatot, mint véd. A véges korlát viszont kell: egy évekig ott felejtett
-   piszkozat már nem segítség, hanem szemét a böngésző tárolójában. */
-const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+/* EGY HÉT (a user döntése, 2026-08-20; korábban egy hónap volt).
+
+   A piszkozat egy elmaradt mentés pótlása, nem archívum: ami egy hétnél régebbi,
+   arról a felhasználó jó eséllyel már el is felejtette, hogy létezik — a
+   visszatöltése inkább lenne meglepetés, mint segítség.
+
+   ÉS EGY HÉT AZ, AMIT A BÖNGÉSZŐK IS GARANTÁLNAK. A Safari (macOS és iOS) hét nap
+   böngészés-használat után TÖRLI egy olyan oldal script-ből írt tárolóját
+   (localStorage is), amivel a felhasználó közben nem lépett kapcsolatba. Ennél
+   hosszabb lejáratot tehát nem mi tartunk be, hanem a böngésző mond felül —
+   csendben. A rövidebb korlát ezzel őszintén együtt jár. */
+const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /* A KULCS a szerkesztett ELEMET azonosítja, nem a szerkesztőt: create-nél a
    szekció "create" piszkozata (egy van belőle), update-nél az elem azonosítója.
