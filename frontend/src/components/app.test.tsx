@@ -98,7 +98,7 @@ describe("App — versenyhelyzet a kategórialista lekérésében", () => {
            handleCategoryChange-t — ez a MÁSODIK lekérés, miközben az első még fut. */
         await userEvent.clear(screen.getByPlaceholderText("Kategória"));
         await userEvent.type(screen.getByPlaceholderText("Kategória"), "munka");
-        await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
         await waitFor(() => expect(pending).toHaveLength(2));
 
         // A kategóriák CSAK nyitott legördülőben renderelődnek linkként.

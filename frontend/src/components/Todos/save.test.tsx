@@ -235,30 +235,30 @@ describe("Save színe", () => {
 });
 
 describe("Változatlan mentés", () => {
-    it("ha semmit nem módosítok, a Tovább NEM megy a szerverhez", async () => {
+    it("ha semmit nem módosítok, a Mentés NEM megy a szerverhez", async () => {
         renderRoutes();
 
         await userEvent.click(await screen.findByText("Bevásárlás"));
         await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
 
         handleAxios.mockClear();
-        await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
 
         /* Egyetlen /to-dos/update kérés sem mehet ki: a mentés updatedAt-et is
-           írna, tehát egy üres "Tovább" hazudná, hogy hozzányúltunk. */
+           írna, tehát egy üres "Mentés" hazudná, hogy hozzányúltunk. */
         const calls = handleAxios.mock.calls.map((call) => call[0]);
         expect(calls).not.toContain("/to-dos/update");
         // ...de a főoldalra azért visszavisz.
         await waitFor(() => expect(window.location.pathname).toBe("/to-dos"));
     });
 
-    it("Escape a szerkesztőben a Tovább gombbal egyenértékű: a főoldalra visz", async () => {
+    it("Escape a szerkesztőben a Mentés gombbal egyenértékű: a főoldalra visz", async () => {
         renderRoutes();
 
         await userEvent.click(await screen.findByText("Bevásárlás"));
         await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
 
-        // Az Escape a formot süti el (mint a Tovább); változatlan to-dónál ez a
+        // Az Escape a formot süti el (mint a Mentés); változatlan to-dónál ez a
         // "csak navigálás" ágra fut, tehát a főoldalra kerülünk.
         await userEvent.keyboard("{Escape}");
         await waitFor(() => expect(window.location.pathname).toBe("/to-dos"));
@@ -284,7 +284,7 @@ describe("Változatlan mentés", () => {
            űrlap (nem a "csak elvetjük" ág), de egy kötelező mező hiányzik. */
         await userEvent.type(screen.getByPlaceholderText("Kategória"), "munka");
         handleAxios.mockClear();
-        await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
 
         /* A hiányzó cím megállítja a mentést: create-kérés nem megy ki, és a
            szerkesztőben maradunk. A hibabuborék MEGJELENÉSE react-tooltip portál +
@@ -294,7 +294,7 @@ describe("Változatlan mentés", () => {
         expect(window.location.pathname).toBe("/to-dos/create");
     });
 
-    it("ha módosítok, a Tovább elküldi a szervernek", async () => {
+    it("ha módosítok, a Mentés elküldi a szervernek", async () => {
         renderRoutes();
 
         await userEvent.click(await screen.findByText("Bevásárlás"));
@@ -302,7 +302,7 @@ describe("Változatlan mentés", () => {
 
         await userEvent.type(screen.getByPlaceholderText("Cím"), " ma");
         handleAxios.mockClear();
-        await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
 
         await waitFor(() => expect(handleAxios.mock.calls.map((c) => c[0])).toContain("/to-dos/update"));
     });
@@ -327,7 +327,7 @@ describe("Szerkesztőből kilépés célja", () => {
 
         // Módosítunk, majd mentünk.
         await userEvent.type(screen.getByPlaceholderText("Cím"), " ma");
-        await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
 
         /* A mentés VISSZALÉP a böngésző-előzményben: a szűrt nézetbe, ahonnan
            indultunk — nem a /to-dos főoldalra. Így a szűrő nem vész el. */
@@ -343,14 +343,14 @@ describe("Szerkesztőből kilépés célja", () => {
         await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
 
         await userEvent.type(screen.getByPlaceholderText("Cím"), " ma");
-        await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
 
         await waitFor(() => expect(window.location.pathname).toBe("/to-dos"));
     });
 });
 
 /* A VISSZA GOMB (böngésző POP) a useBlocker-en át pontosan úgy viselkedik, mint a
-   Tovább: van mentenivaló → ellenőriz; érvényesnél MENT, majd folytatja a
+   Mentés: van mentenivaló → ellenőriz; érvényesnél MENT, majd folytatja a
    visszalépést (proceed). A böngésző Vissza gombját a window.history.back() modellezi
    (a data router popstate-re ugyanazt az utat futtatja). */
 describe("Save — Vissza gomb (böngésző POP) a blockeren át", () => {
@@ -372,8 +372,8 @@ describe("Save — Vissza gomb (böngésző POP) a blockeren át", () => {
 
 /* A szerkesztő ELHAGYÁSA (logóra kattintás, Vissza gomb, bármely navigáció) a
    szerkesztő leválását (unmount) jelenti — ilyenkor ugyanaz a mentés fusson le, mint
-   a Tovább/Escape-nél, csak navigáció nélkül. A leválást a teszt az unmount()-tal
-   modellezi. A legfontosabb a NEGATÍV eset: a Tovább utáni leválás ne mentsen újra. */
+   a Mentés/Escape-nél, csak navigáció nélkül. A leválást a teszt az unmount()-tal
+   modellezi. A legfontosabb a NEGATÍV eset: a Mentés utáni leválás ne mentsen újra. */
 describe("Save — mentés leváláskor (logó/Vissza/navigáció)", () => {
     it("módosított to-do a szerkesztő leválásakor (unmount) mentődik", async () => {
         window.history.pushState({}, "", "/to-dos/update/todo-1");
@@ -399,14 +399,14 @@ describe("Save — mentés leváláskor (logó/Vissza/navigáció)", () => {
         expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/to-dos/update");
     });
 
-    it("Tovább után a leválás NEM ment újra (nincs dupla mentés)", async () => {
+    it("Mentés után a leválás NEM ment újra (nincs dupla mentés)", async () => {
         window.history.pushState({}, "", "/to-dos/update/todo-1");
         const view = renderRoutes();
         await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
 
         await userEvent.type(screen.getByPlaceholderText("Cím"), " ma");
         handleAxios.mockClear();
-        await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
         await waitFor(() => expect(handleAxios.mock.calls.some((c) => c[0] === "/to-dos/update")).toBe(true));
         view.unmount();
 

@@ -389,7 +389,7 @@ export default function Save(props: SaveProps) {
 
     /* Van-e mentenivaló? ÉRINTETLEN űrlapot nem mentünk. Create-nél ez az üres
        űrlap (se cím, se kategória, se listaelem); update-nél a betöltöttel egyező
-       tartalom (a mentés updatedAt-et is írna, tehát egy üres "Tovább" hazudná, hogy
+       tartalom (a mentés updatedAt-et is írna, tehát egy üres "Mentés" hazudná, hogy
        hozzányúltunk). Ha még nincs betöltve (loadedTodo null), szintén pristine —
        nincs mit menteni, és a betöltés-hiba leaveEditor()-ja se akadjon a blockerbe. */
     const isPristine = () => isUpdate
@@ -417,7 +417,7 @@ export default function Save(props: SaveProps) {
     const blocker = useBlocker(shouldBlock);
 
     /* A NAVIGÁCIÓ-ELKAPÓ mentés magja: a blocker akkor billen "blocked"-ba, ha van
-       mentenivaló ÉS navigálni próbálnak (Tovább, Escape, logó, "+", Vissza gomb,
+       mentenivaló ÉS navigálni próbálnak (Mentés, Escape, logó, "+", Vissza gomb,
        szekció-váltás). Ilyenkor: hiányzó kötelező mezőnél (cím/kategória) hibabuborék
        + MARADÁS (reset), NEM enged tovább; érvényesnél MENT, majd a mentés
        BEFEJEZŐDÉSE UTÁN folytatja a blokkolt navigációt (proceed) — így a cél-lista
@@ -470,7 +470,7 @@ export default function Save(props: SaveProps) {
     }, [blocker, isTitleValid, isCategoryValid, title, category, color, order, todo,
         isUpdate, todoId, url, handleAxios, props, draftStorageKey]);
 
-    /* A Tovább gomb (és az Escape) már csak NAVIGÁL — az ellenőrzést+mentést a
+    /* A Mentés gomb (és az Escape) már csak NAVIGÁL — az ellenőrzést+mentést a
        fenti blocker intézi, ha van mentenivaló. Érintetlen űrlapnál a blocker nem
        blokkol, tehát egyszerűen visszalépünk. */
     const handleSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
@@ -585,7 +585,7 @@ export default function Save(props: SaveProps) {
         } else setIsLoading(false);
     }, [isUpdate, lastOrder, title, isTitleValid, category, isCategoryValid]);
 
-    // Escape = mentés + vissza, a "Tovább" gombbal azonos úton (l. useEscapeSubmit).
+    // Escape = mentés + vissza, a "Mentés" gombbal azonos úton (l. useEscapeSubmit).
     useEscapeSubmit(formRef);
 
     // A betöltő spinner az isLoading-ig; a `lastOrder === null` ág vele EGYÜTT igaz
@@ -628,7 +628,7 @@ export default function Save(props: SaveProps) {
                               handleAngleClick={handleCategoryAngleClick} isAngleClicked={isCategoryAngleClicked}
                               categories={props.categories}/>
 
-                    <SubmitButton isDisabled={isDisabled} isOutline={false} color={color} text="Tovább"/>
+                    <SubmitButton isDisabled={isDisabled} isOutline={false} color={color} text="Mentés"/>
 
                     {isUpdate &&
                         <DeleteAndModal handleLinkClicked={props.handleLinkClicked}

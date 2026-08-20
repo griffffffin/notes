@@ -70,8 +70,8 @@ type SaveProps = {
 /* Az idézet-szerkesztő (create és update). A to-do save.tsx VÉKONYABB mása: az
    idézet-textarea + szerző-input + a KÖZÖS Order sorszám-választó (a to-doból),
    de nincs szín, listaelem vagy százalék. A KILÉPÉS-viselkedést a to-do mintája
-   adja: a Tovább gomb / Escape a formot süti el, majd navigál; a navigációt
-   (Tovább, Escape, logó, "+", Vissza gomb, szekció-váltás) a useBlocker kapja el,
+   adja: a Mentés gomb / Escape a formot süti el, majd navigál; a navigációt
+   (Mentés, Escape, logó, "+", Vissza gomb, szekció-váltás) a useBlocker kapja el,
    és amíg van mentenivaló, előbb ELLENŐRIZ + MENT, csak utána enged tovább
    (üres idézetnél hibabuborék + maradás). A törlést a paraméterezett DeleteAndModal
    intézi (a /quotes/delete végponttal, vissza a /quotes-ra). */
@@ -218,7 +218,7 @@ export default function QuoteSave(props: SaveProps) {
     /* Változatlan-e a szerkesztő ahhoz képest, amit menteni érdemes? Create-nél:
        üres (se idézet, se szerző) — ilyenkor nincs mentenivaló. Update-nél: a
        betöltöttel egyező tartalom (a mentés updatedAt-et is írna, tehát egy üres
-       "Tovább" hazudná, hogy hozzányúltunk). Ha még nincs betöltve (loaded null:
+       "Mentés" hazudná, hogy hozzányúltunk). Ha még nincs betöltve (loaded null:
        betöltés alatt vagy hiba után), szintén pristine — nincs mit menteni, és a
        betöltés-hiba leaveEditor()-ja se akadjon a blockerbe. */
     const isPristine = (cleanedQuote: string) => {
@@ -351,7 +351,7 @@ export default function QuoteSave(props: SaveProps) {
         } else setIsLoading(false);
     }, [isUpdate, lastOrder, quote, isQuoteValid]);
 
-    // Escape = mentés + vissza, a "Tovább" gombbal azonos úton (l. useEscapeSubmit).
+    // Escape = mentés + vissza, a "Mentés" gombbal azonos úton (l. useEscapeSubmit).
     useEscapeSubmit(formRef);
 
     /* A textarea magassága a TARTALOMHOZ nő, görgetősáv helyett (scrollbar tilos):
@@ -461,7 +461,7 @@ export default function QuoteSave(props: SaveProps) {
 
        useLayoutEffect (nem useEffect): a magasság-igazítás a KIRAJZOLÁS ELŐTT fut le.
        Enélkül egy hosszú idézet megnyitásakor a mező előbb kis (rows=4) magassággal
-       kirajzolódott — a Tovább/Törlés gombok FENT villantak fel (a piros Törlés
+       kirajzolódott — a Mentés/Törlés gombok FENT villantak fel (a piros Törlés
        zavaróan) —, majd az autoGrow a festés után megnövelte, és a gombok leugrottak.
        A layout-effekttel a mező már az első festéskor a végleges magasságú, így a
        gombok azonnal a helyükön (a szöveg után) jelennek meg, felvillanás nélkül. */
@@ -503,7 +503,7 @@ export default function QuoteSave(props: SaveProps) {
     }, [quote, author, order, fontSize, quoteId]);
 
     /* A NAVIGÁCIÓ-ELKAPÓ mentés magja: a blocker akkor billen "blocked"-ba, ha van
-       mentenivaló ÉS navigálni próbálnak (Tovább, Escape, logó, "+", Vissza gomb,
+       mentenivaló ÉS navigálni próbálnak (Mentés, Escape, logó, "+", Vissza gomb,
        szekció-váltás). Ilyenkor: üres idézetnél hibabuborék + MARADÁS (reset), NEM
        enged tovább; érvényesnél MENT, majd a mentés BEFEJEZŐDÉSE UTÁN folytatja a
        blokkolt navigációt (proceed) — így a cél-lista friss. A blocker.proceed() a
@@ -539,7 +539,7 @@ export default function QuoteSave(props: SaveProps) {
         });
     }, [blocker, isQuoteValid, buildPayload, url, handleAxios, props, draftStorageKey]);
 
-    /* A Tovább gomb (és az Escape) már csak NAVIGÁL — az ellenőrzést+mentést a
+    /* A Mentés gomb (és az Escape) már csak NAVIGÁL — az ellenőrzést+mentést a
        fenti blocker intézi, ha van mentenivaló. Érintetlen űrlapnál a blocker nem
        blokkol, tehát egyszerűen visszalépünk. */
     const handleSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
@@ -706,7 +706,7 @@ export default function QuoteSave(props: SaveProps) {
                 </div>
             </div>
 
-            {/* pb-3 (nem py-1): a legalsó gomb — create-nél a "Tovább",
+            {/* pb-3 (nem py-1): a legalsó gomb — create-nél a "Mentés",
                 update-nél a "Törlés" — alatt nagyobb levegő a card aljáig. */}
             <div className="card-body pt-1 pb-3">
                 {/* A szerző-mező és a "Betűméret"-stepper egy sorban — a stepper a
@@ -733,13 +733,13 @@ export default function QuoteSave(props: SaveProps) {
                 </div>
 
                 <div className="d-grid">
-                    {/* A Tovább TILTOTT, amíg a kötelező mező (az idézet szövege) üres —
+                    {/* A Mentés TILTOTT, amíg a kötelező mező (az idézet szövege) üres —
                         pontosan a to-do mintájára (Todos/save.tsx: isTitleValid &&
                         isCategoryValid). A szerző OPCIONÁLIS, azt nem kérjük számon.
                         A blocker üres-idézet ága ettől NEM válik feleslegessé: a logó,
                         a "+", a Vissza gomb és a szekció-váltó továbbra is elindíthat
                         navigációt üres mezővel — ott a hibabuborék + maradás jár. */}
-                    <SubmitButton isDisabled={!isQuoteValid} isOutline={false} color={color} text="Tovább"/>
+                    <SubmitButton isDisabled={!isQuoteValid} isOutline={false} color={color} text="Mentés"/>
 
                     {isUpdate &&
                         <DeleteAndModal handleLinkClicked={props.handleLinkClicked} color={color}

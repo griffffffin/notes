@@ -85,7 +85,7 @@ describe("QuoteSave — create", () => {
         await userEvent.type(quoteField(), "Új idézet");
         await userEvent.type(screen.getByPlaceholderText("Szerző"), "Én");
         handleAxios.mockClear();
-        await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
 
         // Az Order alapból 1 (a lista eleje), pontosan a to-do mintájára — az új
         // idézet ide kerül, hacsak a felhasználó nem lépteti lejjebb. A fontSize
@@ -103,7 +103,7 @@ describe("QuoteSave — create", () => {
 
         await userEvent.type(screen.getByPlaceholderText("Szerző"), "Én");
         handleAxios.mockClear();
-        await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
 
         // A hiányzó idézet miatt nem megy ki create-kérés, és a szerkesztőben
         // maradunk. A gomb ilyenkor tiltott is (l. a fenti tesztet), de itt a
@@ -129,32 +129,32 @@ describe("QuoteSave — create", () => {
         await waitFor(() => expect(field).toHaveValue("szép"));
     });
 
-    /* A Tovább gomb a to-do mintájára addig TILTOTT, amíg a kötelező mező (az
+    /* A Mentés gomb a to-do mintájára addig TILTOTT, amíg a kötelező mező (az
        idézet szövege) üres — a szerző opcionális, az nem oldja fel. Az üres
-       űrlapról tehát nem a Tovább visz ki (mint a to-dónál sem), hanem a logó
+       űrlapról tehát nem a Mentés visz ki (mint a to-dónál sem), hanem a logó
        vagy a Vissza gomb. */
-    it("üres idézetnél a Tovább TILTOTT, a szerző beírása nem oldja fel", async () => {
+    it("üres idézetnél a Mentés TILTOTT, a szerző beírása nem oldja fel", async () => {
         window.history.pushState({}, "", "/quotes/create");
         renderRoutes();
         await waitFor(() => expect(quoteField()).toBeInTheDocument());
 
-        expect(screen.getByRole("button", {name: "Tovább"})).toBeDisabled();
+        expect(screen.getByRole("button", {name: "Mentés"})).toBeDisabled();
         await userEvent.type(screen.getByPlaceholderText("Szerző"), "Én");
-        expect(screen.getByRole("button", {name: "Tovább"})).toBeDisabled();
+        expect(screen.getByRole("button", {name: "Mentés"})).toBeDisabled();
     });
 
-    it("az idézet beírása FELOLDJA a Tovább gombot, kiürítése újra tiltja", async () => {
+    it("az idézet beírása FELOLDJA a Mentés gombot, kiürítése újra tiltja", async () => {
         window.history.pushState({}, "", "/quotes/create");
         renderRoutes();
         await waitFor(() => expect(quoteField()).toBeInTheDocument());
 
         await userEvent.type(quoteField(), "Új idézet");
-        expect(screen.getByRole("button", {name: "Tovább"})).toBeEnabled();
+        expect(screen.getByRole("button", {name: "Mentés"})).toBeEnabled();
 
         // Csak szóköz = üres (a trim dönt), tehát megint tiltott.
         await userEvent.clear(quoteField());
         await userEvent.type(quoteField(), "   ");
-        expect(screen.getByRole("button", {name: "Tovább"})).toBeDisabled();
+        expect(screen.getByRole("button", {name: "Mentés"})).toBeDisabled();
     });
 });
 
@@ -236,7 +236,7 @@ describe("QuoteSave — update", () => {
 
         await userEvent.type(quoteField(), " Tényleg.");
         handleAxios.mockClear();
-        await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
 
         await waitFor(() => {
             const call = handleAxios.mock.calls.find((c) => c[0] === "/quotes/update");
@@ -244,13 +244,13 @@ describe("QuoteSave — update", () => {
         });
     });
 
-    it("változatlan tartalommal a Tovább NEM ment (nincs /quotes/update)", async () => {
+    it("változatlan tartalommal a Mentés NEM ment (nincs /quotes/update)", async () => {
         window.history.pushState({}, "", "/quotes/update/q-1");
         renderRoutes();
         await waitFor(() => expect(quoteField()).toHaveValue("Az élet szép."));
 
         handleAxios.mockClear();
-        await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
 
         expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/quotes/update");
     });
@@ -340,8 +340,8 @@ describe("QuoteSave — az idézet betöltése elbukik", () => {
 
 /* A szerkesztő ELHAGYÁSA (logóra kattintás, Vissza gomb, bármely navigáció) a
    szerkesztő leválását (unmount) jelenti — ilyenkor ugyanaz a mentés fusson le, mint
-   a Tovább/Escape-nél, csak navigáció nélkül. A leválást a teszt az unmount()-tal
-   modellezi. A legfontosabb a NEGATÍV eset: a Tovább utáni leválás ne mentsen újra
+   a Mentés/Escape-nél, csak navigáció nélkül. A leválást a teszt az unmount()-tal
+   modellezi. A legfontosabb a NEGATÍV eset: a Mentés utáni leválás ne mentsen újra
    (create-nél nehogy DUPLÁN hozzon létre). */
 describe("QuoteSave — mentés leváláskor (logó/Vissza/navigáció)", () => {
     it("módosított idézet a szerkesztő leválásakor (unmount) mentődik", async () => {
@@ -368,15 +368,15 @@ describe("QuoteSave — mentés leváláskor (logó/Vissza/navigáció)", () => 
         expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/quotes/update");
     });
 
-    it("Tovább után a leválás NEM ment újra (nincs dupla create)", async () => {
+    it("Mentés után a leválás NEM ment újra (nincs dupla create)", async () => {
         window.history.pushState({}, "", "/quotes/create");
         const view = renderRoutes();
         await waitFor(() => expect(quoteField()).toBeInTheDocument());
 
         await userEvent.type(quoteField(), "Új idézet");
         handleAxios.mockClear();
-        await userEvent.click(screen.getByRole("button", {name: "Tovább"}));
-        // A Tovább ment (create), majd a /quotes-ra navigál — a szerkesztő leválik.
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
+        // A Mentés ment (create), majd a /quotes-ra navigál — a szerkesztő leválik.
         await waitFor(() => expect(handleAxios.mock.calls.some((c) => c[0] === "/quotes/create")).toBe(true));
         view.unmount();
 
@@ -386,7 +386,7 @@ describe("QuoteSave — mentés leváláskor (logó/Vissza/navigáció)", () => 
 });
 
 /* A VISSZA GOMB (böngésző POP) a useBlocker-en át pontosan úgy viselkedik, mint a
-   Tovább/logó: van mentenivaló → ellenőriz; érvényesnél MENT, majd folytatja a
+   Mentés/logó: van mentenivaló → ellenőriz; érvényesnél MENT, majd folytatja a
    visszalépést (proceed); érvénytelennél a helyén marad (reset). A böngésző Vissza
    gombját a teszt a window.history.back()-kal modellezi (a data router popstate-re
    ugyanazt az utat futtatja). */
@@ -424,7 +424,7 @@ describe("QuoteSave — Vissza gomb (böngésző POP) a blockeren át", () => {
     });
 });
 
-/* A LOGÓRA (és minden szerkesztőn kívüli linkre) kattintás a Tovább-bal AZONOS
+/* A LOGÓRA (és minden szerkesztőn kívüli linkre) kattintás a Mentés-sel AZONOS
    ellenőrzés+mentést fut: érvénytelennél MARAD a szerkesztőben (nem enged a listára),
    érvényesnél MENT, majd a mentés BEFEJEZŐDÉSE UTÁN navigál (friss lista). A logó
    felirata az aktuális szekció ("Quotes"). */
