@@ -61,8 +61,13 @@ export default function DeleteAndModal(props: DeleteAndModalProps) {
         props.handleLinkClicked();
         props.setIsCategoryClicked?.(false);
         props.setIsColorClicked?.(false);
-        // Új nekifutás: az előző kudarc üzenete ne köszönjön vissza.
+        /* ÚJ NEKIFUTÁS: az előző kudarc üzenete ne köszönjön vissza — és a
+           "folyamatban" jelző se. Az utóbbi azért kell ITT, mert a SIKERES törlés
+           SZÁNDÉKOSAN igazon hagyja (l. handleDelete): különben a dialógus a
+           navigáció előtti pillanatra visszaöltené a kérdést. Ha valamiért mégis
+           marad nyitva ez a komponens, a következő megnyitás innen áll helyre. */
         setDeleteFailed(false);
+        setIsDeleting(false);
         setIsModalShow(true);
     };
 
@@ -79,8 +84,7 @@ export default function DeleteAndModal(props: DeleteAndModalProps) {
         setIsDeleting(true);
         setDeleteFailed(false);
         handleAxios(deleteUrl, {id: itemId}, (response) => {
-            setIsDeleting(false);
-            if (response.status !== 200) { setDeleteFailed(true); return; }
+            if (response.status !== 200) { setIsDeleting(false); setDeleteFailed(true); return; }
             /* A SIKER ágán szólunk a szerkesztőnek (onDelete): innentől nem
                mentheti vissza a már törölt elemet a leváláskori mentése.
 
@@ -88,13 +92,20 @@ export default function DeleteAndModal(props: DeleteAndModalProps) {
                INDÍTÁSAKOR ment el, tehát egy elbukott törlés után a szerkesztő
                úgy maradt ott, hogy a leváláskori mentése le van tiltva — a
                felhasználó ezután beírt szövege némán elveszett volna. */
+            /* A "folyamatban" jelzőt SZÁNDÉKOSAN NEM állítjuk vissza. A törlés
+               sikerült, innen egyenesen a listára megyünk — a dialógusnak nincs
+               több mondanivalója. Ha itt hamisra állítanánk, a React még
+               kirajzolná a törzset (a kérdést és a gombokat) meg a bezáró X-et,
+               MIELŐTT a dialógus bezárása és a navigáció lefutna: a felhasználó
+               egy villanásnyi "Biztosan törlöd?"-öt látna a már megtörtént
+               törlés után. (Bejelentette, 2026-08-20.) Az állapotot a következő
+               megnyitás állítja helyre, l. handleModalShow. */
             props.onDelete?.();
             setIsModalShow(false);
             props.handleCategoryChange?.();
             // Törlés után a saját listára megyünk: a szerkesztett elem megszűnt.
             void navigate(listUrl);
         }, (error) => {
-            setIsDeleting(false);
             logRequestError(error);
             /* A 403 ITT AZT JELENTI: "nálad nincs ilyen elem". A szerver
                SZÁNDÉKOSAN nem különbözteti meg a nem létezőt az idegentől (l.
@@ -107,12 +118,14 @@ export default function DeleteAndModal(props: DeleteAndModalProps) {
                kiírni és Törlés gombot kínálni félrevezető lenne (a következő
                próbálkozás is 403-at kapna) — ugyanoda megyünk, mint sikernél. */
             if (responseStatus(error) === 403) {
+                // Ugyanaz, mint a sikernél: a jelző marad, hogy ne villanjon vissza a kérdés.
                 props.onDelete?.();
                 setIsModalShow(false);
                 props.handleCategoryChange?.();
                 void navigate(listUrl);
                 return;
             }
+            setIsDeleting(false);
             setDeleteFailed(true);
         });
     };

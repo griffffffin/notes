@@ -1,8 +1,9 @@
-import {render, screen, waitFor, within} from "@testing-library/react";
+import {act, render, screen, waitFor, within} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {MemoryRouter, Route, Routes} from "react-router-dom";
 import {beforeAll, beforeEach, describe, expect, it, vi} from "vitest";
 import DeleteAndModal from "./deleteAndModal";
+import type {ModalProps} from "./modal";
 import {requireElement} from "../../test/dom";
 import {axiosResponse} from "../../test/axiosResponse";
 import {at} from "../../test/at";
@@ -23,6 +24,38 @@ const {auth, handleAxios} = await vi.hoisted(async () => {
     return mockAuth({isLoggedIn: true});
 });
 vi.mock(import("../../contexts/auth-context"), () => ({useAuth: () => auth}));
+
+/* A MODÁL MINDEN RENDERÉNEK JEGYZŐKÖNYVE.
+
+   Egy VILLANÁST nem lehet "egy pillanat" vizsgálatával elkapni: mire a teszt a
+   DOM-ra néz, a React már túl van rajta. Ezért a modál propjait renderenként
+   FELÍRJUK, és utólag a SOROZATRÓL állítunk — arról, ami sosem fordulhat elő.
+
+   A pótlék a VALÓDI komponenst rendereli tovább (importOriginal), tehát a fájl
+   összes többi tesztje változatlanul a valódi modállal fut: ez jegyzőkönyv, nem
+   helyettesítés. */
+const modalRenders: Array<{dialogOpen: boolean; isDeleting: boolean}> = [];
+vi.mock(import("./modal"), async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        default: (props: ModalProps) => {
+            /* A LÁTHATÓSÁGOT A `open` ATTRIBÚTUM DÖNTI, NEM AZ `isShow` PROP — és a
+               kettő EGY RENDERREL EL VAN CSÚSZVA. A dialógust a komponens effektben
+               nyitja/zárja (showModal/close), az effekt pedig a render UTÁN fut:
+               abban a köztes képkockában a törzs már az új propok szerint van
+               kirajzolva, a dialógus viszont MÉG NYITVA. Épp ez a villanás.
+
+               Ezért olvassuk ki itt a DOM tényleges állapotát. Renderben DOM-ot
+               olvasni egyébként nem szép, de ez teszt-jegyzőkönyv: pontosan azt
+               kell látnia, amit a felhasználó lát. */
+            modalRenders.push({
+                dialogOpen: document.querySelector("dialog")?.open ?? false,
+                isDeleting: props.isDeleting,
+            });
+            return <actual.default {...props}/>;
+        },
+    };
+});
 
 /* A DeleteAndModal a szerkesztőben él; a törlés utáni navigációt egy valódi
    route-táblával figyeljük: a /to-dos route egy jelző-szöveget render. */
@@ -144,5 +177,52 @@ describe("Törlés — az elem már nincs meg", () => {
 
         await waitFor(() => expect(screen.getByText("FŐLISTA")).toBeInTheDocument());
         expect(screen.queryByText("A törlés nem sikerült!")).not.toBeInTheDocument();
+    });
+});
+
+/* A SIKERES TÖRLÉS UTÁN NEM VILLANHAT VISSZA A KÉRDÉS.
+
+   Bejelentett hiba (2026-08-20): a "Törlés…" után egy pillanatra megjelent a
+   bezáró X és a "Biztosan törlöd?" kérdés, mielőtt a lista betöltött volna. Az ok
+   nem a modálban volt, hanem a sorrendben: a siker ágán ELŐBB állítottuk vissza a
+   "folyamatban" jelzőt, és csak UTÁNA zártuk a dialógust és navigáltunk — a React
+   pedig a kettő között kirajzolta a teljes, kérdéses dialógust.
+
+   Amit itt kimondunk, az egy TILTOTT ÁLLAPOT: nyitott dialógus úgy, hogy a törlés
+   már nincs folyamatban — a megerősítés megtörténte UTÁN. Ez a sorozatról szóló
+   állítás akkor is fog, ha a villanás egyetlen képkockányi. */
+describe("Törlés — a kérdés nem villanhat vissza a siker után", () => {
+    it("a megerősítés után a modál SOHA nem renderelődik nyitva, törlés nélkül", async () => {
+        /* A VÁLASZT VISSZATARTJUK. Azonnali válasznál a React egyetlen renderbe
+           vonná össze a "folyamatban" és a "kész" állapotot, tehát a villanás elő
+           sem állhatna — a teszt zöld lenne, de semmit nem mérne. (Az első
+           változata pontosan ezen bukott el: a kontroll-állítás leplezte le.)
+           Élesben a válaszra várni kell, és a villanás épp abban az ablakban él. */
+        const pending: Array<() => void> = [];
+        handleAxios.mockImplementation((url, data, then) => {
+            if (url === "/to-dos/delete") pending.push(() => then(axiosResponse({})));
+            else then(axiosResponse({}));
+            return Promise.resolve();
+        });
+
+        renderDelete();
+        await userEvent.click(at(screen.getAllByRole("button", {name: "Törlés"}), 0, "Törlés gomb"));
+
+        const modalBody = requireElement(".modal-body", HTMLElement);
+        modalRenders.length = 0;
+        await userEvent.click(within(modalBody).getByRole("button", {name: "Törlés"}));
+        // A "Törlés…" állapot itt tényleg kirajzolódik — ez a villanás előzménye.
+        await waitFor(() => expect(screen.getByRole("heading")).toHaveTextContent("Törlés…"));
+
+        act(() => at(pending, 0, "függő törlés")());
+        await waitFor(() => expect(screen.getByText("FŐLISTA")).toBeInTheDocument());
+
+        /* A megerősítés utáni MINDEN render: ha a dialógus NYITVA volt (tehát
+           látszott), akkor a törlésnek folyamatban kellett lennie. A fordítottja
+           az a képkocka, amiben a kérdés és az X visszavillan. */
+        const forbidden = modalRenders.filter((r) => r.dialogOpen && !r.isDeleting);
+        expect(forbidden).toEqual([]);
+        // Kontroll: tényleg volt NYITOTT, "folyamatban" render — különben a fenti üresen is igaz.
+        expect(modalRenders.some((r) => r.dialogOpen && r.isDeleting)).toBe(true);
     });
 });
