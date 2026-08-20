@@ -36,7 +36,7 @@ export function renderRoutes(path?: string, props: Partial<RoutesProps> = {}) {
     return render(
         <CookiesProvider>
             <ThemeProvider>
-                <Routes categories={[]} categoriesFailed={false}
+                <Routes categories={[]} categoriesFailed={false} categoriesLoading={false}
                         handleLinkClicked={vi.fn()} handleCategoryChange={vi.fn()}
                         setIsColorAngleClicked={vi.fn()} isColorAngleClicked={false}
                         setIsCategoryAngleClicked={vi.fn()} isCategoryAngleClicked={false}

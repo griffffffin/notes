@@ -149,7 +149,8 @@ describe("Entry — regisztráció", () => {
    viszont kötelezővé teszi őket. Semleges alapértékeket adunk, hogy a hiányuk ne
    típus-lyukként, hanem kimondott döntésként álljon. */
 const ROUTE_PROPS = {
-    categories: [], categoriesFailed: false, handleLinkClicked: vi.fn(), handleCategoryChange: vi.fn(),
+    categories: [], categoriesFailed: false, categoriesLoading: false,
+    handleLinkClicked: vi.fn(), handleCategoryChange: vi.fn(),
     setIsColorAngleClicked: vi.fn(), isColorAngleClicked: false,
     setIsCategoryAngleClicked: vi.fn(), isCategoryAngleClicked: false,
 } satisfies RoutesProps;

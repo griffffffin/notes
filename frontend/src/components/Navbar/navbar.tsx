@@ -30,6 +30,8 @@ export type NavbarProps =
         setIsCategoryClicked: (isClicked: boolean) => void;
         categories: CategoryAndColorGroupProps["categories"];
         categoriesFailed: CategoryAndColorGroupProps["categoriesFailed"];
+        categoriesLoading: CategoryAndColorGroupProps["categoriesLoading"];
+        onRetryCategories: CategoryAndColorGroupProps["onRetryCategories"];
     };
 
 export default function Navbar(props: NavbarProps) {
@@ -124,6 +126,8 @@ export default function Navbar(props: NavbarProps) {
                 <CategoryAndColorGroup isCategoryClicked={props.isCategoryClicked}
                                        categories={props.categories}
                                        categoriesFailed={props.categoriesFailed}
+                                       categoriesLoading={props.categoriesLoading}
+                                       onRetryCategories={props.onRetryCategories}
                                        handleCategoryClick={handleCategoryClick}
                                        isColorClicked={props.isColorClicked}
                                        handleColorClick={handleColorClick}/>}

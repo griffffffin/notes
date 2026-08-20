@@ -62,11 +62,25 @@ vi.mock(import("@fortawesome/react-fontawesome"), () => ({
        a linternek szól: a változó SZÁNDÉKOSAN kihasználatlan, csak a rest-ből
        való kiemelés miatt van neve. */
     FontAwesomeIcon: forwardRef<SVGSVGElement, FontAwesomeIconProps>(
-        ({icon, size: _size, mask: _mask, transform: _transform, ...rest}, ref) => {
+        ({icon, size: _size, mask: _mask, transform: _transform, spin, className, ...rest}, ref) => {
             const [prefix, name] = Array.isArray(icon) ? icon
                 : typeof icon === "object" ? [icon.prefix, icon.iconName]
                     : [undefined, icon];
-            return <svg ref={ref} data-prefix={prefix} data-icon={name} {...rest}/>;
+            /* A `spin` ugyanígy a KÖNYVTÁR propja, nem SVG-attribútum — a valódi
+               komponens OSZTÁLLYÁ alakítja. A név nem találgatás: a
+               react-fontawesome saját leképező táblázatából olvastuk ki
+               (`spin` → `fa-spin`), a keyframe-jeit pedig a main.tsx-ben
+               importált FontAwesome-CSS hozza. Ha a spreadben hagynánk, a React "non-boolean attribute"
+               figyelmeztetést adna, és `spin="false"` kerülne a DOM-ba — olyan
+               alak, amit az éles app SOSEM állít elő; ha pedig csak kiemelnénk és
+               eldobnánk, a pörgés tesztelhetetlen maradna.
+
+               A `className` azért kerül ki a restből, hogy a kettőt össze
+               tudjuk fűzni; ha egyik sincs, az attribútum ki sem íródik (ahogy
+               eddig sem). */
+            const classes = [className, spin ? "fa-spin" : undefined].filter(Boolean).join(" ");
+            return <svg ref={ref} data-prefix={prefix} data-icon={name}
+                        className={classes || undefined} {...rest}/>;
         }),
 }));
 

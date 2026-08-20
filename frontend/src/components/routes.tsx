@@ -47,6 +47,7 @@ export type RoutesProps = {
     isCategoryAngleClicked: boolean;
     categories: CategoryAndColorGroupProps["categories"];
     categoriesFailed: CategoryAndColorGroupProps["categoriesFailed"];
+    categoriesLoading: CategoryAndColorGroupProps["categoriesLoading"];
     handleCategoryChange: () => void;
 };
 
@@ -76,7 +77,11 @@ function AppLayout() {
                 setIsCategoryClicked={p.setIsCategoryAngleClicked}
                 isCategoryClicked={p.isCategoryAngleClicked}
                 handleLinkClicked={p.handleLinkClicked} isVisible={true}
-                categories={p.categories} categoriesFailed={p.categoriesFailed}/>
+                categories={p.categories} categoriesFailed={p.categoriesFailed}
+                categoriesLoading={p.categoriesLoading}
+                /* A navbar újratöltő ikonja UGYANAZT a lekérést indítja, amit a
+                   mentés és a törlés is hív — nincs külön "retry" út. */
+                onRetryCategories={p.handleCategoryChange}/>
         <Outlet/>
     </>);
 }

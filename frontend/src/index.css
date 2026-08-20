@@ -852,3 +852,43 @@ dialog.todo-modal::backdrop {
     --bs-btn-active-border-color: var(--theme-accent-base);
     --bs-btn-active-color: var(--theme-accent-contrast);
 }
+
+/* A KATEGÓRIA-ÚJRATÖLTŐ SOR a navbar legördülőjében.
+
+   Az EGÉSZ SOR gomb (üzenet + ikon), nem csak az ikon: a hibajelzés és a kiút
+   belőle egy dolog, tehát egy találati felület. Telefonon ez a döntés súlyosabb,
+   mint asztali gépen — egy ikonnyi (14 px) cél ott alig eltalálható.
+
+   A gomb NEM Bootstrap-gomb: a .btn a saját szín-, keret- és padding-változóit
+   hozná, amiket egyesével kellene visszabontani. Egy csupasz <button> alapból
+   szürke rendszer-gomb, ezért a semlegesítés itt történik, egy helyen.
+
+   A PÖRGÉS SEBESSÉGE a Bootstrap betöltő-karikájáé (.spinner-border:
+   --bs-spinner-animation-speed), hogy a felületen EGYFÉLE "dolgozom" ütem
+   legyen. A FontAwesome alapértelmezése ennél lassabb (2 s), ezért írjuk felül.
+   A szám itt MÁSOLAT — a Bootstrap CSS-e a node_modules-ban él, változóval nem
+   érhető el innen (a --bs-spinner-animation-speed csak magukon a spinner-
+   elemeken van definiálva, tehát a var() itt mindig a fallbackre esne, és a
+   kötés csak LÁTSZANA élőnek). Az elcsúszást ezért teszt őrzi:
+   cssVariables.test.ts, "a pörgés sebessége a Bootstrap spinneréé". */
+.category-retry {
+    --fa-animation-duration: 0.75s;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+/* AZ IKON VASTAGSÁGA. A FontAwesome ingyenes készletében a `rotate` CSAK tömör
+   (solid) alakban létezik — nincs vékonyabb (regular) változata, amire váltani
+   lehetne, és egy tömör glyph vonalvastagsága CSS-ből nem állítható. Ami marad:
+   a MÉRET, mert a vonalak vele arányosan vékonyodnak.
+
+   A 0.72em mérés eredménye, nem érzés: a szöveg mellé rendereltük 0.85 / 0.78 /
+   0.72em-mel, háromszoros nagyításban összehasonlítva a betűszárak vastagságával
+   — 0.85-nél az ikon láthatóan nehezebb, 0.72-nél olvasódik azonos súlyúnak.
+   Lejjebb menni már a felismerhetőség rovására menne.
+
+   A kisebb ikon nem rontja a találati felületet: az EGÉSZ SOR a gomb. */
+.category-retry svg {
+    font-size: 0.72em;
+}

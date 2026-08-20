@@ -2,7 +2,7 @@ import {useCallback, useEffect, useRef, useState} from "react";
 import {library} from "@fortawesome/fontawesome-svg-core";
 import {
     faAngleDown, faAngleUp, faBars, faFill, faFillDrip,
-    faPaintRoller, faPlus, faRightFromBracket,
+    faPaintRoller, faPlus, faRightFromBracket, faRotate,
 } from "@fortawesome/free-solid-svg-icons";
 import Routes from "./routes";
 import {useAuth} from "../contexts/auth-context";
@@ -26,8 +26,9 @@ import Spinner from "./spinner";
    üres hely a felületen.) A használt ikonok:
    angle-down/up (nyilak), bars (húzófogantyú), fill + fill-drip (színválasztó
    zárt/nyitott), paint-roller (téma), plus (hozzáadás), right-from-bracket
-   (kijelentkezés). */
-library.add(faAngleDown, faAngleUp, faBars, faFill, faFillDrip, faPaintRoller, faPlus, faRightFromBracket);
+   (kijelentkezés), rotate (a kategória-lekérés újraindítása). */
+library.add(faAngleDown, faAngleUp, faBars, faFill, faFillDrip, faPaintRoller, faPlus,
+    faRightFromBracket, faRotate);
 
 export default function App() {
     const [isColorAngleClicked, setIsColorAngleClicked] = useState(false);
@@ -41,6 +42,12 @@ export default function App() {
        meg kell tudni figyelmeztetni — az első betöltésnél az üres lista különben
        azt állítaná, hogy nincs egyetlen kategóriája sem. */
     const [categoriesFailed, setCategoriesFailed] = useState(false);
+    /* FUT-E ÉPPEN kategória-lekérés. A hibajelzés melletti újratöltő ikon ebből
+       tudja, hogy pörögnie kell — enélkül egy ISMÉTELTEN elbukó próbálkozás
+       teljesen néma volna: az üzenet már ott van, tehát semmi nem változna, és a
+       gomb halottnak látszana. Nem a gomb saját állapota, mert a lekérést öt hely
+       indíthatja (l. lentebb), és mindegyikre igazat kell mondania. */
+    const [categoriesLoading, setCategoriesLoading] = useState(false);
     const {isLoggedIn, isLoggingOut, handleAxios} = useAuth();
 
     const handleLinkClicked = useCallback(() => {
@@ -67,6 +74,7 @@ export default function App() {
         // Kijelentkezve nincs mit lekérni — enélkül a bejelentkező képernyőn is
         // elindulna egy kérés, ami 401-gyel bukna.
         if (!isLoggedIn) return;
+        setCategoriesLoading(true);
         handleAxios(ENDPOINTS.todoCategories, {},
             (response) => {
                 /* A séma ELŐBB fut, mint az őr-vizsgálat sorrendjében bármi más:
@@ -78,10 +86,16 @@ export default function App() {
                 if (requestId !== latestCategoryRequest.current) return;
                 setCategories(categories);
                 setCategoriesFailed(false);
+                setCategoriesLoading(false);
             },
             (error) => {
                 logRequestError(error);
-                if (requestId === latestCategoryRequest.current) setCategoriesFailed(true);
+                /* A séma bukása is IDE fut (a parseResponse a `then`-ben dob, azt a
+                   handleAxios `.catch`-e kapja el) — tehát a jelző ott sem ragad be. */
+                if (requestId === latestCategoryRequest.current) {
+                    setCategoriesFailed(true);
+                    setCategoriesLoading(false);
+                }
             });
     }, [isLoggedIn, handleAxios]);
 
@@ -109,6 +123,7 @@ export default function App() {
                     setIsCategoryAngleClicked={setIsCategoryAngleClicked}
                     isCategoryAngleClicked={isCategoryAngleClicked}
                     categories={categories} categoriesFailed={categoriesFailed}
+                    categoriesLoading={categoriesLoading}
                     handleCategoryChange={handleCategoryChange}/>}
         </div>
     );

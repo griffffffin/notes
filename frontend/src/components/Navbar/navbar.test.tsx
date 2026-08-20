@@ -28,6 +28,7 @@ vi.mock(import("../../contexts/auth-context"), () => ({useAuth: () => auth}));
 const setup = (overrides: Partial<NavbarProps> = {}, route = "/") => {
     const props = {
         isVisible: true, categories: ["otthon", "munka"], categoriesFailed: false,
+        categoriesLoading: false, onRetryCategories: vi.fn(),
         handleLinkClicked: vi.fn(),
         setIsCategoryClicked: vi.fn(), isCategoryClicked: false,
         setIsColorClicked: vi.fn(), isColorClicked: false, ...overrides,
@@ -130,6 +131,23 @@ describe("Navbar — a kategóriák betöltése elbukott", () => {
         expect(await screen.findByText(REFRESH_FAILED)).toBeVisible();
         expect(screen.queryByText(LOAD_FAILED)).not.toBeInTheDocument();
         expect(screen.getByText("otthon")).toBeVisible();
+    });
+
+    /* A VEZETÉK. Az ikon viselkedését a categoryGroup.test.tsx rögzíti; itt az a
+       kérdés, hogy a propok VÉGIG is érnek-e az app → routes → navbar →
+       categoryAndColorGroup → categoryGroup láncon. Ez négy állomás, ahol egy
+       elfelejtett továbbadás némán annyit okozna, hogy a gomb nem csinál semmit. */
+    it("az újratöltő ikon a navbaron át indítja a lekérést, és nem csukja be a legördülőt", async () => {
+        const props = setup({categoriesFailed: true, isCategoryClicked: true});
+
+        await userEvent.click(screen.getByRole("button", {name: /Kattints az újratöltéshez/}));
+
+        expect(props.onRetryCategories).toHaveBeenCalledTimes(1);
+        /* A legördülő NYITVA marad: sem a navbar kapcsolóját nem billenti, sem a
+           linkek közös "csukd be" kezelőjét nem hívja — különben a felhasználó
+           pont az eredményt nem látná. */
+        expect(props.setIsCategoryClicked).not.toHaveBeenCalled();
+        expect(props.handleLinkClicked).not.toHaveBeenCalled();
     });
 
     it("sikeres betöltésnél egyik üzenet sincs (kontroll)", () => {
