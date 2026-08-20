@@ -104,3 +104,49 @@ describe("CSS-változók — a JS és az index.css ugyanazokat a neveket haszná
             `és az öröklött értékre esik vissza — hibaüzenet nélkül.`).toEqual([]);
     });
 });
+
+/* A PÖRGÉS SEBESSÉGE — CSS↔CSS szerződés, két KÜLÖN fájl közt.
+
+   A kategória-újratöltő ikon (.category-retry) azért pörög a Bootstrap
+   betöltő-karikájának ütemére, hogy a felületen EGYFÉLE "dolgozom" sebesség
+   legyen. A két érték viszont két külön stíluslapon él: a miénk az index.css-ben,
+   a Bootstrapé a node_modules-ban — CSS-változóval nem lehet összekötni őket
+   (a --bs-spinner-animation-speed CSAK magukon a spinner-elemeken van
+   definiálva, tehát egy var() innen mindig a fallbackre esne, és a kötés csak
+   LÁTSZANA élőnek). Marad a másolt szám, amit teszt őriz.
+
+   Ez ugyanaz a minta, mint a backend-frontend kötéseknél
+   (backend/src/frontendContract.test.js): az ÉRTÉKET nem rögzítjük — a Bootstrap
+   szabadon változtathat rajta —, csak azt kérjük számon, hogy a kettő EGYEZIK.
+
+   A Bootstrap alap-szabályát olvassuk, nem a csökkentett mozgásút: az utóbbi egy
+   @media blokkban lassít 1.5 s-ra, és minket a normál ütem érdekel. */
+describe("A pörgés sebessége a Bootstrap spinneréé", () => {
+    const bootstrapCss = readFileSync(
+        join(here, "..", "node_modules", "bootstrap", "dist", "css", "bootstrap.min.css"), "utf8");
+
+    /* A `.spinner-border{…}` ALAP szabály (a @media-s felülírás selectora
+       `.spinner-border,.spinner-grow`, tehát erre a mintára nem illeszkedik). */
+    const spinnerSpeed = /\.spinner-border\{[^}]*--bs-spinner-animation-speed:\s*([^;}]+)/
+        .exec(bootstrapCss)?.[1]?.trim();
+    const iconSpeed = /\.category-retry\s*\{[^}]*--fa-animation-duration:\s*([^;}]+)/
+        .exec(css)?.[1]?.trim();
+
+    /* KONTROLL. Mindkét kiolvasás KIVEVŐ alakú: ha a minta elnémul (a Bootstrap
+       átrendezi a CSS-ét, vagy nálunk átnevezik az osztályt), `undefined` jön —
+       és két undefined EGYENLŐ volna egymással, vagyis a lenti állítás zölden
+       őrizne semmit. Ezért előbb azt kérjük számon, hogy egyáltalán találtunk. */
+    it("mindkét értéket meg is találjuk (különben a lenti állítás semmit sem őriz)", () => {
+        expect(spinnerSpeed, "a Bootstrap .spinner-border animációs sebessége nem található").toBeDefined();
+        expect(iconSpeed, "a .category-retry --fa-animation-duration értéke nem található").toBeDefined();
+    });
+
+    it("az ikon egy fordulata annyi ideig tart, mint a betöltő-karikáé", () => {
+        expect(iconSpeed,
+            `Az újratöltő ikon ${iconSpeed} alatt fordul körbe, a Bootstrap betöltő-karikája ` +
+            `viszont ${spinnerSpeed} alatt. A kettőnek egyeznie kell: ugyanazt az állapotot ` +
+            `("dolgozom") jelzik, két különböző ütem pedig két különböző dolognak látszik. ` +
+            `Ha a Bootstrap változtatott, vezesd át az index.css .category-retry szabályára.`
+        ).toBe(spinnerSpeed);
+    });
+});
