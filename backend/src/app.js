@@ -9,6 +9,7 @@ require("dotenv").config();
 const env = process.env;
 const routes = require("./routes");
 const serverError = require("./serverError");
+const csp = require("./csp");
 
 /* Élesben a backend szolgálja ki a frontend buildjét is (dist) — fejlesztésnél
    a dist hiányozhat (akkor a Vite dev szerver a frontend), ezért feltételes. */
@@ -20,15 +21,17 @@ const hasDist = fs.existsSync(dist);
    ez a "clickjacking" ellen véd: a támadó láthatatlan keretben jelenítené meg
    az appot, és a saját gombjai fölé húzná).
 
-   Két fejléc SZÁNDÉKOSAN kikapcsolva, mindkettő a HTTPS-fejezethez tartozik:
+   A CSP-t (Content-Security-Policy) a helmet helyett a SAJÁT modulunk állítja
+   (csp.js), mert a házirendbe bele kell számolni az index.html inline
+   boot-szkriptjének hashét — azt pedig a ténylegesen kiszolgált fájlból olvassuk
+   ki, nem kézzel másoljuk. Az indoklás és a döntések ott, egy helyen vannak.
 
-   - CSP (Content-Security-Policy): az index.html-ben inline szkript állítja a
-     téma hátterét a villanás ellen, amit a szigorú CSP megtiltana. A
-     bekapcsolása nonce/hash-alapú megoldást kíván a Vite-buildben.
-   - COOP (Cross-Origin-Opener-Policy): a böngésző csak "megbízható" (HTTPS)
-     origin-on veszi figyelembe; sima HTTP-n eldobja, és figyelmeztetést ír a
-     konzolba. Ma tehát nem véd semmit, csak zajt csinál. */
+   A COOP (Cross-Origin-Opener-Policy) SZÁNDÉKOSAN kikapcsolva marad, ez a
+   HTTPS-fejezethez tartozik: a böngésző csak "megbízható" (HTTPS) origin-on veszi
+   figyelembe; sima HTTP-n eldobja, és figyelmeztetést ír a konzolba. Ma tehát nem
+   véd semmit, csak zajt csinál. */
 app.use(helmet({contentSecurityPolicy: false, crossOriginOpenerPolicy: false}));
+app.use(csp.header(path.join(dist, "index.html")));
 
 /* CORS: a böngésző szabálya, hogy egy oldal alapból csak a SAJÁT origin-jához
    (protokoll+host+port) fordulhat; a szerver a CORS-fejlécekkel engedhet
