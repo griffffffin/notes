@@ -12,6 +12,8 @@ const assert = require("node:assert");
 const {shiftForInsert, shiftForDelete, shiftForMove} = require("./ordering");
 
 const USER = "user-1";
+// Az imént beszúrt elem azonosítója — az eltolásból ki kell maradnia.
+const INSERTED = "507f1f77bcf86cd799439011";
 
 // A modell egyetlen dolga itt, hogy megjegyezze, mivel hívták.
 const mockModel = () => {
@@ -25,11 +27,23 @@ const mockModel = () => {
 test("beszúrás: a helyen álló ÉS a fölötte lévők ($gte) eggyel lejjebb csúsznak", async () => {
     const Model = mockModel();
 
-    await shiftForInsert(Model, USER, 3);
+    await shiftForInsert(Model, USER, 3, INSERTED);
 
     assert.strictEqual(Model.calls.length, 1);
-    assert.deepStrictEqual(Model.calls[0].filter, {user: USER, order: {$gte: 3}});
+    assert.deepStrictEqual(Model.calls[0].filter, {user: USER, order: {$gte: 3}, _id: {$ne: INSERTED}});
     assert.strictEqual(Model.calls[0].update.$inc.order, 1);
+});
+
+/* AZ ÚJ ELEM KIHAGYÁSA nem apróság: a beszúrás MEGELŐZI a tolást (az egyedi
+   `_id`-index a mi atomi kapunk az ismételt kérés ellen, l. createOnce.js), és az
+   új dokumentum maga is a `>= order` tartományban áll. Kihagyás nélkül tehát
+   magát tolná el eggyel, és pont a saját helyén maradna hézag. */
+test("beszúrás: az ÉPP BESZÚRT elemet kihagyja az eltolásból", async () => {
+    const Model = mockModel();
+
+    await shiftForInsert(Model, USER, 1, INSERTED);
+
+    assert.deepStrictEqual(Model.calls[0].filter._id, {$ne: INSERTED});
 });
 
 test("törlés: csak a törölt FÖLÖTT állók ($gt) csúsznak feljebb", async () => {

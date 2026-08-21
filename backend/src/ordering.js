@@ -23,9 +23,18 @@ const touch = (increment) => ({$inc: {order: increment}, $set: {updatedAt: new D
 
 /* BESZÚRÁS a megadott sorszámra: a helyen álló ÉS a fölötte lévők (>=) eggyel
    lejjebb csúsznak, hogy felszabaduljon a hely. A $gte (nem $gt) a lényeg: az
-   új elem pontosan annak a helyére kerül, aki eddig ott állt. */
-const shiftForInsert = (Model, userId, order) =>
-    Model.updateMany({user: userId, order: {$gte: order}}, touch(1));
+   új elem pontosan annak a helyére kerül, aki eddig ott állt.
+
+   AZ ÚJ ELEMET KI KELL HAGYNI (`insertedId`), mert a beszúrás MEGELŐZI a tolást.
+   A sorrend nem szeszély: az új dokumentum azonosítóját a kliens adja, és az
+   egyedi `_id`-index az EGYETLEN atomi kapunk arra, hogy egy megismételt kérés
+   ne hozzon létre másodpéldányt (l. controllers/createOnce.js). Ha előbb tolnánk, a
+   megismételt kérés akkor is eltolna mindenkit, amikor a beszúrása már
+   fölösleges. Cserébe a tolás szűrőjének ki kell zárnia magát az új elemet —
+   az is `>= order`-en áll, tehát különben magát tolná el, és hézag maradna a
+   helyén. */
+const shiftForInsert = (Model, userId, order, insertedId) =>
+    Model.updateMany({user: userId, order: {$gte: order}, _id: {$ne: insertedId}}, touch(1));
 
 /* TÖRLÉS után: a törölt FÖLÖTT állók (>) eggyel feljebb csúsznak a felszabadult
    helyre. Itt $gt (nem $gte), mert a törölt saját sorszáma szűnik meg — azt

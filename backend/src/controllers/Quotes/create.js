@@ -2,22 +2,34 @@ const router = require("express").Router();
 const Quotes = require("../../models/quotes");
 const serverError = require("../../serverError");
 const {shiftForInsert} = require("../../ordering");
+const {createOnce} = require("../createOnce");
 
-/* Új idézet a megadott sorszámra: a beszúrási helytől fölfelé mindenkit eggyel
-   lejjebb tolunk, hogy a sorszámok hézag- és ütközésmentesek maradjanak — ezt a
-   szekció-független ordering modul végzi (ugyanaz a szabály a to-dónál). Az
-   author elhagyható: névtelen idézet is menthető. */
+/* Új idézet a megadott sorszámra. Az author elhagyható: névtelen idézet is
+   menthető.
+
+   A LÉTREHOZÁS IDEMPOTENS, a to-dóéval azonos módon: az azonosítót a kliens
+   adja, és ugyanaz a kérés másodszor sem hoz létre újabb elemet — a miértjét és
+   a lépések sorrendjét a közös createOnce modul írja le. */
 module.exports = router.post("/", (request, response) => {
     const order = request.body.order;
-    shiftForInsert(Quotes, request.userId, order)
-        .then(() => new Quotes({
+    createOnce({
+        Model: Quotes,
+        userId: request.userId,
+        order: order,
+        document: {
+            /* Az `_id` CSAK akkor kerül bele, ha a kliens küldött ilyet. Kimondott
+               `_id: undefined` esetén a Mongoose alapértelmezése kétes; a kulcs
+               elhagyásával viszont egyértelműen ő generál. */
+            ...(request.body.id ? {_id: request.body.id} : {}),
             user: request.userId,
             quote: request.body.quote,
             author: request.body.author,
             order: order,
             // Hiányában a séma alapértéke (155) áll be — l. models/quotes.js.
             fontSize: request.body.fontSize,
-        }).save())
+        },
+        shift: shiftForInsert,
+    })
         .then(() => response.json("Idézet létrehozva."))
         .catch((error) => serverError(response, error, "Quotes.create"));
 });

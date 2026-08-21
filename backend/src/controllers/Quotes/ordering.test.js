@@ -15,6 +15,8 @@ const modelPath = require.resolve("../../models/quotes");
 const userModelPath = require.resolve("../../models/users");
 const newId = () => new mongoose.Types.ObjectId().toString();
 const OWNER = newId();
+// A kliens adta azonosító: a létrehozás ezt küldi, a szerver ezzel szúr be.
+const NEW_ID = newId();
 // A vizsgált idézet az 5. sorszámon áll — a mozgatásokat ehhez viszonyítjuk.
 const QUOTE = {_id: newId(), user: OWNER, quote: "Idézet", author: "Szerző", order: 5};
 
@@ -27,7 +29,10 @@ Quotes.findById = (id) => Promise.resolve(String(id) === QUOTE._id ? QUOTE : nul
 Quotes.findByIdAndDelete = () => Promise.resolve(QUOTE);
 Quotes.findByIdAndUpdate = () => Promise.resolve(QUOTE);
 Quotes.updateMany = (filter, update) => { updateManyCalls.push({filter, update}); return Promise.resolve({}); };
-Quotes.prototype.save = function () { return Promise.resolve(); };
+/* A `save()` a MENTETT dokumentumot adja vissza — ahogy a Mongoose is. A create
+   ebből veszi az eltolásból kizárandó azonosítót (l. controllers/createOnce.js),
+   tehát egy üres promise itt nem a valóságot mintázná. */
+Quotes.prototype.save = function () { return Promise.resolve(this); };
 
 require.cache[modelPath] = {id: modelPath, filename: modelPath, loaded: true, exports: Quotes};
 require.cache[userModelPath] = {
@@ -54,10 +59,15 @@ const post = (path, body) => request(app).post(path).set("Authorization", "Beare
 
 test.beforeEach(() => { updateManyCalls.length = 0; });
 
-test("create: a beszúrási helytől fölfelé mindenkit eggyel lejjebb tol", async () => {
-    await post("/create", {order: 2, quote: "Új", author: "Sz"});
+/* A LÉTREHOZÁS AZONOSÍTÓT KÜLD, és a szűrő KIHAGYJA azt: a beszúrás megelőzi a
+   tolást (az egyedi `_id`-index az atomi kapunk az ismételt kérés ellen, l.
+   controllers/createOnce.js), az új dokumentum pedig maga is a `>= order`
+   tartományban áll — kihagyás nélkül magát tolná el. */
+test("create: a beszúrási helytől fölfelé mindenkit eggyel lejjebb tol, az újat kihagyva", async () => {
+    await post("/create", {id: NEW_ID, order: 2, quote: "Új", author: "Sz"});
     assert.strictEqual(updateManyCalls.length, 1);
-    assert.deepStrictEqual(updateManyCalls[0].filter, {user: OWNER, order: {$gte: 2}});
+    assert.deepStrictEqual(updateManyCalls[0].filter,
+        {user: OWNER, order: {$gte: 2}, _id: {$ne: NEW_ID}});
     assert.strictEqual(updateManyCalls[0].update.$inc.order, 1);
 });
 
