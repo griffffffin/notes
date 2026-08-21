@@ -1,11 +1,13 @@
 import {readFileSync} from "node:fs";
 import {dirname, join} from "node:path";
 import {fileURLToPath} from "node:url";
-import {waitFor} from "@testing-library/react";
+import {render, waitFor} from "@testing-library/react";
+import {MemoryRouter} from "react-router-dom";
 import {beforeEach, describe, expect, it, vi} from "vitest";
 import {renderRoutes} from "../test/renderRoutes";
 import {axiosResponse} from "../test/axiosResponse";
 import {rememberSection, SECTIONS} from "./Navbar/sections";
+import {CreateEntry} from "./routes";
 import {PATHS} from "../paths";
 
 /* Az ISMERETLEN ÚT sorsa (a route-fa "*"-ága).
@@ -32,6 +34,18 @@ const {auth, handleAxios} = await vi.hoisted(async () => {
     return mockAuth({isLoggedIn: true});
 });
 vi.mock(import("../contexts/auth-context"), () => ({useAuth: () => auth}));
+
+/* AZ AZONOSÍTÓ-GYÁRTÁS SZÁMLÁLÓJA — a VALÓDI megvalósítás marad, csak megszámoljuk,
+   hányszor hívták. Egy konstansra cserélt pótlék itt kárt tenne: a lenti próbák egy
+   része épp azt kéri számon, hogy két nekifutás KÜLÖNBÖZŐ azonosítót kap. */
+const {mintCount} = vi.hoisted(() => ({mintCount: vi.fn()}));
+vi.mock(import("../objectId"), async (importOriginal) => {
+    const actual = await importOriginal();
+    return {newObjectId: (...args: Parameters<typeof actual.newObjectId>) => {
+        mintCount();
+        return actual.newObjectId(...args);
+    }};
+});
 
 beforeEach(() => {
     localStorage.clear();
@@ -316,5 +330,36 @@ describe("a létrehozás belépője azonosítót ad az új elemnek", () => {
 
         expect(window.location.pathname).not.toBe(PATHS.todoCreateItem("507f1f77bcf86cd799439011"));
         expect(window.location.pathname).toMatch(/^\/to-dos\/create\/[0-9a-f]{24}$/);
+    });
+});
+
+/* AZ AZONOSÍTÓ EGYSZER SZÜLETIK — az újrarender nem gyárt másikat.
+
+   Ezt a route-fán át nem lehet számon kérni: a belépő egyetlen render után
+   továbbnavigál, tehát a rendernkénti újragyártás a végső címben nem látszana meg
+   (a mutáció-próba pontosan ezt mutatta: a `useState` kivételére EGYETLEN teszt
+   sem bukott meg). Ezért itt KÖZVETLENÜL rendereljük, és kikényszerítünk egy
+   újrarendert — ez élesben sem elméleti: a belépő az App propjai alatt ül, tehát
+   egy beérkező kategória-lista is újrarendereli, mielőtt a navigáció lefutna.
+
+   Ha az azonosító renderenként születne, a `<Navigate>` célja MENET KÖZBEN
+   változna: a felhasználó egy másik azonosítójú címen kötne ki, mint ahova az
+   első render küldte volna — némán, és a piszkozatától elszakadva. */
+describe("a belépő azonosítója újrarenderre sem változik", () => {
+    it("kétszeri render mellett is EGYSZER gyárt azonosítót", () => {
+        mintCount.mockClear();
+        /* MINDEN HÍVÁS ÚJ ELEMET ad. Ha ugyanazt a referenciát adnánk vissza, a React
+           kihagyná az újrarenderelést (azonos elem = nincs mit tenni), és a próba
+           némán semmit sem mérne — először pontosan ez történt. */
+        const entry = () => (
+            <MemoryRouter initialEntries={["/to-dos/create"]}>
+                <CreateEntry section="to-dos" build={PATHS.todoCreateItem}/>
+            </MemoryRouter>
+        );
+
+        const {rerender} = render(entry());
+        rerender(entry());
+
+        expect(mintCount).toHaveBeenCalledTimes(1);
     });
 });

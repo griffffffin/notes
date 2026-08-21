@@ -181,17 +181,26 @@ function RedirectToLastSection() {
    (elbukottnak hitt) mentés mégis célba ért, a második nem hoz létre
    másodpéldányt (l. backend/src/controllers/createOnce.js).
 
-   Az azonosító EGYSZER születik meg (lusta kezdőérték). EZT A GUARDOT NEM FEDI
-   TESZT, és ezt jobb kimondani, mint elhallgatni: a komponens egyetlen render
-   után továbbnavigál, tehát a rendernkénti újragyártás ma nem látszana meg
-   (StrictMode alatt két azonosító születne, de csak az egyikre navigálnánk). A
-   `useState` így a SZÁNDÉKOT rögzíti — ez a cím egyetlen új elemhez tartozik —,
-   és megelőzi, hogy egy jövőbeli plusz render (mondjuk egy context-frissülés)
-   némán másik azonosítóra vigyen át.
+   Az azonosító EGYSZER születik meg (lusta kezdőérték), és ez nem óvatoskodás: a
+   belépő az App propjai alatt ül, tehát egy közben beérkező kategória-lista is
+   újrarendereli, mielőtt a navigáció lefutna. Rendernként újragyártva a
+   `<Navigate>` célja MENET KÖZBEN változna — a felhasználó más azonosítójú címen
+   kötne ki, mint ahova az első render küldte, és a piszkozatától elszakadva.
+
+   A ROUTE-FÁN ÁT EZT NEM LEHET SZÁMON KÉRNI (mérve: a `useState` kivételére a
+   route-tesztek közül egy sem bukott meg), mert a komponens egyetlen render után
+   továbbnavigál. Ezért van rá KÖZVETLEN próba, kikényszerített újrarenderrel —
+   és ezért exportált ez a komponens (l. routes.test.tsx).
 
    A `replace` azért kell, hogy a csupasz cím ne ragadjon bent az előzményben — a
    Vissza a listára vigyen, ne ide. */
-function CreateEntry({section, build}: {section: string; build: (id: string) => string}) {
+/* EXPORTÁLVA A TESZT KEDVÉÉRT — kimondottan a lenti `useState` miatt. Az őrt (hogy
+   az azonosító EGYSZER születik) a route-fán át nem lehet számon kérni: a komponens
+   egyetlen render után továbbnavigál, tehát a rendernkénti újragyártás a végső
+   címben nem látszana. Ahhoz kell ÚJRARENDER a navigáció előtt — azt pedig csak
+   közvetlenül lehet előidézni. Az export tehát nem kényelem, hanem a próba
+   egyetlen fogódzója (l. routes.test.tsx). */
+export function CreateEntry({section, build}: {section: string; build: (id: string) => string}) {
     const [target] = useState(() => build(readDraftItemId(draftKey(section, null)) ?? newObjectId()));
     return <Navigate to={target} replace/>;
 }

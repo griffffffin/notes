@@ -170,11 +170,22 @@ describe("QuoteRead — sikertelen betöltés", () => {
 
            Így egyetlen KONZISTENS pillanatot követelünk meg: van olyan állapot,
            amelyben a lista LÁTSZIK és a hibaüzenet MÁR NINCS ott. Ez nem gyengébb
-           állítás — ugyanazt mondja, csak nem köti egy tetszőleges ütemezéshez. */
+           állítás — ugyanazt mondja, csak nem köti egy tetszőleges ütemezéshez.
+
+           A TÜRELEM viszont kevés volt hozzá. 2026-08-21-én ez a teszt HÁROMSZOR
+           bukott el terhelt gépen (párhuzamosan futó commit-ellenőrzés mellett,
+           8-as load a négy magon), és mindannyiszor ugyanúgy: a `waitFor`
+           alapértelmezett EGY másodperce járt le, mielőtt a lista megjelent volna.
+           Izoláltan 14/14 zöld. Amire itt várni kell, az nem egy render, hanem egy
+           LÁNC: history.back → route-váltás → új lekérés → válasz → render.
+
+           Az emelt korlát NEM gyengíti az állítást — a hibás kód a hosszabb
+           várakozás alatt SEM állítaná elő ezt az állapotot —, csak nem köti a
+           gép pillanatnyi terheltségéhez, hogy zöld-e a tesztsor. */
         await waitFor(() => {
             expect(screen.getByText("Első idézet")).toBeVisible();
             expect(screen.queryByText(MESSAGE)).not.toBeInTheDocument();
-        });
+        }, {timeout: 5000});
     });
 
     it("az ÚJRA gomb megismétli a lekérést, és siker után megjelenik a lista", async () => {
