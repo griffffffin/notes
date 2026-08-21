@@ -62,6 +62,56 @@ const shiftForMove = (Model, userId, fromOrder, toOrder) => {
     return Model.updateMany({user: userId, order: {$lte: toOrder, $gt: fromOrder}}, touch(-1));
 };
 
+/* A VISSZAVÉTELEK — mert az eltolás és a rá következő írás NEM atomi.
+
+   Minden sorszám-változás két lépés: told el a szomszédokat, majd írd az elemet.
+   Tranzakció nincs (mérve: a FerretDB v2 a `commitTransaction`-t sem ismeri),
+   tehát ha a MÁSODIK lépés elbukik, az első ottmarad — és a lista sérülten
+   marad, hibaüzenet nélkül. A párhuzamosságot a userLock.js zárja ki; ez a
+   másik, tőle FÜGGETLEN hibaosztály: az egyetlen kérésen belüli félbemaradás.
+
+   AZ ALGEBRA, kimondva (a round-trip próbát l. az ordering.test.js-ben):
+
+   - a TÖRLÉS eltolása (`$gt: order`, −1) után a mozdított elemek `>= order`-en
+     állnak, a törlendő pedig MÉG mindig az `order`-en. A visszavétel tehát
+     pontosan a BESZÚRÁS eltolása, az elemet kihagyva — ezért nem új függvény,
+     hanem a `shiftForInsert` a maga kizárásával;
+   - a MOZGATÁS visszavételéhez a mozdított sávot kell visszavinni — ÉS A
+     MOZGATOTT ELEMET KIHAGYNI. Ez utóbbi nem apróság: a félbemaradt mozgatásnál
+     az elem MÉG a régi helyén áll, és beleesik a visszatoló sávba. (Az első
+     változatom épp ezt hagyta ki, és a lenti oda-vissza próba buktatta le: az
+     1..5 lista 5 → 2 mozgatásából `[1,2,3,4,4]` lett.)
+
+     A sávok: a `[to, from)` +1 után a mozdítottak a `(to, from]`-ban állnak
+     (−1 viszi vissza), a `(from, to]` −1 után pedig a `[from, to)`-ban (+1).
+
+   MIÉRT ITT, ÉS NEM A CONTROLLEREKBEN. Mert a visszavétel az eltolás
+   TULAJDONSÁGA: aki az egyiket módosítja, annak a másikat is át kell vezetnie.
+   Hat controllerbe szétírva ez hat, egymástól független elgépelési lehetőség
+   volna — és mindegyik NÉMÁN rontaná el a listát, épp abban a pillanatban,
+   amikor már amúgy is baj van. */
+const undoShiftForDelete = (Model, userId, order, itemId) =>
+    shiftForInsert(Model, userId, order, itemId);
+
+/* A sáv-határok itt MÁSODSZOR is le vannak írva, és ez tudatos: a fordított hívás
+   (`shiftForMove(to, from)`) NEM adja meg őket helyesen, mert nem tud a kihagyandó
+   elemről. Hogy a két leírás ne csúszhasson el, az ordering.test.js MINDEN
+   (honnan, hova) párt végigpróbál oda-vissza.
+
+   MELYIK SÁV-VÉG SZÁMÍT, ÉS MELYIK NEM (mutáció-próbával mérve): a `$lte fromOrder`
+   és a `$gte fromOrder` VISELKEDÉST HORDOZ — kizárva őket az oda-vissza próba
+   azonnal bukik, mert azon a helyen áll egy elmozdított elem. A `toOrder` felőli
+   vég viszont EKVIVALENS: az eltolás után az a hely ÜRES, tehát a `$gt`/`$gte`
+   ott nem különböztethető meg. A szigorúbb alak marad, mert a szándékot mondja
+   ki — de ne higgyük róla, hogy a teszt őrzi. */
+const undoShiftForMove = (Model, userId, fromOrder, toOrder, itemId) => {
+    if (toOrder === fromOrder) return Promise.resolve(null);
+    const owner = {user: userId, _id: {$ne: itemId}};
+    if (toOrder < fromOrder)
+        return Model.updateMany({...owner, order: {$gt: toOrder, $lte: fromOrder}}, touch(-1));
+    return Model.updateMany({...owner, order: {$gte: fromOrder, $lt: toOrder}}, touch(1));
+};
+
 /* A felhasználó LEGNAGYOBB sorszáma az adott szekcióban — a szerkesztő
    sorszám-választójának felső korlátja (create-nél N, update-nél N-1, l. a
    frontend Order komponensét). Üres listánál 0, tehát az első elem az 1-est kapja.
@@ -74,4 +124,5 @@ const lastOrder = (Model, userId) =>
     Model.find({user: userId}).sort("-order").limit(1)
         .then((documents) => documents.length ? documents[0].order : 0);
 
-module.exports = {shiftForInsert, shiftForDelete, shiftForMove, lastOrder};
+module.exports = {shiftForInsert, shiftForDelete, shiftForMove,
+    undoShiftForDelete, undoShiftForMove, lastOrder};

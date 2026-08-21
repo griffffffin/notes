@@ -2,7 +2,8 @@ const router = require("express").Router();
 const Quotes = require("../../models/quotes");
 const serverError = require("../../serverError");
 const {findOwned, forbidden} = require("../../ownership");
-const {shiftForMove} = require("../../ordering");
+const {shiftForMove, undoShiftForMove} = require("../../ordering");
+const {shiftThenWrite} = require("../orderedWrite");
 
 /* Idézet szerkesztése. A tartalom (idézet, szerző, betűméret) mellett a sorszám
    is változhat — ilyenkor a reorderrel AZONOS eltolást végezzük a szomszédokon
@@ -23,7 +24,13 @@ module.exports = router.post("/", (request, response) => {
 
             // Változatlan sorszámnál a shiftForMove magától nem tol el senkit,
             // tehát nem kell külön ág — a mentés utána ugyanúgy fut.
-            return shiftForMove(Quotes, request.userId, quote.order, order).then(save);
+            /* Ha a mentés bukik el az eltolás UTÁN, a szomszédok visszakerülnek —
+               enélkül ütközés vagy hézag maradna a listában (l. orderedWrite.js). */
+            return shiftThenWrite({
+                shift: () => shiftForMove(Quotes, request.userId, quote.order, order),
+                write: save,
+                undo: () => undoShiftForMove(Quotes, request.userId, quote.order, order, id),
+            });
         })
         .catch((error) => serverError(response, error, "Quotes.update"));
 });

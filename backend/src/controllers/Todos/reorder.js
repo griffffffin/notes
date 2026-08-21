@@ -2,7 +2,8 @@ const router = require("express").Router();
 const Todos = require("../../models/todos");
 const serverError = require("../../serverError");
 const {findOwned, forbidden} = require("../../ownership");
-const {shiftForMove} = require("../../ordering");
+const {shiftForMove, undoShiftForMove} = require("../../ordering");
+const {shiftThenWrite} = require("../orderedWrite");
 
 /* Egyetlen to-do átsorolása — a főoldali húzás ezt hívja.
 
@@ -24,9 +25,15 @@ module.exports = router.post("/", (request, response) => {
                jár — fölösleges írás nélkül. */
             if (order === todo.order) return response.json("Sorrend változatlan.");
 
-            return shiftForMove(Todos, request.userId, todo.order, order)
-                .then(() => Todos.findByIdAndUpdate(id, {order: order, updatedAt: new Date()},
-                    {runValidators: true}))
+            /* Ha a sorszám írása bukik el az eltolás UTÁN, a szomszédok
+               visszakerülnek — enélkül ütközés vagy hézag maradna a listában
+               (l. orderedWrite.js). */
+            return shiftThenWrite({
+                shift: () => shiftForMove(Todos, request.userId, todo.order, order),
+                write: () => Todos.findByIdAndUpdate(id, {order: order, updatedAt: new Date()},
+                    {runValidators: true}),
+                undo: () => undoShiftForMove(Todos, request.userId, todo.order, order, id),
+            })
                 .then(() => response.json("Sorrend frissítve."));
         })
         .catch((error) => serverError(response, error, "Todos.reorder"));

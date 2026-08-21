@@ -2,7 +2,8 @@ const router = require("express").Router();
 const Todos = require("../../models/todos");
 const serverError = require("../../serverError");
 const {findOwned, forbidden} = require("../../ownership");
-const {shiftForDelete} = require("../../ordering");
+const {shiftForDelete, undoShiftForDelete} = require("../../ordering");
+const {shiftThenWrite} = require("../orderedWrite");
 
 /* To-do törlése: a törölt fölöttiek eggyel feljebb csúsznak, hogy ne maradjon
    lyuk a sorszámokban. Csak a sajátodat törölheted (findOwned).
@@ -15,8 +16,13 @@ module.exports = router.post("/", (request, response) => {
     findOwned(Todos, id, request.userId)
         .then((todo) => {
             if (!todo) return forbidden(response);
-            return shiftForDelete(Todos, request.userId, todo.order)
-                .then(() => Todos.findByIdAndDelete(id))
+            /* A visszavétel az eltolás TULAJDONSÁGA (l. ordering.js): ha a törlés
+               maga bukik el, a feljebb csúszott szomszédok visszakerülnek. */
+            return shiftThenWrite({
+                shift: () => shiftForDelete(Todos, request.userId, todo.order),
+                write: () => Todos.findByIdAndDelete(id),
+                undo: () => undoShiftForDelete(Todos, request.userId, todo.order, id),
+            })
                 .then(() => response.json(todo.title + " törölve."));
         })
         .catch((error) => serverError(response, error, "Todos.delete"));

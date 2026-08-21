@@ -3,7 +3,8 @@ const Todos = require("../../models/todos");
 const serverError = require("../../serverError");
 const calculatePercentage = require("./functions/calculatePercentage");
 const {findOwned, forbidden} = require("../../ownership");
-const {shiftForMove} = require("../../ordering");
+const {shiftForMove, undoShiftForMove} = require("../../ordering");
+const {shiftThenWrite} = require("../orderedWrite");
 
 /* To-do szerkesztése. A tartalom mellett a sorszám is változhat — ilyenkor a
    reorderrel AZONOS eltolást végezzük a szomszédokon (közös ordering modul).
@@ -36,7 +37,13 @@ module.exports = router.post("/", (request, response) => {
 
             // Változatlan sorszámnál a shiftForMove nem tol el senkit, tehát nem
             // kell külön ág — a mentés utána ugyanúgy fut.
-            return shiftForMove(Todos, request.userId, todo.order, order).then(save);
+            /* Ha a mentés bukik el az eltolás UTÁN, a szomszédok visszakerülnek —
+               enélkül ütközés vagy hézag maradna a listában (l. orderedWrite.js). */
+            return shiftThenWrite({
+                shift: () => shiftForMove(Todos, request.userId, todo.order, order),
+                write: save,
+                undo: () => undoShiftForMove(Todos, request.userId, todo.order, order, id),
+            });
         })
         .catch((error) => serverError(response, error, "Todos.update"));
 });
