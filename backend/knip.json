@@ -1,5 +1,12 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["src/**/*.test.js", "scripts/daily-export.js"],
-  "project": ["src/**/*.js", "scripts/**/*.js"]
+  "entry": [
+    "src/**/*.test.js",
+    "scripts/daily-export.js",
+    "scripts/check-ordering.js"
+  ],
+  "project": [
+    "src/**/*.js",
+    "scripts/**/*.js"
+  ]
 }
