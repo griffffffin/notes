@@ -786,6 +786,18 @@ describe("TodoSave — piszkozat", () => {
    A mai őr a `savingRef`: amíg a kérés úton van, a shouldBlock igazat ad, tehát a
    logó, a "+", az Escape és a böngésző Vissza gombja is tehetetlen. Az őr egyetlen
    sor, amit egy refaktor némán kivehet — ezért kell rá teszt. */
+/* A LÁNCRA VÁRÁS TÜRELME. Az alábbi próbák nem egy renderre várnak, hanem egy
+   TÖBB LÉPÉSES LÁNCRA: kattintás → űrlap-beküldés → navigáció → a blocker
+   közbelép → effekt → mentés-állapot → újrarajzolás. A `waitFor` alapértelmezett
+   EGY másodperce ehhez terhelt gépen kevés — 2026-08-21-én ez a tesztsor
+   pontosan így bukott el kétszer, miközben a Pi négy magján párhuzamos
+   commit-ellenőrzés futott (izoláltan 45/45 zöld).
+
+   Az emelt korlát NEM gyengíti az állításokat: hibás kód a hosszabb várakozás
+   alatt SEM állítaná elő a várt állapotot. Csak nem a gép pillanatnyi
+   terheltsége dönti el, zöld-e a tesztsor. */
+const CHAIN = {timeout: 5000};
+
 describe("Save — mentés közben nem lehet elhagyni a szerkesztőt", () => {
     /* A mentés VÁLASZÁT visszatartjuk: így a teszt abban az ablakban vizsgálódik,
        amikor a kérés már elment, de még nem jött rá felelet. Élesben ez akár 15
@@ -811,7 +823,7 @@ describe("Save — mentés közben nem lehet elhagyni a szerkesztőt", () => {
         window.history.pushState({}, "", "/to-dos");
         const view = renderRoutes();
         await userEvent.click(await screen.findByText("Bevásárlás"));
-        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"), CHAIN);
         await userEvent.type(screen.getByPlaceholderText("Cím"), " ma");
         return view;
     };
@@ -823,7 +835,7 @@ describe("Save — mentés közben nem lehet elhagyni a szerkesztőt", () => {
         await openAndEdit();
 
         await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
-        await waitFor(() => expect(pending).toHaveLength(1));
+        await waitFor(() => expect(pending).toHaveLength(1), CHAIN);
 
         // A válasz MÉG NINCS itt. A logó a szekció gyökerére vivő link a navbarban.
         await userEvent.click(requireElement("a", HTMLAnchorElement));
@@ -833,7 +845,7 @@ describe("Save — mentés közben nem lehet elhagyni a szerkesztőt", () => {
         await waitFor(() => {
             expect(window.location.pathname).toBe("/to-dos/update/todo-1");
             expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás ma");
-        });
+        }, CHAIN);
     });
 
     it("visszaírt eredeti szöveg mellett SEM enged ki a futó mentés alól", async () => {
@@ -851,7 +863,7 @@ describe("Save — mentés közben nem lehet elhagyni a szerkesztőt", () => {
         await openAndEdit();
 
         await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
-        await waitFor(() => expect(pending).toHaveLength(1));
+        await waitFor(() => expect(pending).toHaveLength(1), CHAIN);
 
         // A mentés fut; a felhasználó közben visszaállítja az eredeti címet.
         await userEvent.clear(screen.getByPlaceholderText("Cím"));
@@ -861,7 +873,7 @@ describe("Save — mentés közben nem lehet elhagyni a szerkesztőt", () => {
         await waitFor(() => {
             expect(window.location.pathname).toBe("/to-dos/update/todo-1");
             expect(screen.getByPlaceholderText("Cím")).toHaveValue(TODO.title);
-        });
+        }, CHAIN);
     });
 
     it("a MENTÉS gomb tiltott és 'Mentés…' feliratú, amíg a válasz meg nem jön", async () => {
@@ -870,13 +882,13 @@ describe("Save — mentés közben nem lehet elhagyni a szerkesztőt", () => {
 
         await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
 
-        await waitFor(() => expect(screen.getByRole("button", {name: "Mentés…"})).toBeDisabled());
+        await waitFor(() => expect(screen.getByRole("button", {name: "Mentés…"})).toBeDisabled(), CHAIN);
         // A Törlés is tiltva: ne lehessen törölni azt, aminek épp úton van a mentése.
         expect(screen.getByRole("button", {name: "Törlés"})).toBeDisabled();
 
         // A siker után a felirat okafogyott: elhagyjuk a szerkesztőt.
         await act(async () => { at(pending, 0).ok(); });
-        await waitFor(() => expect(window.location.pathname).toBe("/to-dos"));
+        await waitFor(() => expect(window.location.pathname).toBe("/to-dos"), CHAIN);
     });
 
     it("a bukás visszaállítja a feliratot, PISZKOZATOT ír, és a gombra teszi a fókuszt", async () => {
@@ -884,7 +896,7 @@ describe("Save — mentés közben nem lehet elhagyni a szerkesztőt", () => {
         await openAndEdit();
 
         await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
-        await waitFor(() => expect(pending).toHaveLength(1));
+        await waitFor(() => expect(pending).toHaveLength(1), CHAIN);
         act(() => at(pending, 0).fail());
 
         /* KÉT JELZÉS: a felirat visszaáll (ez maga a visszajelzés), és közben a
@@ -894,7 +906,7 @@ describe("Save — mentés közben nem lehet elhagyni a szerkesztőt", () => {
            A fókusz-visszajelzésnek a logóval indított mentésnél van értelme, és a
            tesztje is ott áll (l. lentebb). */
         const saveButton = await screen.findByRole("button", {name: "Mentés"});
-        await waitFor(() => expect(saveButton).toBeEnabled());
+        await waitFor(() => expect(saveButton).toBeEnabled(), CHAIN);
         expect(window.location.pathname).toBe("/to-dos/update/todo-1");
 
         const draft: unknown = JSON.parse(localStorage.getItem("notes-draft:to-dos:todo-1") ?? "null");
@@ -914,10 +926,10 @@ describe("Save — mentés közben nem lehet elhagyni a szerkesztőt", () => {
 
         // A mentést a LOGÓ indítja el, nem a gomb: a fókusz a linken van.
         await userEvent.click(requireElement("a", HTMLAnchorElement));
-        await waitFor(() => expect(pending).toHaveLength(1));
+        await waitFor(() => expect(pending).toHaveLength(1), CHAIN);
         act(() => at(pending, 0).fail());
 
-        await waitFor(() => expect(screen.getByRole("button", {name: "Mentés"})).toHaveFocus());
+        await waitFor(() => expect(screen.getByRole("button", {name: "Mentés"})).toHaveFocus(), CHAIN);
         expect(window.location.pathname).toBe("/to-dos/update/todo-1");
     });
 
@@ -938,7 +950,7 @@ describe("Save — mentés közben nem lehet elhagyni a szerkesztőt", () => {
         await openAndEdit();
 
         await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
-        await waitFor(() => expect(pending).toHaveLength(1));
+        await waitFor(() => expect(pending).toHaveLength(1), CHAIN);
 
         let exited = false;
         const logout = flushPendingSaves().then(() => { exited = true; });
@@ -965,7 +977,7 @@ describe("Save — mentés közben nem lehet elhagyni a szerkesztőt", () => {
         const view = await openAndEdit();
 
         await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
-        await waitFor(() => expect(pending).toHaveLength(1));
+        await waitFor(() => expect(pending).toHaveLength(1), CHAIN);
         handleAxios.mockClear();
         view.unmount();
 
@@ -992,7 +1004,7 @@ describe("Save — a create azonosítója", () => {
         await userEvent.type(screen.getByPlaceholderText("Cím"), "Új dolog");
         await userEvent.type(screen.getByPlaceholderText("Kategória"), "otthon");
         await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
-        await waitFor(() => expect(idOfCreate()).not.toBeNull());
+        await waitFor(() => expect(idOfCreate()).not.toBeNull(), CHAIN);
     };
 
     it("a létrehozás ObjectId-alakú azonosítót küld", async () => {
@@ -1000,7 +1012,7 @@ describe("Save — a create azonosítója", () => {
            (a két oldal egyezését a backend frontendContract.test.js-e őrzi). */
         window.history.pushState({}, "", "/to-dos/create");
         renderRoutes();
-        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toBeInTheDocument());
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toBeInTheDocument(), CHAIN);
 
         await fillAndSave();
 
@@ -1020,11 +1032,11 @@ describe("Save — a create azonosítója", () => {
         }));
         window.history.pushState({}, "", "/to-dos/create");
         renderRoutes();
-        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Félbehagyott"));
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Félbehagyott"), CHAIN);
 
         await userEvent.type(screen.getByPlaceholderText("Cím"), "!");
         await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
-        await waitFor(() => expect(idOfCreate()).not.toBeNull());
+        await waitFor(() => expect(idOfCreate()).not.toBeNull(), CHAIN);
 
         expect(idOfCreate()).toBe(DRAFT_ID);
     });
@@ -1040,7 +1052,7 @@ describe("Save — a create azonosítója", () => {
         });
         window.history.pushState({}, "", "/to-dos/create");
         renderRoutes();
-        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toBeInTheDocument());
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toBeInTheDocument(), CHAIN);
 
         await fillAndSave();
 
@@ -1071,12 +1083,12 @@ describe("Save — a visszatöltött create-piszkozat menthető", () => {
         }));
         window.history.pushState({}, "", "/to-dos/create");
         renderRoutes();
-        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Kész cím"));
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Kész cím"), CHAIN);
         handleAxios.mockClear();
 
         await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
 
-        await waitFor(() => expect(handleAxios.mock.calls.map((c) => c[0])).toContain("/to-dos/create"));
+        await waitFor(() => expect(handleAxios.mock.calls.map((c) => c[0])).toContain("/to-dos/create"), CHAIN);
         // A hibabuborék a másik ág: ha megjelenne, a mentés el sem indult volna.
         expect(screen.queryByText(/kitöltése kötelező/)).not.toBeInTheDocument();
     });

@@ -832,6 +832,18 @@ describe("QuoteSave — a lap bezárása", () => {
    navigációval indított mentés bukása után a Mentés gombra kerül a fókusz.
    Azért van külön teszt, mert a két szerkesztő KÜLÖN kódot futtat: egy javítás,
    ami csak az egyikbe megy át, itt bukna el. */
+/* A LÁNCRA VÁRÁS TÜRELME. Az alábbi próbák nem egy renderre várnak, hanem egy
+   TÖBB LÉPÉSES LÁNCRA: kattintás → űrlap-beküldés → navigáció → a blocker
+   közbelép → effekt → mentés-állapot → újrarajzolás. A `waitFor` alapértelmezett
+   EGY másodperce ehhez terhelt gépen kevés — 2026-08-21-én ez a tesztsor
+   pontosan így bukott el kétszer, miközben a Pi négy magján párhuzamos
+   commit-ellenőrzés futott (izoláltan 45/45 zöld).
+
+   Az emelt korlát NEM gyengíti az állításokat: hibás kód a hosszabb várakozás
+   alatt SEM állítaná elő a várt állapotot. Csak nem a gép pillanatnyi
+   terheltsége dönti el, zöld-e a tesztsor. */
+const CHAIN = {timeout: 5000};
+
 describe("QuoteSave — mentés közben nem lehet elhagyni a szerkesztőt", () => {
     const pendingSave = () => {
         const pending: Array<{ok: () => void; fail: () => void}> = [];
@@ -853,7 +865,7 @@ describe("QuoteSave — mentés közben nem lehet elhagyni a szerkesztőt", () =
     const openAndEdit = async () => {
         window.history.pushState({}, "", "/quotes/update/q-1");
         const view = renderRoutes();
-        await waitFor(() => expect(screen.getByPlaceholderText("Idézet szövege")).toHaveValue(QUOTE.quote));
+        await waitFor(() => expect(screen.getByPlaceholderText("Idézet szövege")).toHaveValue(QUOTE.quote), CHAIN);
         await userEvent.type(screen.getByPlaceholderText("Idézet szövege"), " Nagyon.");
         return view;
     };
@@ -865,14 +877,14 @@ describe("QuoteSave — mentés közben nem lehet elhagyni a szerkesztőt", () =
         await openAndEdit();
 
         await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
-        await waitFor(() => expect(pending).toHaveLength(1));
+        await waitFor(() => expect(pending).toHaveLength(1), CHAIN);
 
         await userEvent.click(requireElement("a", HTMLAnchorElement));
 
         await waitFor(() => {
             expect(window.location.pathname).toBe("/quotes/update/q-1");
             expect(screen.getByPlaceholderText("Idézet szövege")).toHaveValue(QUOTE.quote + " Nagyon.");
-        });
+        }, CHAIN);
     });
 
     it("visszaírt eredeti szöveg mellett SEM enged ki a futó mentés alól", async () => {
@@ -885,7 +897,7 @@ describe("QuoteSave — mentés közben nem lehet elhagyni a szerkesztőt", () =
         await openAndEdit();
 
         await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
-        await waitFor(() => expect(pending).toHaveLength(1));
+        await waitFor(() => expect(pending).toHaveLength(1), CHAIN);
 
         await userEvent.clear(screen.getByPlaceholderText("Idézet szövege"));
         await userEvent.type(screen.getByPlaceholderText("Idézet szövege"), QUOTE.quote);
@@ -894,7 +906,7 @@ describe("QuoteSave — mentés közben nem lehet elhagyni a szerkesztőt", () =
         await waitFor(() => {
             expect(window.location.pathname).toBe("/quotes/update/q-1");
             expect(screen.getByPlaceholderText("Idézet szövege")).toHaveValue(QUOTE.quote);
-        });
+        }, CHAIN);
     });
 
     it("a MENTÉS gomb tiltott és 'Mentés…' feliratú, amíg a válasz meg nem jön", async () => {
@@ -903,11 +915,11 @@ describe("QuoteSave — mentés közben nem lehet elhagyni a szerkesztőt", () =
 
         await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
 
-        await waitFor(() => expect(screen.getByRole("button", {name: "Mentés…"})).toBeDisabled());
+        await waitFor(() => expect(screen.getByRole("button", {name: "Mentés…"})).toBeDisabled(), CHAIN);
         expect(screen.getByRole("button", {name: "Törlés"})).toBeDisabled();
 
         await act(async () => { at(pending, 0).ok(); });
-        await waitFor(() => expect(window.location.pathname).toBe("/quotes"));
+        await waitFor(() => expect(window.location.pathname).toBe("/quotes"), CHAIN);
     });
 
     it("a bukás PISZKOZATOT ír és visszaállítja a feliratot", async () => {
@@ -915,10 +927,10 @@ describe("QuoteSave — mentés közben nem lehet elhagyni a szerkesztőt", () =
         await openAndEdit();
 
         await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
-        await waitFor(() => expect(pending).toHaveLength(1));
+        await waitFor(() => expect(pending).toHaveLength(1), CHAIN);
         act(() => at(pending, 0).fail());
 
-        await waitFor(() => expect(screen.getByRole("button", {name: "Mentés"})).toBeEnabled());
+        await waitFor(() => expect(screen.getByRole("button", {name: "Mentés"})).toBeEnabled(), CHAIN);
         expect(window.location.pathname).toBe("/quotes/update/q-1");
 
         const draft: unknown = JSON.parse(localStorage.getItem("notes-draft:quotes:q-1") ?? "null");
@@ -930,10 +942,10 @@ describe("QuoteSave — mentés közben nem lehet elhagyni a szerkesztőt", () =
         await openAndEdit();
 
         await userEvent.click(requireElement("a", HTMLAnchorElement));
-        await waitFor(() => expect(pending).toHaveLength(1));
+        await waitFor(() => expect(pending).toHaveLength(1), CHAIN);
         act(() => at(pending, 0).fail());
 
-        await waitFor(() => expect(screen.getByRole("button", {name: "Mentés"})).toHaveFocus());
+        await waitFor(() => expect(screen.getByRole("button", {name: "Mentés"})).toHaveFocus(), CHAIN);
     });
 
     it("futó mentés MELLÉ a leválás nem indít másodikat (nincs dupla mentés)", async () => {
@@ -941,7 +953,7 @@ describe("QuoteSave — mentés közben nem lehet elhagyni a szerkesztőt", () =
         const view = await openAndEdit();
 
         await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
-        await waitFor(() => expect(pending).toHaveLength(1));
+        await waitFor(() => expect(pending).toHaveLength(1), CHAIN);
         handleAxios.mockClear();
         view.unmount();
 
@@ -963,12 +975,12 @@ describe("QuoteSave — a visszatöltött create-piszkozat menthető", () => {
         }));
         window.history.pushState({}, "", "/quotes/create");
         renderRoutes();
-        await waitFor(() => expect(screen.getByPlaceholderText("Idézet szövege")).toHaveValue("Kész idézet"));
+        await waitFor(() => expect(screen.getByPlaceholderText("Idézet szövege")).toHaveValue("Kész idézet"), CHAIN);
         handleAxios.mockClear();
 
         await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
 
-        await waitFor(() => expect(handleAxios.mock.calls.map((c) => c[0])).toContain("/quotes/create"));
+        await waitFor(() => expect(handleAxios.mock.calls.map((c) => c[0])).toContain("/quotes/create"), CHAIN);
         expect(screen.queryByText(/kitöltése kötelező/)).not.toBeInTheDocument();
     });
 });
