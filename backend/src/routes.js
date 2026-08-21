@@ -4,6 +4,7 @@ const auth = require("./middleware/auth");
    middleware szolgálja ki mindet (korábban szekciónként külön, azonos kóddal). A
    szekció-specifikus szabályok maradnak a saját moduljukban. */
 const {validateObjectId, validateOrderOnly} = require("./middleware/validators");
+const {serializePerUser} = require("./userLock");
 const {validateTodoBody, validateCategoryFilter, validateColorFilter} = require("./middleware/validateTodo");
 const {validateQuoteBody, validateAuthorFilter, validateSearchTerm,
     validateAuthorPrefix} = require("./middleware/validateQuote");
@@ -111,13 +112,21 @@ router.use("/refresh", usersRefresh);
    függetlenek, ezért fentebb NEM kerülnek prefix alá. */
 const todosRouter = require("express").Router();
 
+/* A SORSZÁMOT MOZGATÓ VÉGPONTOK SOROSÍTVA, felhasználónként. Négyen vannak
+   szekciónként (create, update, delete, reorder), és mind ugyanabból a két
+   lépésből áll: told el a szomszédokat, majd írd az elemet. A pár nem atomi
+   (tranzakció nincs, mérve), tehát két párhuzamos kérés egymásba fűzheti a
+   feleit — a lista pedig némán elromlik. Az indoklás és a mérések: userLock.js.
+
+   Az `auth` MÖGÖTT áll, mert a tokenből vett `request.userId`-re épül. */
+
 /* A LÉTREHOZÁS IS AZONOSÍTÓT KÉR. Az `_id`-t a kliens adja (a szerkesztő
    megnyitásakor születik), mert az egyedi index az egyetlen atomi eszközünk arra,
    hogy egy megismételt kérés ne hozzon létre másodpéldányt — l. createOnce.js.
    Ezért ugyanaz a két őr áll előtte, mint a módosítás előtt: az azonosító alakja,
    majd a törzs. A hiányzó azonosító VALIDÁCIÓS HIBA, nem csendes visszaesés a
    szerver-generálásra: a kétoldali kötést jobb kimondani, mint feltételezni. */
-todosRouter.use("/create", validateObjectId, validateTodoBody, todosCreate);
+todosRouter.use("/create", validateObjectId, validateTodoBody, serializePerUser, todosCreate);
 
 todosRouter.use("/last/order", readLastOrder);
 todosRouter.use("/categories", todosReadCategory);
@@ -126,10 +135,10 @@ todosRouter.use("/category", validateCategoryFilter, todosReadByCategory);
 todosRouter.use("/color", validateColorFilter, todosReadByColor);
 
 // A módosításnak az id-ja ÉS a törzse is ellenőrzendő, a törlésnek csak az id-ja.
-todosRouter.use("/update", validateObjectId, validateTodoBody, todosUpdate);
-todosRouter.use("/delete", validateObjectId, todosDelete);
+todosRouter.use("/update", validateObjectId, validateTodoBody, serializePerUser, todosUpdate);
+todosRouter.use("/delete", validateObjectId, serializePerUser, todosDelete);
 // Csak a sorszámot mozgatja (főoldali húzás) — a tartalomhoz nem nyúl.
-todosRouter.use("/reorder", validateObjectId, validateOrderOnly, todosReorder);
+todosRouter.use("/reorder", validateObjectId, validateOrderOnly, serializePerUser, todosReorder);
 
 // A to-do főlistája: POST /to-dos
 todosRouter.use(todosRead);
@@ -141,7 +150,7 @@ router.use("/to-dos", todosRouter);
    Szimmetrikus a /to-dos-val, csak vékonyabb (nincs szín, sorszám-lekérdezés). */
 const quotesRouter = require("express").Router();
 
-quotesRouter.use("/create", validateObjectId, validateQuoteBody, quotesCreate);
+quotesRouter.use("/create", validateObjectId, validateQuoteBody, serializePerUser, quotesCreate);
 quotesRouter.use("/last/order", quotesReadLastOrder);
 quotesRouter.use("/authors", validateAuthorPrefix, quotesReadAuthors);
 quotesRouter.use("/author", validateAuthorFilter, quotesReadByAuthor);
@@ -155,9 +164,9 @@ quotesRouter.use("/edit", validateObjectId, quotesReadForEdit);
 quotesRouter.use("/search-mode", validateSearchTerm, quotesReadSearchMode);
 quotesRouter.use("/search", validateSearchTerm, quotesReadSearch);
 
-quotesRouter.use("/update", validateObjectId, validateQuoteBody, quotesUpdate);
-quotesRouter.use("/delete", validateObjectId, quotesDelete);
-quotesRouter.use("/reorder", validateObjectId, validateOrderOnly, quotesReorder);
+quotesRouter.use("/update", validateObjectId, validateQuoteBody, serializePerUser, quotesUpdate);
+quotesRouter.use("/delete", validateObjectId, serializePerUser, quotesDelete);
+quotesRouter.use("/reorder", validateObjectId, validateOrderOnly, serializePerUser, quotesReorder);
 
 // Az idézet-lista: POST /quotes
 quotesRouter.use(quotesRead);
