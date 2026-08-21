@@ -59,14 +59,17 @@ const SECTIONS = [
         name: "to-do",
         modelPath: require.resolve("../models/todos"),
         existing: {_id: newId(), user: OWNER, title: "Lista", order: 5},
-        createBody: {user: STRANGER, title: "Új", category: "otthon", color: "warning",
+        /* Az `id` a VALÓSÁGOT tükrözi: a létrehozás azonosítót is küld, mert azt a
+           kliens gyártja (l. controllers/createOnce.js). Nélküle a fixtúra olyan
+           kérést mintázna, amit a végpont ma már el sem fogad. */
+        createBody: {id: newId(), user: STRANGER, title: "Új", category: "otthon", color: "warning",
             order: 1, tasks: {}, taskOrder: []},
     },
     {
         name: "idézet",
         modelPath: require.resolve("../models/quotes"),
         existing: {_id: newId(), user: OWNER, quote: "Idézet", order: 5},
-        createBody: {user: STRANGER, quote: "Új idézet", author: "Szerző", order: 1},
+        createBody: {id: newId(), user: STRANGER, quote: "Új idézet", author: "Szerző", order: 1},
     },
 ];
 

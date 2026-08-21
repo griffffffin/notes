@@ -111,7 +111,13 @@ router.use("/refresh", usersRefresh);
    függetlenek, ezért fentebb NEM kerülnek prefix alá. */
 const todosRouter = require("express").Router();
 
-todosRouter.use("/create", validateTodoBody, todosCreate);
+/* A LÉTREHOZÁS IS AZONOSÍTÓT KÉR. Az `_id`-t a kliens adja (a szerkesztő
+   megnyitásakor születik), mert az egyedi index az egyetlen atomi eszközünk arra,
+   hogy egy megismételt kérés ne hozzon létre másodpéldányt — l. createOnce.js.
+   Ezért ugyanaz a két őr áll előtte, mint a módosítás előtt: az azonosító alakja,
+   majd a törzs. A hiányzó azonosító VALIDÁCIÓS HIBA, nem csendes visszaesés a
+   szerver-generálásra: a kétoldali kötést jobb kimondani, mint feltételezni. */
+todosRouter.use("/create", validateObjectId, validateTodoBody, todosCreate);
 
 todosRouter.use("/last/order", readLastOrder);
 todosRouter.use("/categories", todosReadCategory);
@@ -135,7 +141,7 @@ router.use("/to-dos", todosRouter);
    Szimmetrikus a /to-dos-val, csak vékonyabb (nincs szín, sorszám-lekérdezés). */
 const quotesRouter = require("express").Router();
 
-quotesRouter.use("/create", validateQuoteBody, quotesCreate);
+quotesRouter.use("/create", validateObjectId, validateQuoteBody, quotesCreate);
 quotesRouter.use("/last/order", quotesReadLastOrder);
 quotesRouter.use("/authors", validateAuthorPrefix, quotesReadAuthors);
 quotesRouter.use("/author", validateAuthorFilter, quotesReadByAuthor);

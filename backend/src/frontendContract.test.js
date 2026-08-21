@@ -139,3 +139,29 @@ test("a betűméret alapértéke egyezik a séma alapértékével", () => {
         "Az új idézet a szerkesztőben más méretet kap, mint amit a séma a mező nélküli régiekre ad — " +
         "a szöveg mérete ugrana a lista és a szerkesztő között.");
 });
+
+/* AZ ÚJ ELEM AZONOSÍTÓJÁNAK HOSSZA — a legfrissebb csomaghatár-kötés.
+
+   A létrehozás azonosítóját mostantól a KLIENS gyártja (frontend/src/objectId.ts),
+   mert az `_id` egyedi indexe az egyetlen atomi eszközünk arra, hogy egy
+   megismételt kérés ne hozzon létre másodpéldányt (backend createOnce.js). A
+   szerver viszont ELLENŐRZI az alakot, és pontosan 24 hexa karaktert enged át.
+
+   Ha a két oldal elcsúszik, az NEM néma — MINDEN létrehozás 400-at kapna —, de
+   csak élesben derülne ki, és a felhasználó egy megmagyarázhatatlan hibát látna.
+   Ezért itt, a határon kérjük számon: a kliens bájt-számai (időbélyeg + véletlen)
+   pontosan annyi hexa karaktert adnak, amennyit a szerver mintája megkövetel. */
+test("a kliens által gyártott azonosító hossza egyezik a szerver ellenőrzésével", () => {
+    const timestampBytes = declared("frontend/src/objectId",
+        /TIMESTAMP_BYTES\s*=\s*(\d+)/, "az időbélyeg bájtjai");
+    const randomBytes = declared("frontend/src/objectId",
+        /RANDOM_BYTES\s*=\s*(\d+)/, "a véletlen bájtok");
+    // backend/src/middleware/validators.js: /^[0-9a-f]{24}$/i
+    const required = declared("backend/src/middleware/validators",
+        /\[0-9a-f\]\{(\d+)\}/, "az azonosító megkövetelt hossza");
+
+    const produced = (Number(timestampBytes) + Number(randomBytes)) * 2;
+    assert.strictEqual(produced, Number(required),
+        `A kliens ${produced} hexa karaktert gyárt, a szerver ${required}-et vár. ` +
+        "Így minden létrehozás 400-zal bukna el.");
+});
