@@ -972,3 +972,36 @@ describe("Save — mentés közben nem lehet elhagyni a szerkesztőt", () => {
         expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/to-dos/update");
     });
 });
+
+/* A VISSZATÖLTÖTT PISZKOZATOT MENTENI IS LEHET.
+
+   Bejelentés nélküli, de valódi hiba, ami az idempotencia-tesztek írása közben
+   bukott ki (2026-08-21). A kötelező mezők ÉRVÉNYESSÉGE külön jelzőben él, amit a
+   felhasználó gépelése állít igazra — update-nél ezen felül a szerver-betöltés is.
+   Create-nél viszont nincs betöltés, és a piszkozat PROGRAMBÓL tölti ki a mezőket:
+   a jelzők hamisak maradtak, tehát a Mentés a kitöltött mezők fölé írta ki, hogy
+   "kitöltése kötelező". A szöveg ott volt a képernyőn, mégsem lehetett elmenteni —
+   pontosan az a fajta hiba, ami nem hibaüzenetnek látszik, hanem a mi hazugságunk.
+
+   A teszt SEMMIHEZ NEM NYÚL a visszatöltés után: ha a mentés elindul, a jelzők
+   helyesen álltak be. */
+describe("Save — a visszatöltött create-piszkozat menthető", () => {
+    afterEach(() => localStorage.clear());
+
+    it("érintetlen visszatöltés után a Mentés MENT, nem hibabuborékot ad", async () => {
+        localStorage.setItem("notes-draft:to-dos:create", JSON.stringify({
+            savedAt: Date.now(),
+            payload: {title: "Kész cím", category: "otthon", color: "danger", order: 1, tasks: {}, taskOrder: []},
+        }));
+        window.history.pushState({}, "", "/to-dos/create");
+        renderRoutes();
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Kész cím"));
+        handleAxios.mockClear();
+
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
+
+        await waitFor(() => expect(handleAxios.mock.calls.map((c) => c[0])).toContain("/to-dos/create"));
+        // A hibabuborék a másik ág: ha megjelenne, a mentés el sem indult volna.
+        expect(screen.queryByText(/kitöltése kötelező/)).not.toBeInTheDocument();
+    });
+});

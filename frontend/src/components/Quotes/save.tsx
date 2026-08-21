@@ -199,6 +199,12 @@ export default function QuoteSave(props: SaveProps) {
        „Visszatöltés" gombja. */
     const applyDraft = (payload: StoredDraft) => {
         setQuote(payload.quote);
+        /* AZ ÉRVÉNYESSÉG JELZŐJE IS — l. a Todos/save.tsx azonos pontját: create-nél
+           nincs szerver-betöltés, ami igazra állítaná, a piszkozat pedig programból
+           tölti ki a mezőt. Nélküle a visszatöltött idézetet nem lehetne menteni.
+           A szabály a mezőé (handleQuoteChange: `trim().length > 0`). */
+        setIsQuoteValid(payload.quote.trim().length > 0);
+
         setAuthor(payload.author);
         setOrder(payload.order);
         setFontSize(payload.fontSize);

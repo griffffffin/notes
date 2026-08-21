@@ -383,6 +383,22 @@ export default function Save(props: SaveProps) {
     const applyDraft = (payload: StoredDraft) => {
         setTitle(payload.title);
         setCategory(payload.category);
+        /* A KÖTELEZŐ MEZŐK ÉRVÉNYESSÉGÉT IS BE KELL ÁLLÍTANI, különben a
+           visszatöltött piszkozatot NEM LEHET MENTENI.
+
+           A jelzőket amúgy a felhasználó gépelése (handleTitleChange, Category
+           setIsValid) és update-nél a szerver-betöltés állítja igazra. Create-nél
+           viszont nincs betöltés, a piszkozat pedig PROGRAMBÓL tölti ki a mezőket
+           — a jelzők hamisak maradtak, és a Mentés gomb a kitöltött mezők fölé írt
+           "kitöltése kötelező" buborékot. A hiba a mentés-idempotencia tesztjeinek
+           írása közben bukott ki, 2026-08-21.
+
+           A SZABÁLYOK a mezők saját szabályai (cím: nem üres; kategória:
+           Todos/category.tsx `value.length > 0`) — itt megismételve, mert a
+           programból töltött mezőnek nincs eseménye, ami elsütné őket. */
+        setIsTitleValid(payload.title.length > 0);
+        setIsCategoryValid(payload.category.length > 0);
+
         setColor(payload.color);
         setOrder(payload.order);
         setTodo((current) => ({

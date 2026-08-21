@@ -948,3 +948,27 @@ describe("QuoteSave — mentés közben nem lehet elhagyni a szerkesztőt", () =
         expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/quotes/update");
     });
 });
+
+/* A VISSZATÖLTÖTT PISZKOZATOT MENTENI IS LEHET — l. a Todos/save.test.tsx azonos
+   blokkját az indoklásért. Create-nél nincs szerver-betöltés, ami az idézet
+   érvényesség-jelzőjét igazra állítaná, a piszkozat pedig programból tölti ki a
+   mezőt: a jelző nélkül a Mentés a kitöltött mező fölé írt hibabuborékot. */
+describe("QuoteSave — a visszatöltött create-piszkozat menthető", () => {
+    afterEach(() => localStorage.clear());
+
+    it("érintetlen visszatöltés után a Mentés MENT, nem hibabuborékot ad", async () => {
+        localStorage.setItem("notes-draft:quotes:create", JSON.stringify({
+            savedAt: Date.now(),
+            payload: {quote: "Kész idézet", author: "Valaki", order: 1, fontSize: 155},
+        }));
+        window.history.pushState({}, "", "/quotes/create");
+        renderRoutes();
+        await waitFor(() => expect(screen.getByPlaceholderText("Idézet szövege")).toHaveValue("Kész idézet"));
+        handleAxios.mockClear();
+
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
+
+        await waitFor(() => expect(handleAxios.mock.calls.map((c) => c[0])).toContain("/quotes/create"));
+        expect(screen.queryByText(/kitöltése kötelező/)).not.toBeInTheDocument();
+    });
+});
