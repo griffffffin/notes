@@ -107,7 +107,7 @@ describe("Save útvonalai", () => {
         // Onnan a navbar "+" gombjával az új to-do űrlapra.
         await userEvent.click(requireElement('[data-icon="plus"]', SVGSVGElement));
 
-        await waitFor(() => expect(window.location.pathname).toBe("/to-dos/create"));
+        await waitFor(() => expect(window.location.pathname).toMatch(/^\/to-dos\/create\/[0-9a-f]{24}$/));
         expect(screen.getByPlaceholderText("Cím")).toHaveValue("");
         expect(screen.getByPlaceholderText("Kategória")).toHaveValue("");
     });
@@ -292,7 +292,7 @@ describe("Változatlan mentés", () => {
            canvas-mérés — azt élőben, headless renderrel igazoltuk; jsdom-ban a
            portál nem rajzol, ezért itt a megfigyelhető VISELKEDÉST rögzítjük. */
         expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/to-dos/create");
-        expect(window.location.pathname).toBe("/to-dos/create");
+        expect(window.location.pathname).toMatch(/^\/to-dos\/create\/[0-9a-f]{24}$/);
     });
 
     it("ha módosítok, a Mentés elküldi a szervernek", async () => {

@@ -150,11 +150,16 @@ describe("minden szekció útja él a route-fában", () => {
                 renderRoutes(target.path);
                 await settle();
 
+                /* NEM pontos egyenlőség, hanem "ott vagy alatta". A létrehozó cím
+                   ugyanis TOVÁBB IRÁNYÍT: az új elem azonosítóját fűzi hozzá
+                   (/to-dos/create → /to-dos/create/<id>, l. routes.tsx CreateEntry).
+                   Amit ez a próba őriz, az nem a cím betűje, hanem hogy nem estünk
+                   a `*`-ágra — vagyis nem a MÁSIK szekcióban kötöttünk ki. */
                 expect(window.location.pathname,
                     `A ${target.path} címen nem áll route: az alkalmazás átdobott a ` +
                     `${other.path} címre. Vedd fel a hiányzó <Route>-ot a routes.tsx-be — ` +
                     "enélkül a szekció-váltó (és a '+' gomb) némán nem visz sehova.",
-                ).toBe(target.path);
+                ).toMatch(new RegExp("^" + target.path.replace(/\//g, "\\/") + "(\\/|$)"));
             });
         }
     }
@@ -237,5 +242,79 @@ describe("az átirányítás célja NEM fagy be a modul betöltésekor", () => {
         renderRoutes("/megint-nincs-ilyen");
 
         await waitFor(() => expect(window.location.pathname).toBe(PATHS.quotes));
+    });
+});
+
+/* A LÉTREHOZÁS BELÉPŐJE: honnan kapja az új elem az azonosítóját.
+
+   A "+" gomb a csupasz `/create` címre mutat — linkként, hogy megmaradjon az
+   állapotsori cím és az "új lapon megnyitás". Az azonosítót ezért az odaérkezés
+   adja hozzá, és ez NEM kényelmi kérdés: a létrehozás idempotenciája ezen az
+   azonosítón áll (backend/src/controllers/createOnce.js). Az útvonalban azért él,
+   hogy egy F5-öt is túléljen — enélkül a visszatöltött szöveg mentése ÚJ elemként
+   menne át, épp abban a helyzetben duplikálva, ami ellen a védelem készült.
+
+   Két dolgot kell egyszerre tudnia, és a kettő ellentétes irányba húz: minden ÚJ
+   nekifutás kapjon SAJÁT azonosítót, de egy FÉLBEHAGYOTT nekifutás folytatása
+   ugyanazt kapja vissza. Ezért néz bele a piszkozatba. */
+describe("a létrehozás belépője azonosítót ad az új elemnek", () => {
+    for (const section of SECTIONS) {
+        it(`${section.label} — a csupasz létrehozó cím azonosítóra irányít`, async () => {
+            renderRoutes(section.createPath);
+            await settle();
+
+            expect(window.location.pathname)
+                .toMatch(new RegExp("^" + section.createPath.replace(/\//g, "\\/") + "\\/[0-9a-f]{24}$"));
+        });
+    }
+
+    it("két külön nekifutás KÜLÖNBÖZŐ azonosítót kap", async () => {
+        /* Ha az azonosító egyszer születne és ottragadna (mondjuk egy memózott
+           linkben), a MÁSODIK létrehozás a szerver szemében a már megtörtént első
+           ismétlése volna: az idempotencia miatt csendben NEM jönne létre semmi.
+           Ez a próba pont azt a némaságot zárja ki. */
+        renderRoutes(PATHS.todoCreate);
+        await settle();
+        const first = window.location.pathname;
+
+        renderRoutes(PATHS.todoCreate);
+        await settle();
+
+        expect(window.location.pathname).not.toBe(first);
+    });
+
+    it("FÜGGŐ piszkozat esetén annak az azonosítóját folytatja", async () => {
+        /* A félbehagyott létrehozás szövege a "+"-ra ugyanúgy visszatér, mint
+           eddig — és ami fontosabb: UGYANAZZAL az azonosítóval megy majd a
+           szerverre. Ha itt új azonosító születne, egy elbukottnak hitt, valójában
+           célba ért mentés után másodpéldány keletkezne. */
+        const PENDING = "507f1f77bcf86cd799439011";
+        localStorage.setItem("notes-draft:to-dos:create", JSON.stringify({
+            savedAt: Date.now(),
+            itemId: PENDING,
+            payload: {title: "Félbehagyott", category: "otthon", color: "danger", order: 1,
+                tasks: {}, taskOrder: []},
+        }));
+
+        renderRoutes(PATHS.todoCreate);
+        await settle();
+
+        expect(window.location.pathname).toBe(PATHS.todoCreateItem(PENDING));
+    });
+
+    it("LEJÁRT piszkozat azonosítóját NEM folytatja", async () => {
+        // Lejárt piszkozatból nem folytatunk: a szerkesztő úgyis eldobja a szövegét.
+        const EIGHT_DAYS = 8 * 24 * 60 * 60 * 1000;
+        localStorage.setItem("notes-draft:to-dos:create", JSON.stringify({
+            savedAt: Date.now() - EIGHT_DAYS,
+            itemId: "507f1f77bcf86cd799439011",
+            payload: {title: "Régi", category: "otthon", color: "danger", order: 1, tasks: {}, taskOrder: []},
+        }));
+
+        renderRoutes(PATHS.todoCreate);
+        await settle();
+
+        expect(window.location.pathname).not.toBe(PATHS.todoCreateItem("507f1f77bcf86cd799439011"));
+        expect(window.location.pathname).toMatch(/^\/to-dos\/create\/[0-9a-f]{24}$/);
     });
 });

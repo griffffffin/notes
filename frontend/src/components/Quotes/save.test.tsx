@@ -109,7 +109,7 @@ describe("QuoteSave — create", () => {
         // maradunk. A gomb ilyenkor tiltott is (l. a fenti tesztet), de itt a
         // VÉGEREDMÉNYT állítjuk: szerzővel se lehessen idézet nélkül menteni.
         expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/quotes/create");
-        expect(window.location.pathname).toBe("/quotes/create");
+        expect(window.location.pathname).toMatch(/^\/quotes\/create\/[0-9a-f]{24}$/);
     });
 
     it("Ctrl+B a kijelölt szöveget félkövérré teszi, ismételt nyomásra vissza (toggle, nem halmoz)", async () => {
@@ -419,7 +419,7 @@ describe("QuoteSave — Vissza gomb (böngésző POP) a blockeren át", () => {
         window.history.back();
 
         // A blocker blokkol, érvénytelen → visszaállít (reset): a szerkesztőben maradunk.
-        await waitFor(() => expect(window.location.pathname).toBe("/quotes/create"));
+        await waitFor(() => expect(window.location.pathname).toMatch(/^\/quotes\/create\/[0-9a-f]{24}$/));
         expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/quotes/create");
     });
 });
@@ -440,7 +440,7 @@ describe("QuoteSave — logóra kattintás a szerkesztőben (ellenőrzés + ment
         await userEvent.click(screen.getByText("Quotes"));
 
         expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/quotes/create");
-        expect(window.location.pathname).toBe("/quotes/create");
+        expect(window.location.pathname).toMatch(/^\/quotes\/create\/[0-9a-f]{24}$/);
     });
 
     it("ÉRVÉNYES idézetet a logó MENT, majd a listára visz", async () => {

@@ -1,6 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import * as v from "valibot";
-import {clearDraft, draftKey, readDraft, saveDraft} from "./drafts";
+import {clearDraft, draftKey, readDraft, readDraftItemId, saveDraft} from "./drafts";
 
 /* A PISZKOZAT tesztjei.
 
@@ -135,5 +135,47 @@ describe("saveDraft + readDraft", () => {
         expect(readDraft(KEY, schema)).toBeNull();
 
         getItem.mockRestore();
+    });
+});
+
+/* A CSAK-AZONOSÍTÓ OLVASÓ — és ami megkülönbözteti a readDraft-tól.
+
+   A létrehozás belépője (components/routes.tsx) csak azt kérdezi: van-e függő
+   create, és milyen azonosítóval? Nem ismeri az adott szekció mezőit, tehát a
+   readDraft-ot nem hívhatja: az a TARTALMAT is ellenőrizné a kapott sémával, és
+   ha nem illik rá, ELDOBNÁ a bejegyzést — a felhasználó mentetlen szövegét. */
+describe("readDraftItemId", () => {
+    it("visszaadja a burokban őrzött azonosítót", () => {
+        saveDraft(KEY, {quote: "Szöveg", order: 1}, undefined, "507f1f77bcf86cd799439011");
+
+        expect(readDraftItemId(KEY)).toBe("507f1f77bcf86cd799439011");
+    });
+
+    it("null, ha nincs piszkozat vagy nincs benne azonosító", () => {
+        expect(readDraftItemId(KEY)).toBeNull();
+        saveDraft(KEY, {quote: "Azonosító nélkül", order: 1});
+        expect(readDraftItemId(KEY)).toBeNull();
+    });
+
+    it("lejárt piszkozat azonosítóját nem adja vissza", () => {
+        vi.useFakeTimers();
+        saveDraft(KEY, {quote: "Régi", order: 1}, undefined, "507f1f77bcf86cd799439011");
+        vi.advanceTimersByTime(7 * 24 * 60 * 60 * 1000 + 1000);
+
+        expect(readDraftItemId(KEY)).toBeNull();
+    });
+
+    it("NEM TÖRLI a piszkozatot, akkor sem, ha a tartalma ismeretlen alakú", () => {
+        /* EZ A LÉNYEG. A belépő nem ismeri a tartalom sémáját; ha ez a függvény
+           takarítana, egy nem várt alakú (de tökéletesen érvényes) piszkozatot
+           némán kitörölne — és a felhasználó szövege azzal együtt veszne. */
+        localStorage.setItem(KEY, JSON.stringify({
+            savedAt: Date.now(),
+            itemId: "507f1f77bcf86cd799439011",
+            payload: {teljesen: "más alak"},
+        }));
+
+        expect(readDraftItemId(KEY)).toBe("507f1f77bcf86cd799439011");
+        expect(localStorage.getItem(KEY)).not.toBeNull();
     });
 });

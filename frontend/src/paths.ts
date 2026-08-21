@@ -57,6 +57,13 @@
 const TODOS = "/to-dos";
 const QUOTES = "/quotes";
 
+/* A LÉTREHOZÁS KÉT CÍME, EGY előtagból. A "+" gomb a CSUPASZ címre mutat; az
+   azonosítót az odaérkező belépő-útvonal adja hozzá (l. routes.tsx). A kettő
+   ugyanabból a konstansból származik, mert a `/create` szegmens elcsúszása
+   pontosan az a néma hiba volna, ami ellen ez a fájl készült. */
+const TODO_CREATE = `${TODOS}/create`;
+const QUOTE_CREATE = `${QUOTES}/create`;
+
 /* Egy DINAMIKUS útvonal — olyan, amiben route-paraméter van.
 
    Egyetlen előtagból ad vissza kettőt, ami eddig külön élt:
@@ -93,7 +100,14 @@ export const PATHS = {
     /* A to-do szekció. A `todos` maga a lista (a szekció gyökere), a `todoCategory`
        és a `todoColor` a szűrt nézetek, a `todoUpdate` a szerkesztő. */
     todos: TODOS,
-    todoCreate: `${TODOS}/create`,
+    /* A "+" gomb célja: azonosító nélkül. Nem maga a szerkesztő, hanem a belépő,
+       ami az új elem azonosítóját megadja és tovább irányít. */
+    todoCreate: TODO_CREATE,
+    /* MAGA A SZERKESZTŐ egy KONKRÉT új elemhez. Azért van az azonosító az
+       útvonalban — ugyanúgy, mint a módosításnál —, mert a létrehozás
+       idempotenciája ezen az azonosítón áll: F5, megosztott link vagy egy másik
+       fülön megnyitott lap után is UGYANARRÓL az elemről van szó. */
+    todoCreateItem: route(TODO_CREATE, "id"),
     todoCategory: route(`${TODOS}/category`, "name"),
     todoColor: route(`${TODOS}/color`, "name"),
     todoUpdate: route(`${TODOS}/update`, "id"),
@@ -106,7 +120,8 @@ export const PATHS = {
        statikus create/update/search a route-fában eléjük. A `publicQuote` az
        egyetlen cím, ami kijelentkezve is megnyitható. */
     quotes: QUOTES,
-    quoteCreate: `${QUOTES}/create`,
+    quoteCreate: QUOTE_CREATE,
+    quoteCreateItem: route(QUOTE_CREATE, "id"),
     quoteUpdate: route(`${QUOTES}/update`, "id"),
     quoteSearch: route(`${QUOTES}/search`, "term"),
     quotesByAuthor: route(QUOTES, "author"),

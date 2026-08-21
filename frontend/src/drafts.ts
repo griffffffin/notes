@@ -90,6 +90,38 @@ export function saveDraft(key: string, payload: unknown, base?: unknown, itemId?
     }
 }
 
+/* CSAK AZ AZONOSÍTÓ a burokból — a tartalom megnézése nélkül.
+
+   A létrehozás belépője (components/routes.tsx) ezt kérdezi: van-e félbehagyott
+   create, és ha igen, milyen azonosítóval? A `readDraft` erre alkalmatlan volna,
+   és nem apró okból: az a PAYLOADOT is ellenőrzi a kapott sémával, és ha nem
+   illik rá, ELDOBJA a bejegyzést. A belépő viszont nem ismeri (és nem is akarja
+   ismerni) az adott szekció mezőit — egy közelítő sémával a felhasználó mentetlen
+   szövegét törölné ki, csendben.
+
+   Ezért ez a függvény csak a burkot nézi, és NEM töröl semmit: a takarítás a
+   szerkesztő `readDraft`-jának dolga, ami a tartalmat úgyis beolvassa. A lejárt
+   bejegyzés azonosítóját viszont nem adja vissza — abból már nem folytatunk. */
+export function readDraftItemId(key: string): string | null {
+    let raw: string | null = null;
+    try {
+        raw = localStorage.getItem(key);
+    } catch (error) {
+        logDev("A piszkozat olvasása nem sikerült:", error);
+        return null;
+    }
+    if (raw === null) return null;
+
+    let envelope;
+    try {
+        envelope = v.parse(envelopeSchema, JSON.parse(raw));
+    } catch {
+        return null;
+    }
+    if (Date.now() - envelope.savedAt > MAX_AGE_MS) return null;
+    return envelope.itemId ?? null;
+}
+
 export function clearDraft(key: string): void {
     try {
         localStorage.removeItem(key);

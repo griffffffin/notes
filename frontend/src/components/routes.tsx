@@ -1,6 +1,6 @@
-import {createContext, useContext, useMemo} from "react";
+import {createContext, useContext, useMemo, useState} from "react";
 import {
-    createBrowserRouter, createRoutesFromElements, Navigate, Outlet, Route, RouterProvider,
+    createBrowserRouter, createRoutesFromElements, Navigate, Outlet, Route, RouterProvider, useParams,
 } from "react-router-dom";
 import Navbar from "./Navbar/navbar";
 import Entry from "./User/entry";
@@ -15,6 +15,8 @@ import {useAuth} from "../contexts/auth-context";
 import {ENDPOINTS} from "../endpoints";
 import type {Endpoint} from "../endpoints";
 import {PATHS} from "../paths";
+import {newObjectId} from "../objectId";
+import {draftKey, readDraftItemId} from "../drafts";
 import type {CategoryAndColorGroupProps} from "./Link/categoryAndColorGroup";
 
 /* Miért DATA ROUTER (createBrowserRouter + RouterProvider) a régi deklaratív
@@ -119,9 +121,15 @@ function TodosReadRoute({url}: {url: Endpoint}) {
     return <Read url={url} handleLinkClicked={p.handleLinkClicked}/>;
 }
 
+/* A KEY create-nél az AZONOSÍTÓ, update-nél állandó. Két külön új elem között
+   valódi újraindulás kell (különben az előző űrlapja ragadna bent), a MÓDOSÍTÁS
+   viszont SZÁNDÉKOSAN nem indul újra azonosító-váltáskor: azt a betöltő effekt
+   kezeli, és a versenyhelyzet-tesztjei épp arra épülnek, hogy nincs remount. */
 function TodosSaveRoute({isUpdate}: {isUpdate: boolean}) {
     const p = useRoutesProps();
-    return <Save isUpdate={isUpdate} handleLinkClicked={p.handleLinkClicked} setIsSaving={p.setIsSaving}
+    const {id} = useParams();
+    return <Save key={isUpdate ? "update" : "create:" + id} isUpdate={isUpdate}
+                 handleLinkClicked={p.handleLinkClicked} setIsSaving={p.setIsSaving}
                  categories={p.categories} handleCategoryChange={p.handleCategoryChange}/>;
 }
 
@@ -137,7 +145,10 @@ function QuotesSearchRoute() {
 
 function QuotesSaveRoute({isUpdate}: {isUpdate: boolean}) {
     const p = useRoutesProps();
-    return <QuoteSave isUpdate={isUpdate} handleLinkClicked={p.handleLinkClicked} setIsSaving={p.setIsSaving}/>;
+    const {id} = useParams();
+    // A key indoklása a TodosSaveRoute-nál.
+    return <QuoteSave key={isUpdate ? "update" : "create:" + id} isUpdate={isUpdate}
+                      handleLinkClicked={p.handleLinkClicked} setIsSaving={p.setIsSaving}/>;
 }
 
 /* Az utolsó megnyitott szekcióra visz — a gyökér ÉS az ismeretlen út közös célja.
@@ -156,6 +167,35 @@ function RedirectToLastSection() {
     return <Navigate to={lastSectionPath()} replace/>;
 }
 
+/* A LÉTREHOZÁS BELÉPŐJE: azonosítót ad az új elemnek, és továbbküld.
+
+   A "+" gomb a csupasz `/create` címre mutat — linkként, hogy megmaradjon az
+   állapotsori cím, a középső gombos "új lapon megnyitás" és a jobb gombos menü.
+   Az azonosítót ezért nem a link gyártja (az minden renderben más címet adna),
+   hanem ez a komponens, amikor odaérkezünk. Új lapon megnyitva külön azonosítót
+   kap: két lapon két külön új elem, ahogy kell.
+
+   HA VAN FÜGGŐ PISZKOZAT, ANNAK AZ AZONOSÍTÓJÁT vesszük át. Egy félbehagyott
+   létrehozás szövege így ugyanúgy visszatér a "+"-ra, mint eddig — és ami
+   fontosabb: UGYANAZZAL az azonosítóval megy majd a szerverre, tehát ha az első
+   (elbukottnak hitt) mentés mégis célba ért, a második nem hoz létre
+   másodpéldányt (l. backend/src/controllers/createOnce.js).
+
+   Az azonosító EGYSZER születik meg (lusta kezdőérték). EZT A GUARDOT NEM FEDI
+   TESZT, és ezt jobb kimondani, mint elhallgatni: a komponens egyetlen render
+   után továbbnavigál, tehát a rendernkénti újragyártás ma nem látszana meg
+   (StrictMode alatt két azonosító születne, de csak az egyikre navigálnánk). A
+   `useState` így a SZÁNDÉKOT rögzíti — ez a cím egyetlen új elemhez tartozik —,
+   és megelőzi, hogy egy jövőbeli plusz render (mondjuk egy context-frissülés)
+   némán másik azonosítóra vigyen át.
+
+   A `replace` azért kell, hogy a csupasz cím ne ragadjon bent az előzményben — a
+   Vissza a listára vigyen, ne ide. */
+function CreateEntry({section, build}: {section: string; build: (id: string) => string}) {
+    const [target] = useState(() => build(readDraftItemId(draftKey(section, null)) ?? newObjectId()));
+    return <Navigate to={target} replace/>;
+}
+
 /* A két route-fa (bejelentkezve / kijelentkezve) — a régi Routes két <Router>-ágának
    1:1 megfelelője, csak data-router alakban. A `key` a Save/QuoteSave elemeken NEM
    dísz: a /create és a /update UGYANAZT a komponenst rendereli, a külön key nélkül a
@@ -168,7 +208,8 @@ const loggedInRoutes = createRoutesFromElements(
             részletei, a kulcs és az alapértelmezés a sections.ts-ben, egy helyen. */}
         <Route path={PATHS.root} element={<RedirectToLastSection/>}/>
         <Route path={PATHS.todos} element={<TodosReadRoute url={ENDPOINTS.todos}/>}/>
-        <Route path={PATHS.todoCreate} element={<TodosSaveRoute key="create" isUpdate={false}/>}/>
+        <Route path={PATHS.todoCreate} element={<CreateEntry section="to-dos" build={PATHS.todoCreateItem}/>}/>
+        <Route path={PATHS.todoCreateItem.pattern} element={<TodosSaveRoute key="create" isUpdate={false}/>}/>
         {/* A szűrő és a szerkesztendő azonosító az URL-ben, nem a navigációs
             state-ben — így F5/direkt link sem törik el. A MINTÁT (":name", ":id") a
             paths.ts ugyanabból az előtagból származtatja, amiből a rá mutató linkek
@@ -181,7 +222,9 @@ const loggedInRoutes = createRoutesFromElements(
             A statikus /quotes/create és /quotes/update rangban megelőzi a dinamikus
             /quotes/:author-t, így nem ütköznek. */}
         <Route path={PATHS.quotes} element={<QuotesReadRoute url={ENDPOINTS.quotes}/>}/>
-        <Route path={PATHS.quoteCreate} element={<QuotesSaveRoute key="quote-create" isUpdate={false}/>}/>
+        <Route path={PATHS.quoteCreate} element={<CreateEntry section="quotes" build={PATHS.quoteCreateItem}/>}/>
+        <Route path={PATHS.quoteCreateItem.pattern}
+               element={<QuotesSaveRoute key="quote-create" isUpdate={false}/>}/>
         <Route path={PATHS.quoteUpdate.pattern} element={<QuotesSaveRoute key="quote-update" isUpdate={true}/>}/>
         {/* A keresés szöveg-módú találata. A statikus "search" szegmens rangban
             megelőzi a dinamikus /quotes/:author-t ÉS a /quotes/:author/:id-t (a

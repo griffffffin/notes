@@ -28,7 +28,6 @@ import {parseResponse} from "../../contractFault";
 import LoadFailedNotice from "../loadFailedNotice";
 import * as v from "valibot";
 import {clearDraft, draftKey, readDraft, saveDraft} from "../../drafts";
-import {newObjectId} from "../../objectId";
 import {saveWithRetry} from "../../saveRetry";
 import {registerPendingSave} from "../../pendingSave";
 
@@ -157,24 +156,18 @@ export default function Save(props: SaveProps) {
     const draftRef = useRef(draft);
     draftRef.current = draft;
 
-    /* AZ ÚJ ELEM AZONOSÍTÓJA — még a mentés előtt megszületik (objectId.ts).
+    /* A MENTENDŐ ELEM AZONOSÍTÓJA — mostantól MINDKÉT módban az URL-ből.
 
-       Update-nél az elem azonosítója az URL-ből jön. Create-nél MI gyártjuk, mert
-       a létrehozás idempotenciája ezen áll: a szerver az `_id` egyedi indexéből
-       ismeri fel a megismételt kérést (l. backend/src/controllers/createOnce.js).
+       A módosításnál ez mindig így volt. A létrehozásnál azért került oda, mert a
+       létrehozás idempotenciája ezen az azonosítón áll (l.
+       backend/src/controllers/createOnce.js): amíg az azonosító csak a lap
+       memóriájában élt, egy F5 újat gyártott volna, és a visszatöltött szöveg
+       mentése ÚJ elemként ment volna át. Az útvonalban viszont túléli az
+       újratöltést, a megosztott linket és a másik fülön megnyitást is.
 
-       Ha van visszatölthető piszkozat a saját azonosítójával, AZT vesszük át:
-       enélkül egy F5 után új azonosító születne, a visszatöltött szöveg mentése
-       ÚJ elemként menne át — épp abban a helyzetben duplikálna, amiért az egész
-       védelem készült. A piszkozatot a FENTI, egyetlen olvasásból vesszük: a
-       `readDraft` nem tiszta függvény (a lejárt bejegyzést törli is), tehát egy
-       második hívás eredményét az első mellékhatása befolyásolná.
-
-       A típus KIMONDVA: update-nél null, create-nél string. */
-    const [newItemId] = useState<string | null>(
-        () => isUpdate ? null : (draft?.itemId ?? newObjectId()));
-    // A mentendő azonosító: update-nél a meglévő, create-nél az imént gyártott.
-    const savedItemId = todoId ?? newItemId;
+       Az azonosítót a létrehozás BELÉPŐ útvonala adja (components/routes.tsx):
+       vagy egy függő piszkozatból veszi át, vagy frisset gyárt. */
+    const savedItemId = id ?? null;
 
     /* A szerverről betöltött állapot — a beküldéskor ehhez mérjük, változott-e
        bármi. Ref és nem state: senki nem jeleníti meg, és a változása nem

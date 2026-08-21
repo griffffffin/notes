@@ -24,7 +24,6 @@ import {parseResponse} from "../../contractFault";
 import LoadFailedNotice from "../loadFailedNotice";
 import * as v from "valibot";
 import {clearDraft, draftKey, readDraft, saveDraft} from "../../drafts";
-import {newObjectId} from "../../objectId";
 import {saveWithRetry} from "../../saveRetry";
 import {registerPendingSave} from "../../pendingSave";
 
@@ -196,15 +195,18 @@ export default function QuoteSave(props: SaveProps) {
     const draftRef = useRef(draft);
     draftRef.current = draft;
 
-    /* AZ ÚJ ELEM AZONOSÍTÓJA — l. a Todos/save.tsx azonos pontját a részletes
-       indoklásért. Röviden: create-nél a KLIENS gyártja, mert a létrehozás
-       idempotenciája ezen áll, és a FENTI, egyetlen piszkozat-olvasásból veszi
-       vissza, ha van — enélkül egy F5 után új azonosítóval, tehát új elemként
-       menne át a mentés. */
-    const [newItemId] = useState<string | null>(
-        () => isUpdate ? null : (draft?.itemId ?? newObjectId()));
-    // A mentendő azonosító: update-nél a meglévő, create-nél az imént gyártott.
-    const savedItemId = quoteId ?? newItemId;
+    /* A MENTENDŐ ELEM AZONOSÍTÓJA — mostantól MINDKÉT módban az URL-ből.
+
+       A módosításnál ez mindig így volt. A létrehozásnál azért került oda, mert a
+       létrehozás idempotenciája ezen az azonosítón áll (l.
+       backend/src/controllers/createOnce.js): amíg az azonosító csak a lap
+       memóriájában élt, egy F5 újat gyártott volna, és a visszatöltött szöveg
+       mentése ÚJ elemként ment volna át. Az útvonalban viszont túléli az
+       újratöltést, a megosztott linket és a másik fülön megnyitást is.
+
+       Az azonosítót a létrehozás BELÉPŐ útvonala adja (components/routes.tsx):
+       vagy egy függő piszkozatból veszi át, vagy frisset gyárt. */
+    const savedItemId = id ?? null;
 
     /* A piszkozat mezőinek beírása a szerkesztőbe — egy helyen, mert két hívója
        van: a magától induló visszaállítás (a betöltés végén) és a felajánlás

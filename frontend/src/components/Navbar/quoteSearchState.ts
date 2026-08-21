@@ -62,7 +62,12 @@ type QuoteView = {
    fordítva. Így egy új idézet-útvonal nem tud némán bekerülni. */
 export const QUOTE_VIEWS: QuoteView[] = [
     {path: PATHS.quotes, show: true},
+    /* A létrehozás KÉT címe: a belépő (azonosító nélkül, ami tovább irányít) és
+       maga a szerkesztő. Egyiken sincs kereső — de MINDKETTŐNEK szerepelnie kell,
+       különben a szerkesztő címe a `/quotes/:author` mintára esne, és a navbarban
+       megjelenne a kereső "create" szöveggel. */
     {path: PATHS.quoteCreate, show: false},
+    {path: PATHS.quoteCreateItem.pattern, show: false},
     {path: PATHS.quoteUpdate.pattern, show: false},
     {path: PATHS.quoteSearch.pattern, show: true, termParam: "term"},
     {path: PATHS.quotesByAuthor.pattern, show: true, termParam: "author"},
