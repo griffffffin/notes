@@ -36,6 +36,29 @@ test("azonosító helyett küldött OPERÁTORT elutasít — NoSQL-injekció ell
     assert.strictEqual((await postId({id: {$ne: null}})).status, 400);
 });
 
+/* A SZÁM: a mongoose.isValidObjectId ELFOGADTA volna.
+
+   MÉRVE (2026-08-21, a Pi mongoose-ával): `isValidObjectId(12345)` → true. Amíg
+   az azonosító mindig a szerverről jött vissza, ez elméleti maradt; a
+   LÉTREHOZÁS azonosítóját viszont a kliens adja, tehát ez valódi bemeneti
+   felület. A saját, szigorú alak-ellenőrzés (pontosan 24 hexa) ezt a rést zárja
+   — és ha valaki egyszer visszatérne a könyvtár tágabb vizsgálatához, ez a teszt
+   szól érte. */
+test("SZÁMKÉNT küldött azonosítót elutasít (400)", async () => {
+    assert.strictEqual((await postId({id: 12345})).status, 400);
+});
+
+test("rossz HOSSZÚSÁGÚ és nem hexa azonosítót elutasít (400)", async () => {
+    assert.strictEqual((await postId({id: "507f1f77bcf86cd79943901"})).status, 400, "23 karakter");
+    assert.strictEqual((await postId({id: "507f1f77bcf86cd7994390111"})).status, 400, "25 karakter");
+    assert.strictEqual((await postId({id: "507f1f77bcf86cd79943901z"})).status, 400, "nem hexa karakter");
+    assert.strictEqual((await postId({id: "123456789012"})).status, 400, "12 bájtos szöveg");
+});
+
+test("NAGYBETŰS hexát átenged (ugyanaz az azonosító)", async () => {
+    assert.strictEqual((await postId({id: "507F1F77BCF86CD799439011"})).status, 200);
+});
+
 test("érvényes sorszámot átenged", async () => {
     assert.strictEqual((await postOrder({order: 1})).status, 200);
     assert.strictEqual((await postOrder({order: MAX_ORDER})).status, 200);

@@ -1,5 +1,3 @@
-const mongoose = require("mongoose");
-
 /* A validáló middleware-ek KÖZÖS PRIMITÍVJEI — a típus-ellenőrzők és az a két
    szabály, ami minden szekcióban szó szerint ugyanaz.
 
@@ -24,11 +22,28 @@ const isText = (value) => typeof value === "string";
 const isInteger = (value) => typeof value === "number" && Number.isInteger(value);
 const isValidOrder = (value) => isInteger(value) && value >= 1 && value <= MAX_ORDER;
 
-/* Az azonosító FORMÁJA. Enélkül a Mongoose CastError-t dobna a lekérdezésnél,
-   amiből csúf 500 (vagy a régi kódban 400 "Error: CastError…") lett volna —
-   érdemes előbb, olvasható üzenettel elkapni. */
+/* Az azonosító FORMÁJA: pontosan 24 hexa karakter — ennyi egy ObjectId (12 bájt).
+
+   MIÉRT NEM `mongoose.isValidObjectId`. Mert az TÁGABB, mint amit mi elfogadni
+   akarunk, és a különbség ma már számít. MÉRVE (2026-08-21, a Pi mongoose-ával):
+
+     "507f1f77bcf86cd799439011" -> true    (valódi azonosító)
+     "123456789012"             -> false
+     12345                      -> TRUE    ← SZÁM, és átment volna
+
+   Amíg az azonosító mindig a szerverről jött vissza, ez elméleti maradt. A
+   létrehozás azonosítóját viszont a KLIENS adja (l. Todos/create.js), tehát ez
+   már valódi bemeneti felület: ott a "bármi 12 bájtnyi" nem elég szűk. A szigorú
+   alak egy helyen áll, és az összes id-s végpont ezt kapja — a lazább változat
+   sehol nem marad bent.
+
+   Enélkül a Mongoose CastError-t dobna a lekérdezésnél, amiből csúf 500 (vagy a
+   régi kódban 400 "Error: CastError…") lett volna — érdemes előbb, olvasható
+   üzenettel elkapni. */
+const isObjectIdHex = (value) => typeof value === "string" && /^[0-9a-f]{24}$/i.test(value);
+
 const validateObjectId = (request, response, next) => {
-    if (!mongoose.isValidObjectId(request.body?.id)) return response.status(400).json("Érvénytelen azonosító.");
+    if (!isObjectIdHex(request.body?.id)) return response.status(400).json("Érvénytelen azonosító.");
     next();
 };
 
