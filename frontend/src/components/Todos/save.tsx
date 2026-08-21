@@ -28,6 +28,7 @@ import {parseResponse} from "../../contractFault";
 import LoadFailedNotice from "../loadFailedNotice";
 import * as v from "valibot";
 import {clearDraft, draftKey, readDraft, saveDraft} from "../../drafts";
+import {newObjectId} from "../../objectId";
 import {saveWithRetry} from "../../saveRetry";
 import {registerPendingSave} from "../../pendingSave";
 
@@ -148,12 +149,32 @@ export default function Save(props: SaveProps) {
     const draftStorageKey = draftKey("to-dos", todoId ?? null);
     /* EGYSZER olvassuk ki, a legelső renderben (lusta kezdőérték). A típus
        kimondva, mert a kezdőérték `null` is lehet. */
-    const [draft, setDraft] = useState<{payload: StoredDraft; base: StoredDraft | null; savedAt: Date} | null>(
+    const [draft, setDraft] = useState<{payload: StoredDraft; base: StoredDraft | null; savedAt: Date;
+        itemId: string | null} | null>(
         () => readDraft(draftStorageKey, draftSchema));
     /* A piszkozat legfrissebb értéke REFBEN is (l. Quotes/save.tsx azonos pontját):
        a betöltő effekt zárványa különben a mountkori állapotot látná. */
     const draftRef = useRef(draft);
     draftRef.current = draft;
+
+    /* AZ ÚJ ELEM AZONOSÍTÓJA — még a mentés előtt megszületik (objectId.ts).
+
+       Update-nél az elem azonosítója az URL-ből jön. Create-nél MI gyártjuk, mert
+       a létrehozás idempotenciája ezen áll: a szerver az `_id` egyedi indexéből
+       ismeri fel a megismételt kérést (l. backend/src/controllers/createOnce.js).
+
+       Ha van visszatölthető piszkozat a saját azonosítójával, AZT vesszük át:
+       enélkül egy F5 után új azonosító születne, a visszatöltött szöveg mentése
+       ÚJ elemként menne át — épp abban a helyzetben duplikálna, amiért az egész
+       védelem készült. A piszkozatot a FENTI, egyetlen olvasásból vesszük: a
+       `readDraft` nem tiszta függvény (a lejárt bejegyzést törli is), tehát egy
+       második hívás eredményét az első mellékhatása befolyásolná.
+
+       A típus KIMONDVA: update-nél null, create-nél string. */
+    const [newItemId] = useState<string | null>(
+        () => isUpdate ? null : (draft?.itemId ?? newObjectId()));
+    // A mentendő azonosító: update-nél a meglévő, create-nél az imént gyártott.
+    const savedItemId = todoId ?? newItemId;
 
     /* A szerverről betöltött állapot — a beküldéskor ehhez mérjük, változott-e
        bármi. Ref és nem state: senki nem jeleníti meg, és a változása nem
@@ -398,7 +419,6 @@ export default function Save(props: SaveProps) {
            programból töltött mezőnek nincs eseménye, ami elsütné őket. */
         setIsTitleValid(payload.title.length > 0);
         setIsCategoryValid(payload.category.length > 0);
-
         setColor(payload.color);
         setOrder(payload.order);
         setTodo((current) => ({
@@ -532,7 +552,9 @@ export default function Save(props: SaveProps) {
             color: color,
             order: order,
         };
-        const data: TodoPayload = todoId ? {...snapshot, id: todoId} : snapshot;
+        /* AZ AZONOSÍTÓ MINDIG MEGY — create-nél is: a szerver ebből ismeri fel a
+           megismételt létrehozást (createOnce.js), és a végpont meg is követeli. */
+        const data: TodoPayload = {...snapshot, ...(savedItemId ? {id: savedItemId} : {})};
         /* A BUKÁS ÁGA. Maradunk a szerkesztőben (reset), és HÁROM dolgot teszünk:
            (1) a mentés-állapotot lezárjuk, tehát a gomb felirata "Mentés…"-ről
                visszaáll "Mentés"-re — ez maga a visszajelzés, hogy gikszer volt;
@@ -545,7 +567,7 @@ export default function Save(props: SaveProps) {
             markSaving(false);
             setSaveFailed(true);
             logRequestError(error);
-            saveDraft(draftStorageKey, snapshot, loadedTodo.current ?? undefined);
+            saveDraft(draftStorageKey, snapshot, loadedTodo.current ?? undefined, savedItemId ?? undefined);
             blocker.reset();
         };
         /* A FUTÓ MENTÉS ÍGÉRETE (l. inFlightRef): a `settled` a promise saját
@@ -569,7 +591,7 @@ export default function Save(props: SaveProps) {
             blocker.proceed();
         }, (error) => { settled(); failSave(error); });
     }, [blocker, isTitleValid, isCategoryValid, title, category, color, order, todo,
-        isUpdate, todoId, url, handleAxios, props, draftStorageKey, markSaving]);
+        isUpdate, todoId, url, handleAxios, props, draftStorageKey, markSaving, savedItemId]);
 
     /* A BUKÁS UTÁN A MENTÉS GOMBRA KERÜL A FÓKUSZ — ugyanaz a fogás, amit a
        törlés-modal használ a hibája után (Todos/modal.tsx).
@@ -615,8 +637,7 @@ export default function Save(props: SaveProps) {
         if (!hasSilentWork()) return Promise.resolve();
         // L. a Quotes/save.tsx azonos pontját: a kijelentkezés megvárja ezt a mentést.
         leftViaForm.current = true;
-        const data = currentData();
-        if (todoId) data.id = todoId;
+        const data: TodoPayload = {...currentData(), ...(savedItemId ? {id: savedItemId} : {})};
         // A zárványolt `token` (nem az élő tokenRef): kijelentkezéskor az élő már null.
         /* A LEVÁLÁSKORI MENTÉS a legkockázatosabb út: a képernyő épp megszűnik,
            tehát ha ez elbukik (lejárt token, alvó szerver, megszakadt hálózat),
@@ -635,7 +656,7 @@ export default function Save(props: SaveProps) {
             (error) => {
                 leftViaForm.current = false;
                 logRequestError(error);
-                saveDraft(draftStorageKey, currentData(), loadedTodo.current ?? undefined);
+                saveDraft(draftStorageKey, currentData(), loadedTodo.current ?? undefined, savedItemId ?? undefined);
             });
     };
 
@@ -653,7 +674,7 @@ export default function Save(props: SaveProps) {
     useEffect(() => {
         const keepWork = () => {
             if (!hasSilentWork()) return;
-            saveDraft(draftStorageKey, currentData(), loadedTodo.current ?? undefined);
+            saveDraft(draftStorageKey, currentData(), loadedTodo.current ?? undefined, savedItemId ?? undefined);
         };
         window.addEventListener("beforeunload", keepWork);
         return () => window.removeEventListener("beforeunload", keepWork);
@@ -687,7 +708,7 @@ export default function Save(props: SaveProps) {
            állítja a shouldBlock refjét és a felirat state-jét. */
         markSaving(true);
         const snapshot = currentData();
-        const data: TodoPayload = todoId ? {...snapshot, id: todoId} : snapshot;
+        const data: TodoPayload = {...snapshot, ...(savedItemId ? {id: savedItemId} : {})};
         // Az autosave ígérete is a kijelentkezésnek szól (l. inFlightRef).
         let settled: () => void = () => undefined;
         inFlightRef.current = new Promise<void>((resolve) => { settled = resolve; });
@@ -715,7 +736,7 @@ export default function Save(props: SaveProps) {
             /* Az autosave bukása után a szerkesztő MEGMARAD, tehát a szöveg még a
                képernyőn van — de a 15 perces tétlenségi kijelentkezés már a lejárt
                tokennel érné, ahonnan nincs mentés. A piszkozat ezt a rést fedi le. */
-            saveDraft(draftStorageKey, currentData(), loadedTodo.current ?? undefined);
+            saveDraft(draftStorageKey, currentData(), loadedTodo.current ?? undefined, savedItemId ?? undefined);
         });
     });
 

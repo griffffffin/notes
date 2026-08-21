@@ -875,7 +875,7 @@ describe("Save — mentés közben nem lehet elhagyni a szerkesztőt", () => {
         expect(screen.getByRole("button", {name: "Törlés"})).toBeDisabled();
 
         // A siker után a felirat okafogyott: elhagyjuk a szerkesztőt.
-        at(pending, 0).ok();
+        await act(async () => { at(pending, 0).ok(); });
         await waitFor(() => expect(window.location.pathname).toBe("/to-dos"));
     });
 
@@ -970,6 +970,82 @@ describe("Save — mentés közben nem lehet elhagyni a szerkesztőt", () => {
         view.unmount();
 
         expect(handleAxios.mock.calls.map((c) => c[0])).not.toContain("/to-dos/update");
+    });
+});
+
+/* A LÉTREHOZÁS AZONOSÍTÓJA — a duplikáció elleni védelem kliens-oldali fele.
+
+   A szerver az `_id` egyedi indexéből ismeri fel a megismételt létrehozást
+   (backend/src/controllers/createOnce.js), de ehhez az azonosítónak a KLIENSTŐL
+   kell jönnie, és UGYANANNAK kell maradnia a szerkesztő teljes élete alatt — az
+   oldal újratöltését is beleértve. Ha új azonosító születne, a védelem nem
+   hibázna, csak épp nem védene: a mentés új elemként menne át. */
+describe("Save — a create azonosítója", () => {
+    afterEach(() => localStorage.clear());
+
+    const idOfCreate = () => {
+        const call = handleAxios.mock.calls.find((c) => c[0] === "/to-dos/create");
+        return call ? idOf(call[1]) : null;
+    };
+
+    const fillAndSave = async () => {
+        await userEvent.type(screen.getByPlaceholderText("Cím"), "Új dolog");
+        await userEvent.type(screen.getByPlaceholderText("Kategória"), "otthon");
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
+        await waitFor(() => expect(idOfCreate()).not.toBeNull());
+    };
+
+    it("a létrehozás ObjectId-alakú azonosítót küld", async () => {
+        /* A 24 hexa nem ízlés kérdése: a szerver validátora pontosan ezt engedi át
+           (a két oldal egyezését a backend frontendContract.test.js-e őrzi). */
+        window.history.pushState({}, "", "/to-dos/create");
+        renderRoutes();
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toBeInTheDocument());
+
+        await fillAndSave();
+
+        expect(idOfCreate()).toMatch(/^[0-9a-f]{24}$/);
+    });
+
+    it("F5 UTÁN ugyanazt az azonosítót küldi (a piszkozatból)", async () => {
+        /* EZ A LÉNYEGI ESET. A felhasználó ír, a mentés elbukik (piszkozat), majd
+           újratölti az oldalt — épp azért, mert valami nem stimmelt. Ha ilyenkor
+           új azonosító születne, a következő mentés ÚJ elemet hozna létre azon
+           felül, amit az első kérés esetleg mégis létrehozott. */
+        const DRAFT_ID = "507f1f77bcf86cd799439011";
+        localStorage.setItem("notes-draft:to-dos:create", JSON.stringify({
+            savedAt: Date.now(),
+            itemId: DRAFT_ID,
+            payload: {title: "Félbehagyott", category: "otthon", color: "danger", order: 1, tasks: {}, taskOrder: []},
+        }));
+        window.history.pushState({}, "", "/to-dos/create");
+        renderRoutes();
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Félbehagyott"));
+
+        await userEvent.type(screen.getByPlaceholderText("Cím"), "!");
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
+        await waitFor(() => expect(idOfCreate()).not.toBeNull());
+
+        expect(idOfCreate()).toBe(DRAFT_ID);
+    });
+
+    it("a piszkozatba is BEKERÜL az azonosító, ha a mentés elbukik", async () => {
+        // Enélkül a fenti visszatöltésnek nem lenne mit visszaadnia.
+        handleAxios.mockImplementation((url, data, then, catchError) => {
+            if (url === "/to-dos/last/order") then(axiosResponse(3));
+            else if (url === "/to-dos") then(axiosResponse([]));
+            else if (url === "/to-dos/create") catchError({message: "timeout"});
+            else then(axiosResponse({}));
+            return Promise.resolve();
+        });
+        window.history.pushState({}, "", "/to-dos/create");
+        renderRoutes();
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toBeInTheDocument());
+
+        await fillAndSave();
+
+        const draft: unknown = JSON.parse(localStorage.getItem("notes-draft:to-dos:create") ?? "null");
+        expect(draft).toMatchObject({itemId: idOfCreate()});
     });
 });
 

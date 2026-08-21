@@ -66,15 +66,22 @@ export function draftKey(section: string, id: string | null): string {
    A `base` OPCIONÁLIS: create-nél nincs mihez képest (még nem létezett az elem),
    és a régebbi verziók piszkozataiban sincs benne. Mindkét eset azt jelenti, hogy
    nincs ütközés-vizsgálat — create-nél nincs is mit felülírni. */
+/* Az `itemId` az ÚJ ELEM azonosítója (create-nél), amit a kliens gyárt még a
+   mentés előtt (objectId.ts). Azért kell a piszkozatba, mert a létrehozás
+   idempotenciája EZEN az azonosítón áll: ha az F5 vagy a lap újranyitása után új
+   azonosító születne, akkor a visszatöltött piszkozat mentése ÚJ elemként menne
+   át — és épp abban a helyzetben duplikálna, amiért a védelem készült. Update-nél
+   nincs rá szükség (az elemnek már van azonosítója), ezért opcionális. */
 const envelopeSchema = v.object({
     savedAt: v.number(),
     payload: v.unknown(),
     base: v.optional(v.unknown()),
+    itemId: v.optional(v.string()),
 });
 
-export function saveDraft(key: string, payload: unknown, base?: unknown): void {
+export function saveDraft(key: string, payload: unknown, base?: unknown, itemId?: string): void {
     try {
-        localStorage.setItem(key, JSON.stringify({savedAt: Date.now(), payload, base}));
+        localStorage.setItem(key, JSON.stringify({savedAt: Date.now(), payload, base, itemId}));
     } catch (error) {
         /* A localStorage írása DOBHAT: tele a kvóta, privát ablak, letiltott
            tárolás. Ez a mentés végső vésztartaléka — ha ő sem megy, akkor sincs
@@ -100,7 +107,8 @@ export function clearDraft(key: string): void {
 export function readDraft<TSchema extends v.GenericSchema>(
     key: string,
     schema: TSchema,
-): {payload: v.InferOutput<TSchema>; base: v.InferOutput<TSchema> | null; savedAt: Date} | null {
+): {payload: v.InferOutput<TSchema>; base: v.InferOutput<TSchema> | null; savedAt: Date;
+    itemId: string | null} | null {
     let raw: string | null = null;
     try {
         raw = localStorage.getItem(key);
@@ -141,5 +149,6 @@ export function readDraft<TSchema extends v.GenericSchema>(
         payload: parsed.output,
         base: base.success ? base.output : null,
         savedAt: new Date(envelope.savedAt),
+        itemId: envelope.itemId ?? null,
     };
 }

@@ -906,7 +906,7 @@ describe("QuoteSave — mentés közben nem lehet elhagyni a szerkesztőt", () =
         await waitFor(() => expect(screen.getByRole("button", {name: "Mentés…"})).toBeDisabled());
         expect(screen.getByRole("button", {name: "Törlés"})).toBeDisabled();
 
-        at(pending, 0).ok();
+        await act(async () => { at(pending, 0).ok(); });
         await waitFor(() => expect(window.location.pathname).toBe("/quotes"));
     });
 

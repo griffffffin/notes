@@ -24,6 +24,7 @@ import {parseResponse} from "../../contractFault";
 import LoadFailedNotice from "../loadFailedNotice";
 import * as v from "valibot";
 import {clearDraft, draftKey, readDraft, saveDraft} from "../../drafts";
+import {newObjectId} from "../../objectId";
 import {saveWithRetry} from "../../saveRetry";
 import {registerPendingSave} from "../../pendingSave";
 
@@ -184,7 +185,8 @@ export default function QuoteSave(props: SaveProps) {
     /* EGYSZER olvassuk ki, a legelső renderben (lusta kezdőérték): a piszkozat a
        megnyitás PILLANATÁBAN érvényes állapot. A típus kimondva, mert a kezdőérték
        `null` is lehet (l. CLAUDE.md, "kezdőérték ≠ típus"). */
-    const [draft, setDraft] = useState<{payload: StoredDraft; base: StoredDraft | null; savedAt: Date} | null>(
+    const [draft, setDraft] = useState<{payload: StoredDraft; base: StoredDraft | null; savedAt: Date;
+        itemId: string | null} | null>(
         () => readDraft(draftStorageKey, draftSchema));
 
     /* A piszkozat legfrissebb értéke REFBEN is: a betöltő effekt zárványa
@@ -193,6 +195,16 @@ export default function QuoteSave(props: SaveProps) {
        a betöltés újraindulna). */
     const draftRef = useRef(draft);
     draftRef.current = draft;
+
+    /* AZ ÚJ ELEM AZONOSÍTÓJA — l. a Todos/save.tsx azonos pontját a részletes
+       indoklásért. Röviden: create-nél a KLIENS gyártja, mert a létrehozás
+       idempotenciája ezen áll, és a FENTI, egyetlen piszkozat-olvasásból veszi
+       vissza, ha van — enélkül egy F5 után új azonosítóval, tehát új elemként
+       menne át a mentés. */
+    const [newItemId] = useState<string | null>(
+        () => isUpdate ? null : (draft?.itemId ?? newObjectId()));
+    // A mentendő azonosító: update-nél a meglévő, create-nél az imént gyártott.
+    const savedItemId = quoteId ?? newItemId;
 
     /* A piszkozat mezőinek beírása a szerkesztőbe — egy helyen, mert két hívója
        van: a magától induló visszaállítás (a betöltés végén) és a felajánlás
@@ -204,7 +216,6 @@ export default function QuoteSave(props: SaveProps) {
            tölti ki a mezőt. Nélküle a visszatöltött idézetet nem lehetne menteni.
            A szabály a mezőé (handleQuoteChange: `trim().length > 0`). */
         setIsQuoteValid(payload.quote.trim().length > 0);
-
         setAuthor(payload.author);
         setOrder(payload.order);
         setFontSize(payload.fontSize);
@@ -542,14 +553,15 @@ export default function QuoteSave(props: SaveProps) {
 
        useCallback: a blocker-effekt függőségi listájában ez az EGY érték áll a hat
        nyers state helyett, így az effekt csak akkor fut újra, ha a payload tényleg
-       változhatott. Az id-t a `quoteId` truthy-vizsgálatával tesszük be (nem
-       `isUpdate`-tel): update-nél a quoteId string, ez szűkíti a `string | null`-t
-       stringre, create-nél null → nem kerül id a payloadba. */
+       változhatott.
+
+       AZ AZONOSÍTÓ MINDIG BEKERÜL — create-nél is: a szerver ebből ismeri fel a
+       megismételt létrehozást (createOnce.js), és a végpont meg is követeli. */
     const buildPayload = useCallback((): QuotePayload => {
         const data: QuotePayload = {quote: normalizeBold(quote), author: author, order: order, fontSize: fontSize};
-        if (quoteId) data.id = quoteId;
+        if (savedItemId) data.id = savedItemId;
         return data;
-    }, [quote, author, order, fontSize, quoteId]);
+    }, [quote, author, order, fontSize, savedItemId]);
 
     /* A NAVIGÁCIÓ-ELKAPÓ mentés magja: a blocker akkor billen "blocked"-ba, ha van
        mentenivaló ÉS navigálni próbálnak (Mentés, Escape, logó, "+", Vissza gomb,
@@ -580,7 +592,7 @@ export default function QuoteSave(props: SaveProps) {
             markSaving(false);
             setSaveFailed(true);
             logRequestError(error);
-            saveDraft(draftStorageKey, buildPayload(), loaded.current ?? undefined);
+            saveDraft(draftStorageKey, buildPayload(), loaded.current ?? undefined, savedItemId ?? undefined);
             blocker.reset();
         };
         /* A futó mentés ígérete (l. inFlightRef): a `settled` a promise saját
@@ -601,7 +613,8 @@ export default function QuoteSave(props: SaveProps) {
             leftViaForm.current = true;
             blocker.proceed();
         }, (error) => { settled(); failSave(error); });
-    }, [blocker, isQuoteValid, buildPayload, url, handleAxios, props, draftStorageKey, markSaving]);
+    }, [blocker, isQuoteValid, buildPayload, url, handleAxios, props, draftStorageKey, markSaving,
+        savedItemId]);
 
     /* A BUKÁS UTÁN A MENTÉS GOMBRA KERÜL A FÓKUSZ — a részletes indoklás a
        Todos/save.tsx azonos effektjénél. Külön effekt, mert a gomb a mentés alatt
@@ -665,7 +678,7 @@ export default function QuoteSave(props: SaveProps) {
                 // Feladtuk: egy későbbi távozás újrapróbálhatja, a szöveg a piszkozatban.
                 leftViaForm.current = false;
                 logRequestError(error);
-                saveDraft(draftStorageKey, buildPayload(), loaded.current ?? undefined);
+                saveDraft(draftStorageKey, buildPayload(), loaded.current ?? undefined, savedItemId ?? undefined);
             });
     };
 
@@ -683,7 +696,7 @@ export default function QuoteSave(props: SaveProps) {
     useEffect(() => {
         const keepWork = () => {
             if (!hasSilentWork()) return;
-            saveDraft(draftStorageKey, buildPayload(), loaded.current ?? undefined);
+            saveDraft(draftStorageKey, buildPayload(), loaded.current ?? undefined, savedItemId ?? undefined);
         };
         window.addEventListener("beforeunload", keepWork);
         return () => window.removeEventListener("beforeunload", keepWork);
@@ -739,7 +752,7 @@ export default function QuoteSave(props: SaveProps) {
                a szöveg még a képernyőn van — de a 15 perces tétlenségi kijelentkezés
                már a lejárt tokennel érné, ahonnan nincs mentés. A piszkozat ezt a
                rést fedi le. */
-            saveDraft(draftStorageKey, buildPayload(), loaded.current ?? undefined);
+            saveDraft(draftStorageKey, buildPayload(), loaded.current ?? undefined, savedItemId ?? undefined);
         });
     });
 
