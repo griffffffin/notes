@@ -1,6 +1,8 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import * as v from "valibot";
 import {clearDraft, draftKey, readDraft, readDraftItemId, saveDraft} from "./drafts";
+import {clearDraftKey, isEncryptedDraft, setDraftKey} from "./draftCrypto";
+import {giveDraftKey} from "./test/draftKey";
 
 /* A PISZKOZAT tesztjei.
 
@@ -18,11 +20,16 @@ const KEY = draftKey("quotes", "q-1");
 beforeEach(() => {
     localStorage.clear();
     vi.useRealTimers();
+    /* A piszkozat MA TITKOSÍTVA íródik ki, tehát kulcs nélkül meg sem születne.
+       A kulcs-nélküli állapotnak külön blokkja van lentebb — az a viselkedés
+       ugyanolyan fontos, mint a titkosítás maga. */
+    giveDraftKey();
 });
 
 afterEach(() => {
     localStorage.clear();
     vi.useRealTimers();
+    clearDraftKey();
 });
 
 describe("draftKey", () => {
@@ -135,6 +142,136 @@ describe("saveDraft + readDraft", () => {
         expect(readDraft(KEY, schema)).toBeNull();
 
         getItem.mockRestore();
+    });
+});
+
+/* AMI A LEMEZRE KERÜL — ez az egész titkosítás értelme.
+
+   A piszkozat a felhasználó gépén, a böngésző profilkönyvtárában fekvő fájlba
+   kerül. Amíg nyílt szöveg volt, addig egy másik OS-fiók vagy egy ellopott lemez
+   simán elolvasta. Ezek a tesztek azt kérik számon, hogy ott már ne legyen mit
+   elolvasni. */
+describe("a tárolóba írt érték", () => {
+    it("TITKOSÍTVA fekszik ott — a beírt szöveg nem olvasható ki belőle", () => {
+        saveDraft(KEY, {quote: "A bankkartyam PIN kodja 1234", order: 1});
+
+        const stored = localStorage.getItem(KEY);
+        expect(stored).not.toBeNull();
+        expect(isEncryptedDraft(stored ?? "")).toBe(true);
+        expect(stored).not.toContain("bankkartyam");
+        // A base64 nem titkosítás: dekódolva sem lehet ott a szöveg.
+        expect(atob(stored?.split(".")[2] ?? "")).not.toContain("bankkartyam");
+    });
+
+    it("UGYANAZ a piszkozat kétszer mentve KÜLÖNBÖZŐ tárolt értéket ad (friss IV)", () => {
+        /* Ha két mentés azonos értéket adna, az azt jelentené, hogy az IV nem
+           változik — a GCM-nél az IV újrahasználata a hitelesítő kulcsot is
+           kiszivárogtatja, nem csak a két üzenetet rontja el. */
+        saveDraft(KEY, {quote: "Ugyanaz", order: 1});
+        const first = localStorage.getItem(KEY);
+        saveDraft(KEY, {quote: "Ugyanaz", order: 1});
+
+        expect(localStorage.getItem(KEY)).not.toBe(first);
+    });
+
+    it("a MÁS KULCCSAL titkosított piszkozatot nem adja vissza, és takarít", () => {
+        /* Élesben: másik fiók maradéka, vagy a szerveren újragenerált kulcs. A
+           tartalom visszafejthetetlen, tehát nincs mit felajánlani — és mivel ez
+           a bejegyzés soha többé nem lesz olvasható, a helye sem indokolt. */
+        saveDraft(KEY, {quote: "Idegen szöveg", order: 1});
+        const foreign = localStorage.getItem(KEY);
+        clearDraftKey();
+        giveDraftKey();
+        localStorage.setItem(KEY, foreign ?? "");
+        // Ugyanaz a kulcs — cseréljük ki egy MÁSIKRA.
+        setDraftKey(btoa(String.fromCharCode(...new Uint8Array(32).fill(8))));
+
+        expect(readDraft(KEY, schema)).toBeNull();
+        expect(localStorage.getItem(KEY)).toBeNull();
+    });
+});
+
+/* KULCS NÉLKÜL — a szabály: inkább NINCS piszkozat, mint nyílt szövegű.
+
+   Ez az állapot valóságos: a lap újratöltése után a memóriában tartott kulcs
+   eltűnik, és a szervertől való visszakérése egy kérésnyi időbe telik; ha pedig
+   a hálózat nem megy, akkor egyáltalán nem érkezik meg. */
+describe("kulcs nélkül", () => {
+    beforeEach(() => {
+        clearDraftKey();
+    });
+
+    it("NEM ír piszkozatot (nyílt szöveget soha)", () => {
+        saveDraft(KEY, {quote: "Ezt nem szabad kiírni", order: 1});
+
+        expect(localStorage.getItem(KEY)).toBeNull();
+    });
+
+    it("a MEGLÉVŐ piszkozatot nem adja vissza, de NEM is törli", () => {
+        /* A kulcs hiánya átmeneti állapot is lehet (még nem érkezett meg). Aki
+           ilyenkor takarítana, a mentetlen munkát dobná ki azért, mert épp nem
+           tudja elolvasni. */
+        giveDraftKey();
+        saveDraft(KEY, {quote: "Megvan, csak most nem olvasható", order: 1});
+        const stored = localStorage.getItem(KEY);
+        clearDraftKey();
+
+        expect(readDraft(KEY, schema)).toBeNull();
+        expect(readDraftItemId(KEY)).toBeNull();
+        expect(localStorage.getItem(KEY)).toBe(stored);
+
+        // És ha a kulcs mégis megjön, a piszkozat ott van, épen.
+        giveDraftKey();
+        expect(readDraft(KEY, schema)?.payload).toEqual({quote: "Megvan, csak most nem olvasható", order: 1});
+    });
+});
+
+/* ÁTÁLLÁS A RÉGI, TITKOSÍTATLAN PISZKOZATRÓL.
+
+   A titkosítás bevezetése előtt írt piszkozatok ott fekszenek a felhasználók
+   gépén. Eldobni őket adatvesztés volna (a bennük álló szöveg SEHOL máshol nem
+   létezik), ezért elolvassuk — és rögtön újra is írjuk, immár titkosítva. */
+describe("régi, titkosítatlan piszkozat", () => {
+    // Pontosan az az alak, amit a titkosítás ELŐTTI kód írt ki.
+    const legacy = () => localStorage.setItem(KEY, JSON.stringify({
+        savedAt: Date.now(),
+        payload: {quote: "A titkosítás előtt írtam", order: 4},
+        itemId: "507f1f77bcf86cd799439011",
+    }));
+
+    it("még olvasható", () => {
+        legacy();
+
+        expect(readDraft(KEY, schema)?.payload).toEqual({quote: "A titkosítás előtt írtam", order: 4});
+    });
+
+    it("olvasás után már TITKOSÍTVA fekszik a tárolóban", () => {
+        legacy();
+
+        readDraft(KEY, schema);
+
+        const stored = localStorage.getItem(KEY);
+        expect(isEncryptedDraft(stored ?? "")).toBe(true);
+        expect(stored).not.toContain("titkosítás előtt");
+        // És attól még ugyanaz olvasható ki belőle.
+        expect(readDraft(KEY, schema)?.payload).toEqual({quote: "A titkosítás előtt írtam", order: 4});
+    });
+
+    it("kulcs nélkül is olvasható marad, és a helyén marad", () => {
+        /* Itt a nyílt szöveg MÁR a lemezen van — nem mi írnánk oda. A választás
+           tehát nem "titkosítunk vagy sem", hanem "visszaadjuk a munkáját vagy
+           eldobjuk". */
+        legacy();
+        clearDraftKey();
+
+        expect(readDraft(KEY, schema)?.payload).toEqual({quote: "A titkosítás előtt írtam", order: 4});
+        expect(localStorage.getItem(KEY)).not.toBeNull();
+    });
+
+    it("az azonosítója is előkerül (a create-belépőnek)", () => {
+        legacy();
+
+        expect(readDraftItemId(KEY)).toBe("507f1f77bcf86cd799439011");
     });
 });
 

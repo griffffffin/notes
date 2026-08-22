@@ -8,6 +8,7 @@ import {axiosResponse} from "../test/axiosResponse";
 import type {AxiosResponse} from "axios";
 import type {Todo} from "../types/api";
 import {at} from "../test/at";
+import {giveDraftKey} from "../test/draftKey";
 
 /* Csak a SZERVERHÍVÁST cseréljük ki; a route-tábla, a navbar és a szerkesztő
    valódi. A providerek sorrendje a main.tsx-ét követi (CookiesProvider →
@@ -47,6 +48,11 @@ beforeAll(() => {
 
 beforeEach(() => {
     window.history.pushState({}, "", "/");
+    /* A szerkesztő CSAK piszkozat-kulccsal nyílik meg (l. draftKeySession.ts,
+       useDraftKeyGate): kulcs nélkül a mentetlen munkának nem lenne helyi
+       másolata, tehát meg sem írható. Élesben a bejelentkezés szerzi meg; itt a
+       mockolt auth miatt kézzel adjuk oda — l. test/draftKey.ts. */
+    giveDraftKey();
     handleAxios.mockReset();
 });
 

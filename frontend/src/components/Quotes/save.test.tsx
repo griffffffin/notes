@@ -8,6 +8,10 @@ import type {AxiosResponse} from "axios";
 import type {QuoteForEdit} from "../../types/api";
 import {at} from "../../test/at";
 import {flushPendingSaves} from "../../pendingSave";
+import {giveDraftKey, readStoredDraft} from "../../test/draftKey";
+import {clearDraftKey} from "../../draftCrypto";
+import {saveDraft} from "../../drafts";
+import {markDraftKeyUnavailable} from "../../draftKeySession";
 
 /* A lekérés törzséből az azonosítót VALÓDI vizsgálattal olvassuk ki (a kém felől
    `unknown`); egy `as` csak állítaná, hogy ott a mező. */
@@ -52,6 +56,10 @@ beforeAll(() => {
 
 beforeEach(() => {
     window.history.pushState({}, "", "/");
+    /* A piszkozat CSAK titkosítva íródik ki, tehát kulcs nélkül meg sem születne
+       (drafts.ts). Élesben a bejelentkezés szerzi meg; itt a mockolt auth miatt
+       kézzel adjuk oda — l. test/draftKey.ts. */
+    giveDraftKey();
     handleAxios.mockReset();
     handleAxios.mockImplementation((url, data, then) => {
         if (url === "/quotes/edit") then(axiosResponse(QUOTE));
@@ -580,9 +588,10 @@ describe("QuoteSave — piszkozat sikertelen mentés után", () => {
         await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
         vi.useRealTimers();
 
-        const stored = localStorage.getItem(DRAFT_KEY);
-        expect(stored).not.toBeNull();
-        expect(stored).toContain("Az élet szép. Tényleg.");
+        /* A TARTALMAT kérdezzük, nem a nyers tárolt értéket: az titkosítva fekszik
+           ott (drafts.ts). Hogy a lemezen tényleg olvashatatlan, azt a
+           drafts.test.ts vizsgálja — ott az a tárgy, itt az, hogy MI került bele. */
+        expect(readStoredDraft(DRAFT_KEY)).toMatchObject({payload: {quote: "Az élet szép. Tényleg."}});
     });
 
     it("a piszkozat a BASE-t is megőrzi (enélkül nem lehetne ütközést vizsgálni)", async () => {
@@ -597,12 +606,9 @@ describe("QuoteSave — piszkozat sikertelen mentés után", () => {
         await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
         vi.useRealTimers();
 
-        const stored = localStorage.getItem(DRAFT_KEY);
-        expect(stored).not.toBeNull();
         /* A `base` a BETÖLTÉSKORI szerver-állapot — ehhez képest dől el a
            legközelebbi megnyitáskor, hogy a piszkozat magától visszaállhat-e. */
-        const envelope: unknown = JSON.parse(stored ?? "null");
-        expect(envelope).toMatchObject({base: {quote: "Az élet szép."}});
+        expect(readStoredDraft(DRAFT_KEY)).toMatchObject({base: {quote: "Az élet szép."}});
     });
 
     it("RÉGI formátumú (base nélküli) piszkozatot ELDOB: kétségnél a szerver nyer", async () => {
@@ -808,7 +814,7 @@ describe("QuoteSave — a lap bezárása", () => {
 
         act(() => { window.dispatchEvent(new Event("beforeunload")); });
 
-        expect(localStorage.getItem(DRAFT_KEY)).toContain("Az élet szép. Tényleg.");
+        expect(readStoredDraft(DRAFT_KEY)).toMatchObject({payload: {quote: "Az élet szép. Tényleg."}});
         // És NEM indított kérést: arra már úgysem lenne idő.
         expect(handleAxios.mock.calls.map((call) => call[0])).not.toContain("/quotes/update");
     });
@@ -933,8 +939,8 @@ describe("QuoteSave — mentés közben nem lehet elhagyni a szerkesztőt", () =
         await waitFor(() => expect(screen.getByRole("button", {name: "Mentés"})).toBeEnabled(), CHAIN);
         expect(window.location.pathname).toBe("/quotes/update/q-1");
 
-        const draft: unknown = JSON.parse(localStorage.getItem("notes-draft:quotes:q-1") ?? "null");
-        expect(draft).toMatchObject({payload: {quote: QUOTE.quote + " Nagyon."}});
+        expect(readStoredDraft("notes-draft:quotes:q-1"))
+            .toMatchObject({payload: {quote: QUOTE.quote + " Nagyon."}});
     });
 
     it("a LOGÓval indított mentés bukása után a Mentés gombra kerül a fókusz", async () => {
@@ -982,5 +988,102 @@ describe("QuoteSave — a visszatöltött create-piszkozat menthető", () => {
 
         await waitFor(() => expect(handleAxios.mock.calls.map((c) => c[0])).toContain("/quotes/create"), CHAIN);
         expect(screen.queryByText(/kitöltése kötelező/)).not.toBeInTheDocument();
+    });
+});
+
+/* A PISZKOZAT-KULCS KAPUJA — a szerkesztő csak védett munkához nyílik meg.
+
+   MIÉRT KAPU, ÉS NEM FIGYELMEZTETÉS: kulcs nélkül nincs piszkozat (drafts.ts),
+   tehát egy elbukott mentés után a beírt szöveg SEHOL nem létezne. És a kulcs-
+   lekérés pontosan akkor bukik el, amikor a mentés is el fog — ugyanaz a
+   hálózat, ugyanaz a szerver. A "van szövegem, de nincs másolata" állapot ezért
+   nem üzenetet kap, hanem nem jön létre.
+
+   A GLOBÁLIS beforeEach ad kulcsot (l. test/draftKey.ts), ezért ezek a tesztek
+   előbb ELVESZIK — pont az az állapot érdekes, ami akkor van, amikor a lekérés
+   még nem ért be, vagy elbukott. */
+describe("QuoteSave — a piszkozat-kulcs kapuja", () => {
+    it("kulcs nélkül NEM nyílik meg a szerkesztő, a kulcs megérkezésekor viszont igen", async () => {
+        clearDraftKey();
+        window.history.pushState({}, "", "/quotes/update/q-1");
+        renderRoutes();
+
+        // Nincs mibe írni: betöltő karika áll a szerkesztő helyén.
+        await waitFor(() => expect(document.querySelector(".spinner-border")).toBeInTheDocument());
+        expect(screen.queryByPlaceholderText("Idézet szövege")).not.toBeInTheDocument();
+
+        act(() => { giveDraftKey(); });
+
+        await waitFor(() => expect(quoteField()).toHaveValue("Az élet szép."), CHAIN);
+    });
+
+    it("ha a kulcs nem szerezhető meg, a hibakártya jön — és az újrapróbálás megnyitja", async () => {
+        /* A SORREND A VALÓSÁGOT KÖVETI: a szerkesztő megnyílik (karika), a
+           kulcs-lekérés fut, és csak AZUTÁN derül ki, hogy nem sikerül. A kapu
+           ugyanis megnyitáskor magától újrapróbál — ha a bukást a render ELÉ
+           tennénk, azt az első próbálkozás azonnal törölné, és a teszt egy soha
+           be nem következő állapotot várna. (Az első változatom pont ezen
+           bukott el.) */
+        clearDraftKey();
+        window.history.pushState({}, "", "/quotes/update/q-1");
+        renderRoutes();
+        act(() => { markDraftKeyUnavailable(); });
+
+        const notice = await screen.findByRole("alert");
+        expect(notice).toHaveTextContent("Hiba az oldal betöltése közben");
+        expect(screen.queryByPlaceholderText("Idézet szövege")).not.toBeInTheDocument();
+
+        /* A gomb a kulcs-lekérést is újraindítja. Itt nincs valódi hálózat (a
+           handleAxios mockolt, a kulcsot az app a saját útján kapná) — a
+           lényeg, hogy a hibaállapotból KIVEZET, és amint a kulcs megvan, a
+           szerkesztő megnyílik. */
+        await userEvent.click(screen.getByRole("button", {name: "Adatok ismételt lekérése"}));
+        act(() => { giveDraftKey(); });
+
+        await waitFor(() => expect(quoteField()).toHaveValue("Az élet szép."), CHAIN);
+    });
+
+    it("KÉSVE érkező kulcs mellett is VISSZATÖLTI a piszkozatot", async () => {
+        /* A LEGALATTOMOSABB ESET, és a titkosítás hozta magával. A szerkesztő a
+           piszkozatot a LEGELSŐ renderben olvassa ki (lusta kezdőérték) — a
+           kulcs viszont csak egy kérésnyivel később érkezik meg (mérve: 61 ms
+           medián). Ha a komponens belseje már a kulcs ELŐTT lefut, a piszkozat
+           "nincs"-nek látszik, és a szerkesztő a szerver tartalmát mutatja:
+           a mentetlen munka némán elvész — pontosan az, amiért az egész
+           mechanizmus van.
+
+           Ezért a kapu nem a renderben, hanem a komponens ELŐTT áll: a
+           szerkesztő belseje csak kulccsal mountol. */
+        const server = {quote: "Az élet szép.", author: "Valaki", order: 1, fontSize: 155};
+        saveDraft("notes-draft:quotes:q-1", {...server, quote: "A mentetlen szövegem"}, server);
+        // A lap újratöltése: a kulcs a memóriából eltűnik, a piszkozat marad.
+        clearDraftKey();
+        window.history.pushState({}, "", "/quotes/update/q-1");
+
+        renderRoutes();
+        act(() => { giveDraftKey(); });
+
+        await waitFor(() => expect(quoteField()).toHaveValue("A mentetlen szövegem"), CHAIN);
+    });
+
+    it("ÍRHATATLAN tároló mellett a szerkesztő használható — csak a piszkozat esik ki", async () => {
+        /* A MENTÉSHEZ NEM KELL localStorage: az csak egy EXTRA réteg (a
+           piszkozat). Volt egy változat, ami a tároló írhatóságát is a kapu
+           feltételévé tette — privát ablakban vagy tele kvótánál elvette volna
+           magát a szerkesztést is. Aránytalan: a felhasználó ilyenkor is tud
+           dolgozni és menteni, csak a háló hiányzik alóla. */
+        const setItem = vi.spyOn(Storage.prototype, "setItem")
+            .mockImplementation(() => { throw new Error("QuotaExceededError"); });
+        window.history.pushState({}, "", "/quotes/update/q-1");
+        renderRoutes();
+
+        await waitFor(() => expect(quoteField()).toHaveValue("Az élet szép."), CHAIN);
+        await userEvent.type(quoteField(), " Tényleg.");
+        await userEvent.click(screen.getByRole("button", {name: "Mentés"}));
+
+        // A mentés elindult, hiába nem tudtunk piszkozatot írni.
+        await waitFor(() => expect(handleAxios.mock.calls.map((call) => call[0]))
+            .toContain("/quotes/update"), CHAIN);
+        setItem.mockRestore();
     });
 });

@@ -22,6 +22,7 @@ import {quoteForEditSchema, lastOrderSchema} from "../../types/api";
 import {PATHS} from "../../paths";
 import {parseResponse} from "../../contractFault";
 import LoadFailedNotice from "../loadFailedNotice";
+import {retryDraftKeyOnUserRequest, useDraftKeyGate} from "../../draftKeySession";
 import * as v from "valibot";
 import {clearDraft, draftKey, readDraft, saveDraft} from "../../drafts";
 import {saveWithRetry} from "../../saveRetry";
@@ -83,7 +84,34 @@ type SaveProps = {
    és amíg van mentenivaló, előbb ELLENŐRIZ + MENT, csak utána enged tovább
    (üres idézetnél hibabuborék + maradás). A törlést a paraméterezett DeleteAndModal
    intézi (a /quotes/delete végponttal, vissza a /quotes-ra). */
+/* A PISZKOZAT-KULCS KAPUJA — a szerkesztő KÜLSŐ burka, nem a belsejében egy ág.
+
+   Miért így: a szerkesztő a piszkozatát a LEGELSŐ renderben olvassa ki (lusta
+   kezdőérték, l. lentebb a `draft` state-et), a kulcs viszont csak egy kérésnyivel
+   később érkezik meg (mérve: 61 ms medián). Ha a belseje már a kulcs ELŐTT
+   lefutna, a piszkozat "nincs"-nek látszana, a szerkesztő a szerver tartalmát
+   mutatná — és a mentetlen munka NÉMÁN elveszne. Egy renderen belüli korai
+   `return` ezen NEM segít: a hookok akkor is lefutnak, a lusta kezdőérték akkor
+   is kiolvassa a (még olvashatatlan) piszkozatot.
+
+   Ezért a belső komponens KULCS NÉLKÜL LÉTRE SEM JÖN. Ugyanez a burok fedi le a
+   másik szabályt is: kulcs nélkül nincs piszkozat, tehát ne is lehessen olyan
+   szöveget írni, amit nem tudunk megvédeni.
+
+   A hiba ágán ugyanaz a kártya, mint a többi betöltési hibánál — a felhasználónak
+   nem az a kérdése, MI nem jött meg, hanem hogy tud-e dolgozni és mit tehet. */
 export default function QuoteSave(props: SaveProps) {
+    const draftKeyStatus = useDraftKeyGate();
+
+    if (draftKeyStatus === "failed") return (
+        <LoadFailedNotice message="Hiba az oldal betöltése közben"
+                          onRetry={retryDraftKeyOnUserRequest}/>
+    );
+    if (draftKeyStatus !== "ready") return <Spinner class="min-vh-75"/>;
+    return <QuoteEditor {...props}/>;
+}
+
+function QuoteEditor(props: SaveProps) {
     const [quote, setQuote] = useState("");
     const [author, setAuthor] = useState("");
     const [isQuoteValid, setIsQuoteValid] = useState(false);

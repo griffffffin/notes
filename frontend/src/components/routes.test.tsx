@@ -1,7 +1,7 @@
 import {readFileSync} from "node:fs";
 import {dirname, join} from "node:path";
 import {fileURLToPath} from "node:url";
-import {render, waitFor} from "@testing-library/react";
+import {act, render, waitFor} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import {beforeEach, describe, expect, it, vi} from "vitest";
 import {renderRoutes} from "../test/renderRoutes";
@@ -9,6 +9,9 @@ import {axiosResponse} from "../test/axiosResponse";
 import {rememberSection, SECTIONS} from "./Navbar/sections";
 import {CreateEntry} from "./routes";
 import {PATHS} from "../paths";
+import {giveDraftKey} from "../test/draftKey";
+import {clearDraftKey} from "../draftCrypto";
+import {draftKey, saveDraft} from "../drafts";
 
 /* Az ISMERETLEN ÚT sorsa (a route-fa "*"-ága).
 
@@ -49,6 +52,12 @@ vi.mock(import("../objectId"), async (importOriginal) => {
 
 beforeEach(() => {
     localStorage.clear();
+    /* A LÉTREHOZÓ BELÉPŐ IS a piszkozat-kulcsra vár (routes.tsx CreateEntry): a
+       félbehagyott create azonosítója TITKOSÍTVA fekszik a tárolóban, tehát kulcs
+       nélkül nem olvasható ki — és egy új azonosítóval mentve MÁSODPÉLDÁNY
+       keletkezne. Élesben a bejelentkezés szerzi meg a kulcsot; itt a mockolt auth
+       miatt kézzel adjuk oda (l. test/draftKey.ts). */
+    giveDraftKey();
     handleAxios.mockReset();
     // Minden lekérés üres listával/nullával válaszol — a nézetek felállnak, de
     // nincs adat, amit a teszt véletlenül megfogna.
@@ -314,6 +323,36 @@ describe("a létrehozás belépője azonosítót ad az új elemnek", () => {
         await settle();
 
         expect(window.location.pathname).toBe(PATHS.todoCreateItem(PENDING));
+    });
+
+    it("KULCS NÉLKÜL nem gyárt azonosítót — megvárja, és a piszkozatét folytatja", async () => {
+        /* EZ A LEGALATTOMOSABB ESET, és a titkosítással KELETKEZETT: a piszkozat
+           azonosítója titkosítva fekszik a tárolóban, tehát kulcs nélkül nem
+           olvasható. Ha ilyenkor új azonosító születne (a lapbetöltés utáni ~61
+           ms-ban), a visszatöltött szöveg MÁS azonosítóval menne a szerverre — és
+           egy elbukottnak hitt, valójában célba ért mentés után MÁSODPÉLDÁNY
+           keletkezne. Semmi nem hibázna közben. */
+        const PENDING = "507f1f77bcf86cd799439011";
+        saveDraft(draftKey("to-dos", null),
+            {title: "Félbehagyott", category: "otthon", color: "danger", order: 1,
+                tasks: {}, taskOrder: []},
+            undefined, PENDING);
+        // A lap újratöltése: a kulcs a memóriából eltűnik, a piszkozat marad.
+        clearDraftKey();
+        mintCount.mockClear();
+
+        renderRoutes(PATHS.todoCreate);
+        await settle();
+
+        expect(mintCount, "Kulcs nélkül nem szabad azonosítót gyártani — a piszkozaté elveszne.")
+            .not.toHaveBeenCalled();
+        expect(window.location.pathname).toBe(PATHS.todoCreate);
+
+        // A kulcs megérkezik: innentől a piszkozat azonosítóját folytatjuk.
+        act(() => { giveDraftKey(); });
+
+        await waitFor(() => expect(window.location.pathname).toBe(PATHS.todoCreateItem(PENDING)));
+        expect(mintCount).not.toHaveBeenCalled();
     });
 
     it("LEJÁRT piszkozat azonosítóját NEM folytatja", async () => {

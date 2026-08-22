@@ -1,4 +1,4 @@
-import {createContext, useContext, useMemo, useState} from "react";
+import {createContext, useContext, useEffect, useMemo, useState} from "react";
 import {
     createBrowserRouter, createRoutesFromElements, Navigate, Outlet, Route, RouterProvider, useParams,
 } from "react-router-dom";
@@ -17,6 +17,9 @@ import type {Endpoint} from "../endpoints";
 import {PATHS} from "../paths";
 import {newObjectId} from "../objectId";
 import {draftKey, readDraftItemId} from "../drafts";
+import {retryDraftKeyOnUserRequest, useDraftKeyGate} from "../draftKeySession";
+import LoadFailedNotice from "./loadFailedNotice";
+import Spinner from "./spinner";
 import type {CategoryAndColorGroupProps} from "./Link/categoryAndColorGroup";
 
 /* Miért DATA ROUTER (createBrowserRouter + RouterProvider) a régi deklaratív
@@ -200,8 +203,40 @@ function RedirectToLastSection() {
    címben nem látszana. Ahhoz kell ÚJRARENDER a navigáció előtt — azt pedig csak
    közvetlenül lehet előidézni. Az export tehát nem kényelem, hanem a próba
    egyetlen fogódzója (l. routes.test.tsx). */
+/* A PISZKOZAT-KULCS ITT IS ELŐFELTÉTEL — és ez nem a szerkesztő kapujának
+   megismétlése, hanem egy KÜLÖN, némán romló eset.
+
+   A félbehagyott létrehozás azonosítója a piszkozatban van, az pedig TITKOSÍTVA
+   fekszik a tárolóban (drafts.ts): kulcs nélkül a `readDraftItemId` üres kézzel
+   tér vissza. Ha ilyenkor egyszerűen új azonosítót gyártanánk, a visszatöltött
+   piszkozat MÁS azonosítóval menne a szerverre — és ha az eredeti (elbukottnak
+   hitt) mentés mégis célba ért, MÁSODPÉLDÁNY keletkezne. Épp az a duplikáció,
+   ami ellen a kliens-adta azonosító készült (backend/src/controllers/createOnce.js).
+
+   A kulcs megérkezése mérve 61 ms medián, tehát a várakozás normális esetben
+   észrevehetetlen; a bukás ágán ugyanaz a hibakártya jön, mint a szerkesztőben. */
 export function CreateEntry({section, build}: {section: string; build: (id: string) => string}) {
-    const [target] = useState(() => build(readDraftItemId(draftKey(section, null)) ?? newObjectId()));
+    const draftKeyStatus = useDraftKeyGate();
+    /* AZ AZONOSÍTÓ EGYSZER SZÜLETIK: a `target !== null` őr miatt a hatás
+       legfeljebb egyszer fut le érdemben. Korábban `useState` lusta kezdőértéke
+       volt — az ugyanezt garantálta, de nem tudott VÁRNI a kulcsra.
+
+       AZ ŐR KÖTELEZŐ, és a hiánya nem "csak" fölösleges azonosítókat gyártana: a
+       `target` az effekt függősége, tehát minden beállítás újrafuttatná —
+       végtelen újrarender. Mutáció-próbával mérve: az őr kivételére a tesztsor
+       nem MEGBUKIK, hanem MEGÁLL. */
+    const [target, setTarget] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (draftKeyStatus !== "ready" || target !== null) return;
+        setTarget(build(readDraftItemId(draftKey(section, null)) ?? newObjectId()));
+    }, [draftKeyStatus, target, section, build]);
+
+    if (draftKeyStatus === "failed") return (
+        <LoadFailedNotice message="Hiba az oldal betöltése közben"
+                          onRetry={retryDraftKeyOnUserRequest}/>
+    );
+    if (target === null) return <Spinner class="min-vh-75"/>;
     return <Navigate to={target} replace/>;
 }
 

@@ -112,8 +112,8 @@ const draftKeyStatus = (): DraftKeyStatus =>
 
 /* A KULCS ÁTVÉTELE — egyetlen ponton. A `setDraftKey` maga csak a memóriába
    teszi; a felületnek szólni is kell, különben a szerkesztő kapuja zárva
-   maradna egy már megérkezett kulcs mellett. A tesztek is ezt hívják, hogy
-   pontosan azon az úton kapjanak kulcsot, mint az app.
+   maradna egy már megérkezett kulcs mellett. A tesztek is ezt hívják
+   (test/draftKey.ts), hogy pontosan azon az úton kapjanak kulcsot, mint az app.
 
    A HIBAJELZŐT NEM KELL ITT TÖRÖLNI, és ez szándékos: az állapot SZÁRMAZTATOTT,
    és a kulcs erősebb nála (l. `draftKeyStatus`) — ha van kulcs, a kapu nyitva,

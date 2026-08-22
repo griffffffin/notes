@@ -8,6 +8,10 @@ import type {AxiosResponse} from "axios";
 import type {Todo} from "../../types/api";
 import {at} from "../../test/at";
 import {flushPendingSaves} from "../../pendingSave";
+import {giveDraftKey, readStoredDraft} from "../../test/draftKey";
+import {clearDraftKey} from "../../draftCrypto";
+import {saveDraft} from "../../drafts";
+import {markDraftKeyUnavailable} from "../../draftKeySession";
 
 /* A kérés TÖRZSE a kém felől `unknown` — az azonosítót VALÓDI vizsgálattal
    olvassuk ki belőle, nem `as`-szal. Ha a betöltő lekérés törzse egyszer más
@@ -69,6 +73,10 @@ beforeAll(() => {
 
 beforeEach(() => {
     window.history.pushState({}, "", "/");
+    /* A piszkozat CSAK titkosítva íródik ki, tehát kulcs nélkül meg sem születne
+       (drafts.ts). Élesben a bejelentkezés szerzi meg; itt a mockolt auth miatt
+       kézzel adjuk oda — l. test/draftKey.ts. */
+    giveDraftKey();
     handleAxios.mockReset();
     handleAxios.mockImplementation((url, data, then) => {
         if (url === "/to-dos/id") then(axiosResponse(TODO));
@@ -737,12 +745,14 @@ describe("TodoSave — piszkozat", () => {
         await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
         vi.useRealTimers();
 
-        const stored = localStorage.getItem(DRAFT_KEY);
+        /* A TARTALMAT kérdezzük, nem a nyers tárolt értéket: az titkosítva fekszik
+           ott (drafts.ts). Hogy a lemezen tényleg olvashatatlan, azt a
+           drafts.test.ts vizsgálja — itt az a kérdés, MI került a piszkozatba. */
+        const stored = readStoredDraft(DRAFT_KEY);
         expect(stored).not.toBeNull();
-        expect(stored).toContain("Bevásárlás ma");
         // A to-do saját szerkezetei is benne vannak, nem csak a cím.
-        expect(stored).toContain("taskOrder");
-        expect(stored).toContain("category");
+        expect(stored).toMatchObject({payload: {title: "Bevásárlás ma",
+            taskOrder: expect.anything(), category: expect.anything()}});
     });
 
     it("a visszaállítás a címet, a kategóriát ÉS az alsorokat is helyreállítja", async () => {
@@ -909,8 +919,8 @@ describe("Save — mentés közben nem lehet elhagyni a szerkesztőt", () => {
         await waitFor(() => expect(saveButton).toBeEnabled(), CHAIN);
         expect(window.location.pathname).toBe("/to-dos/update/todo-1");
 
-        const draft: unknown = JSON.parse(localStorage.getItem("notes-draft:to-dos:todo-1") ?? "null");
-        expect(draft).toMatchObject({payload: {title: "Bevásárlás ma"}});
+        expect(readStoredDraft("notes-draft:to-dos:todo-1"))
+            .toMatchObject({payload: {title: "Bevásárlás ma"}});
     });
 
     it("a LOGÓval indított mentés bukása után a Mentés gombra kerül a fókusz", async () => {
@@ -1056,8 +1066,7 @@ describe("Save — a create azonosítója", () => {
 
         await fillAndSave();
 
-        const draft: unknown = JSON.parse(localStorage.getItem("notes-draft:to-dos:create") ?? "null");
-        expect(draft).toMatchObject({itemId: idOfCreate()});
+        expect(readStoredDraft("notes-draft:to-dos:create")).toMatchObject({itemId: idOfCreate()});
     });
 });
 
@@ -1091,5 +1100,90 @@ describe("Save — a visszatöltött create-piszkozat menthető", () => {
         await waitFor(() => expect(handleAxios.mock.calls.map((c) => c[0])).toContain("/to-dos/create"), CHAIN);
         // A hibabuborék a másik ág: ha megjelenne, a mentés el sem indult volna.
         expect(screen.queryByText(/kitöltése kötelező/)).not.toBeInTheDocument();
+    });
+});
+
+/* A PISZKOZAT-KULCS KAPUJA — a szerkesztő csak védett munkához nyílik meg.
+
+   MIÉRT KAPU, ÉS NEM FIGYELMEZTETÉS: kulcs nélkül nincs piszkozat (drafts.ts),
+   tehát egy elbukott mentés után a beírt szöveg SEHOL nem létezne. És a kulcs-
+   lekérés pontosan akkor bukik el, amikor a mentés is el fog — ugyanaz a
+   hálózat, ugyanaz a szerver. A "van szövegem, de nincs másolata" állapot ezért
+   nem üzenetet kap, hanem nem jön létre.
+
+   A GLOBÁLIS beforeEach ad kulcsot (l. test/draftKey.ts), ezért ezek a tesztek
+   előbb ELVESZIK — pont az az állapot érdekes, ami akkor van, amikor a lekérés
+   még nem ért be, vagy elbukott. */
+describe("TodoSave — a piszkozat-kulcs kapuja", () => {
+    it("kulcs nélkül NEM nyílik meg a szerkesztő, a kulcs megérkezésekor viszont igen", async () => {
+        clearDraftKey();
+        window.history.pushState({}, "", "/to-dos/update/todo-1");
+        renderRoutes();
+
+        // Nincs mibe írni: betöltő karika áll a szerkesztő helyén.
+        await waitFor(() => expect(document.querySelector(".spinner-border")).toBeInTheDocument());
+        expect(screen.queryByPlaceholderText("Cím")).not.toBeInTheDocument();
+
+        act(() => { giveDraftKey(); });
+
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"), CHAIN);
+    });
+
+    it("ha a kulcs nem szerezhető meg, a hibakártya jön — és az újrapróbálás megnyitja", async () => {
+        /* A SORREND A VALÓSÁGOT KÖVETI: a szerkesztő megnyílik (karika), a
+           kulcs-lekérés fut, és csak AZUTÁN derül ki, hogy nem sikerül. A kapu
+           ugyanis megnyitáskor magától újrapróbál — ha a bukást a render ELÉ
+           tennénk, azt az első próbálkozás azonnal törölné, és a teszt egy soha
+           be nem következő állapotot várna. (Az első változatom pont ezen
+           bukott el.) */
+        clearDraftKey();
+        window.history.pushState({}, "", "/to-dos/update/todo-1");
+        renderRoutes();
+        act(() => { markDraftKeyUnavailable(); });
+
+        const notice = await screen.findByRole("alert");
+        expect(notice).toHaveTextContent("Hiba az oldal betöltése közben");
+        expect(screen.queryByPlaceholderText("Cím")).not.toBeInTheDocument();
+
+        /* A gomb a kulcs-lekérést is újraindítja. Itt nincs valódi hálózat (a
+           handleAxios mockolt, a kulcsot az app a saját útján kapná) — a
+           lényeg, hogy a hibaállapotból KIVEZET, és amint a kulcs megvan, a
+           szerkesztő megnyílik. */
+        await userEvent.click(screen.getByRole("button", {name: "Adatok ismételt lekérése"}));
+        act(() => { giveDraftKey(); });
+
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"), CHAIN);
+    });
+
+    it("KÉSVE érkező kulcs mellett is VISSZATÖLTI a piszkozatot", async () => {
+        /* A párja a Quotes/save.test.tsx-ben, ott az indoklás is: a szerkesztő a
+           piszkozatot a LEGELSŐ renderben olvassa ki, a kulcs viszont csak egy
+           kérésnyivel később érkezik — ha a belseje a kulcs előtt lefutna, a
+           mentetlen munka némán elveszne. */
+        const server = {title: TODO.title, category: TODO.category, color: TODO.color,
+            order: TODO.order, tasks: TODO.tasks, taskOrder: TODO.taskOrder};
+        saveDraft("notes-draft:to-dos:todo-1", {...server, title: "A mentetlen címem"}, server);
+        clearDraftKey();
+        window.history.pushState({}, "", "/to-dos/update/todo-1");
+
+        renderRoutes();
+        act(() => { giveDraftKey(); });
+
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("A mentetlen címem"), CHAIN);
+    });
+
+    it("ÍRHATATLAN tároló mellett a szerkesztő használható — csak a piszkozat esik ki", async () => {
+        /* A MENTÉSHEZ NEM KELL localStorage: az csak egy EXTRA réteg (a
+           piszkozat). A kapu ezért SZÁNDÉKOSAN nem méri a tároló írhatóságát —
+           l. a párját a Quotes/save.test.tsx-ben, ahol a mentés elindulását is
+           vizsgáljuk. */
+        const setItem = vi.spyOn(Storage.prototype, "setItem")
+            .mockImplementation(() => { throw new Error("QuotaExceededError"); });
+        window.history.pushState({}, "", "/to-dos/update/todo-1");
+        renderRoutes();
+
+        await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"), CHAIN);
+
+        setItem.mockRestore();
     });
 });

@@ -18,10 +18,24 @@
    itt tudatos — a piszkozat MENTÉSI VÉSZTARTALÉK, nem szinkronizált vázlat; a
    szerverre juttatás továbbra is a mentés dolga.
 
-   TITKOSÍTVA NINCS: a localStorage-hoz a gép minden, ezen a böngésző-profilon
-   dolgozó használója hozzáfér. A tartalom ugyanaz a szöveg, amit a felhasználó
-   épp beírt, tehát nem "új" titok — de közös gépen ez különbség. Ezért van
-   LEJÁRAT: egy hetet meghaladó piszkozatot nem ajánlunk fel, és el is dobjuk.
+   TITKOSÍTVA VAN (2026-08-21 óta). A localStorage-hoz hozzáfér a gép minden más
+   OS-fiókja, és egy ellopott, KIKAPCSOLT gép lemezéről is kiolvasható — a
+   tartalom pedig ugyanaz a szöveg, amit a felhasználó épp beírt, csak épp ő nem
+   tud róla, hogy ott van. Ezért a lemezre CSAK titkos szöveg kerül; a kulcs a
+   szervertől jön és kizárólag a memóriában él (draftCrypto.ts).
+
+   EBBŐL EGY SZABÁLY KÖVETKEZIK, ÉS AZ KIVÉTEL NÉLKÜLI: ha nincs kulcs, akkor
+   NINCS piszkozat. Nyílt szöveget "vészmegoldásként" soha nem írunk ki — a
+   felhasználó kimondott elve szerint a biztonság fontosabb, mint a piszkozat.
+
+   ÉS AMI EBBŐL A FELÜLETEN KÖVETKEZIK: kulcs nélkül a szerkesztő MEG SEM NYÍLIK
+   (draftKeySession.ts, useDraftKeyGate). Így nem keletkezhet olyan mentetlen
+   szöveg, amit nem tudnánk megvédeni — a "van szövegem, de nincs másolata"
+   állapot nem figyelmeztetést kap, hanem nem jön létre.
+
+   A LEJÁRAT ettől függetlenül megmarad (egy hét, l. lentebb), de már nem ez a
+   védelem: a törölt localStorage-bejegyzés a lemezen amúgy sem tűnik el azonnal
+   (LevelDB, l. draftCrypto.ts), tehát az órától biztonságot várni önámítás volna.
 
    AMIT KIFELÉ ÍRUNK, AZ KÍVÜLRŐL JÖN VISSZA. A localStorage tartalmát a
    felhasználó (vagy egy kiegészítő) átírhatja, és egy régi appverzió is hagyhatott
@@ -29,6 +43,7 @@
    vagy elavult alak esetén nincs piszkozat, és a bejegyzést töröljük. */
 
 import * as v from "valibot";
+import {decryptDraft, encryptDraft, hasDraftKey, isEncryptedDraft} from "./draftCrypto";
 import {logDev} from "./log";
 
 const PREFIX = "notes-draft:";
@@ -79,14 +94,94 @@ const envelopeSchema = v.object({
     itemId: v.optional(v.string()),
 });
 
-export function saveDraft(key: string, payload: unknown, base?: unknown, itemId?: string): void {
+type Envelope = {savedAt: number; payload: unknown; base: unknown; itemId: string | undefined};
+
+/* A BUROK KIÍRÁSA — TITKOSÍTVA, vagy sehogy.
+
+   A `hasDraftKey` vizsgálata nem óvatoskodás: kulcs nélkül az `encryptDraft`
+   úgyis dobna, és a dobást a lenti `catch` elnyelné — vagyis pontosan ugyanaz
+   TÖRTÉNNE, csak nem lehetne megkülönböztetni a "nincs kulcs" esetet a "tele a
+   tároló" esettől. Kimondva viszont a naplóban is látszik, MIÉRT nincs piszkozat.
+
+   Élesben ide ELVBEN nem is jutunk: kulcs nélkül a szerkesztő meg sem nyílik
+   (draftKeySession.ts). Az ág mégsem fölösleges — ez a modul nem támaszkodhat
+   arra, hogy minden hívója átment egy kapun; a helyes viselkedést itt is ki kell
+   mondani, különben egy jövőbeli (kapu nélküli) hívó némán nyílt szöveget írna. */
+function writeEnvelope(key: string, envelope: Envelope): void {
+    if (!hasDraftKey()) {
+        logDev("Nincs piszkozat-kulcs: a piszkozat NEM íródik ki (nyílt szöveget nem írunk).");
+        return;
+    }
     try {
-        localStorage.setItem(key, JSON.stringify({savedAt: Date.now(), payload, base, itemId}));
+        localStorage.setItem(key, encryptDraft(JSON.stringify(envelope)));
     } catch (error) {
         /* A localStorage írása DOBHAT: tele a kvóta, privát ablak, letiltott
            tárolás. Ez a mentés végső vésztartaléka — ha ő sem megy, akkor sincs
            mit tenni, de a felhasználó munkamenetét nem boríthatjuk fel miatta. */
         logDev("A piszkozat mentése nem sikerült:", error);
+    }
+}
+
+export function saveDraft(key: string, payload: unknown, base?: unknown, itemId?: string): void {
+    writeEnvelope(key, {savedAt: Date.now(), payload, base, itemId});
+}
+
+/* A TÁROLT ÉRTÉK BEOLVASÁSA a burok sémájáig — visszafejtéssel együtt.
+
+   HÁROMFÉLE ÉRTÉKKEL TALÁLKOZHATUNK, és mind más bánásmódot kíván:
+
+     1. TITKOSÍTOTT (a mai alak) — visszafejtjük;
+     2. RÉGI, NYÍLT SZÖVEGŰ (a titkosítás bevezetése előttről) — elolvassuk, mert
+        a felhasználó mentetlen munkája van benne, és a `readDraft` rögtön újra is
+        írja titkosítva. Eldobni nem szabad: az adatvesztés volna, ráadásul a
+        biztonságon sem segítene (a törölt bejegyzés a lemezen úgyis megmarad egy
+        ideig, l. draftCrypto.ts);
+     3. ÉRTELMEZHETETLEN (kézzel átírt, elavult séma, más kulccsal titkosított) —
+        nincs piszkozat.
+
+   A `cleanup` azért paraméter, mert a két hívó másban hisz: a `readDraft` ismeri
+   a tartalom sémáját, tehát takaríthat; a `readDraftItemId` NEM ismeri, ezért
+   SOHA nem töröl (l. a saját kommentjét).
+
+   KULCS NÉLKÜL A TITKOSÍTOTT PISZKOZATHOZ NEM NYÚLUNK, és főleg NEM TÖRÖLJÜK.
+   Ilyenkor a kulcs még nem érkezett meg (vagy egyáltalán nem szerezhető meg) — a
+   bejegyzés viszont tökéletesen ép, és egy későbbi betöltéskor visszaadható. Aki
+   itt takarítana, az a mentetlen munkát dobná ki azért, mert épp nem tudja
+   elolvasni. */
+function readEnvelope(key: string, cleanup: boolean):
+    {envelope: v.InferOutput<typeof envelopeSchema>; encrypted: boolean} | null {
+    let raw: string | null = null;
+    try {
+        raw = localStorage.getItem(key);
+    } catch (error) {
+        logDev("A piszkozat olvasása nem sikerült:", error);
+        return null;
+    }
+    if (raw === null) return null;
+
+    const encrypted = isEncryptedDraft(raw);
+    if (encrypted && !hasDraftKey()) return null;
+
+    let json = raw;
+    if (encrypted) {
+        try {
+            json = decryptDraft(raw);
+        } catch (error) {
+            /* A visszafejtés bukása MINDIG jelent valamit: megpiszkálták az
+               értéket, vagy egy másik fiók kulcsával készült. Egyik esetben sem a
+               mi adatunk — a hibát viszont soha nem nyeljük el csendben. */
+            logDev("A piszkozat visszafejtése nem sikerült:", error);
+            if (cleanup) clearDraft(key);
+            return null;
+        }
+    }
+
+    try {
+        return {envelope: v.parse(envelopeSchema, JSON.parse(json)), encrypted};
+    } catch {
+        // Nem JSON, vagy nem a mi alakunk (régi verzió, kézzel átírt érték).
+        if (cleanup) clearDraft(key);
+        return null;
     }
 }
 
@@ -103,23 +198,10 @@ export function saveDraft(key: string, payload: unknown, base?: unknown, itemId?
    szerkesztő `readDraft`-jának dolga, ami a tartalmat úgyis beolvassa. A lejárt
    bejegyzés azonosítóját viszont nem adja vissza — abból már nem folytatunk. */
 export function readDraftItemId(key: string): string | null {
-    let raw: string | null = null;
-    try {
-        raw = localStorage.getItem(key);
-    } catch (error) {
-        logDev("A piszkozat olvasása nem sikerült:", error);
-        return null;
-    }
-    if (raw === null) return null;
-
-    let envelope;
-    try {
-        envelope = v.parse(envelopeSchema, JSON.parse(raw));
-    } catch {
-        return null;
-    }
-    if (Date.now() - envelope.savedAt > MAX_AGE_MS) return null;
-    return envelope.itemId ?? null;
+    const stored = readEnvelope(key, false);
+    if (stored === null) return null;
+    if (Date.now() - stored.envelope.savedAt > MAX_AGE_MS) return null;
+    return stored.envelope.itemId ?? null;
 }
 
 export function clearDraft(key: string): void {
@@ -141,23 +223,9 @@ export function readDraft<TSchema extends v.GenericSchema>(
     schema: TSchema,
 ): {payload: v.InferOutput<TSchema>; base: v.InferOutput<TSchema> | null; savedAt: Date;
     itemId: string | null} | null {
-    let raw: string | null = null;
-    try {
-        raw = localStorage.getItem(key);
-    } catch (error) {
-        logDev("A piszkozat olvasása nem sikerült:", error);
-        return null;
-    }
-    if (raw === null) return null;
-
-    let envelope;
-    try {
-        envelope = v.parse(envelopeSchema, JSON.parse(raw));
-    } catch {
-        // Nem JSON, vagy nem a mi alakunk (régi verzió, kézzel átírt érték).
-        clearDraft(key);
-        return null;
-    }
+    const stored = readEnvelope(key, true);
+    if (stored === null) return null;
+    const {envelope} = stored;
 
     if (Date.now() - envelope.savedAt > MAX_AGE_MS) {
         clearDraft(key);
@@ -172,6 +240,17 @@ export function readDraft<TSchema extends v.GenericSchema>(
         clearDraft(key);
         return null;
     }
+
+    /* ÁTÁLLÁS A TITKOSÍTOTT ALAKRA. Ha a bejegyzés még a régi, nyílt szövegű
+       formában feküdt a lemezen, itt írjuk újra titkosítva — pont most, amikor a
+       tartalmát amúgy is a kezünkben tartjuk. Az `savedAt` a RÉGI marad (a
+       lejárat nem indulhat újra egy formátumváltástól). Kulcs híján a
+       `writeEnvelope` nem ír semmit, és a régi bejegyzés is a helyén marad: a
+       felhasználó munkája megvan, csak a védelme hiányzik — ez az egyetlen hely,
+       ahol a kettő közül a munkát választjuk, mert itt a nyílt szöveg MÁR ott van,
+       nem mi írnánk oda. */
+    if (!stored.encrypted) writeEnvelope(key, {...envelope, base: envelope.base ?? undefined,
+        itemId: envelope.itemId});
 
     /* A `base` ugyanazon a sémán megy át, mint a tartalom — de a HIÁNYA nem hiba:
        a create-piszkozatnak és a régi bejegyzéseknek nincs. Ilyenkor `null`, és a
