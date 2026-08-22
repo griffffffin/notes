@@ -14,6 +14,7 @@ import {COOKIES} from "../cookies";
 import {parseResponse} from "../contractFault";
 import {ACTIVITY_EVENTS} from "../idle";
 import {registerPendingSave} from "../pendingSave";
+import {hasDraftKey} from "../draftCrypto";
 
 /* Az axios AUTOMOCKOLVA: a modul minden exportja kémmé válik, tehát valódi
    hálózat nincs, de az AuthProvider (és benne a handleAxios) a maga teljes
@@ -572,6 +573,77 @@ describe("Kijelentkezés és a függő mentés", () => {
         await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("false"));
         expect(tokenAtSave).toBe("megvan");
         unregister();
+    });
+});
+
+/* A PISZKOZAT-KULCS ÉS A KIJELENTKEZÉS (2026-08-22).
+
+   A kulcs a memóriában él (draftCrypto.ts), és a kijelentkezés eldobja — DE CSAK
+   AKKOR, amikor a függő mentések tényleg véget értek. A két időpont
+   SZÁNDÉKOSAN nem ugyanaz: a felhasználót legfeljebb 3 másodpercig várakoztatjuk
+   (pendingSave.ts), az újrapróbálás viszont tovább tart, és a végén épp az a
+   PISZKOZAT születik meg, ami a mentetlen munkát őrzi. Kulcs nélkül azt nem
+   lehetne kiírni — vagyis a korai eldobás ADATVESZTÉS volna.
+
+   A késleltetés mégsem "örökké": amint a láncok lefutottak, a kulcsnak nincs
+   több dolga a memóriában (egy nyitva felejtett lapon a devtools kiolvashatná). */
+describe("Kijelentkezés és a piszkozat-kulcs", () => {
+    /* A KULCSOT A SAJÁT ÚTJÁN KAPJA MEG a próba: a bejelentkezés után az
+       AuthProvider lekéri (/drafts/key), és a válasz egy 32 bájtos base64 kulcs.
+       Kézzel beállítani nem lehetne: az új munkamenet kezdetén a kód SZÁNDÉKOSAN
+       eldobja a memóriában talált (előző fiókhoz tartozó) kulcsot. */
+    const DRAFT_KEY = btoa(String.fromCharCode(...new Uint8Array(32).fill(5)));
+
+    /* A regisztrált mentéseket akkor is le kell szedni, ha a teszt közben elhasal
+       — különben a bent maradt, sosem teljesülő mentés a KÖVETKEZŐ tesztek
+       kijelentkezését akasztja meg. (Mérve: pontosan ez történt, három
+       egyébként ép teszt bukott el tőle.) */
+    const cleanups: (() => void)[] = [];
+    const registerSave = (save: () => Promise<void>) => { cleanups.push(registerPendingSave(save)); };
+
+    beforeEach(() => {
+        postSpy().mockImplementation((url) => Promise.resolve(
+            typeof url === "string" && url.includes(ENDPOINTS.draftKey)
+                ? axiosResponse(DRAFT_KEY)
+                : axiosResponse(TOKEN)));
+    });
+
+    afterEach(() => {
+        cleanups.splice(0).forEach((unregister) => { unregister(); });
+    });
+
+    it("a HATÁRIDŐ letelte után is megtartja, amíg a mentés fut — és utána dobja el", async () => {
+        /* VALÓDI ÓRÁVAL fut (a 3 másodperces határidőt kivárjuk), mert épp a két
+           időpont KÜLÖNBSÉGE a tárgy. Hamis órával írtam meg először: a
+           `userEvent` és a `waitFor` együtt nem működött vele, a teszt 15
+           másodperces időtúllépésbe futott, és a bent felejtett hamis óra még
+           három másik tesztet is megakasztott. */
+        let release = () => {};
+        registerSave(() => new Promise<void>((resolve) => { release = resolve; }));
+        renderAuth();
+        await userEvent.click(screen.getByRole("button", {name: "belépés"}));
+        await waitFor(() => expect(hasDraftKey()).toBe(true));
+
+        await userEvent.click(screen.getByRole("button", {name: "kilépés"}));
+        // A határidő letelt: a FELÜLET kijelentkezett — a mentés viszont még fut.
+        await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("false"),
+            {timeout: 5000});
+        expect(hasDraftKey(), "A kulcs a futó mentés alól tűnt el: a piszkozatot már nem lehetne kiírni.")
+            .toBe(true);
+
+        await act(async () => { release(); await Promise.resolve(); });
+
+        await waitFor(() => expect(hasDraftKey()).toBe(false));
+    });
+
+    it("mentenivaló nélkül AZONNAL eldobja", async () => {
+        renderAuth();
+        await userEvent.click(screen.getByRole("button", {name: "belépés"}));
+        await waitFor(() => expect(hasDraftKey()).toBe(true));
+
+        await userEvent.click(screen.getByRole("button", {name: "kilépés"}));
+
+        await waitFor(() => expect(hasDraftKey()).toBe(false));
     });
 });
 

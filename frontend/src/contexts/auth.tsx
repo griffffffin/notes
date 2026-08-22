@@ -15,7 +15,7 @@ import {responseStatus} from "../httpError";
 import {BACKEND_URL} from "../backendUrl";
 import {COOKIES, SESSION_COOKIE} from "../cookies";
 import {logRequestError} from "../log";
-import {useDraftKeySession} from "../draftKeySession";
+import {dropDraftKey, useDraftKeySession} from "../draftKeySession";
 import {parseResponse, reportContractFault} from "../contractFault";
 import {flushPendingSaves} from "../pendingSave";
 
@@ -111,7 +111,18 @@ export function AuthProvider({children}: {children: ReactNode}) {
            csak VILLANNA egyet, ami zavaróbb, mint a semmi. A 300 ms az a küszöb,
            ami alatt a felhasználó a késleltetést nem érzékeli várakozásnak. */
         const showSpinner = setTimeout(() => setIsLoggingOut(true), 300);
-        void flushPendingSaves().finally(() => {
+        /* A PISZKOZAT-KULCS ELDOBÁSA a mentés-láncok TELJES lefutásához van kötve,
+           nem a lenti `finally`-hez. A kettő nem ugyanaz az időpont: a `finally`
+           legkésőbb 3 másodperc múlva lefut (annyit várakoztatjuk a felhasználót),
+           az újrapróbálás viszont tovább tart — és a végén épp az a PISZKOZAT
+           születik meg, ami a mentetlen munkát őrzi. Kulcs nélkül azt már nem
+           lehetne kiírni.
+
+           Amint viszont a láncok véget értek, a kulcsnak nincs többé dolga a
+           memóriában: onnantól már csak támadási felület volna (egy nyitva
+           felejtett lapon a devtools kiolvashatná, és a lemezen fekvő
+           piszkozatokat visszafejthetné vele). */
+        void flushPendingSaves(dropDraftKey).finally(() => {
             clearTimeout(showSpinner);
             setIsLoggingOut(false);
             removeCookie(COOKIES.token, SESSION_COOKIE);

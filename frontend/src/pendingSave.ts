@@ -46,9 +46,26 @@ const MAX_WAIT_MS = 3000;
 /* Megvárja az összes függő mentést — legfeljebb `MAX_WAIT_MS`-ig. A hibát
    ELNYELI: a mentés saját hibaága (újrapróbálás, majd piszkozat) már lefutott, a
    kijelentkezést pedig nem akadályozhatja meg egy sikertelen mentés — a
-   felhasználó kilépni akart. */
-export async function flushPendingSaves(timeoutMs = MAX_WAIT_MS): Promise<void> {
+   felhasználó kilépni akart.
+
+   AZ `onAllSettled` A MÁSIK IDŐPONT: nem azt jelenti, hogy a FELHASZNÁLÓ tovább
+   mehet (arra a fenti határidő való), hanem azt, hogy a mentés-láncok TÉNYLEG
+   véget értek — az utolsó újrapróbálással és az esetleges piszkozat-írással
+   együtt. A kettő SZÁNDÉKOSAN külön csatorna, mert a határidő letelte után a
+   munka a háttérben fut tovább.
+
+   Kinek kell ez? A kijelentkezésnek (contexts/auth.tsx): a piszkozat-kulcsot
+   csak akkor szabad eldobni a memóriából, amikor MÁR SENKI nem írhat piszkozatot
+   — korábban eldobva épp az a mentetlen munka veszne el, amiért az egész
+   mechanizmus van. */
+export async function flushPendingSaves(
+    onAllSettled: () => void = () => undefined,
+    timeoutMs = MAX_WAIT_MS,
+): Promise<void> {
     const saves = Promise.allSettled([...pending].map((save) => save()));
+    /* A `void` KIMONDVA: ez a lánc a hívón kívül él tovább (a határidő után is),
+       és nem utasítódik el — az `allSettled` minden bukást elnyel. */
+    void saves.then(onAllSettled);
     const deadline = new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
     await Promise.race([saves, deadline]);
 }

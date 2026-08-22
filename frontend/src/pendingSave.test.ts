@@ -45,6 +45,38 @@ describe("pendingSave", () => {
         second();
     });
 
+    it("az onAllSettled a HATÁRIDŐ UTÁN is lefut, amikor a mentés tényleg véget ér", async () => {
+        /* Ez a második, KÉSŐBBI időpont: a felhasználót legfeljebb a határidőig
+           várakoztatjuk, a mentés-lánc viszont tovább fut — és a végén épp az a
+           piszkozat születik meg, ami a mentetlen munkát őrzi. A kijelentkezés
+           ebből tudja meg, mikor NEM ÍRHAT már senki piszkozatot
+           (contexts/auth.tsx: a piszkozat-kulcs eldobása). */
+        let release = () => {};
+        const unregister = registerPendingSave(() => new Promise<void>((resolve) => { release = resolve; }));
+        let settled = false;
+
+        // 10 ms-os határidő: a flush lejár, a mentés még fut.
+        await flushPendingSaves(() => { settled = true; }, 10);
+        expect(settled).toBe(false);
+
+        release();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(settled).toBe(true);
+        unregister();
+    });
+
+    it("mentenivaló NÉLKÜL is szól a lefutásról", async () => {
+        // Nincs bejelentkezett mentés: nincs mire várni, tehát azonnal "kész".
+        let settled = false;
+
+        await flushPendingSaves(() => { settled = true; });
+        await Promise.resolve();
+
+        expect(settled).toBe(true);
+    });
+
     it("egy ELBUKOTT mentés nem akadályozza meg a kilépést", async () => {
         /* A mentés saját hibaága (újrapróbálás, majd piszkozat) már lefutott —
            a felhasználó kilépni akart, ezt egy sikertelen mentés nem írhatja

@@ -139,9 +139,12 @@ export function acceptDraftKey(base64Key: string): void {
    A hibaállapotot is lezárja: az új munkamenet még nem próbálkozott, tehát nincs
    mit a rovására írni — várakozás a helyes kezdőállapot.
 
-   A hívója az ÚJ BEJELENTKEZÉS (lentebb): onnantól a memóriában talált kulcs
-   már nem ehhez a munkamenethez tartozik. */
-function dropDraftKey(): void {
+   KÉT HÍVÓJA VAN, és mindkettő ugyanazt jelenti: „ez a kulcs már nem ehhez a
+   munkamenethez tartozik". Az egyik az új bejelentkezés (lentebb), a másik a
+   KIJELENTKEZÉS — de az utóbbi csak akkor, amikor a függő mentések (az
+   újrapróbálásokkal és az esetleges piszkozat-írással együtt) mind lefutottak,
+   l. contexts/auth.tsx és pendingSave.ts `onAllSettled`. */
+export function dropDraftKey(): void {
     clearDraftKey();
     fetchFailed = false;
     emit();
