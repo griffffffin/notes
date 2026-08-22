@@ -59,7 +59,7 @@ export default function CardListView<T extends SortableCard>({
        hibakód, se séma-üzenet. Az a fejlesztőnek szól, és a szerver naplójába
        megy (contractFault.ts → /client-error). A felhasználónak az a hasznos, hogy
        nem ő rontott el semmit, és mit tehet. */
-    if (loadFailed) return <LoadFailedNotice message="Hiba az oldal betöltése közben." onRetry={onRetry}/>;
+    if (loadFailed) return <LoadFailedNotice message="Hiba az oldal betöltése közben" onRetry={onRetry}/>;
 
     if (emptyRedirect && Array.isArray(cards) && cards.length === 0)
         return <Navigate to={emptyRedirect} replace/>;

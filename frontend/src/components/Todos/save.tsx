@@ -749,7 +749,7 @@ export default function Save(props: SaveProps) {
     // (az isLoading csak a sorszám-korlát beérkezte után lesz false), de kimondva a
     // fordítónak is: innentől a lastOrder number, így az Order `last`-ja nem number|null.
     if (loadFailed) return (
-        <LoadFailedNotice message="Hiba az oldal betöltése közben."
+        <LoadFailedNotice message="Hiba az oldal betöltése közben"
                           onRetry={() => { setLoadFailed(false); setRetryCount((count) => count + 1); }}/>
     );
     if (isLoading || lastOrder === null) return <Spinner class="min-vh-75"/>;

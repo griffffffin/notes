@@ -77,7 +77,7 @@ export default function QuotePublic() {
     }, [id, handleAxios, retryCount]);
 
     if (loadFailed) return (
-        <LoadFailedNotice message="Hiba az oldal betöltése közben."
+        <LoadFailedNotice message="Hiba az oldal betöltése közben"
                           onRetry={() => { setLoadFailed(false); setRetryCount((count) => count + 1); }}/>
     );
 
