@@ -116,6 +116,26 @@ test("a névütközés státusza egyezik a felület 'foglalt név' ágával", ()
         "Elcsúszva a regisztráció általános hibát mutatna, és a felhasználó nem tudná, hogy nevet kell váltania.");
 });
 
+/* A PISZKOZAT-KULCS HOSSZA. A szerver GENERÁLJA (32 véletlen bájt), a kliens
+   pedig ELLENŐRZI, mielőtt átvenné — ha a kettő elcsúszik, a kliens minden kulcsot
+   elutasít, és onnantól NINCS piszkozat: a szerkesztő be sem nyílik, a mentetlen
+   munkának nincs helyi másolata. Semmi nem hibázna a szerveren, a felhasználó
+   pedig csak annyit látna, hogy "Hiba az oldal betöltése közben".
+
+   A 32 bájt maga az AES-256 szabványa, tehát nem szabadon hangolható érték — de
+   épp ezért kell őrizni: aki az egyik oldalon "optimalizálná" (AES-128-ra), annak
+   a másik oldalt is át kell vezetnie. */
+test("a piszkozat-kulcs hossza egyezik a két oldalon", () => {
+    const backend = declared("backend/src/draftKey", /KEY_BYTES\s*=\s*(\d+)/,
+        "a generált kulcs hossza");
+    const frontend = declared("frontend/src/draftCrypto", /KEY_BYTES\s*=\s*(\d+)/,
+        "az elfogadott kulcs hossza");
+
+    assert.strictEqual(Number(backend), Number(frontend),
+        `A szerver ${backend} bájtos kulcsot ad, a kliens ${frontend} bájtosat vár. ` +
+        "Elcsúszva a kliens MINDEN kulcsot elutasít, és a szerkesztő nem nyílik meg.");
+});
+
 test("a betűméret tartománya egyezik a szerkesztő stepperével", () => {
     /* A backend oldalán a SÉMÁT olvassuk, nem a middleware-t — a kettő egyezését a
        middleware/fontSizeRange.test.js már őrzi. Így a lánc teljes:

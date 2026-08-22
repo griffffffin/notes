@@ -156,6 +156,21 @@ export const authTokenSchema = v.pipe(v.string(), v.nonEmpty(),
     v.check(hasTokenClaims, "A token nem a szervertől származó JWT."));
 export type AuthToken = v.InferOutput<typeof authTokenSchema>;
 
+/* A PISZKOZAT-TITKOSÍTÁS KULCSA (POST /drafts/key) — 32 véletlen bájt base64-ben.
+
+   A séma itt SZÁNDÉKOSAN csak annyit mond, hogy nem üres SZÖVEG, a HOSSZT nem
+   nézi. Nem lazaság: a bájthossz vizsgálata a `draftCrypto.setDraftKey`-ben van,
+   ott, ahol a kulcsot bájtokká alakítjuk — egy érték alakját egyszer érdemes
+   számon kérni, azon a helyen, ahol az alak tényleg számít. Ha ide is odaírnánk,
+   a base64-dekódolás két helyen élne, és a kettő elcsúszhatna.
+
+   Amit viszont ITT kell megfogni: ha a végpont egyszer burkolót adna
+   (`{key: "…"}`) vagy elgépelnék az útvonalat, az nem szöveg — ez a séma
+   elutasítja, a hívó pedig SZERZŐDÉS-HIBÁT jelent (contractFault.ts), tehát a
+   Pi naplójából megtudjuk. Kulcs nélkül nincs piszkozat, de az legalább nem
+   NÉMÁN következik be. */
+export const draftKeySchema = v.pipe(v.string(), v.nonEmpty());
+
 /* A LEGNAGYOBB SORSZÁM a szekcióban (/to-dos/last/order, /quotes/last/order) —
    a szerkesztő sorszám-választójának felső korlátja. Csupasz szám a válasz
    törzsében, nem burkoló objektum.

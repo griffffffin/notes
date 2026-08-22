@@ -170,6 +170,21 @@ describe("AuthProvider", () => {
             expect.objectContaining({headers: {Authorization: "Bearer " + CAPTURED_TOKEN}}));
     });
 
+    /* A PISZKOZAT-KULCS LEKÉRÉSE a munkamenethez tartozik, ezért az AuthProvider
+       indítja (useDraftKeySession). A kulcs életciklusának SZABÁLYAIT a hook saját
+       tesztje vizsgálja (draftKeySession.test.tsx); ITT csak egyetlen, de néma
+       módon elromló dolgot: hogy a hívás egyáltalán megtörténik-e. A hook hívását
+       kivéve semmi nem hibázna — a felület ugyanúgy nézne ki, csak a mentetlen
+       munka védelme szűnne meg csendben. */
+    it("bejelentkezéskor lekéri a piszkozat-titkosítás kulcsát", async () => {
+        renderAuth();
+        await userEvent.click(screen.getByRole("button", {name: "belépés"}));
+
+        await waitFor(() => expect(axios.post).toHaveBeenCalledWith(
+            expect.stringContaining(ENDPOINTS.draftKey), {},
+            expect.objectContaining({headers: {Authorization: "Bearer " + TOKEN}})));
+    });
+
     it("401-es válasznál kilépteti a felhasználót (lejárt token)", async () => {
         postSpy().mockRejectedValue({response: {status: 401}});
         renderAuth();

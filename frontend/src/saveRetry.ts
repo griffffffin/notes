@@ -1,4 +1,8 @@
-/* A HÁTTÉRBEN FUTÓ MENTÉSEK ÚJRAPRÓBÁLÁSA.
+/* A HÁTTÉRBEN FUTÓ KÉRÉSEK ÚJRAPRÓBÁLÁSA.
+
+   (A neve a mentésekről szól, mert értük készült — de a piszkozat-kulcs lekérése
+   is ezt használja, ugyanezzel az indoklással: az is a háttérben fut, és az is
+   csak a MÚLÓ hibákon segít, l. draftKeySession.ts.)
 
    Két mentési út fut a felhasználó tudta nélkül: a tétlenségi autosave és a
    LEVÁLÁSKORI mentés (kijelentkezéskor, amikor a szerkesztő eltűnik). Ezeknek

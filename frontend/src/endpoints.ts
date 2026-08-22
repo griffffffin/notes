@@ -1,6 +1,6 @@
 /* A HÁLÓZATI FELÜLET: minden útvonal, amit a frontend a szervertől kér.
 
-   Eddig ezek az útvonalak (akkor 25, ma 26) 33 helyen, string-literálként éltek a
+   Eddig ezek az útvonalak (akkor 25, ma 27) 33 helyen, string-literálként éltek a
    komponensekben, és
    SEMMI nem kötötte őket a backend routeréhez (backend/src/routes.js). Egy
    elgépelés nem hibázik hangosan: a szerver 404-et ad, a hibaág legfeljebb
@@ -50,6 +50,12 @@ export const ENDPOINTS = {
        felületen (publikus idézet-nézet) is elromolhat. Nem szekcióhoz tartozik,
        ezért nincs névtér-előtagja. */
     clientError: "/client-error",
+
+    /* A PISZKOZAT-TITKOSÍTÁS kulcsa (l. draftCrypto.ts). Szekciótól független,
+       mint a hitelesítési végpontok — a piszkozat minden szerkesztőt szolgál —,
+       de a hármukkal ellentétben ez NEM publikus: a kulcsot csak a tulajdonosa
+       kaphatja meg, ezért a backendben az auth-határ mögött ül. */
+    draftKey: "/drafts/key",
 
     /* A to-do szekció. A `todos` maga a lista (a névtér gyökere), a többi a
        szűrt nézetek, a szerkesztő lekérdezései és az írás-műveletek. */

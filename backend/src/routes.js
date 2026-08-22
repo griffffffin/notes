@@ -16,6 +16,7 @@ const usersCreate = require("./controllers/Users/create");
 const usersLogin = require("./controllers/Users/login");
 const usersRefresh = require("./controllers/Users/refresh");
 const clientError = require("./controllers/clientError");
+const draftsKey = require("./controllers/Drafts/key");
 
 const todosCreate = require("./controllers/Todos/create");
 
@@ -105,6 +106,14 @@ router.use(auth);
    lejárt tokennel már nem lehet visszakapaszkodni, ez a tétlenségi
    kijelentkezés lényege. */
 router.use("/refresh", usersRefresh);
+
+/* A piszkozat-titkosítás kulcsa. Az auth MÖGÖTT, mert a kulcsot a TOKENBŐL vett
+   felhasználóhoz adjuk ki — ez az egyetlen titok, ami a felhasználó gépén fekvő
+   piszkozatokat védi (l. controllers/Drafts/key.js és draftKey.js).
+
+   Szekciótól független, mint a /refresh: a piszkozat minden szekció szerkesztőjét
+   szolgálja, ezért nem kerül a /to-dos vagy a /quotes névtér alá. */
+router.use("/drafts/key", draftsKey);
 
 /* A to-do minden végpontja a /to-dos névtér alatt — így a további szekciók
    (pl. /quotes) ütközés nélkül kapják a saját "create", "id", "update"

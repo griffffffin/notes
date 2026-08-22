@@ -15,6 +15,7 @@ import {responseStatus} from "../httpError";
 import {BACKEND_URL} from "../backendUrl";
 import {COOKIES, SESSION_COOKIE} from "../cookies";
 import {logRequestError} from "../log";
+import {useDraftKeySession} from "../draftKeySession";
 import {parseResponse, reportContractFault} from "../contractFault";
 import {flushPendingSaves} from "../pendingSave";
 
@@ -177,6 +178,13 @@ export function AuthProvider({children}: {children: ReactNode}) {
                 catchError(error);
             });
     }, [removeCookie]);
+
+    /* A PISZKOZAT-TITKOSÍTÁS KULCSA a munkamenethez tartozik, ezért itt, a
+       munkamenet gazdájánál kérjük le — a mikorját és a miértjeit a hook mondja
+       ki (draftKeySession.ts). Azért külön modul, mert a kulcs életciklusa
+       önálló szabályokra épül (lapbetöltés, felhasználó-váltás, a kijelentkezéskor
+       SZÁNDÉKOSAN megtartott kulcs), és azokat külön is lehet tesztelni. */
+    useDraftKeySession(token);
 
     useEffect(() => {
         // Kijelentkezve nincs mit lejáratni és nincs mit figyelni.
