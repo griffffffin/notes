@@ -5,7 +5,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const express = require("express");
-const jwt = require("jsonwebtoken");
+const {userStub, bearerFor} = require("../../test/authStub");
 const mongoose = require("mongoose");
 const request = require("supertest");
 
@@ -37,7 +37,7 @@ Quotes.prototype.save = function () { return Promise.resolve(this); };
 require.cache[modelPath] = {id: modelPath, filename: modelPath, loaded: true, exports: Quotes};
 require.cache[userModelPath] = {
     id: userModelPath, filename: userModelPath, loaded: true,
-    exports: {findById: async (id) => String(id) === OWNER ? {_id: id, name: "teszt"} : null},
+    exports: {findById: async (id) => String(id) === OWNER ? userStub(id) : null},
 };
 
 const auth = require("../../middleware/auth");
@@ -54,8 +54,8 @@ app.use("/delete", deleteQuote);
 app.use("/reorder", reorder);
 app.use("/update", update);
 
-const token = jwt.sign({id: OWNER}, process.env.JWT_SECRET, {expiresIn: "7d"});
-const post = (path, body) => request(app).post(path).set("Authorization", "Bearer " + token).send(body);
+const token = bearerFor(OWNER);
+const post = (path, body) => request(app).post(path).set("Authorization", token).send(body);
 
 test.beforeEach(() => { updateManyCalls.length = 0; });
 

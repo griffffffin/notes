@@ -21,7 +21,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const express = require("express");
-const jwt = require("jsonwebtoken");
+const {userStub, bearerFor} = require("../test/authStub");
 const mongoose = require("mongoose");
 const request = require("supertest");
 
@@ -76,7 +76,7 @@ const SECTIONS = [
 const userModelPath = require.resolve("../models/users");
 require.cache[userModelPath] = {
     id: userModelPath, filename: userModelPath, loaded: true,
-    exports: {findById: async (id) => String(id) === OWNER ? {_id: id, name: "teszt"} : null},
+    exports: {findById: async (id) => String(id) === OWNER ? userStub(id) : null},
 };
 
 for (const section of SECTIONS) {
@@ -112,7 +112,7 @@ for (const section of SECTIONS) {
     apps[section.name] = app;
 }
 
-const token = "Bearer " + jwt.sign({id: OWNER}, process.env.JWT_SECRET, {expiresIn: "7d"});
+const token = bearerFor(OWNER);
 const post = (section, path, body) =>
     request(apps[section.name]).post(path).set("Authorization", token).send(body);
 

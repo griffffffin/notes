@@ -28,7 +28,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const express = require("express");
 const request = require("supertest");
-const jwt = require("jsonwebtoken");
+const {userStub, bearerFor} = require("./test/authStub");
 const mongoose = require("mongoose");
 
 // A tesztfutónak nincs .env-je; az auth middleware betöltéséhez elég egy álérték.
@@ -53,7 +53,7 @@ mongoose.set("bufferTimeoutMS", 50);
    betöltése ELŐTT végezzük, hogy a middleware biztosan ezt lássa. */
 const Users = require("./models/users");
 const TEST_USER_ID = "507f1f77bcf86cd799439011";
-Users.findById = async () => ({_id: TEST_USER_ID});
+Users.findById = async () => userStub(TEST_USER_ID);
 
 const routes = require("./routes");
 
@@ -89,9 +89,9 @@ function buildApp() {
     return app;
 }
 
-const token = jwt.sign({id: TEST_USER_ID}, process.env.JWT_SECRET, {expiresIn: "5m"});
+const token = bearerFor(TEST_USER_ID);
 
-const post = (url) => request(buildApp()).post(url).set("Authorization", "Bearer " + token).send({});
+const post = (url) => request(buildApp()).post(url).set("Authorization", token).send({});
 
 /* A LISTA MAGA. Ha az `ENDPOINTS` export egyszer átalakul vagy átnevezik, a lenti
    ciklus üresen futna le — nulla teszttel, zölden. Az "elnémult őr" rosszabb, mint

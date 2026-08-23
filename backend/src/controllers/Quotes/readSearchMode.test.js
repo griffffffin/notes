@@ -7,7 +7,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const express = require("express");
-const jwt = require("jsonwebtoken");
+const {userStub, bearerFor} = require("../../test/authStub");
 const mongoose = require("mongoose");
 const request = require("supertest");
 
@@ -37,7 +37,7 @@ require.cache[modelPath] = {
 };
 require.cache[userModelPath] = {
     id: userModelPath, filename: userModelPath, loaded: true,
-    exports: {findById: async (id) => String(id) === OWNER ? {_id: id, name: "teszt"} : null},
+    exports: {findById: async (id) => String(id) === OWNER ? userStub(id) : null},
 };
 
 const auth = require("../../middleware/auth");
@@ -48,7 +48,7 @@ app.use(express.json());
 app.use(auth);
 app.use("/search-mode", readSearchMode);
 
-const token = "Bearer " + jwt.sign({id: OWNER}, process.env.JWT_SECRET, {expiresIn: "7d"});
+const token = bearerFor(OWNER);
 const post = (body) => request(app).post("/search-mode").set("Authorization", token).send(body);
 
 test("A ∧ ¬S → szerző-mód, a TÁROLT írásmóddal", async () => {

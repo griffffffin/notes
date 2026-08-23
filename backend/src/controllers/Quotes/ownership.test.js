@@ -6,7 +6,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const express = require("express");
-const jwt = require("jsonwebtoken");
+const {userStub, bearerFor} = require("../../test/authStub");
 const mongoose = require("mongoose");
 const request = require("supertest");
 
@@ -31,7 +31,7 @@ require.cache[modelPath] = {
 };
 require.cache[userModelPath] = {
     id: userModelPath, filename: userModelPath, loaded: true,
-    exports: {findById: async (id) => [OWNER, STRANGER].includes(String(id)) ? {_id: id, name: "teszt"} : null},
+    exports: {findById: async (id) => [OWNER, STRANGER].includes(String(id)) ? userStub(id) : null},
 };
 
 const auth = require("../../middleware/auth");
@@ -53,7 +53,6 @@ app.use("/update", update);
 app.use("/delete", deleteQuote);
 app.use("/reorder", reorder);
 
-const tokenFor = (id) => "Bearer " + jwt.sign({id}, process.env.JWT_SECRET, {expiresIn: "7d"});
 const editBody = {id: OWNER_QUOTE._id, quote: "Módosítva", author: "Anna", order: 1};
 
 test("egy idézet BEJELENTKEZÉS NÉLKÜL is olvasható az azonosítójával", async () => {
@@ -83,7 +82,7 @@ test("a publikus válasz csak a whitelistelt mezőket adja — user-id, belső a
 });
 
 test("a szerkesztő-betöltés (/edit) a tulajdonosnak kiadja a sorszámot is", async () => {
-    const response = await request(app).post("/edit").set("Authorization", tokenFor(OWNER)).send({id: OWNER_QUOTE._id});
+    const response = await request(app).post("/edit").set("Authorization", bearerFor(OWNER)).send({id: OWNER_QUOTE._id});
     assert.strictEqual(response.status, 200);
     assert.strictEqual(response.body.quote, "Anna idézete");
     // A szerkesztőnek a sorszám (a sorszám-választó kezdőértéke) és a betűméret is kell.
@@ -99,33 +98,33 @@ test("a szerkesztő-betöltés (/edit) token nélkül 401 (auth mögött van)", 
 });
 
 test("IDEGEN nem töltheti be más idézetét a szerkesztőbe (403)", async () => {
-    const response = await request(app).post("/edit").set("Authorization", tokenFor(STRANGER)).send({id: OWNER_QUOTE._id});
+    const response = await request(app).post("/edit").set("Authorization", bearerFor(STRANGER)).send({id: OWNER_QUOTE._id});
     assert.strictEqual(response.status, 403);
 });
 
 test("nem létező idézet szerkesztő-betöltése 403 (a létezést sem áruljuk el idegennek)", async () => {
-    const response = await request(app).post("/edit").set("Authorization", tokenFor(OWNER)).send({id: MISSING_ID});
+    const response = await request(app).post("/edit").set("Authorization", bearerFor(OWNER)).send({id: MISSING_ID});
     assert.strictEqual(response.status, 403);
 });
 
 test("IDEGEN nem módosíthatja más idézetét (403)", async () => {
-    const response = await request(app).post("/update").set("Authorization", tokenFor(STRANGER)).send(editBody);
+    const response = await request(app).post("/update").set("Authorization", bearerFor(STRANGER)).send(editBody);
     assert.strictEqual(response.status, 403);
 });
 
 test("a tulajdonos módosíthatja a sajátját", async () => {
-    const response = await request(app).post("/update").set("Authorization", tokenFor(OWNER)).send(editBody);
+    const response = await request(app).post("/update").set("Authorization", bearerFor(OWNER)).send(editBody);
     assert.strictEqual(response.status, 200);
 });
 
 test("IDEGEN nem törölheti más idézetét (403)", async () => {
     const response = await request(app).post("/delete")
-        .set("Authorization", tokenFor(STRANGER)).send({id: OWNER_QUOTE._id});
+        .set("Authorization", bearerFor(STRANGER)).send({id: OWNER_QUOTE._id});
     assert.strictEqual(response.status, 403);
 });
 
 test("IDEGEN nem sorolhatja át más idézetét (403)", async () => {
     const response = await request(app).post("/reorder")
-        .set("Authorization", tokenFor(STRANGER)).send({id: OWNER_QUOTE._id, order: 3});
+        .set("Authorization", bearerFor(STRANGER)).send({id: OWNER_QUOTE._id, order: 3});
     assert.strictEqual(response.status, 403);
 });

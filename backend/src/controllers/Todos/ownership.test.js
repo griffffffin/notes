@@ -7,7 +7,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const express = require("express");
-const jwt = require("jsonwebtoken");
+const {userStub, bearerFor} = require("../../test/authStub");
 const mongoose = require("mongoose");
 const request = require("supertest");
 
@@ -41,7 +41,7 @@ require.cache[modelPath] = {
 require.cache[userModelPath] = {
     id: userModelPath, filename: userModelPath, loaded: true,
     exports: {
-        findById: async (id) => [OWNER, STRANGER].includes(String(id)) ? {_id: id, name: "teszt"} : null,
+        findById: async (id) => [OWNER, STRANGER].includes(String(id)) ? userStub(id) : null,
     },
 };
 
@@ -57,11 +57,10 @@ app.use("/id", readById);
 app.use("/delete", deleteTodo);
 app.use("/reorder", reorder);
 
-const tokenFor = (id) => jwt.sign({id}, process.env.JWT_SECRET, {expiresIn: "7d"});
 
 test("a tulajdonos elolvashatja a saját listáját", async () => {
     const response = await request(app).post("/id")
-        .set("Authorization", "Bearer " + tokenFor(OWNER))
+        .set("Authorization", bearerFor(OWNER))
         .send({id: OWNER_LIST._id});
     assert.strictEqual(response.status, 200);
     assert.strictEqual(response.body.title, "Anna listája");
@@ -69,21 +68,21 @@ test("a tulajdonos elolvashatja a saját listáját", async () => {
 
 test("IDEGEN nem olvashatja el más listáját (403)", async () => {
     const response = await request(app).post("/id")
-        .set("Authorization", "Bearer " + tokenFor(STRANGER))
+        .set("Authorization", bearerFor(STRANGER))
         .send({id: OWNER_LIST._id});
     assert.strictEqual(response.status, 403);
 });
 
 test("IDEGEN nem törölheti más listáját (403)", async () => {
     const response = await request(app).post("/delete")
-        .set("Authorization", "Bearer " + tokenFor(STRANGER))
+        .set("Authorization", bearerFor(STRANGER))
         .send({id: OWNER_LIST._id});
     assert.strictEqual(response.status, 403);
 });
 
 test("a tulajdonos törölheti a sajátját", async () => {
     const response = await request(app).post("/delete")
-        .set("Authorization", "Bearer " + tokenFor(OWNER))
+        .set("Authorization", bearerFor(OWNER))
         .send({id: OWNER_LIST._id});
     assert.strictEqual(response.status, 200);
 });
@@ -91,7 +90,7 @@ test("a tulajdonos törölheti a sajátját", async () => {
 test("nem létező listánál sem szivárog ki információ (403, nem 404)", async () => {
     // Szándékos: a 404 elárulná, hogy létezik-e az adott azonosító.
     const response = await request(app).post("/id")
-        .set("Authorization", "Bearer " + tokenFor(OWNER))
+        .set("Authorization", bearerFor(OWNER))
         .send({id: MISSING_ID});
     assert.strictEqual(response.status, 403);
 });
@@ -100,21 +99,21 @@ test("nem létező listánál sem szivárog ki információ (403, nem 404)", asy
    olvasás vagy a törlés — a tulajdonos-ellenőrzésnek ott is állnia kell. */
 test("IDEGEN nem sorolhatja át más listáját (403)", async () => {
     const response = await request(app).post("/reorder")
-        .set("Authorization", "Bearer " + tokenFor(STRANGER))
+        .set("Authorization", bearerFor(STRANGER))
         .send({id: OWNER_LIST._id, order: 3});
     assert.strictEqual(response.status, 403);
 });
 
 test("a tulajdonos átsorolhatja a sajátját", async () => {
     const response = await request(app).post("/reorder")
-        .set("Authorization", "Bearer " + tokenFor(OWNER))
+        .set("Authorization", bearerFor(OWNER))
         .send({id: OWNER_LIST._id, order: 3});
     assert.strictEqual(response.status, 200);
 });
 
 test("azonos sorszámra húzva nem csinál semmit", async () => {
     const response = await request(app).post("/reorder")
-        .set("Authorization", "Bearer " + tokenFor(OWNER))
+        .set("Authorization", bearerFor(OWNER))
         .send({id: OWNER_LIST._id, order: OWNER_LIST.order});
     assert.strictEqual(response.status, 200);
 });
