@@ -1,0 +1,41 @@
+# Telepítés: sudo cp deploy/notes-wan-ip.{service,timer} /etc/systemd/system/ &&
+#            sudo systemctl daemon-reload && sudo systemctl enable --now notes-wan-ip.timer
+[Unit]
+Description=Notes public IP watch (notifies when the WAN address changes)
+
+[Service]
+Type=oneshot
+ExecStart=/opt/notes/deploy/wan-ip-watch.sh
+
+# NEM rootként fut, és nem is kell neki: egy DNS-lekérdezést végez, és egy
+# levelet küld. Az `ubuntu` azért kapja, mert az SMTP-titok (health.env)
+# az ő tulajdonában van, 600-as jogokkal. Így a szkript a
+# repóban maradhat, ubuntu-tulajdonban — az a szabály, hogy root-ként futó
+# szkriptet nem-root nem írhat, itt nem sérül, mert ez nem fut rootként.
+User=ubuntu
+Group=ubuntu
+
+# Az állapotfájl helyét a systemd adja és hozza is létre a megfelelő
+# tulajdonossal (/var/lib/notes-wan-ip), és a szkript a $STATE_DIRECTORY-ból
+# olvassa ki. Kézzel felvett ReadWritePaths= helyett ez azért jobb, mert az egy
+# NEM LÉTEZŐ könyvtárra hivatkozva a unit indulását akasztja meg
+# (226/NAMESPACE) — pontosan ez történt az első próbán.
+StateDirectory=notes-wan-ip
+
+# Elszigetelés: az indoklás a notes.service-ben áll, egy helyen.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
