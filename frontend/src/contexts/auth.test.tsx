@@ -15,6 +15,7 @@ import {parseResponse} from "../contractFault";
 import {ACTIVITY_EVENTS} from "../idle";
 import {registerPendingSave} from "../pendingSave";
 import {hasDraftKey} from "../draftCrypto";
+import {reloadToRoot} from "../reload";
 
 /* Az axios AUTOMOCKOLVA: a modul minden exportja kémmé válik, tehát valódi
    hálózat nincs, de az AuthProvider (és benne a handleAxios) a maga teljes
@@ -26,6 +27,14 @@ import {hasDraftKey} from "../draftCrypto";
    elutasítja. A `vi.mocked` az automock kémjét adja vissza a valódi szignatúrával,
    a válaszokat pedig a mockResolvedValue/mockRejectedValue állítja be. */
 vi.mock(import("axios"));
+
+/* A TELJES ÚJRATÖLTÉS AUTOMOCKOLVA. Nem kényelmi lépés: a jsdom nem valósítja meg
+   a navigációt, tehát a valódi `location.href = "/"` itt nem csinál semmit — és
+   ami rosszabb, épp az AZONOS címre mutat, amin a teszt amúgy is áll, tehát még
+   egy "Not implemented" figyelmeztetést sem hagy maga után. Vagyis mockolás
+   nélkül a tesztek zöldek maradnának akkor is, ha az újratöltés teljesen kimarad
+   (l. reload.ts). */
+vi.mock(import("../reload"));
 
 const postSpy = () => vi.mocked(axios.post);
 
@@ -681,5 +690,106 @@ describe("A kijelentkezés jelzője", () => {
         await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("false"));
         expect(screen.getByTestId("kilepes-alatt")).toHaveTextContent("false");
         unregister();
+    });
+});
+
+/* A KIJELENTKEZÉS SZERVEROLDALI FELE ÉS A TELJES ÚJRATÖLTÉS (2026-08-24).
+
+   Eddig a kijelentkezés a süti eldobásából állt. A token ettől még élt a
+   lejáratáig, a /refresh pedig minden érvényes tokenért frisset adott — egy
+   lemásolt munkamenetet tehát semmi nem zavart meg. A /logout ezt vonja vissza a
+   szerveren, az újratöltés pedig a GÉPEN maradó nyomot takarítja el (a jegyzetek
+   szövege a JS heapben).
+
+   A SORREND ITT MAGA A MŰKÖDÉS, és három dolgot köt össze: előbb a mentések,
+   aztán a visszavonás, végül az újratöltés. Középre kerülve a visszavonás 401-gyel
+   ölné meg a még úton lévő mentést; előrehozva az újratöltés dobná el a futó
+   újrapróbálást és a végén születő piszkozatot. Mindkét hiba NÉMA — a felület
+   ugyanúgy kijelentkezik, csak a munka nincs sehol. */
+describe("Kijelentkezés: visszavonás a szerveren, majd teljes újratöltés", () => {
+    const logoutCalls = () => postSpy().mock.calls.filter(
+        ([url]) => typeof url === "string" && url.endsWith(ENDPOINTS.logout));
+
+    const cleanups: (() => void)[] = [];
+    const registerSave = (save: () => Promise<void>) => { cleanups.push(registerPendingSave(save)); };
+    afterEach(() => { cleanups.splice(0).forEach((unregister) => { unregister(); }); });
+
+    beforeEach(() => { vi.mocked(reloadToRoot).mockReset(); });
+
+    async function loginThenLogout() {
+        renderAuth();
+        await userEvent.click(screen.getByRole("button", {name: "belépés"}));
+        await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("true"));
+        await userEvent.click(screen.getByRole("button", {name: "kilépés"}));
+    }
+
+    it("visszavonja a munkameneteket, és UTÁNA tölti újra a lapot", async () => {
+        await loginThenLogout();
+
+        await waitFor(() => { expect(logoutCalls()).toHaveLength(1); });
+        await waitFor(() => { expect(vi.mocked(reloadToRoot)).toHaveBeenCalled(); });
+    });
+
+    it("a visszavonás a MÉG ÉRVÉNYES tokennel megy", async () => {
+        /* A süti ekkorra már törölve lehet (a 3 másodperces határidő ága), tehát az
+           élő tokenre nem lehet építeni — a kattintáskori, zárványolt kell. Enélkül
+           a kérés token nélkül menne el, 401-et kapna, és a visszavonás CSENDBEN
+           elmaradna: a felület kijelentkezne, a szerveren viszont minden token
+           életben maradna. */
+        await loginThenLogout();
+
+        await waitFor(() => { expect(logoutCalls()).toHaveLength(1); });
+        const call = logoutCalls()[0];
+        expect(call?.[2]?.headers?.Authorization).toBe("Bearer " + TOKEN);
+    });
+
+    it("a MENTÉS UTÁN vonja vissza, nem a határidő leteltekor", async () => {
+        /* A mentés fut, a felület (a 3 másodperces határidő után) már
+           kijelentkezett — a visszavonásnak és az újratöltésnek MÉG NEM szabad
+           megtörténnie: az egyik 401-et adna a mentésnek, a másik eldobná a lapot
+           a piszkozat kiírása előtt. */
+        let release = () => {};
+        registerSave(() => new Promise<void>((resolve) => { release = resolve; }));
+
+        await loginThenLogout();
+        await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("false"),
+            {timeout: 5000});
+
+        expect(logoutCalls(), "a visszavonás megelőzte a mentést: az 401-et kapna").toHaveLength(0);
+        expect(vi.mocked(reloadToRoot), "az újratöltés eldobta volna a futó mentést")
+            .not.toHaveBeenCalled();
+
+        await act(async () => { release(); await Promise.resolve(); });
+
+        await waitFor(() => { expect(logoutCalls()).toHaveLength(1); });
+        await waitFor(() => { expect(vi.mocked(reloadToRoot)).toHaveBeenCalled(); });
+    });
+
+    it("az újratöltés pillanatában a süti MÁR törölve van", async () => {
+        /* Különben a frissen betöltött lap BEJELENTKEZVE jönne vissza — a
+           kijelentkezés pontosan az ellenkezőjét érné el annak, amiért van. */
+        let cookieAtReload: string | null = null;
+        vi.mocked(reloadToRoot).mockImplementation(() => { cookieAtReload = document.cookie; });
+
+        await loginThenLogout();
+
+        await waitFor(() => { expect(vi.mocked(reloadToRoot)).toHaveBeenCalled(); });
+        expect(cookieAtReload).not.toContain(COOKIES.token + "=");
+    });
+
+    it("ha a visszavonás ELBUKIK, a kilépés és az újratöltés akkor is megtörténik", async () => {
+        /* A hiányzó védelem nem tarthatja bent a felhasználót: a token magától
+           meghal negyed óra alatt (nincs, ami megújítsa), a kilépést megtagadni
+           emiatt aránytalan volna. A projekt szabálya szerint ez a "csak egy extra
+           réteg esik ki" eset — csendben tovább, figyelmeztetés nélkül. */
+        postSpy().mockImplementation((url) =>
+            typeof url === "string" && url.endsWith(ENDPOINTS.logout)
+                ? Promise.reject(new Error("a hálózat nem elérhető"))
+                : Promise.resolve(axiosResponse(fakeToken("u-alapertelmezett"))));
+
+        await loginThenLogout();
+
+        await waitFor(() => { expect(vi.mocked(reloadToRoot)).toHaveBeenCalled(); });
+        expect(screen.getByTestId("belepett")).toHaveTextContent("false");
     });
 });

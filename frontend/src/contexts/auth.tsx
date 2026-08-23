@@ -18,6 +18,7 @@ import {logRequestError} from "../log";
 import {dropDraftKey, useDraftKeySession} from "../draftKeySession";
 import {parseResponse, reportContractFault} from "../contractFault";
 import {flushPendingSaves} from "../pendingSave";
+import {reloadToRoot} from "../reload";
 
 /* Bejelentkezés és szerverhívás egy helyen.
 
@@ -93,6 +94,25 @@ export function AuthProvider({children}: {children: ReactNode}) {
 
     const login = useCallback((newToken: AuthToken) =>
         setCookie(COOKIES.token, newToken, SESSION_COOKIE), [setCookie]);
+
+    /* A MUNKAMENETEK VISSZAVONÁSA A SZERVEREN. A süti eldobása csak ezt a
+       böngészőt lépteti ki; a token maga a lejáratáig élne, és a /refresh minden
+       érvényes tokenért frisset ad — vagyis egy lemásolt munkamenetet semmi nem
+       zavarna meg. Ez a hívás növeli a fiók munkamenet-verzióját, amitől MINDEN
+       eddig kiadott token azonnal érvénytelen lesz (backend: controllers/Users/logout.js).
+
+       NEM a handleAxios-on megy, két okból: az a 401-re kiléptetne (itt épp az a
+       cél, tehát fölösleges kör), és visszahívásokkal dolgozik, nekünk viszont
+       PROMISE kell — a válasz megérkezése az, amihez az újratöltést kötjük.
+
+       A VÁLASZ TARTALMÁT nem ellenőrizzük sémával, és ez kivétel a projekt
+       szabálya alól: itt nem HASZNÁLUNK semmit a válaszból, csak azt kérdezzük,
+       eljutott-e a kérés. Egy séma itt olyasmit állítana, amire nem építünk. */
+    const revokeSessions = useCallback((sessionToken: AuthToken) =>
+        axios.post<unknown>(BACKEND_URL + ENDPOINTS.logout, {}, {
+            timeout: REQUEST_TIMEOUT_MS,
+            headers: {Authorization: "Bearer " + sessionToken},
+        }), []);
     /* A KIJELENTKEZÉS MEGVÁRJA a szerkesztő függő mentését — ugyanaz a szabály,
        ami a navigációra már érvényes (a blocker csak a mentés után enged tovább).
        Eddig a süti törlése azonnal megtörtént, a szerkesztő azonnal levált, és a
@@ -122,12 +142,64 @@ export function AuthProvider({children}: {children: ReactNode}) {
            memóriában: onnantól már csak támadási felület volna (egy nyitva
            felejtett lapon a devtools kiolvashatná, és a lemezen fekvő
            piszkozatokat visszafejthetné vele). */
-        void flushPendingSaves(dropDraftKey).finally(() => {
+        /* A TOKEN ZÁRVÁNYOLVA. A visszavonás a mentés-láncok UTÁN indul, amikorra a
+           süti már törölve lehet (a lenti `finally` legkésőbb 3 másodperc múlva
+           lefut, a `tokenRef` pedig akkor már null). Ez az érték viszont a
+           kattintás pillanatában még érvényes tokent őrzi meg — épp azzal kell
+           kérnünk a visszavonást.
+
+           MÉRVE: a `tokenRef.current` MA ugyanezt adná, mert a kiolvasás a
+           kattintás pillanatában történik, amikor a kettő azonos — a mutáció-próba
+           nem is tud különbséget tenni köztük. A zárványolt alak mégis ez marad,
+           mert azt mondja ki, hogy a KATTINTÁSKORI tokent akarjuk; a ref a
+           mindenkori legfrissebbet jelenti, és ha a kiolvasás egyszer lejjebb
+           csúszna (a láncba, a `finish` mellé), ott már `null` volna.
+
+           ÉS EZT NEM CSAK ÁLLÍTJUK. A lejjebb csúsztatott kiolvasásra a „MENTÉS
+           UTÁN vonja vissza" teszt MEGBUKIK (mérve): a lassú mentés ágán a
+           határidő már törölte a sütit, tehát a ref üres, a visszavonás pedig
+           némán elmarad. Vagyis a KIOLVASÁS HELYE tesztelt — csak a két forrás
+           cseréje UGYANEBBEN a pozícióban ekvivalens. */
+        const sessionToken = token;
+        void flushPendingSaves(() => {
+            dropDraftKey();
+            /* A VISSZAVONÁS ÉS AZ ÚJRATÖLTÉS A LÁNCOK TÉNYLEGES VÉGÉHEZ VAN KÖTVE,
+               nem a 3 másodperces határidőhöz — és mindkettőnek megvan az oka.
+
+               A visszavonásnak azért, mert a megnövelt verzió minden korábbi
+               tokent megöl: ha a mentés ELŐTT futna le, a még úton lévő mentés
+               401-et kapna, és pontosan az a munka veszne el, amit a kijelentkezés
+               meg akart menteni.
+
+               Az újratöltésnek azért, mert az ELDOBJA a lapot — vele a háttérben
+               futó újrapróbálást és a végén születő piszkozatot is. A határidőhöz
+               kötve tehát a lassú (hálózati hibába futó) mentés munkája veszne el:
+               a felület kijelentkezettnek látszana, a szöveg pedig sehol nem
+               maradna meg. Ugyanaz a sorrend-szabály, ami a piszkozat-kulcs
+               eldobására is érvényes. */
+            const finish = () => {
+                /* A süti törlése az újratöltés ELŐTT, kimondva. A lenti `finally`
+                   is törli — de a kettő két külön csatorna, és ha a sorrendjük
+                   egyszer megfordul, az újratöltött lap BEJELENTKEZVE jönne vissza.
+                   Ez idempotens, és nem hagyja a helyességet időzítésen múlni. */
+                removeCookie(COOKIES.token, SESSION_COOKIE);
+                reloadToRoot();
+            };
+            /* HA A VISSZAVONÁS ELBUKIK (hálózat, alvó szerver), a kilépés AKKOR IS
+               megtörténik — `finally`, nem `then`. A projekt szabálya szerint a
+               hiányzó védelem vagy lezárja a műveletet, vagy csendben kimarad:
+               itt csak egy extra réteg esik ki, mert a token magától meghal
+               negyed óra alatt (nincs, ami megújítsa: a lap elment, a süti pedig
+               munkamenet-süti). A kilépést megtagadni emiatt aránytalan volna —
+               a felhasználó kilépni akart, és a gépén ez meg is történik. */
+            if (sessionToken) void revokeSessions(sessionToken).catch(logRequestError).finally(finish);
+            else finish();
+        }).finally(() => {
             clearTimeout(showSpinner);
             setIsLoggingOut(false);
             removeCookie(COOKIES.token, SESSION_COOKIE);
         });
-    }, [removeCookie]);
+    }, [removeCookie, revokeSessions, token]);
 
     /* Az `authToken` OPCIONÁLIS felülírás: alapból az ÉLŐ tokent (tokenRef) küldjük.
        A kijelentkezéskori unmount-mentés (Quotes/save.tsx) viszont a MÁR TÖRÖLT élő

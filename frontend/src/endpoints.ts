@@ -44,6 +44,11 @@ export const ENDPOINTS = {
     login: "/login",
     signup: "/user/create",
     refresh: "/refresh",
+    /* Kijelentkezés. A szerver ELDOBJA a fiók összes eddig kiadott tokenjét (a
+       munkamenet-verziója nő) — a lejáratra várni kevés volt, mert a /refresh
+       minden érvényes tokenért frisset ad. NEM publikus: a visszavonandó fiókot a
+       szerver a TOKENBŐL veszi, tehát az auth-határ mögött ül. */
+    logout: "/logout",
 
     /* A kliens szerződés-hibáinak jelentése (l. contractFault.ts). Publikus
        végpont, mint a /login és a /user/create: a szerződés a kijelentkezett
