@@ -35,7 +35,7 @@ module.exports = router.post("/", async (request, response) => {
     try {
         const hashedPassword = await bcrypt.hash(password, SALT_WORK_FACTOR);
         const user = await new Users({name: name, password: hashedPassword}).save();
-        return response.json(signToken(user._id));
+        return response.json(signToken(user._id, user.tokenVersion));
     } catch (error) {
         /* 11000: a Mongo egyedi indexének ütközés-kódja — a név már foglalt.
            A státusz indoklása a NAME_TAKEN_STATUS-nál, a fájl tetején. */

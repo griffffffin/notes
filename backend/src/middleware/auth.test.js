@@ -21,13 +21,18 @@ const DELETED_USER = newId();
 // auth betöltése ELŐTT, így az a mi példányunkat kapja.
 const modelPath = require.resolve("../models/users");
 let databaseDown = false;
+/* A TÁROLT munkamenet-verzió. Azért változó, mert a visszavonás pontosan ezt
+   mozgatja: a teszt megnöveli, és onnantól a korábban kiadott tokennek buknia
+   kell. A szándékosan `undefined`-ra állítható érték a "két hiányzó érték"
+   esetet szolgálja (l. lentebb). */
+let storedVersion = 0;
 
 require.cache[modelPath] = {
     id: modelPath, filename: modelPath, loaded: true,
     exports: {
         findById: async (id) => {
             if (databaseDown) throw new Error("kapcsolat megszakadt");
-            return String(id) === OWNER ? {_id: OWNER, name: "anna"} : null;
+            return String(id) === OWNER ? {_id: OWNER, name: "anna", tokenVersion: storedVersion} : null;
         },
     },
 };
@@ -38,9 +43,12 @@ const auth = require("./auth");
 const app = express();
 app.use(express.json());
 app.use(auth);
-app.post("/", (request_, response) => response.json({userId: request_.userId}));
+app.post("/", (request_, response) =>
+    response.json({userId: request_.userId, tokenVersion: request_.tokenVersion}));
 
-const tokenFor = (id) => jwt.sign({id}, process.env.JWT_SECRET, {expiresIn: "7d"});
+/* A `ver` alapértéke 0, mert a tárolt verzió is onnan indul: az alapeset az
+   EGYEZÉS. Aki eltérőt akar (visszavont munkamenet), az kimondja. */
+const tokenFor = (id, ver = 0) => jwt.sign({id, ver}, process.env.JWT_SECRET, {expiresIn: "7d"});
 
 test("token nélkül elutasít (401)", async () => {
     const response = await request(app).post("/").send({});
@@ -97,4 +105,62 @@ test("adatbázis-hibánál 503, NEM 401 — a hibától senki ne essen ki", asyn
     databaseDown = false;
     assert.strictEqual(response.status, 503,
         "a 401-re a kliens kijelentkeztet — egy múló adatbázishiba ne tegye ezt");
+});
+
+/* ------------------------------------------------------------------------
+   MUNKAMENET-VISSZAVONÁS. Eddig a token a lejáratáig élt, és a /refresh minden
+   érvényes tokenért frisset adott — vagyis egy ellopott tokent korlátlanul meg
+   lehetett újítani, és semmivel nem lehetett kirúgni. Ezek a tesztek azt a
+   kaput őrzik, ami ezt a láncot elvágja.
+   ------------------------------------------------------------------------ */
+
+test("VISSZAVONT munkamenet: a tárolt verzió magasabb a tokenénél (401)", async () => {
+    /* Ez a kijelentkezés utáni állapot: a fiók verziója nőtt, a másik eszközön
+       fekvő token viszont a régit hordozza. */
+    storedVersion = 1;
+    const response = await request(app).post("/").set("Authorization", "Bearer " + tokenFor(OWNER, 0)).send({});
+    storedVersion = 0;
+    assert.strictEqual(response.status, 401, "a visszavont munkamenet tokenje nem élhet tovább");
+});
+
+test("az ÚJ token a megnövelt verzióval továbbra is működik", async () => {
+    /* A párja az előzőnek: a visszavonás a RÉGI tokeneket öli meg, nem a fiókot.
+       Enélkül a fenti teszt akkor is zöld volna, ha az őr mindenkit kizárna. */
+    storedVersion = 1;
+    const response = await request(app).post("/").set("Authorization", "Bearer " + tokenFor(OWNER, 1)).send({});
+    storedVersion = 0;
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.userId, OWNER);
+});
+
+test("a bevezetés ELŐTT kiadott, verzió nélküli tokent elutasítja (401)", async () => {
+    /* A régi tokenekben nincs `ver`. Szándékosan nem engedjük át őket: az
+       élesítés egyszeri kiléptetéssel jár, cserébe nem marad olyan munkamenet,
+       amit ne lehetne visszavonni. */
+    const legacy = jwt.sign({id: OWNER}, process.env.JWT_SECRET, {expiresIn: "7d"});
+    const response = await request(app).post("/").set("Authorization", "Bearer " + legacy).send({});
+    assert.strictEqual(response.status, 401);
+});
+
+test("KÉT HIÁNYZÓ ÉRTÉK NEM EGYEZÉS: ver nélküli token, verzió nélküli fiók (401)", async () => {
+    /* A csapda, ami miatt a puszta `!==` összehasonlítás kevés: `undefined !==
+       undefined` HAMIS, tehát egy régi token egy régi fiókhoz némán átcsúszna.
+       Ezért kell a tokenből jövő értéknek SZÁMNAK is lennie. */
+    storedVersion = undefined;
+    const legacy = jwt.sign({id: OWNER}, process.env.JWT_SECRET, {expiresIn: "7d"});
+    const response = await request(app).post("/").set("Authorization", "Bearer " + legacy).send({});
+    storedVersion = 0;
+    assert.strictEqual(response.status, 401,
+        "két hiányzó érték egyenlősége nem bizonyít semmit — ez nem beengedés-ok");
+});
+
+test("a verziót TOVÁBBADJA a következő middleware-nek (a megújítás ebből dolgozik)", async () => {
+    /* A /refresh ebből az értékből állítja ki a friss tokent. Ha nem kapná meg,
+       a megújított token `ver` nélkül születne, és a KÖVETKEZŐ kérésnél léptetné
+       ki a felhasználót — munka közben, ok nélkül. */
+    storedVersion = 7;
+    const response = await request(app).post("/").set("Authorization", "Bearer " + tokenFor(OWNER, 7)).send({});
+    storedVersion = 0;
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.tokenVersion, 7);
 });

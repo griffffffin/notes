@@ -9,4 +9,4 @@ const {signToken} = require("../../token");
 
    Az azonosító a request.userId-ból jön (a TOKENBŐL), nem a kérés törzséből —
    különben frissítés címén bárki bárkinek a nevére kérhetne tokent. */
-module.exports = router.post("/", (request, response) => response.json(signToken(request.userId)));
+module.exports = router.post("/", (request, response) => response.json(signToken(request.userId, request.tokenVersion)));

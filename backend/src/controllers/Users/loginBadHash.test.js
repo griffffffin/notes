@@ -44,7 +44,7 @@ const userModelPath = require.resolve("../../models/users");
 require.cache[userModelPath] = {
     id: userModelPath, filename: userModelPath, loaded: true,
     exports: {
-        findOne: async () => ({_id: "507f1f77bcf86cd799439011", password: "nem-egy-hash"}),
+        findOne: async () => ({_id: "507f1f77bcf86cd799439011", password: "nem-egy-hash", tokenVersion: 0}),
         updateOne: async (filter, update) => { updates.push({filter, update}); },
     },
 };

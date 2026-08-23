@@ -11,6 +11,26 @@ const Users = mongoose.model("Users", new Schema({
         type: String,
         required: true
     },
+    /* MUNKAMENET-VISSZAVONÁS. A kiadott JWT ezt a számot is magával viszi (token.js),
+       és az auth middleware minden kérésnél összeveti a tárolttal. Kijelentkezéskor
+       eggyel nő (controllers/Users/logout.js), amitől MINDEN korábban kiadott token
+       azonnal érvénytelenné válik — minden eszközön, egyszerre.
+
+       Miért fér bele: az auth MÁR MA IS kiolvassa a felhasználót minden védett
+       kérésnél (a törölt fiók miatt), tehát az összevetés nem jelent új
+       adatbázis-fordulót — csak egy mezővel többet olvas ugyanabból a sorból.
+
+       A `default: 0` a MEGLÉVŐ fiókok miatt lényeges, és MÉRVE van (2026-08-24,
+       élő FerretDB-n): a mező nélkül tárolt régi dokumentumokra a `findById` is
+       0-t ad, nem `undefined`-ot, az `$inc` pedig a hiányzó mezőt létrehozza.
+       A bevezetés tehát senkit nem zár ki az adatbázis miatt. A náluk MÁR KIADOTT
+       tokenekben viszont nincs `ver` mező, és azokat az auth szándékosan
+       elutasítja: az élesítés egyszeri, globális kiléptetéssel jár. */
+    tokenVersion: {
+        type: Number,
+        default: 0,
+        required: true
+    },
     /* A PISZKOZAT-TITKOSÍTÁS KULCSA — 32 véletlen bájt base64-ben. A miértje (mit
        véd, mit nem, és miért lustán születik) a draftKey.js élén.
 

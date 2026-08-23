@@ -27,7 +27,12 @@ const PASSWORD = "helyes-jelszo-123";
 const OLD_FACTOR = 9;              // "régi" tényező: bármi, ami nem a mai
 const USER_ID = "507f1f77bcf86cd799439011";
 
-// Amit a controller mentett volna: {_id, password}. Tesztenként ürítjük.
+/* Amit a controller mentett volna: {_id, password}. Tesztenként ürítjük.
+
+   A `tokenVersion` azért van a tárolt fiókokban, mert a kiadott token ezt is
+   hordozza (token.js), és a kiállítás a hiányára SZÁNDÉKOSAN elhasal — így egy
+   elfelejtett mező nem néma 401-ként jelentkezik a következő kérésnél, hanem
+   itt, azonnal. */
 const updates = [];
 let storedUser = null;
 
@@ -69,7 +74,7 @@ const currentHash = bcrypt.hashSync(PASSWORD, SALT_WORK_FACTOR);
 
 test.beforeEach(() => {
     updates.length = 0;
-    storedUser = {_id: USER_ID, password: oldHash};
+    storedUser = {_id: USER_ID, password: oldHash, tokenVersion: 0};
 });
 
 test("sikeres belépés RÉGI tényezőjű hash-sel: a jelszó átáll a maira", async () => {
@@ -108,7 +113,7 @@ test("a belépés VÁLASZÁT nem várakoztatja meg az áthashelés", async () =>
 });
 
 test("MAI tényezőjű hash-t nem ír újra (különben minden belépés fölöslegesen hashelne)", async () => {
-    storedUser = {_id: USER_ID, password: currentHash};
+    storedUser = {_id: USER_ID, password: currentHash, tokenVersion: 0};
 
     const response = await post({name: "teszt", password: PASSWORD});
     assert.strictEqual(response.status, 200);

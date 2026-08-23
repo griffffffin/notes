@@ -16,6 +16,21 @@ const jwt = require("jsonwebtoken");
    a kettőt EGYÜTT kell módosítani. */
 const TOKEN_TTL = "15m";
 
-const signToken = (id) => jwt.sign({id}, process.env.JWT_SECRET, {expiresIn: TOKEN_TTL});
+/* A `ver` a MUNKAMENET-VISSZAVONÁS jele: a felhasználó `tokenVersion` mezőjének
+   pillanatnyi értéke (models/users.js). Az auth middleware minden kérésnél
+   összeveti a tárolttal, tehát a kijelentkezéskori növelés egyszerre öli meg az
+   összes addig kiadott tokent — azt is, ami egy másik eszközön fekszik.
+
+   A KIÁLLÍTÁS HANGOSAN ELHASAL, ha a verzió hiányzik, és ez nem szigorúskodás.
+   Enélkül egy elfelejtett második paraméter `ver: undefined`-ot írna a tokenbe;
+   azt az auth elutasítaná, tehát a felhasználó sikeresen BELÉPNE, majd az első
+   kérésnél kirepülne, minden magyarázat nélkül. A hiba oda tartozik, ahol
+   elkövették — a kiállításhoz —, nem a következő kérésre. */
+const signToken = (id, tokenVersion) => {
+    if (typeof tokenVersion !== "number")
+        throw new TypeError(
+            "A token kiállításához a tokenVersion kötelező (l. models/users.js).");
+    return jwt.sign({id, ver: tokenVersion}, process.env.JWT_SECRET, {expiresIn: TOKEN_TTL});
+};
 
 module.exports = {signToken};

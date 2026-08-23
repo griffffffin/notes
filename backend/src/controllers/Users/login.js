@@ -81,7 +81,7 @@ module.exports = router.post("/", async (request, response) => {
         const isMatch = await bcrypt.compare(request.body.password, user?.password ?? DUMMY_HASH);
         if (!user || !isMatch) return response.status(BAD_LOGIN_STATUS).json(BAD_LOGIN);
         rehashIfOutdated(user, request.body.password);
-        return response.json(signToken(user._id));
+        return response.json(signToken(user._id, user.tokenVersion));
     } catch (error) {
         // A részletek a szerver naplójába valók, nem a válaszba.
         console.error("Bejelentkezési hiba:", error);

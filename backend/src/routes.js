@@ -15,6 +15,7 @@ const rateLimit = require("./middleware/rateLimit");
 const usersCreate = require("./controllers/Users/create");
 const usersLogin = require("./controllers/Users/login");
 const usersRefresh = require("./controllers/Users/refresh");
+const usersLogout = require("./controllers/Users/logout");
 const clientError = require("./controllers/clientError");
 const draftsKey = require("./controllers/Drafts/key");
 
@@ -106,6 +107,16 @@ router.use(auth);
    lejárt tokennel már nem lehet visszakapaszkodni, ez a tétlenségi
    kijelentkezés lényege. */
 router.use("/refresh", usersRefresh);
+
+/* Kijelentkezés: a felhasználó ÖSSZES munkamenetének visszavonása. Az auth
+   MÖGÖTT, két okból is. Egyrészt a visszavonandó fiókot a tokenből vesszük (a
+   törzsből véve bárki bárkit kiléptethetne); másrészt így a művelet csak azzal
+   a tokennel érhető el, amit épp meg akarunk szüntetni.
+
+   Nincs korlátozva (rateLimit), mert nem publikus és nem drága: egy hitelesített
+   kérés, egyetlen $inc. Aki vissza tud élni vele, az kizárólag saját magát tudja
+   kiléptetni. */
+router.use("/logout", usersLogout);
 
 /* A piszkozat-titkosítás kulcsa. Az auth MÖGÖTT, mert a kulcsot a TOKENBŐL vett
    felhasználóhoz adjuk ki — ez az egyetlen titok, ami a felhasználó gépén fekvő

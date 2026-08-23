@@ -41,6 +41,28 @@ module.exports = async (request, response, next) => {
     }
     if (!user) return response.status(401).json("A felhasználó nem létezik.");
 
+    /* A MUNKAMENET-VISSZAVONÁS KAPUJA. A lejárat önmagában kevés volt: a /refresh
+       minden érvényes tokenért frisset ad, tehát egy ellopott tokent korlátlanul
+       meg lehetett újítani, és semmivel nem lehetett kirúgni. A tárolt szám
+       növelése (controllers/Users/logout.js) ezt a láncot vágja el.
+
+       MINDKÉT IRÁNYBA ZÁR, és ez a lényeg. A `typeof` vizsgálat nem formaság: a
+       puszta `payload.ver !== user.tokenVersion` összehasonlítás akkor is IGAZAT
+       adna, ha MINDKÉT oldal `undefined` — vagyis egy `ver` nélküli régi token
+       egy `tokenVersion` nélküli felhasználóhoz átcsúszna, némán. Így viszont a
+       tokenből jövő értéknek SZÁMNAK kell lennie, és egyeznie kell.
+
+       Ez egyben azt is jelenti, hogy a bevezetés előtt kiadott tokenek (nincs
+       bennük `ver`) érvénytelenek: az élesítés egyszer mindenkit kiléptet. Ez
+       szándékos — egy visszavonhatatlan munkamenetet nem hagyunk életben azért,
+       hogy a bevezetés kényelmesebb legyen. */
+    if (typeof payload.ver !== "number" || payload.ver !== user.tokenVersion)
+        return response.status(401).json("A munkamenet visszavonva.");
+
     request.userId = payload.id;
+    /* A megújítás (controllers/Users/refresh.js) EBBŐL tudja, milyen verziót írjon
+       a friss tokenbe. Azért adjuk tovább, mert az auth már úgyis kiolvasta a
+       felhasználót: külön lekérdezés nélkül megvan. */
+    request.tokenVersion = user.tokenVersion;
     next();
 };
