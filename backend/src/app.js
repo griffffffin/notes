@@ -10,6 +10,7 @@ const env = process.env;
 const routes = require("./routes");
 const serverError = require("./serverError");
 const csp = require("./csp");
+const noStore = require("./middleware/noStore");
 
 /* Élesben a backend szolgálja ki a frontend buildjét is (dist) — fejlesztésnél
    a dist hiányozhat (akkor a Vite dev szerver a frontend), ezért feltételes. */
@@ -52,6 +53,13 @@ if (corsOrigins.length) app.use(cors({origin: corsOrigins}));
 
 app.use(express.json({limit: "1mb"}));   // a törzs mérete se legyen korlátlan
 if (hasDist) app.use(express.static(dist));
+
+/* INNENTŐL MINDEN VÁLASZ DINAMIKUS — és egyiket sem szabad letárolni. A sor
+   HELYE hordozza a jelentést: a statikus build (hash-elt JS/CSS) fölötte marad,
+   tehát az továbbra is gyorsítótárazódik; minden alatta következő — az életjel,
+   az SPA-fallback és a teljes API — megkapja a `no-store`-t. Az indoklás és a
+   sorrendet őrző teszt: middleware/noStore.js, middleware/noStore.test.js. */
+app.use(noStore);
 
 mongoose.connect(env.DATABASE)
     .then(() => console.log("Az adatbázis-kapcsolat él."))
