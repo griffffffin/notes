@@ -1,11 +1,22 @@
+# Telepítés (KÉT lépés, mert a szkript ROOTKÉNT fut):
+#   sudo install -o root -g root -m 755 deploy/health-check.sh /usr/local/sbin/notes-health-check.sh
+#   sudo cp deploy/notes-health.service /etc/systemd/system/ && sudo systemctl daemon-reload
 [Unit]
 Description=Notes health probe (logs, and restarts the app if it stops answering)
-# Ha a /opt nincs feloldva, ez a szkript nem is létezik. A ConditionPathExists
+# Ha a /opt nincs feloldva, az app forrása sem létezik. A ConditionPathExists
 # hatására a systemd ilyenkor CSENDBEN kihagyja a futást — nem hibaként jelenti,
 # tehát a timer nem szemeteli tele a naplót minden percben, amíg a kötet zárva van.
-ConditionPathExists=/opt/notes/deploy/health-check.sh
+# (Korábban maga a szkript volt a feltétel; az a /usr/local/sbin-be költözött, ami
+# NEM a titkosított köteten van, tehát mindig létezik — ezért kellett új jelző.)
+ConditionPathExists=/opt/notes/backend/src/app.js
 
 [Service]
 Type=oneshot
-ExecStart=/opt/notes/deploy/health-check.sh
+# A SZKRIPT A REPÓN KÍVÜLRŐL FUT, ÉS ROOT TULAJDONBAN VAN. Ez nem kényelmi
+# döntés: ez a unit `User=` nélkül, tehát ROOTKÉNT indítja a szkriptet (a
+# `systemctl restart` ehhez kell). Ha a fájl az `ubuntu` tulajdonában maradna a
+# repóban, akkor bárki, aki azt a felhasználót megszerzi, átírhatna egy percenként
+# rootként lefutó szkriptet — vagyis a repó írási joga csendben root-joggá válna.
+# SZABÁLY: root-ként futó szkriptet nem-root felhasználó nem írhat.
+ExecStart=/usr/local/sbin/notes-health-check.sh
 # Nincs User= sor: rootként fut, mert a systemctl restart ehhez kell.
