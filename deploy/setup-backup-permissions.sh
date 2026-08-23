@@ -21,6 +21,7 @@ set -e
 
 BACKUP_ROOT=/opt/backups/notes
 DB_USER=postgres
+APP_USER=notes   # a napi exportot futtató szolgáltatás-felhasználó (deploy/notes.service)
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "Root-jog kell (a fájlok tulajdonosát állítja): sudo $0" >&2
@@ -38,7 +39,13 @@ fi
 READER_GROUP="$(id -gn "$READER")"
 
 # install -d: létrehoz, ha nincs; ha van, csak a tulajdonost/jogot igazítja.
-install -d -o "$READER"  -g "$READER_GROUP" -m 700  "$BACKUP_ROOT/daily"
+# A NAPI mentést 2026-08-22 óta a `notes` szolgáltatás-felhasználó írja (nem a
+# fejlesztő-user), ezért ugyanaz az elrendezés kell neki, mint a hetinek: az ÍRÓ a
+# tulajdonos, az OLVASÓ a csoport, és setgid, hogy az új fájlok is az olvasó
+# csoportjába szülessenek. 700-zal (a korábbi alakkal) a lehúzás NÉMÁN elhalna.
+install -d -o "$APP_USER" -g "$READER_GROUP" -m 2750 "$BACKUP_ROOT/daily"
+find "$BACKUP_ROOT/daily" -name '*.json' -exec chgrp "$READER_GROUP" {} + \
+    -exec chmod 640 {} +
 install -d -o "$DB_USER" -g "$READER_GROUP" -m 2750 "$BACKUP_ROOT/weekly"
 
 # A setgid csak az EZUTÁN születő fájlokra hat, a korábbiakat kézzel igazítjuk.

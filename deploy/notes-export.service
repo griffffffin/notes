@@ -1,3 +1,5 @@
+# Telepítés: sudo cp deploy/notes-export.service /etc/systemd/system/ &&
+#            sudo systemctl daemon-reload
 [Unit]
 Description=Notes daily JSON export
 
@@ -5,4 +7,39 @@ Description=Notes daily JSON export
 Type=oneshot
 WorkingDirectory=/opt/notes/backend
 ExecStart=/usr/bin/node scripts/daily-export.js
-User=ubuntu
+
+# Ugyanaz a szolgáltatás-felhasználó, mint az appé (l. notes.service): nincs
+# shellje, nincs sudója. A titkokat csoporton át olvassa (backend/.env =
+# ubuntu:notes 640), a mentés-könyvtárnak pedig ő a TULAJDONOSA
+# (/opt/backups/notes/daily = notes:ubuntu 2750) — a setgid bit miatt az
+# általa írt fájlok az `ubuntu` csoportba kerülnek, tehát a laptop le tudja
+# húzni őket. Ezt a deploy/setup-backup-permissions.sh állítja be.
+User=notes
+Group=notes
+
+# --- ELSZIGETELÉS ---------------------------------------------------------
+# Az indoklás a notes.service-ben áll, egy helyen. Az EGYETLEN eltérés, hogy ez
+# a unit ÍR: a mentés-könyvtárat kimondottan írhatóvá kell tenni, mert a
+# ProtectSystem=strict különben az egész fájlrendszert csak olvashatóvá teszi.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/backups/notes/daily
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+# A mentés-fájlok a TULAJDONOSNAK és a CSOPORTNAK olvashatók (a laptop a
+# csoporton át húzza le őket), másnak semmi.
+UMask=0027

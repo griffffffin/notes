@@ -55,9 +55,18 @@ async function exportSection(section, startOfWindow, endOfWindow) {
        22:00 (nyáron), amitől a mentés címkéje hazudna egy napot. */
     const file = path.join(EXPORT_DIR,
         section.name + "-" + localDateString(startOfWindow) + ".json");
-    // 0600: az export a felhasználó adatait tartalmazza — csak a tulajdonos olvashassa
-    fs.writeFileSync(file, JSON.stringify(documents, null, 2) + "\n", {mode: 0o600});
-    fs.chmodSync(file, 0o600);   // ha a fájl már létezett, a writeFileSync mode-ja nem érvényesül
+    /* 0640: az export a felhasználó adatait tartalmazza, tehát MÁSNAK semmit — de a
+       CSOPORTNAK olvashatónak kell lennie. A könyvtár setgid bites és a csoportja az
+       a felhasználó, aki a mentést a másik gépre lehúzza (deploy/setup-backup-permissions.sh),
+       így az itt született fájl automatikusan az ő csoportjába kerül.
+
+       KORÁBBAN 0600 ÁLLT ITT, és az akkor helyes volt: az exportot ugyanaz a
+       felhasználó írta, aki lehúzta. 2026-08-22-én az export külön szolgáltatás-
+       felhasználóra került (deploy/notes.service), és ezzel a 0600 NÉMÁN elvágta
+       volna a mentés-lehúzást — a fájl megszületik, a szkript sikert jelent, csak
+       a másik gép nem tudja elolvasni. Mérve, kézi próbán derült ki. */
+    fs.writeFileSync(file, JSON.stringify(documents, null, 2) + "\n", {mode: 0o640});
+    fs.chmodSync(file, 0o640);   // ha a fájl már létezett, a writeFileSync mode-ja nem érvényesül
     console.log(`[${section.name}] ${documents.length} dokumentum exportálva: ${file}`);
 }
 
