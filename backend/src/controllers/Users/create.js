@@ -16,6 +16,30 @@ const PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/;
    frontendContract.test.js őrzi. */
 const NAME_TAKEN_STATUS = 409;
 
+/* MIÉRT ÁRULJUK EL, HOGY A NÉV FOGLALT — tudatos döntés, 2026-08-24.
+
+   AZ ASZIMMETRIA, amit észre kell venni: a BEJELENTKEZÉSNÉL gondosan elkerüljük a
+   fiók-felsorolást (közös hibaüzenet ismeretlen névre és rossz jelszóra, álca-hash
+   a nem létező felhasználóhoz, és mért, egyforma válaszidő — l. login.js). ITT
+   viszont a válasz kimondja, hogy a név foglalt, vagyis a regisztráció ELÁRULJA,
+   létezik-e egy fiók. Aki csak a login.js-t olvassa, joggal hiszi, hogy ez
+   elfelejtett átvezetés — nem az.
+
+   MIÉRT MARADHAT ÍGY. A név egyediségét a felhasználónak MEG KELL tudnia, különben
+   nem tud másikat választani: ez nem kényelmi kérdés, hanem a regisztráció
+   működésének feltétele. A szokásos kitérő (»elküldtük a megerősítő levelet«, és a
+   foglaltság csak abból derül ki) e-mail-címet és levélküldést feltételez — nincs
+   ilyenünk, és szándékosan nem is kérünk e-mailt.
+
+   AZ ÁRA MÉRVE ALACSONY: a végpont IP-nként ÓRÁNKÉNT 5 kérést enged (routes.js),
+   tehát egy címről napi 120 név próbálható végig. Egy valódi fiók-felsoroláshoz ez
+   használhatatlanul lassú — és a szűk keret ott nem a felsorolás miatt van, hanem
+   a fiók-özön ellen; a felsorolás ellen ingyen kapjuk.
+
+   ⚠ MITŐL ROMLANA EL: ha a `/user/create` korlátja valaha lazul (vagy lekerül), ez
+   a döntés a döntés MAGYARÁZATÁVAL együtt érvényét veszti. A kettő tehát össze van
+   kötve — ezt a kötést ma csak ez a komment tartja. */
+
 /* A név megléte és típusa a validateCredentials middleware dolga; itt már csak
    a jelszó-szabály és a névütközés maradt — ezek VÁRT hibák, a felhasználónak
    szólnak, ezért konkrét üzenetet kapnak. A többi (bcrypt- vagy adatbázis-hiba)
