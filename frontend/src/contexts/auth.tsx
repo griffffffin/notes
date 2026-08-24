@@ -88,6 +88,13 @@ export function AuthProvider({children}: {children: ReactNode}) {
        appot. */
     /* Épp a kijelentkezés mentésére várunk-e (l. a logout késleltetett jelzőjét).
        A felület ebből tudja, hogy karikát mutasson a szerkesztő helyett. */
+    const [showsLogoutSpinner, setShowsLogoutSpinner] = useState(false);
+    /* FUT-E A KIJELENTKEZÉS — a karikával ellentétben AZONNAL igaz. Azért kell
+       külön, mert a karika 300 ms-ot vár, és abban a résben a navbar még
+       teljesen ott van: a linkjei kéz-kurzorral azt ígérnék, hogy visznek
+       valahova, holott a lap pillanatokon belül eltűnik. Egészséges mentésnél
+       ráadásul az EGÉSZ kijelentkezés lefut 300 ms alatt, tehát a karika meg sem
+       jelenik — vagyis a rés nem szélső eset, hanem a tipikus eset. */
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const lastActivity = useRef(Date.now());
     const lastRefresh = useRef(Date.now());
@@ -130,7 +137,8 @@ export function AuthProvider({children}: {children: ReactNode}) {
            századmásodpercek alatt lefut — egy azonnal megjelenő karika ilyenkor
            csak VILLANNA egyet, ami zavaróbb, mint a semmi. A 300 ms az a küszöb,
            ami alatt a felhasználó a késleltetést nem érzékeli várakozásnak. */
-        const showSpinner = setTimeout(() => setIsLoggingOut(true), 300);
+        setIsLoggingOut(true);
+        const showSpinner = setTimeout(() => setShowsLogoutSpinner(true), 300);
         /* A PISZKOZAT-KULCS ELDOBÁSA a mentés-láncok TELJES lefutásához van kötve,
            nem a lenti `finally`-hez. A kettő nem ugyanaz az időpont: a `finally`
            legkésőbb 3 másodperc múlva lefut (annyit várakoztatjuk a felhasználót),
@@ -196,6 +204,7 @@ export function AuthProvider({children}: {children: ReactNode}) {
             else finish();
         }).finally(() => {
             clearTimeout(showSpinner);
+            setShowsLogoutSpinner(false);
             setIsLoggingOut(false);
             removeCookie(COOKIES.token, SESSION_COOKIE);
         });
@@ -330,8 +339,9 @@ export function AuthProvider({children}: {children: ReactNode}) {
         login,
         logout,
         isLoggingOut,
+        showsLogoutSpinner,
         handleAxios,
-    }), [token, login, logout, isLoggingOut, handleAxios]);
+    }), [token, login, logout, isLoggingOut, showsLogoutSpinner, handleAxios]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -51,7 +51,7 @@ export default function App() {
        gomb halottnak látszana. Nem a gomb saját állapota, mert a lekérést öt hely
        indíthatja (l. lentebb), és mindegyikre igazat kell mondania. */
     const [categoriesLoading, setCategoriesLoading] = useState(false);
-    const {isLoggedIn, isLoggingOut, handleAxios} = useAuth();
+    const {isLoggedIn, isLoggingOut, showsLogoutSpinner, handleAxios} = useAuth();
 
     const handleLinkClicked = useCallback(() => {
         setIsColorAngleClicked(false);
@@ -119,8 +119,8 @@ export default function App() {
                 várakozás ÉRZÉKELHETŐ (a jelző 300 ms után gyullad ki, l.
                 contexts/auth.tsx). A tartalom helyén jelenik meg, mert ilyenkor a
                 szerkesztőben nem érdemes tovább gépelni: a munkamenet zárul. */}
-            {isLoggingOut && <Spinner class="min-vh-75"/>}
-            {!isLoggingOut &&
+            {showsLogoutSpinner && <Spinner class="min-vh-75"/>}
+            {!showsLogoutSpinner &&
             <Routes handleLinkClicked={handleLinkClicked}
                     setIsColorAngleClicked={setIsColorAngleClicked} isColorAngleClicked={isColorAngleClicked}
                     setIsCategoryAngleClicked={setIsCategoryAngleClicked}
@@ -128,7 +128,15 @@ export default function App() {
                     categories={categories} categoriesFailed={categoriesFailed}
                     categoriesLoading={categoriesLoading}
                     handleCategoryChange={handleCategoryChange}
-                    isSaving={isSaving} setIsSaving={setIsSaving}/>}
+                    /* A KÉT FORRÁS ÖSSZEVONÁSA. A navbar linkjei akkor sem visznek
+                       sehova, ha épp kijelentkezünk — és ez a gyakoribb eset: a
+                       kijelentkezés-karika 300 ms után gyullad ki, egy egészséges
+                       mentés viszont ennél hamarabb lefut, tehát a tipikus
+                       kijelentkezésnél a navbar végig látszik. Kéz-kurzorral azt
+                       ígérné, hogy a kattintás visz valahova, holott a lap
+                       pillanatokon belül eltűnik. */
+                    isNavigationBlocked={isSaving || isLoggingOut}
+                    setIsSaving={setIsSaving}/>}
         </div>
     );
 }

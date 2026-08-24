@@ -61,7 +61,7 @@ function reportedEndpoint(body: unknown): unknown {
 /* Próbakomponens: kiírja, amit a Contextből kap, és gombokkal hívja a
    műveleteit — így a hookot komponensfa nélkül vizsgálhatjuk. */
 function AuthProbe() {
-    const {token, isLoggedIn, isLoggingOut, login, logout, handleAxios} = useAuth();
+    const {token, isLoggedIn, isLoggingOut, showsLogoutSpinner, login, logout, handleAxios} = useAuth();
     /* A séma-ellenőrzés a HÍVÓ oldalán történik (l. types/api.ts): a próba ezért
        pontosan úgy jár el, ahogy egy valódi hívó — a választ átengedi a sémán, és
        az EREDMÉNYT írja ki. Így a teszt azt látja, melyik ág futott le. */
@@ -69,7 +69,12 @@ function AuthProbe() {
     return (
         <div>
             <span data-testid="belepett">{String(isLoggedIn)}</span>
-            <span data-testid="kilepes-alatt">{String(isLoggingOut)}</span>
+            {/* A KARIKA jelzője (késleltetett) és a FOLYAMAT jelzője (azonnali)
+                külön: a tesztek szándéka szerint a "kilepes-alatt" mindig a
+                karikáról szólt, az azonnali pedig azért kell, mert a navbar
+                kurzora abból dolgozik (l. components/app.tsx). */}
+            <span data-testid="kilepes-alatt">{String(showsLogoutSpinner)}</span>
+            <span data-testid="kilepes-fut">{String(isLoggingOut)}</span>
             <span data-testid="token">{token ?? "nincs"}</span>
             <span data-testid="eredmeny">{outcome}</span>
             <button onClick={() => handleAxios(ENDPOINTS.login, {}, 
@@ -662,8 +667,18 @@ describe("Kijelentkezés és a piszkozat-kulcs", () => {
    századmásodperc, tehát egy azonnal megjelenő karika csak VILLANNA — ezért a
    jelző 300 ms után gyullad ki. A tesztek az órát tekerik, nem várnak. */
 describe("A kijelentkezés jelzője", () => {
+    /* A REGISZTRÁLT MENTÉST AKKOR IS LE KELL SZEDNI, HA A TESZT ELHASAL. A záró
+       `unregister()` egy elbukó állítás után már nem fut le, a bent maradt,
+       sosem teljesülő mentés pedig a KÖVETKEZŐ tesztek kijelentkezését akasztja
+       meg — ilyenkor egyetlen valódi hiba fél tucat ép tesztet dönt magával, és
+       a hibaüzenetek arról szólnak, aminek semmi köze a bajhoz. (Ugyanez a minta
+       a piszkozat-kulcs blokkjában, ott is mérésből.) */
+    const cleanups: (() => void)[] = [];
+    const registerSave = (save: () => Promise<void>) => { cleanups.push(registerPendingSave(save)); };
+    afterEach(() => { cleanups.splice(0).forEach((unregister) => { unregister(); }); });
+
     it("GYORS mentésnél NEM gyullad ki (nem villan a karika)", async () => {
-        const unregister = registerPendingSave(async () => {});
+        registerSave(async () => {});
         renderAuth();
         await userEvent.click(screen.getByRole("button", {name: "belépés"}));
         await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("true"));
@@ -672,12 +687,35 @@ describe("A kijelentkezés jelzője", () => {
 
         await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("false"));
         expect(screen.getByTestId("kilepes-alatt")).toHaveTextContent("false");
-        unregister();
+    });
+
+    it("a FOLYAMAT jelzője azonnal igaz, miközben a karika még nem gyulladt ki", async () => {
+        /* Ez a kettő KÜLÖNBSÉGE, és a különbség hordoz jelentést: a karika
+           villanása zavaró volna, a kurzoré nem — ezért nem várhatnak ugyanannyit.
+           Ebben a résben (a kattintás után, a 300 ms letelte előtt) a navbar még
+           teljes egészében látszik, és a linkjeinek MÁR nem szabad kézzel
+           hívogatniuk (l. components/app.test.tsx). */
+        let release = () => {};
+        registerSave(() => new Promise<void>((resolve) => { release = resolve; }));
+        renderAuth();
+        await userEvent.click(screen.getByRole("button", {name: "belépés"}));
+        await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("true"));
+
+        await userEvent.click(screen.getByRole("button", {name: "kilépés"}));
+
+        /* EGY pillanatot kérdezünk, két állítással: a külön szinkron negatív
+           állítás terhelés alatt elcsúszhatna (a 300 ms közben letelik). */
+        await waitFor(() => {
+            expect(screen.getByTestId("kilepes-fut")).toHaveTextContent("true");
+            expect(screen.getByTestId("kilepes-alatt")).toHaveTextContent("false");
+        });
+
+        await act(async () => { release(); await Promise.resolve(); });
     });
 
     it("LASSÚ mentésnél kigyullad, és a végén elalszik", async () => {
         let release = () => {};
-        const unregister = registerPendingSave(() => new Promise<void>((resolve) => { release = resolve; }));
+        registerSave(() => new Promise<void>((resolve) => { release = resolve; }));
         renderAuth();
         await userEvent.click(screen.getByRole("button", {name: "belépés"}));
         await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("true"));
@@ -689,7 +727,6 @@ describe("A kijelentkezés jelzője", () => {
 
         await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("false"));
         expect(screen.getByTestId("kilepes-alatt")).toHaveTextContent("false");
-        unregister();
     });
 });
 

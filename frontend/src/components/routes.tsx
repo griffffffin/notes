@@ -54,18 +54,20 @@ export type RoutesProps = {
     categoriesFailed: CategoryAndColorGroupProps["categoriesFailed"];
     categoriesLoading: CategoryAndColorGroupProps["categoriesLoading"];
     handleCategoryChange: () => void;
-    /* FUT-E ÉPP MENTÉS valamelyik szerkesztőben. Az állapot az App-ban él, mert
-       KÉT, egymástól független helyre kell: a szerkesztő ÁLLÍTJA (setIsSaving), a
-       navbar pedig OLVASSA (isSaving) — közös ősük az App.
+    /* VISZNEK-E MOST VALAHOVA A NAVBAR LINKJEI. A kettő SZÁNDÉKOSAN aszimmetrikus:
+       a szerkesztő csak ÍR (setIsSaving), a navbar pedig egy MÁR ÖSSZEVONT jelzőt
+       OLVAS. Az összevonás az App-ban történik, mert a két forrás — a mentés
+       (a szerkesztőtől) és a kijelentkezés (az auth contextből) — csak ott
+       találkozik.
 
-       Mire kell: mentés közben a blocker elnyeli a navigációt (logó, "+", …), de
-       ebből a felhasználó semmit nem lát. A navbar linkjei ilyenkor a normál
-       egérmutatót kapják a mutató kéz helyett, tehát a felület ELŐRE megmondja,
-       hogy ezek most nem visznek sehova. A téma-kapcsoló és a kijelentkezés
-       SZÁNDÉKOSAN érintetlen: azok tényleg működnek mentés közben is (a
-       kijelentkezés megvárja a mentést, l. pendingSave.ts), tehát hazugság volna
-       őket tehetetlennek mutatni. */
-    isSaving: boolean;
+       Mire kell: ilyenkor a navigáció nem történik meg (mentés közben a blocker
+       nyeli el, kijelentkezéskor a lap megy el), de ebből a felhasználó semmit nem
+       lát. A linkek ezért a normál egérmutatót kapják a mutató kéz helyett — a
+       felület előre megmondja, hogy ezek most nem visznek sehova. A téma-kapcsoló
+       és a kijelentkezés SZÁNDÉKOSAN érintetlen: azok tényleg működnek mentés
+       közben is (a kijelentkezés megvárja a mentést, l. pendingSave.ts), tehát
+       hazugság volna őket tehetetlennek mutatni. */
+    isNavigationBlocked: boolean;
     setIsSaving: (isSaving: boolean) => void;
 };
 
@@ -91,7 +93,7 @@ function useRoutesProps() {
 function AppLayout() {
     const p = useRoutesProps();
     return (<>
-        <Navbar isSaving={p.isSaving}
+        <Navbar isNavigationBlocked={p.isNavigationBlocked}
                 setIsColorClicked={p.setIsColorAngleClicked} isColorClicked={p.isColorAngleClicked}
                 setIsCategoryClicked={p.setIsCategoryAngleClicked}
                 isCategoryClicked={p.isCategoryAngleClicked}

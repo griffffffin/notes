@@ -32,12 +32,22 @@ export type NavbarProps =
         categoriesFailed: CategoryAndColorGroupProps["categoriesFailed"];
         categoriesLoading: CategoryAndColorGroupProps["categoriesLoading"];
         onRetryCategories: CategoryAndColorGroupProps["onRetryCategories"];
-        /* FUT-E ÉPP MENTÉS a szerkesztőben. Csak a kinézetet érinti: a navbar
-           LINKJEI ilyenkor a normál egérmutatót kapják a mutató kéz helyett,
-           mert a mentés ideje alatt a blocker úgyis elnyeli a navigációt.
-           Kijelentkezve nincs értelme (ott nincs szerkesztő), ezért csak az
-           isVisible: true ágon szerepel. */
-        isSaving: boolean;
+        /* VISZNEK-E MOST VALAHOVA A LINKEK. Csak a kinézetet érinti: ha nem, a
+           navbar LINKJEI a normál egérmutatót kapják a mutató kéz helyett — a
+           felület ELŐRE megmondja, hogy a kattintás nem visz sehova.
+
+           KÉT ÁLLAPOT hajtja, és ezért nem `isSaving` a neve (az volt korábban):
+           mentés közben a blocker nyeli el a navigációt, KIJELENTKEZÉS közben
+           pedig a lap maga megy el. Az összevonás az App-ban történik, ott van
+           mindkét érték. A kijelentkezés a fontosabb eset, és nem is ritka: a
+           kijelentkezés-karika csak 300 ms után gyullad ki (addig a navbar
+           látszik), egészséges mentésnél viszont az egész századmásodpercek alatt
+           lefut — vagyis a TIPIKUS kijelentkezésnél a karika meg sem jelenik, és a
+           navbar végig ott van, kézzel a linkjein.
+
+           A kijelentkezett ágon nincs értelme (ott nincs se szerkesztő, se
+           kijelentkezés), ezért csak az isVisible: true ágon szerepel. */
+        isNavigationBlocked: boolean;
     };
 
 export default function Navbar(props: NavbarProps) {
@@ -77,13 +87,13 @@ export default function Navbar(props: NavbarProps) {
         props.setIsColorClicked(false);
     };
 
-    /* A `navbar-saving` osztály CSAK az egérmutatót állítja át a navbar LINKJEIN
+    /* A `navbar-blocked` osztály CSAK az egérmutatót állítja át a navbar LINKJEIN
        (index.css) — a téma-kapcsolót és a kijelentkezést nem érinti, mert azok
        mentés közben is tényleg működnek. A `props.isVisible &&` azért kell, mert a
-       kijelentkezett ág propjai közt nincs isSaving: a union-típus itt még nincs
+       kijelentkezett ág propjai közt nincs ilyen mező: a union-típus itt még nincs
        szűkítve. */
     const navClass = "navbar navbar-black bg-transparent pb-0"
-        + (props.isVisible && props.isSaving ? " navbar-saving" : "");
+        + (props.isVisible && props.isNavigationBlocked ? " navbar-blocked" : "");
 
     return (
         <nav className={navClass}>

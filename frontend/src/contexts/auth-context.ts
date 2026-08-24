@@ -73,7 +73,18 @@ export type Auth = {
     /* Épp a kijelentkezéshez tartozó mentésre várunk-e. A kijelentkezés MEGVÁRJA a
        szerkesztő függő mentését (pendingSave.ts); ez a jelző KÉSLELTETVE (300 ms
        után) gyullad ki, hogy a szokásos, gyors esetben ne villanjon fel semmi. */
+    /* FUT-E ÉPP A KIJELENTKEZÉS. AZONNAL igaz, a kattintás pillanatától — ezt
+       olvassa minden, ami a "mindjárt elmegy a lap" tényből következik (ma: a
+       navbar linkjeinek egérmutatója). */
     isLoggingOut: boolean;
+    /* KIGYULLADT-E A KIJELENTKEZÉS-KARIKA. Ez KÉSLELTETVE igaz (300 ms), mert egy
+       egészséges mentés századmásodpercek alatt lefut, és egy azonnal megjelenő
+       karika csak VILLANNA egyet — az zavaróbb, mint a semmi.
+
+       SZÁNDÉKOSAN külön a fentitől, nem duplikáció: a karika villanása zavaró, a
+       kurzoré nem, tehát a kettő nem várhat ugyanannyit. Egyetlen jelzővel vagy a
+       karika villanna, vagy a kurzor hazudna 300 ezredmásodpercig. */
+    showsLogoutSpinner: boolean;
     login: (newToken: AuthToken) => void;
     logout: () => void;
     handleAxios: HandleAxios;

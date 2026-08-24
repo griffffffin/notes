@@ -777,9 +777,11 @@ dialog.todo-modal {
    gomb, nem link, és mentés közben is MŰKÖDIK (a kijelentkezés megvárja a
    mentést, l. pendingSave.ts) — rájuk tehetetlenséget mutatni hazugság volna.
 
-   Az osztályt a Navbar teszi ki (components/Navbar/navbar.tsx), az állapot pedig
-   az App-ban él, mert a szerkesztő írja és a navbar olvassa. */
-.navbar-saving a {
+   Az osztályt a Navbar teszi ki (components/Navbar/navbar.tsx), az állapotot
+   pedig az App vonja össze KÉT forrásból: a mentésből (a szerkesztő írja) és a
+   kijelentkezésből (auth context). Korábban `navbar-saving` volt a neve, de
+   azóta nem csak a mentés teszi ki — a név a HATÁST mondja, nem az egyik okát. */
+.navbar-blocked a {
     cursor: default;
 }
 

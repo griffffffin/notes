@@ -33,7 +33,7 @@ const setup = (overrides: Partial<NavbarProps> = {}, route = "/") => {
         setIsCategoryClicked: vi.fn(), isCategoryClicked: false,
         setIsColorClicked: vi.fn(), isColorClicked: false,
         // Alapból NEM mentünk; a mentés-közbeni egérmutatót külön teszt állítja be.
-        isSaving: false, ...overrides,
+        isNavigationBlocked: false, ...overrides,
     } satisfies NavbarProps;
     render(
         <CookiesProvider>
@@ -174,14 +174,14 @@ describe("Navbar — mentés közben az egérmutató", () => {
     const nav = () => requireElement("nav", HTMLElement);
 
     it("mentés közben a navbar megkapja a jelző osztályt", () => {
-        setup({isSaving: true});
+        setup({isNavigationBlocked: true});
 
-        expect(nav()).toHaveClass("navbar-saving");
+        expect(nav()).toHaveClass("navbar-blocked");
     });
 
     it("mentés nélkül NEM kapja meg (kontroll)", () => {
-        setup({isSaving: false});
+        setup({isNavigationBlocked: false});
 
-        expect(nav()).not.toHaveClass("navbar-saving");
+        expect(nav()).not.toHaveClass("navbar-blocked");
     });
 });

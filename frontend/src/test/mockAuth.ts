@@ -52,6 +52,7 @@ export function mockAuth(overrides: Partial<Omit<Auth, "handleAxios">> = {}) {
         token: null,
         isLoggedIn: false,
         isLoggingOut: false,
+        showsLogoutSpinner: false,
         login: vi.fn(),
         logout: vi.fn(),
         /* A továbbítás `...args`-szal megy, nem megnevezett paraméterekkel: így a

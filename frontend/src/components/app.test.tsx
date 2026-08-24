@@ -1,7 +1,7 @@
 import {act, render, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {CookiesProvider} from "react-cookie";
-import {beforeAll, beforeEach, describe, expect, it, vi} from "vitest";
+import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest";
 import App from "./app";
 import {ThemeProvider} from "../contexts/theme";
 import {axiosResponse} from "../test/axiosResponse";
@@ -157,5 +157,50 @@ describe("App — a kategóriák betöltése elbukott", () => {
 
         expect(await screen.findByText("otthon")).toBeVisible();
         expect(screen.queryByText(MESSAGE)).not.toBeInTheDocument();
+    });
+});
+
+/* A NAVBAR LINKJEI KIJELENTKEZÉS KÖZBEN (2026-08-24).
+
+   A linkek mentés közben már eddig is a normál egérmutatót kapták (a blocker
+   úgyis elnyeli a navigációt), de a KIJELENTKEZÉSRŐL a navbar nem tudott.
+
+   A rés nem elméleti, és nem is a szélső eset. A kijelentkezés-karika 300 ms után
+   gyullad ki, és amíg nincs ott, a teljes navbar látszik — egy egészséges mentés
+   viszont századmásodpercek alatt lefut, tehát a TIPIKUS kijelentkezésnél a karika
+   meg sem jelenik. Vagyis a felhasználó végig egy olyan navbart lát, aminek a
+   linkjei kézzel hívogatnak, holott a lap pillanatokon belül eltűnik alóluk.
+
+   A TESZT NEM IDŐZÍTÉSRE ÉPÜL. Nem a 300 ms-os ablakot próbálja eltalálni (az
+   flaky volna), hanem közvetlenül azt az ÁLLAPOTOT állítja elő, ami abban a
+   résben fennáll: fut a kijelentkezés, a karika még nem gyulladt ki. */
+describe("App — a navbar linkjei kijelentkezés közben", () => {
+    beforeEach(() => {
+        handleAxios.mockImplementation((url, data, then) => {
+            then(axiosResponse(url === "/to-dos/categories" ? ["otthon"] : []));
+        });
+    });
+    /* A mockolt context objektumát a tesztek MUTÁLJÁK, mert a modul-szintű mock
+       ugyanazt a példányt adja minden renderben. Ezért kötelező visszaállítani —
+       különben a következő teszt egy félig kijelentkezett appot kapna. */
+    afterEach(() => { auth.isLoggingOut = false; });
+
+    it("kijelentkezés alatt a linkek NEM kapnak kéz-kurzort", () => {
+        auth.isLoggingOut = true;
+
+        renderApp();
+
+        expect(screen.getByRole("navigation"),
+            "kijelentkezés közben a linkek nem visznek sehova — a kéz-kurzor mást ígér")
+            .toHaveClass("navbar-blocked");
+    });
+
+    it("kijelentkezés NÉLKÜL a linkek megtartják a kéz-kurzort (kontroll)", () => {
+        /* A párja az előzőnek. Enélkül a fenti teszt akkor is zöld volna, ha az
+           osztály MINDIG felkerülne — a kurzor pedig sosem mutatná, hogy a link
+           visz valahova. */
+        renderApp();
+
+        expect(screen.getByRole("navigation")).not.toHaveClass("navbar-blocked");
     });
 });
