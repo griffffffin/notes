@@ -93,68 +93,24 @@ export type Id = v.InferOutput<typeof idSchema>;
    Ahol dátumként kell, ott `new Date(...)`. */
 const isoDateSchema = v.string();
 
-/* A bejelentkezés, a regisztráció és a token-megújítás VÁLASZA maga az aláírt
-   JWT, csupasz stringként — nem {token: "…"} burkolóban. Saját néven, mert a
-   puszta `string` semmit nem mondana arról, mit tartunk a kezünkben: ez az az
-   érték, amitől a szerver tudja, ki vagy.
+/* A TOKEN SÉMÁJA INNEN ELKERÜLT. Amíg a JWT-t a kliens tette sütibe és olvasta
+   ki onnan, a szervertől jövő szöveget ellenőrizni KELLETT — az a program
+   határán érkező, nem megbízható érték volt. Ma a token HttpOnly sütiben utazik:
+   a lapon futó kód nem látja, nem is kaphat helyette mást, tehát nincs mit
+   ellenőrizni. Ami maradt a munkamenetből, azt a `sessionSchema` írja le. */
 
-   MIT JELENT ITT AZ „ÉRVÉNYES"? A tokent a szerver írja ALÁ, és csak ő tudja
-   ellenőrizni — az aláíráshoz szükséges titok soha nem hagyja el a szervert,
-   tehát a frontend a HITELESSÉGET nem tudja (és nem is szabad, hogy) eldöntse.
-   Amit viszont meg tud nézni: hogy az érték egyáltalán TOKEN-e. Ez a séma erre a
-   kérdésre válaszol, és pontosan eddig megy el.
+/* A MUNKAMENET, ahogy a szerver leírja (POST /login, /user/create, /me, /refresh).
 
-   Miért éri meg mégis? Mert a süti a felhasználó gépén él (contexts/auth.tsx):
-   átírható kézzel, megörökölhető egy régi verziótól, vagy — a react-cookie
-   JSON-értelmezése miatt — objektummá alakulhat. Ellenőrzés nélkül a felület
-   BEJELENTKEZETTNEK látszana bármilyen szöveggel, és csak az első kérés 401-e
-   döntené el a dolgot. Ezzel a szűkítéssel a bejelentkezett képernyő már csak
-   olyan értékre jár, ami tényleg a szervertől származhat.
+   A token MÁR NEM SZEREPEL benne, és ez a lényeg: HttpOnly sütiben utazik, amit a
+   lapon futó JavaScript nem is lát (backend/src/tokenCookie.js). A felület tehát
+   nem a token birtoklásából tudja, hogy be van lépve, hanem abból, hogy ez a
+   válasz megérkezett — a kijelentkezett hívó 401-et kap.
 
-   A HÁROM LÉPCSŐ: szöveg → nem üres → valódi JWT-alak (három pont-elválasztott,
-   base64url rész, aminek a KÖZÉPSŐ tagja a szerver állításaira dekódolódik).
-   Utóbbi nem formalitás: egy "abc.def.ghi" ugyan három részes, de nem hordoz
-   állításokat — a dekódolás dönti el, nem a pontok száma. */
-
-/* A szerver állításai a tokenben (backend/src/token.js: `jwt.sign({id}, …,
-   {expiresIn})`) — az `iat` és az `exp` magától kerül bele, másodpercben. NEM
-   olvassuk ki őket sehol: a tulajdonos azonosítóját is a szerver veszi a
-   tokenből minden kérésnél, a lejáratot pedig ő érvényesíti. Itt csak annak
-   BIZONYÍTÉKAI, hogy amit a kezünkben tartunk, az egy kiadott token. */
-const tokenClaimsSchema = v.object({id: v.string(), iat: v.number(), exp: v.number()});
-
-/* A LEJÁRATOT SZÁNDÉKOSAN NEM VIZSGÁLJUK, pedig kézenfekvő volna: a böngésző
-   órája nem megbízható forrás, és egy elállított óra ITT nem kis kényelmetlenség
-   lenne, hanem ÖNMAGÁT BEZÁRÓ HUROK — a frissen kapott token is "lejártnak"
-   látszana, tehát a bejelentkezés a sikeres válasz ellenére sem vinne be sehova.
-   A valódi lejárattal szemben nem is védtelen az app: az első kérés 401-et kap,
-   és a handleAxios erre kijelentkeztet — egyetlen kérésen belül, a szerver
-   órája szerint, aki ezt egyedül tudhatja. */
-function hasTokenClaims(token: string): boolean {
-    const parts = token.split(".");
-    const payload = parts[1];
-    /* A darabszám mellett a HASZNÁLT részt is kimondjuk. A `parts.length !== 3`
-       igaz feltétel volt, de abból a fordító nem tudta, hogy a `parts[1]`
-       létezik — és jogosan: az indexelés eredménye elvileg `undefined` is lehet.
-       Így egyetlen ellenőrzés dönt arról, amivel utána dolgozunk: a középső,
-       állításokat tartó részről. */
-    if (parts.length !== 3 || payload === undefined) return false;
-    try {
-        /* base64url → base64: a JWT a "+" és a "/" helyett "-"-t és "_"-t használ
-           (hogy URL-be is írható legyen). A kitöltő "=" jeleket elhagyja, de az
-           atob ezt megengedi — csak a 4-gyel osztva 1 maradékot adó hosszt
-           utasítja el, ami amúgy sem érvényes base64. */
-        const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
-        return v.is(tokenClaimsSchema, JSON.parse(json));
-    } catch {
-        // Nem base64, vagy nem JSON — akkor sem token, ha három részes.
-        return false;
-    }
-}
-
-export const authTokenSchema = v.pipe(v.string(), v.nonEmpty(),
-    v.check(hasTokenClaims, "A token nem a szervertől származó JWT."));
-export type AuthToken = v.InferOutput<typeof authTokenSchema>;
+   A NÉV nem díszítés: ez az EGYETLEN adat, amit a munkamenetről tudunk, és a
+   szerver szándékosan csak ennyit ad (a fiók-dokumentum jelszó-hasht és
+   piszkozat-kulcsot is tartalmaz). */
+export const sessionSchema = v.object({name: v.pipe(v.string(), v.nonEmpty())});
+export type Session = v.InferOutput<typeof sessionSchema>;
 
 /* A PISZKOZAT-TITKOSÍTÁS KULCSA (POST /drafts/key) — 32 véletlen bájt base64-ben.
 

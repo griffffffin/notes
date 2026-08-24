@@ -1,6 +1,6 @@
 import {createContext, useContext} from "react";
 import type {AxiosResponse} from "axios";
-import type {AuthToken} from "../types/api";
+import type {Session} from "../types/api";
 import type {Endpoint} from "../endpoints";
 
 /* Az auth megosztható, NEM komponens része: a context és a useAuth hook — külön
@@ -51,9 +51,6 @@ export type HandleAxios = (
     data: unknown,
     then: (response: AxiosResponse<unknown>) => void,
     catchError: (error: unknown) => void,
-    // A szerkesztők zárványolt tokene `AuthToken | null` (l. auth.tsx); a null
-    // megengedett: a hívott oldalon `?? tokenRef.current` fallback nyeli el.
-    authToken?: AuthToken | null,
     /* A VISSZATÉRÉSI ÉRTÉK `void`, nem `Promise<void>` — pedig belül promise fut.
        Azért, mert a hívónak NINCS mit kezdenie vele: az eredmény a két
        visszahívásban érkezik, a lánc végén pedig egy `.catch` áll, tehát ez a
@@ -64,11 +61,27 @@ export type HandleAxios = (
        igaz: indíts kérést, a többi a visszahívásoké. */
 ) => void;
 
-/* Amit a context ad: a munkamenet állapota és az egyetlen hívó. A `token` azért
-   lehet null, mert kijelentkezve nincs — a `isLoggedIn` ugyanennek a kényelmi
-   alakja, hogy a komponenseknek ne kelljen null-t vizsgálniuk. */
+/* Amit a context ad: a munkamenet állapota és az egyetlen hívó.
+
+   A TOKEN MÁR NEM SZEREPEL ITT, és ez a HttpOnly süti egész lényege: a lapon futó
+   JavaScript nem látja, tehát nem is adhatja tovább, nem is szivárogtathatja ki.
+   A munkamenetről annyit tudunk, amennyit a szerver mond (POST /me). */
 export type Auth = {
-    token: AuthToken | null;
+    /* HÁROM ÁLLAPOT, és a harmadik a lényeges: `undefined` = MÉG NEM TUDJUK.
+
+       Amíg a token JS-ből olvasható sütiben élt, a bejelentkezettség azonnal
+       tudható volt — most egy szerverkérdés válaszára várunk. A "még nem tudjuk"
+       nem ugyanaz, mint a "nincs bejelentkezve": ha a kettőt összemossuk, a
+       felület minden indulásnál felvillantja a belépő képernyőt, és rosszabb
+       esetben egy múló hálózati hiba kilépteti azt, aki be van jelentkezve. */
+    session: Session | null | undefined;
+    /* Megérkezett-e már a válasz. A `session !== undefined` kényelmi alakja. */
+    isSessionKnown: boolean;
+    /* Nem tudtuk MEGKÉRDEZNI (hálózat, időtúllépés, alvó szerver) — ez NEM
+       kijelentkezettség. A felület ilyenkor újrapróbálást kínál, nem belépő
+       képernyőt; a `retrySession` az a gomb. */
+    sessionFailed: boolean;
+    retrySession: () => void;
     isLoggedIn: boolean;
     /* Épp a kijelentkezéshez tartozó mentésre várunk-e. A kijelentkezés MEGVÁRJA a
        szerkesztő függő mentését (pendingSave.ts); ez a jelző KÉSLELTETVE (300 ms
@@ -85,7 +98,15 @@ export type Auth = {
        kurzoré nem, tehát a kettő nem várhat ugyanannyit. Egyetlen jelzővel vagy a
        karika villanna, vagy a kurzor hazudna 300 ezredmásodpercig. */
     showsLogoutSpinner: boolean;
-    login: (newToken: AuthToken) => void;
+    /* A BELÉPÉS UTÁN nincs mit eltenni: a tokent a szerver már sütibe tette, a
+       válaszban csak a név jön. Ez a hívás tehát nem "beállítja a munkamenetet",
+       hanem TUDATJA a felülettel, hogy megvan — így nem kell egy fölösleges /me
+       kört futnia közvetlenül a bejelentkezés után. */
+    login: (session: Session) => void;
+    /* A KIJELENTKEZÉS ELBUKOTT-E. A süti a szerveré: ha a /logout nem ér célba, a
+       munkamenet ÉL TOVÁBB, és a JavaScript nem tudja eldobni (épp ez a HttpOnly
+       lényege). Ilyenkor tehát nem szabad azt állítani, hogy kiléptünk. */
+    logoutFailed: boolean;
     logout: () => void;
     handleAxios: HandleAxios;
 };

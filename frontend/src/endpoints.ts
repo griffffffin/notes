@@ -49,6 +49,10 @@ export const ENDPOINTS = {
        minden érvényes tokenért frisset ad. NEM publikus: a visszavonandó fiókot a
        szerver a TOKENBŐL veszi, tehát az auth-határ mögött ül. */
     logout: "/logout",
+    /* KI VAN BEJELENTKEZVE. A HttpOnly süti óta ez az EGYETLEN módja megtudni: a
+       tokent a JavaScript nem látja, tehát a bejelentkezettség ténye csak a
+       szervertől kérdezhető meg. A kijelentkezett hívó 401-et kap. */
+    me: "/me",
 
     /* A kliens szerződés-hibáinak jelentése (l. contractFault.ts). Publikus
        végpont, mint a /login és a /user/create: a szerződés a kijelentkezett

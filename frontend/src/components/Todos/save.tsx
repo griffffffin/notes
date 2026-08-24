@@ -71,10 +71,6 @@ type SaveProps = {
     handleLinkClicked: () => void;
     handleCategoryChange: () => void;
     categories: string[];
-    /* JELENTÉS FELFELÉ, hogy fut-e mentés — a navbar ebből tudja, hogy a linkjei
-       most nem visznek sehova (l. RoutesProps). Külön prop, nem a belső state:
-       a szerkesztő állapotát az App tárolja, mert a navbar is olvassa. */
-    setIsSaving: (isSaving: boolean) => void;
 };
 
 /* Változatlan-e az űrlap ahhoz képest, amit a szerver adott? */
@@ -147,7 +143,7 @@ function TodoEditor(props: SaveProps) {
     const [retryCount, setRetryCount] = useState(0);
     const [isCategoryAngleClicked, setIsCategoryAngleClicked] = useState(false);
     const navigate = useNavigate();
-    const {handleAxios, token} = useAuth();
+    const {handleAxios} = useAuth();
     const formRef = useRef<HTMLFormElement>(null);
     /* A kötelező mezők SAJÁT hibabuborékja a natív böngésző-buborék helyett (azt
        nem lehet stílusozni). null = nincs hiba; egyébként a fieldAnchor visszatérése:
@@ -233,20 +229,20 @@ function TodoEditor(props: SaveProps) {
        effektet). Új mentés indulásakor visszaáll, hogy a KÖVETKEZŐ bukás is
        lefuttassa az effektet. */
     const [saveFailed, setSaveFailed] = useState(false);
-    const setIsSavingUp = props.setIsSaving;
+    /* A mentés-állapot MOSTANTÓL a szerkesztőn belül marad (a gomb felirata és a
+       tiltások). Korábban felfelé is jelentette magát, mert a navbar linkjei
+       mentés közben a normál egérmutatót kapták — azt viszont visszavontuk: a
+       kattintás mentés közben IS tovább visz (a blocker ment, majd folytatja a
+       navigációt), tehát a kéz-kurzor ott igazat mond. Ezzel az egész felfelé
+       jelentő lánc — App-state, prop, és a leváláskori visszavonása — tárgytalanná
+       vált, ezért nem is maradt itt: egy soha nem olvasott jelző karbantartása
+       ugyanolyan teher, mint egy használté, csak haszna nincs. */
     const markSaving = useCallback((value: boolean) => {
         savingRef.current = value;
         setIsSaving(value);
-        setIsSavingUp(value);
         if (value) setSaveFailed(false);
         else inFlightRef.current = null;
-    }, [setIsSavingUp]);
-    /* A FELFELÉ JELENTETT ÁLLAPOTOT LEVÁLÁSKOR VISSZA KELL VONNI. Az App state-je
-       túléli ezt a komponenst: ha a szerkesztő mentés KÖZBEN tűnik el (tipikusan
-       kijelentkezéskor), a jelző igazon ragadna, és a navbar linkjei örökre a
-       "nem visz sehova" egérmutatót viselnék — némán, egészen az oldal
-       újratöltéséig. Üres deps: ez CSAK unmountkor fut. */
-    useEffect(() => () => setIsSavingUp(false), [setIsSavingUp]);
+    }, []);
     /* A leváláskor futtatandó mentés legfrissebb változata — minden renderben frissül,
        hogy az unmount az aktuális állapotot mentse (l. lentebb). */
     /* A típus KIMONDVA: a kezdőérték egy üres függvény volna, amiből a fordító
@@ -659,7 +655,12 @@ function TodoEditor(props: SaveProps) {
         // L. a Quotes/save.tsx azonos pontját: a kijelentkezés megvárja ezt a mentést.
         leftViaForm.current = true;
         const data: TodoPayload = {...currentData(), ...(savedItemId ? {id: savedItemId} : {})};
-        // A zárványolt `token` (nem az élő tokenRef): kijelentkezéskor az élő már null.
+        /* NINCS TÖBBÉ ZÁRVÁNYOLT TOKEN. A hitelesítés HttpOnly sütiből megy, amit
+           a böngésző a React-fa lebomlása után is elküld — korábban itt a
+           leváláskor még érvényes tokent kellett kézzel átadni, mert a
+           kijelentkezés addigra törölte az élőt. Ez a fajta hiba (a mentés token
+           nélkül, 401-gyel bukik el, a szöveg piszkozatba menekül) szerkezetileg
+           szűnt meg. */
         /* A LEVÁLÁSKORI MENTÉS a legkockázatosabb út: a képernyő épp megszűnik,
            tehát ha ez elbukik (lejárt token, alvó szerver, megszakadt hálózat),
            NINCS kinek szólni — a beírt szöveg nyomtalanul elveszne. Ezért a
@@ -673,7 +674,7 @@ function TodoEditor(props: SaveProps) {
                 clearDraft(draftStorageKey);
                 props.handleCategoryChange();
                 onSuccess();
-            }, onFailure, token),
+            }, onFailure),
             (error) => {
                 leftViaForm.current = false;
                 logRequestError(error);

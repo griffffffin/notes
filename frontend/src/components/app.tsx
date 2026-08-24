@@ -12,6 +12,7 @@ import {categoryListSchema} from "../types/api";
 import type {Todo} from "../types/api";
 import {parseResponse} from "../contractFault";
 import Spinner from "./spinner";
+import LoadFailedNotice from "./loadFailedNotice";
 
 /* CSAK a ténylegesen használt ikonokat regisztráljuk, nem a teljes `fas`
    készletet (~1600 ikon). A régi `library.add(fas)` mindet a bundle-be húzta,
@@ -36,9 +37,6 @@ export default function App() {
     // A to-do kategórialista (a kimondott típus a `useState([])` `never[]`-jét
     // váltja ki). A `Todo["category"]` a to-do saját, elemekre vonatkozó mezője —
     // ugyanaz a típus, amit a lenti Routes→Navbar lánc kategóriaként vár.
-    /* FUT-E ÉPP MENTÉS a szerkesztőben. Itt él, mert a szerkesztő írja, a navbar
-       olvassa, és az App a legszűkebb közös ősük (l. RoutesProps). */
-    const [isSaving, setIsSaving] = useState(false);
     const [categories, setCategories] = useState<Todo["category"][]>([]);
     /* A kategória-lekérés ELBUKOTT-e. Külön a listától: hiba után a KORÁBBI lista
        marad (egy pillanattal ezelőtti valóság, általában igaz), de a felhasználót
@@ -51,7 +49,8 @@ export default function App() {
        gomb halottnak látszana. Nem a gomb saját állapota, mert a lekérést öt hely
        indíthatja (l. lentebb), és mindegyikre igazat kell mondania. */
     const [categoriesLoading, setCategoriesLoading] = useState(false);
-    const {isLoggedIn, isLoggingOut, showsLogoutSpinner, handleAxios} = useAuth();
+    const {isLoggedIn, isSessionKnown, sessionFailed, retrySession, logoutFailed,
+        logout, isLoggingOut, showsLogoutSpinner, handleAxios} = useAuth();
 
     const handleLinkClicked = useCallback(() => {
         setIsColorAngleClicked(false);
@@ -120,7 +119,25 @@ export default function App() {
                 contexts/auth.tsx). A tartalom helyén jelenik meg, mert ilyenkor a
                 szerkesztőben nem érdemes tovább gépelni: a munkamenet zárul. */}
             {showsLogoutSpinner && <Spinner class="min-vh-75"/>}
-            {!showsLogoutSpinner &&
+            {/* A KIJELENTKEZÉS NEM FEJEZŐDÖTT BE A SZERVEREN. A felület kilépett, de
+                a munkamenet ÉLHET: a HttpOnly sütit nem tudjuk eldobni, azt a
+                szerver törli — ha a kérés nem ért célba, egy oldalfrissítés
+                visszahozná a bejelentkezett appot, magyarázat nélkül. Ezért nem a
+                belépő képernyőt mutatjuk, hanem kimondjuk, és adunk hozzá kiutat.
+                Az "Újra" ugyanazt a kijelentkezést ismétli meg. */}
+            {!showsLogoutSpinner && logoutFailed &&
+            <LoadFailedNotice message="A kijelentkezés nem fejeződött be." onRetry={logout}/>}
+            {/* MÉG NEM TUDJUK, be vagyunk-e jelentkezve: a /me válaszára várunk. Ez
+                NEM kijelentkezettség — a belépő képernyőt felvillantani minden
+                oldalbetöltéskor annak is, aki be van jelentkezve, hibás állítás
+                volna. A karika ugyanaz, amit a felület máshol is használ. */}
+            {!showsLogoutSpinner && !logoutFailed && !isSessionKnown && !sessionFailed &&
+            <Spinner class="min-vh-75"/>}
+            {/* NEM TUDTUK MEGKÉRDEZNI (hálózat, alvó szerver). Ebből sem következik,
+                hogy nincs munkamenet — ezért újrapróbálást kínálunk, nem belépést. */}
+            {!showsLogoutSpinner && !logoutFailed && sessionFailed &&
+            <LoadFailedNotice message="A bejelentkezés most nem ellenőrizhető." onRetry={retrySession}/>}
+            {!showsLogoutSpinner && !logoutFailed && isSessionKnown && !sessionFailed &&
             <Routes handleLinkClicked={handleLinkClicked}
                     setIsColorAngleClicked={setIsColorAngleClicked} isColorAngleClicked={isColorAngleClicked}
                     setIsCategoryAngleClicked={setIsCategoryAngleClicked}
@@ -128,15 +145,11 @@ export default function App() {
                     categories={categories} categoriesFailed={categoriesFailed}
                     categoriesLoading={categoriesLoading}
                     handleCategoryChange={handleCategoryChange}
-                    /* A KÉT FORRÁS ÖSSZEVONÁSA. A navbar linkjei akkor sem visznek
-                       sehova, ha épp kijelentkezünk — és ez a gyakoribb eset: a
-                       kijelentkezés-karika 300 ms után gyullad ki, egy egészséges
-                       mentés viszont ennél hamarabb lefut, tehát a tipikus
-                       kijelentkezésnél a navbar végig látszik. Kéz-kurzorral azt
-                       ígérné, hogy a kattintás visz valahova, holott a lap
-                       pillanatokon belül eltűnik. */
-                    isNavigationBlocked={isSaving || isLoggingOut}
-                    setIsSaving={setIsSaving}/>}
+                    /* A kijelentkezés a karika előtti résben is letiltja a
+                       linkeket: a jelző azonnal igaz, a karika csak 300 ms után —
+                       és egy egészséges kijelentkezés ennél hamarabb lefut, tehát
+                       a navbar tipikusan végig látszik. */
+                    isNavigationBlocked={isLoggingOut}/>}
         </div>
     );
 }

@@ -78,11 +78,13 @@ export const COOKIES = {
    csomagban jön, a token HttpOnly-vá tételével együtt. */
 const BASE: CookieOptions = {path: "/", sameSite: "strict"};
 
-/* A TOKEN sütije a MUNKAMENETTEL él: nincs rajta lejárat, tehát a böngésző
-   bezárásakor eltűnik. Ez tudatos — egy "emlékezz rám" sütinek itt nem lenne
-   értelme, mert maga a token 15 perc után amúgy is érvénytelen (backend
-   token.js), a lemezen felejtett token viszont valódi kockázat egy közös gépen. */
-export const SESSION_COOKIE: CookieOptions = BASE;
+/* A MUNKAMENET-SÜTI KIKERÜLT INNEN. A tokent ma a SZERVER teszi sütibe,
+   HttpOnly-ként — a lapon futó JavaScript nem látja, tehát nem is állíthatja be.
+   A jelzőit (köztük a lejárat hiányát, ami a böngésző bezárásakor megszünteti a
+   munkamenetet) a backend mondja ki, egy helyen: backend/src/tokenCookie.js.
+
+   Ami itt maradt, az a TÉMA sütije: az továbbra is a kliensé, mert nem titok és
+   nem munkamenet-adat. */
 
 /* A TÉMA sütijei viszont TÚLÉLIK a böngésző bezárását. Enélkül (mérve: ma
    `backgroundColor=white; Path=/`, azaz lejárat nélküli munkamenet-süti) a

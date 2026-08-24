@@ -160,26 +160,31 @@ describe("Navbar — a kategóriák betöltése elbukott", () => {
     });
 });
 
-/* MENTÉS KÖZBEN A NAVBAR LINKJEI NEM VISZNEK SEHOVA.
+/* KIJELENTKEZÉS KÖZBEN A NAVBAR LINKJEI NEM KATTINTHATÓK.
 
-   Amíg a szerkesztő mentése úton van, a useBlocker elnyeli a navigációt: a
-   kattintás nem hibázik, egyszerűen nem történik semmi. A felület ezt előre
-   megmondja — a linkek a mutató kéz helyett a sima nyilat kapják.
+   A lap pillanatokon belül eltűnik, tehát a kattintás nem vinne sehova — ráadásul
+   feleslegesen leválasztaná a szerkesztőt, ami elindítaná a leváláskori mentését,
+   miközben a kijelentkezés mentése már fut. Az osztály ezért `pointer-events:
+   none`-t is ad, nem csak nyíl-kurzort (index.css).
+
+   MENTÉS KÖZBEN EZ NINCS ÍGY, pedig korábban volt. A blocker a mentés végeztével
+   FOLYTATJA a navigációt (proceed), tehát a kattintás elér a céljához, csak
+   később — ott a kéz-kurzor igazat mond, és a link kattintható marad.
 
    AMIT EZ A TESZT MÉR, ÉS AMIT NEM. Itt az OSZTÁLY jelenlétét kérjük számon; hogy
-   az osztályhoz tartozó `cursor: default` szabály tényleg hat-e, azt a jsdom nem
-   tudja megmondani (nem tölt stíluslapot). Azt élő böngészőben, getComputedStyle-lal
-   mértük meg (2026-08-20). A kettő együtt fedi le a láncot. */
-describe("Navbar — mentés közben az egérmutató", () => {
+   a hozzá tartozó szabályok tényleg hatnak-e, azt a jsdom nem tudja megmondani
+   (nem tölt stíluslapot) — azt élő böngészőben, getComputedStyle-lal kell mérni.
+   A kettő együtt fedi le a láncot. */
+describe("Navbar — kijelentkezés közben a linkek", () => {
     const nav = () => requireElement("nav", HTMLElement);
 
-    it("mentés közben a navbar megkapja a jelző osztályt", () => {
+    it("kijelentkezés közben a navbar megkapja a jelző osztályt", () => {
         setup({isNavigationBlocked: true});
 
         expect(nav()).toHaveClass("navbar-blocked");
     });
 
-    it("mentés nélkül NEM kapja meg (kontroll)", () => {
+    it("kijelentkezés nélkül NEM kapja meg (kontroll)", () => {
         setup({isNavigationBlocked: false});
 
         expect(nav()).not.toHaveClass("navbar-blocked");

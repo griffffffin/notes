@@ -6,7 +6,7 @@ import {logRequestError} from "../../log";
 import {ENDPOINTS} from "../../endpoints";
 import {responseStatus} from "../../httpError";
 import {ENTRY_ERROR_MESSAGES, entryError, type EntryError} from "./entryError";
-import {authTokenSchema} from "../../types/api";
+import {sessionSchema} from "../../types/api";
 import {parseResponse} from "../../contractFault";
 
 /* Ugyanaz a komponens szolgálja ki a belépést és a regisztrációt — a különbséget
@@ -88,14 +88,14 @@ export default function Entry(props: EntryProps) {
                    ({token: "…"}), a bejelentkezés HANGOSAN bukik (hibaüzenet a
                    belépő űrlapon), nem egy "[object Object]" tokennel, amivel
                    utána minden kérés 401-et kapna. */
-                const token = parseResponse(authTokenSchema, response.data, url);
+                const newSession = parseResponse(sessionSchema, response.data, url);
                 /* A süti beállítása átbillenti az isLoggedIn-t, a router
                    újrarenderel a belépett route-táblával — és MOST NEM navigálunk
                    kézzel: így ha a user login nélkül egy védett címet nyitott meg
                    (pl. /to-dos/update/:id vagy /quotes/:id), belépés után OTT marad,
                    nem dobjuk a főoldalra. A /login és /signup címeket a belépett
                    tábla "*" ága magától a /to-dos listára irányítja át. */
-                login(token);
+                login(newSession);
                 /* A paraméter neve `requestError`, nem `error`: a komponens
                    állapotát hívják `error`-nak, és az árnyékolás itt pont a
                    fontos helyen zavarna össze (melyiket adjuk a naplónak?). */

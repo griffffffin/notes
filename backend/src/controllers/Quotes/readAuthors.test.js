@@ -6,7 +6,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const express = require("express");
-const {userStub, bearerFor} = require("../../test/authStub");
+const {userStub, sessionCookieFor} = require("../../test/authStub");
 const mongoose = require("mongoose");
 const request = require("supertest");
 
@@ -39,8 +39,8 @@ app.use(express.json());
 app.use(auth);
 app.use("/authors", readAuthors);
 
-const token = bearerFor(OWNER);
-const post = (body) => request(app).post("/authors").set("Authorization", token).send(body);
+const token = sessionCookieFor(OWNER);
+const post = (body) => request(app).post("/authors").set("Cookie", token).send(body);
 
 test("a szerzőneveket adja vissza (a csoportok _id-jét)", async () => {
     const response = await post({prefix: "Má"});
@@ -82,7 +82,7 @@ const realApp = express();
 realApp.use(express.json());
 realApp.use(routes);
 const postReal = (body) =>
-    request(realApp).post("/quotes/authors").set("Authorization", token).send(body);
+    request(realApp).post("/quotes/authors").set("Cookie", token).send(body);
 
 test("a routerben a /quotes/authors a hossz-validátor MÖGÖTT ül", async () => {
     assert.strictEqual((await postReal({prefix: "Má"})).status, 200);

@@ -11,6 +11,7 @@ const routes = require("./routes");
 const serverError = require("./serverError");
 const csp = require("./csp");
 const noStore = require("./middleware/noStore");
+const sameOrigin = require("./middleware/sameOrigin");
 
 /* Élesben a backend szolgálja ki a frontend buildjét is (dist) — fejlesztésnél
    a dist hiányozhat (akkor a Vite dev szerver a frontend), ezért feltételes. */
@@ -49,7 +50,31 @@ app.use(csp.header(path.join(dist, "index.html")));
    A korábbi sima cors() BÁRMELY origin-t engedte. A névszerinti lista ennél
    szűkebb; netre menet a CORS_ORIGINS ürítésével minden idegen origin kizárható. */
 const corsOrigins = (env.CORS_ORIGINS ?? "").split(",").map((origin) => origin.trim()).filter(Boolean);
-if (corsOrigins.length) app.use(cors({origin: corsOrigins}));
+/* A `credentials: true` A SÜTI MIATT KELL. A böngésző cross-origin kérésnél csak
+   akkor csatolja a sütit — és csak akkor engedi a választ elolvasni —, ha a
+   szerver ezt kimondja. Enélkül a fejlesztői felállás (Vite az 5173-on, API a
+   3001-en) némán hitelesítetlen volna: minden kérés 401, holott a böngészőben ott
+   a süti. Élesben nincs jelentősége (azonos origin), de a CORS maga is csak
+   fejlesztéskor kapcsol be — l. a fenti indoklást.
+
+   A SÜTI HATÓKÖRE ETTŐL FÜGGETLENÜL RENDBEN VAN: a sütiknél a PORT nem számít,
+   tehát az 5173 és a 3001 ugyanaz a "site", és a SameSite=Strict sem akadály. */
+if (corsOrigins.length) app.use(cors({origin: corsOrigins, credentials: true}));
+
+/* CSRF: A KÉRÉS A MI OLDALUNKRÓL INDULT-E. A süti-alapú hitelesítés óta a
+   böngésző magától küldi a munkamenetet, tehát egy idegen oldalról indított kérés
+   hitelesített volna — ezt zárja le, MÁSODIK rétegként a süti SameSite=Strict
+   jelzője mellett (az indoklás: middleware/sameOrigin.js).
+
+   A SORRENDJE LÉNYEGES, két irányban is. A CORS UTÁN áll, hogy a preflight
+   válaszát ne fogja meg; és minden ÚTVONAL ELŐTT — beleértve a publikus /login-t
+   is, mert a "login CSRF" (a támadó a saját fiókjába jelentkeztet be valakit)
+   valódi támadás. A törzs feldolgozása (express.json) elé kerül: amit
+   elutasítunk, azt fel se dolgozzuk.
+
+   Ugyanazt az engedélyezett-lista értéket kapja, amit a CORS: fejlesztéskor a
+   Vite dev szervere (5173) egy MÁSIK origin, és annak át kell jutnia. */
+app.use(sameOrigin(corsOrigins));
 
 app.use(express.json({limit: "1mb"}));   // a törzs mérete se legyen korlátlan
 if (hasDist) app.use(express.static(dist));

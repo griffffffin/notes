@@ -777,11 +777,23 @@ dialog.todo-modal {
    gomb, nem link, és mentés közben is MŰKÖDIK (a kijelentkezés megvárja a
    mentést, l. pendingSave.ts) — rájuk tehetetlenséget mutatni hazugság volna.
 
-   Az osztályt a Navbar teszi ki (components/Navbar/navbar.tsx), az állapotot
-   pedig az App vonja össze KÉT forrásból: a mentésből (a szerkesztő írja) és a
-   kijelentkezésből (auth context). Korábban `navbar-saving` volt a neve, de
-   azóta nem csak a mentés teszi ki — a név a HATÁST mondja, nem az egyik okát. */
+   Az osztályt a Navbar teszi ki (components/Navbar/navbar.tsx), és MA CSAK A
+   KIJELENTKEZÉS teszi fel. Korábban a mentés is: akkor a linkek a normál
+   egérmutatót kapták, mert a blocker elnyelte a navigációt. Ezt visszavontuk —
+   a blocker a mentés végeztével FOLYTATJA is a navigációt, tehát a kattintás
+   elér a céljához, csak később; ott a kéz-kurzor igazat mond. A név (`blocked`,
+   nem `saving`) azért maradt a hatásra utaló, mert a kiváltó ok bővülhet. */
 .navbar-blocked a {
+    /* NEM CSAK a kurzort veszi el: a linkek KATTINTHATATLANOK is. Kijelentkezés
+       közben a navigációnak nincs értelme (a lap megy el), és nem is ártalmatlan:
+       egy kattintás leválasztaná a szerkesztőt, ami elindítaná a leváláskori
+       mentését — miközben a kijelentkezés mentése már fut.
+
+       A `pointer-events: none` az EGÉRRE hat; a billentyűzetes aktiválás (Tab +
+       Enter) elvben megmarad. Az a 300 ms-os résben elméleti, és a hatása is csak
+       egy felesleges navigáció, amit a lap eltűnése úgyis elmos — a linkek
+       tabindexét ezért nem bolygatjuk. */
+    pointer-events: none;
     cursor: default;
 }
 

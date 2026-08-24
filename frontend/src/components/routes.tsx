@@ -54,21 +54,17 @@ export type RoutesProps = {
     categoriesFailed: CategoryAndColorGroupProps["categoriesFailed"];
     categoriesLoading: CategoryAndColorGroupProps["categoriesLoading"];
     handleCategoryChange: () => void;
-    /* VISZNEK-E MOST VALAHOVA A NAVBAR LINKJEI. A kettő SZÁNDÉKOSAN aszimmetrikus:
-       a szerkesztő csak ÍR (setIsSaving), a navbar pedig egy MÁR ÖSSZEVONT jelzőt
-       OLVAS. Az összevonás az App-ban történik, mert a két forrás — a mentés
-       (a szerkesztőtől) és a kijelentkezés (az auth contextből) — csak ott
-       találkozik.
+    /* FUT-E A KIJELENTKEZÉS. Ilyenkor a navbar linkjei nem kattinthatók: a lap
+       pillanatokon belül eltűnik, tehát a kattintás nem vinne sehova — ráadásul
+       feleslegesen elindíthatná a szerkesztő leváláskori mentését is, miközben a
+       kijelentkezés mentése már fut.
 
-       Mire kell: ilyenkor a navigáció nem történik meg (mentés közben a blocker
-       nyeli el, kijelentkezéskor a lap megy el), de ebből a felhasználó semmit nem
-       lát. A linkek ezért a normál egérmutatót kapják a mutató kéz helyett — a
-       felület előre megmondja, hogy ezek most nem visznek sehova. A téma-kapcsoló
-       és a kijelentkezés SZÁNDÉKOSAN érintetlen: azok tényleg működnek mentés
-       közben is (a kijelentkezés megvárja a mentést, l. pendingSave.ts), tehát
-       hazugság volna őket tehetetlennek mutatni. */
+       A MENTÉS SZÁNDÉKOSAN NEM tartozik ide, pedig korábban igen. Mentés közben a
+       blocker elnyeli a navigációt, DE a mentés befejeztével folytatja is
+       (proceed) — a kattintás tehát elér a céljához, csak később. Ott a kéz-kurzor
+       igazat mond, és a link kattintható marad. A téma-kapcsoló és a kijelentkezés
+       mindkét esetben érintetlen: azok tényleg működnek. */
     isNavigationBlocked: boolean;
-    setIsSaving: (isSaving: boolean) => void;
 };
 
 /* Az App a UI-állapotát (kategóriák, "+"-nyilak, handlerek) EDDIG propként adta
@@ -134,7 +130,7 @@ function TodosSaveRoute({isUpdate}: {isUpdate: boolean}) {
     const p = useRoutesProps();
     const {id} = useParams();
     return <Save key={isUpdate ? "update" : "create:" + id} isUpdate={isUpdate}
-                 handleLinkClicked={p.handleLinkClicked} setIsSaving={p.setIsSaving}
+                 handleLinkClicked={p.handleLinkClicked}
                  categories={p.categories} handleCategoryChange={p.handleCategoryChange}/>;
 }
 
@@ -153,7 +149,7 @@ function QuotesSaveRoute({isUpdate}: {isUpdate: boolean}) {
     const {id} = useParams();
     // A key indoklása a TodosSaveRoute-nál.
     return <QuoteSave key={isUpdate ? "update" : "create:" + id} isUpdate={isUpdate}
-                      handleLinkClicked={p.handleLinkClicked} setIsSaving={p.setIsSaving}/>;
+                      handleLinkClicked={p.handleLinkClicked}/>;
 }
 
 /* Az utolsó megnyitott szekcióra visz — a gyökér ÉS az ismeretlen út közös célja.

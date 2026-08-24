@@ -1,6 +1,7 @@
 const router = require("express").Router();
 const Users = require("../../models/users");
 const serverError = require("../../serverError");
+const {clearTokenCookie} = require("../../tokenCookie");
 
 /* KIJELENTKEZÉS = MINDEN KIADOTT TOKEN VISSZAVONÁSA.
 
@@ -36,6 +37,12 @@ const serverError = require("../../serverError");
 module.exports = router.post("/", async (request, response) => {
     try {
         await Users.updateOne({_id: request.userId}, {$inc: {tokenVersion: 1}});
+        /* A SÜTIT IS ELDOBJUK. A verzió növelése önmagában elég ahhoz, hogy a token
+           HASZNÁLHATATLAN legyen — de ha a süti a böngészőben maradna, minden
+           további kérés vinné magával, és 401-et kapna: a felület kijelentkezettnek
+           látszana, közben minden hívás egy halott tokennel indulna. A törlés
+           ugyanazokkal a jelzőkkel megy, mint a kiadás (l. tokenCookie.js). */
+        clearTokenCookie(request, response);
         return response.json("Kijelentkezve.");
     } catch (error) {
         /* A HIBÁT NEM NYELJÜK EL. Csábító volna 200-zal válaszolni ("a kliens

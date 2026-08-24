@@ -2,6 +2,7 @@ const router = require("express").Router();
 const Users = require("../../models/users");
 const bcrypt = require("bcrypt");
 const {signToken} = require("../../token");
+const {setTokenCookie} = require("../../tokenCookie");
 
 /* A hibaüzenet SZÁNDÉKOSAN ugyanaz ismeretlen névre és rossz jelszóra.
    Korábban a kettő elkülönült ("Hibas felhasznalonev." / "Hibas jelszo."), ami
@@ -81,7 +82,13 @@ module.exports = router.post("/", async (request, response) => {
         const isMatch = await bcrypt.compare(request.body.password, user?.password ?? DUMMY_HASH);
         if (!user || !isMatch) return response.status(BAD_LOGIN_STATUS).json(BAD_LOGIN);
         rehashIfOutdated(user, request.body.password);
-        return response.json(signToken(user._id, user.tokenVersion));
+        /* A TOKEN A SÜTIBE MEGY, A TÖRZSBE A NÉV. A törzsben visszaadott token
+           azt jelentette, hogy a JavaScript megkapja — épp azt szüntetjük meg
+           (l. tokenCookie.js). A név viszont kell: a felület ebből tudja, hogy
+           sikerült a belépés, és kit köszöntsön; ugyanaz az alak, amit a /me ad,
+           tehát a kliensnek egyetlen szerződést kell ismernie. */
+        setTokenCookie(request, response, signToken(user._id, user.tokenVersion));
+        return response.json({name: user.name});
     } catch (error) {
         // A részletek a szerver naplójába valók, nem a válaszba.
         console.error("Bejelentkezési hiba:", error);

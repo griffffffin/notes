@@ -39,18 +39,26 @@ type HandleAxiosSpy = (
     data: unknown,
     then: (response: AxiosResponse<unknown>) => void,
     catchError: (error: unknown) => void,
-    authToken?: Auth["token"],
-    // `void`, ahogy a valódi szerződés (l. contexts/auth-context.ts).
+    /* NINCS ötödik paraméter. A hitelesítés HttpOnly sütiből megy, tehát tokent
+       sem átadni, sem zárványolni nem kell — a korábbi `authToken` felülíró ezzel
+       megszűnt (l. contexts/auth.tsx). `void`, ahogy a valódi szerződés. */
 ) => void;
 
-/* Alapból KIJELENTKEZETT állapot (`token: null`), mert az a semlegesebb: aki
-   bejelentkezettet akar, mondja ki. A `handleAxios` nem írható felül — az a kém
-   dolga, és a hívó úgyis a visszaadott `handleAxios`-on át vezérli. */
+/* Alapból KIJELENTKEZETT, de MÁR TUDOTT állapot (`session: null`), mert az a
+   semlegesebb: aki bejelentkezettet akar, mondja ki.
+
+   A `session: null` és nem `undefined`: az `undefined` azt jelentené, hogy a
+   /me válaszára várunk, és a felület betöltőt mutatna — a tesztek túlnyomó
+   többsége nem ezt vizsgálja. Amelyik igen, az kimondja. */
 export function mockAuth(overrides: Partial<Omit<Auth, "handleAxios">> = {}) {
     const handleAxios = vi.fn<HandleAxiosSpy>();
     const auth: Auth = {
-        token: null,
+        session: null,
+        isSessionKnown: true,
+        sessionFailed: false,
+        retrySession: vi.fn(),
         isLoggedIn: false,
+        logoutFailed: false,
         isLoggingOut: false,
         showsLogoutSpinner: false,
         login: vi.fn(),

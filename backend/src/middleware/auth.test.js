@@ -57,23 +57,28 @@ test("token nélkül elutasít (401)", async () => {
 
 test("hamis aláírású tokent elutasít (401)", async () => {
     const forged = jwt.sign({id: OWNER}, "rossz-titok");
-    const response = await request(app).post("/").set("Authorization", "Bearer " + forged).send({});
+    const response = await request(app).post("/").set("Cookie", "token=" + forged).send({});
     assert.strictEqual(response.status, 401);
 });
 
 test("lejárt tokent elutasít (401)", async () => {
     const expired = jwt.sign({id: OWNER}, process.env.JWT_SECRET, {expiresIn: "-1s"});
-    const response = await request(app).post("/").set("Authorization", "Bearer " + expired).send({});
+    const response = await request(app).post("/").set("Cookie", "token=" + expired).send({});
     assert.strictEqual(response.status, 401);
 });
 
-test("Bearer előtag nélküli fejlécet elutasít (401)", async () => {
-    const response = await request(app).post("/").set("Authorization", tokenFor(OWNER)).send({});
+test("MÁS NEVŰ sütiben érkező, egyébként érvényes tokent nem fogad el (401)", async () => {
+    /* A süti nevét pontosan illesztjük (tokenCookie.js). Ez itt annak az
+       INTEGRÁCIÓS párja: nem elég, hogy a kiolvasó helyesen dönt — az őrnek is
+       ugyanazt kell látnia, amit a kiadó oldal beállít. (A Bearer-fejléc korábbi
+       tesztje ezen a helyen állt; az az út megszűnt, l. middleware/auth.js.) */
+    const response = await request(app).post("/")
+        .set("Cookie", "token_backup=" + tokenFor(OWNER)).send({});
     assert.strictEqual(response.status, 401);
 });
 
 test("érvényes tokent elfogad, és a TOKENBŐL veszi az azonosítót", async () => {
-    const response = await request(app).post("/").set("Authorization", "Bearer " + tokenFor(OWNER)).send({});
+    const response = await request(app).post("/").set("Cookie", "token=" + tokenFor(OWNER)).send({});
     assert.strictEqual(response.status, 200);
     assert.strictEqual(response.body.userId, OWNER);
 });
@@ -82,7 +87,7 @@ test("a body-ban küldött hamis user-mezőt FIGYELMEN KÍVÜL hagyja", async ()
     // Ez a régi app fő gyengesége volt: elhitte, amit a kliens küldött.
     const response = await request(app)
         .post("/")
-        .set("Authorization", "Bearer " + tokenFor(OWNER))
+        .set("Cookie", "token=" + tokenFor(OWNER))
         .send({user: "HACKER"});
     assert.strictEqual(response.body.userId, OWNER, "a token identitása nyer, nem a body-é");
 });
@@ -90,18 +95,18 @@ test("a body-ban küldött hamis user-mezőt FIGYELMEN KÍVÜL hagyja", async ()
 test("TÖRÖLT felhasználó érvényes tokenjét elutasítja (401)", async () => {
     /* Az aláírás rendben van — a fiók nincs meg. Az aláírás csak azt bizonyítja,
        hogy mi állítottuk ki a tokent, azt nem, hogy a fiók ma is létezik. */
-    const response = await request(app).post("/").set("Authorization", "Bearer " + tokenFor(DELETED_USER)).send({});
+    const response = await request(app).post("/").set("Cookie", "token=" + tokenFor(DELETED_USER)).send({});
     assert.strictEqual(response.status, 401);
 });
 
 test("formailag hibás azonosítójú tokent elutasít (401)", async () => {
-    const response = await request(app).post("/").set("Authorization", "Bearer " + tokenFor("nem-objectid")).send({});
+    const response = await request(app).post("/").set("Cookie", "token=" + tokenFor("nem-objectid")).send({});
     assert.strictEqual(response.status, 401);
 });
 
 test("adatbázis-hibánál 503, NEM 401 — a hibától senki ne essen ki", async () => {
     databaseDown = true;
-    const response = await request(app).post("/").set("Authorization", "Bearer " + tokenFor(OWNER)).send({});
+    const response = await request(app).post("/").set("Cookie", "token=" + tokenFor(OWNER)).send({});
     databaseDown = false;
     assert.strictEqual(response.status, 503,
         "a 401-re a kliens kijelentkeztet — egy múló adatbázishiba ne tegye ezt");
@@ -118,7 +123,7 @@ test("VISSZAVONT munkamenet: a tárolt verzió magasabb a tokenénél (401)", as
     /* Ez a kijelentkezés utáni állapot: a fiók verziója nőtt, a másik eszközön
        fekvő token viszont a régit hordozza. */
     storedVersion = 1;
-    const response = await request(app).post("/").set("Authorization", "Bearer " + tokenFor(OWNER, 0)).send({});
+    const response = await request(app).post("/").set("Cookie", "token=" + tokenFor(OWNER, 0)).send({});
     storedVersion = 0;
     assert.strictEqual(response.status, 401, "a visszavont munkamenet tokenje nem élhet tovább");
 });
@@ -127,7 +132,7 @@ test("az ÚJ token a megnövelt verzióval továbbra is működik", async () => 
     /* A párja az előzőnek: a visszavonás a RÉGI tokeneket öli meg, nem a fiókot.
        Enélkül a fenti teszt akkor is zöld volna, ha az őr mindenkit kizárna. */
     storedVersion = 1;
-    const response = await request(app).post("/").set("Authorization", "Bearer " + tokenFor(OWNER, 1)).send({});
+    const response = await request(app).post("/").set("Cookie", "token=" + tokenFor(OWNER, 1)).send({});
     storedVersion = 0;
     assert.strictEqual(response.status, 200);
     assert.strictEqual(response.body.userId, OWNER);
@@ -138,7 +143,7 @@ test("a bevezetés ELŐTT kiadott, verzió nélküli tokent elutasítja (401)", 
        élesítés egyszeri kiléptetéssel jár, cserébe nem marad olyan munkamenet,
        amit ne lehetne visszavonni. */
     const legacy = jwt.sign({id: OWNER}, process.env.JWT_SECRET, {expiresIn: "7d"});
-    const response = await request(app).post("/").set("Authorization", "Bearer " + legacy).send({});
+    const response = await request(app).post("/").set("Cookie", "token=" + legacy).send({});
     assert.strictEqual(response.status, 401);
 });
 
@@ -148,7 +153,7 @@ test("KÉT HIÁNYZÓ ÉRTÉK NEM EGYEZÉS: ver nélküli token, verzió nélkül
        Ezért kell a tokenből jövő értéknek SZÁMNAK is lennie. */
     storedVersion = undefined;
     const legacy = jwt.sign({id: OWNER}, process.env.JWT_SECRET, {expiresIn: "7d"});
-    const response = await request(app).post("/").set("Authorization", "Bearer " + legacy).send({});
+    const response = await request(app).post("/").set("Cookie", "token=" + legacy).send({});
     storedVersion = 0;
     assert.strictEqual(response.status, 401,
         "két hiányzó érték egyenlősége nem bizonyít semmit — ez nem beengedés-ok");
@@ -159,7 +164,7 @@ test("a verziót TOVÁBBADJA a következő middleware-nek (a megújítás ebből
        a megújított token `ver` nélkül születne, és a KÖVETKEZŐ kérésnél léptetné
        ki a felhasználót — munka közben, ok nélkül. */
     storedVersion = 7;
-    const response = await request(app).post("/").set("Authorization", "Bearer " + tokenFor(OWNER, 7)).send({});
+    const response = await request(app).post("/").set("Cookie", "token=" + tokenFor(OWNER, 7)).send({});
     storedVersion = 0;
     assert.strictEqual(response.status, 200);
     assert.strictEqual(response.body.tokenVersion, 7);

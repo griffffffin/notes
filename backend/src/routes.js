@@ -16,6 +16,7 @@ const usersCreate = require("./controllers/Users/create");
 const usersLogin = require("./controllers/Users/login");
 const usersRefresh = require("./controllers/Users/refresh");
 const usersLogout = require("./controllers/Users/logout");
+const usersMe = require("./controllers/Users/me");
 const clientError = require("./controllers/clientError");
 const draftsKey = require("./controllers/Drafts/key");
 
@@ -107,6 +108,12 @@ router.use(auth);
    lejárt tokennel már nem lehet visszakapaszkodni, ez a tétlenségi
    kijelentkezés lényege. */
 router.use("/refresh", usersRefresh);
+
+/* KI VAN BEJELENTKEZVE. Az auth MÖGÖTT, és épp ez a szerepe: a kijelentkezett
+   hívó 401-et kap, és a felület ebből tudja, hogy nincs munkamenete. A HttpOnly
+   süti óta ez az EGYETLEN módja megtudni — a JavaScript a tokent nem látja
+   (l. controllers/Users/me.js). */
+router.use("/me", usersMe);
 
 /* Kijelentkezés: a felhasználó ÖSSZES munkamenetének visszavonása. Az auth
    MÖGÖTT, két okból is. Egyrészt a visszavonandó fiókot a tokenből vesszük (a

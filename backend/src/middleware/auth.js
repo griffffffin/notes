@@ -1,11 +1,18 @@
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const Users = require("../models/users");
+const {readTokenCookie} = require("../tokenCookie");
 
-/* Minden védett végpont előtt fut: az Authorization: Bearer <token> fejlécből
-   ellenőrzi az aláírt JWT-t, és a benne igazolt user-azonosítót teszi a
-   request.userId-ba — a kliens által a body-ban küldött user-értéknek a
-   védett végpontokon nincs többé szerepe.
+/* Minden védett végpont előtt fut: a HttpOnly SÜTIBŐL veszi az aláírt JWT-t,
+   ellenőrzi, és a benne igazolt user-azonosítót teszi a request.userId-ba — a
+   kliens által a body-ban küldött user-értéknek a védett végpontokon nincs
+   többé szerepe.
+
+   A TOKEN KORÁBBAN AZ `Authorization: Bearer` FEJLÉCBEN JÖTT, és a böngészőben
+   JavaScript tette oda. Az a forma szerkezetileg kiszolgáltatta a tokent minden
+   befecskendezett szkriptnek; a sütit a JS már nem is látja (l. tokenCookie.js).
+   A fejléces utat NEM tartjuk meg tartalékként: két elfogadott bemenet közül a
+   gyengébb határozná meg a biztonságot, és egy XSS pontosan azt választaná.
 
    FONTOS: az érvényes aláírás CSAK azt bizonyítja, hogy a tokent mi állítottuk
    ki, és azóta nem hamisították meg. Azt NEM, hogy a benne szereplő fiók ma is
@@ -15,8 +22,7 @@ const Users = require("../models/users");
    ellenőrzés ezt zárja le. Ára: minden védett kérés egy adatbázis-olvasással
    jár — elsődleges kulcson, tehát ezen a méreten elhanyagolható. */
 module.exports = async (request, response, next) => {
-    const header = request.headers.authorization;
-    const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
+    const token = readTokenCookie(request);
     if (!token) return response.status(401).json("Hiányzó token.");
 
     let payload;
@@ -60,6 +66,11 @@ module.exports = async (request, response, next) => {
         return response.status(401).json("A munkamenet visszavonva.");
 
     request.userId = payload.id;
+    /* A NÉV a /me válaszához kell (controllers/Users/me.js). Azért innen adjuk
+       tovább, mert az auth már kiolvasta a teljes dokumentumot: külön lekérdezés
+       nélkül megvan. A jelszó-hash és a piszkozat-kulcs SZÁNDÉKOSAN nem kerül a
+       request-re — amit nem adunk tovább, azt nem is lehet véletlenül kiküldeni. */
+    request.userName = user.name;
     /* A megújítás (controllers/Users/refresh.js) EBBŐL tudja, milyen verziót írjon
        a friss tokenbe. Azért adjuk tovább, mert az auth már úgyis kiolvasta a
        felhasználót: külön lekérdezés nélkül megvan. */

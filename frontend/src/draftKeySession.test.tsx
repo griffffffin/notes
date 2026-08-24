@@ -6,9 +6,7 @@ import {acceptDraftKey, markDraftKeyUnavailable, retryDraftKeyInBackground,
 import {clearDraftKey, decryptDraft, encryptDraft, hasDraftKey, setDraftKey} from "./draftCrypto";
 import {ENDPOINTS} from "./endpoints";
 import {axiosResponse} from "./test/axiosResponse";
-import {fakeToken} from "./test/fakeToken";
 import type {ReactElement} from "react";
-import type {AuthToken} from "./types/api";
 
 /* A PISZKOZAT-KULCS ÉLETCIKLUSA — mikor kérjük le, és mikor NEM.
 
@@ -27,11 +25,15 @@ const postSpy = () => vi.mocked(axios.post);
 const KEY_A = btoa(String.fromCharCode(...new Uint8Array(32).fill(1)));
 const KEY_B = btoa(String.fromCharCode(...new Uint8Array(32).fill(2)));
 
-const TOKEN = fakeToken("u-elso");
-const OTHER_TOKEN = fakeToken("u-masodik");
+/* A MUNKAMENETET A FELHASZNÁLÓNÉV AZONOSÍTJA, nem a token: azt HttpOnly süti
+   hordozza, amit a JavaScript nem lát (l. contexts/auth.tsx). A hooknak csak arra
+   van szüksége, hogy észrevegye a munkamenet-váltást — és a névvel ez STABIL is,
+   szemben a korábbival, ami ötpercenként megújult. */
+const USER = "elso-felhasznalo";
+const OTHER_USER = "masodik-felhasznalo";
 
-function Probe({token}: {token: AuthToken | null}) {
-    useDraftKeySession(token);
+function Probe({user}: {user: string | null}) {
+    useDraftKeySession(user);
     return null;
 }
 
@@ -77,48 +79,52 @@ afterEach(() => {
 });
 
 describe("a kulcs megszerzése", () => {
-    it("bejelentkezéskor lekéri, a token fejlécével", async () => {
-        const {rerender} = render(<Probe token={null} />);
+    it("bejelentkezéskor lekéri, a SÜTIVEL hitelesítve", async () => {
+        const {rerender} = render(<Probe user={null} />);
         expect(keyRequests()).toHaveLength(0);
 
-        rerender(<Probe token={TOKEN} />);
+        rerender(<Probe user={USER} />);
 
         await waitFor(() => expect(hasDraftKey()).toBe(true));
+        /* A `withCredentials` nélkül a kérés hitelesítetlenül menne el (a böngésző
+           cross-origin nem csatolja magától a sütit), 401-et kapna — és a
+           piszkozat-védelem csendben megszűnne. Authorization fejléc NINCS. */
         expect(axios.post).toHaveBeenCalledWith(
             expect.stringContaining(ENDPOINTS.draftKey), {},
-            expect.objectContaining({headers: {Authorization: "Bearer " + TOKEN}}));
+            expect.objectContaining({withCredentials: true}));
     });
 
-    it("LAPBETÖLTÉSKOR is lekéri, ha már van érvényes token", async () => {
+    it("LAPBETÖLTÉSKOR is lekéri, ha már van munkamenet", async () => {
         /* A bejelentkezés munkamenet-sütiben él, tehát egy F5-öt túlél — a
            memóriában tartott kulcs viszont nem. E nélkül az újratöltés után
            csendben megszűnne a piszkozat-védelem. */
-        render(<Probe token={TOKEN} />);
+        render(<Probe user={USER} />);
 
         await waitFor(() => expect(hasDraftKey()).toBe(true));
     });
 
     it("kijelentkezve NEM kér kulcsot", () => {
-        render(<Probe token={null} />);
+        render(<Probe user={null} />);
 
         expect(keyRequests()).toHaveLength(0);
         expect(hasDraftKey()).toBe(false);
     });
 
-    it("a token MEGÚJULÁSA nem indít új kérést", async () => {
-        const {rerender} = render(<Probe token={TOKEN} />);
+    it("a munkamenet MEGÚJULÁSA nem indít új kérést", async () => {
+        const {rerender} = render(<Probe user={USER} />);
         await waitFor(() => expect(hasDraftKey()).toBe(true));
 
-        /* Ugyanaz a felhasználó, friss token (5 percenként, aktivitásra). AZ ÓRÁT
-           ELŐRE KELL ÁLLÍTANI: a fakeToken az `iat` állítást a MÁSODPERCBŐL
-           képezi, tehát ugyanabban a másodpercben BETŰRE ugyanazt a tokent adná —
-           a prop nem változna, az effekt le sem futna, és a teszt semmit sem
-           vizsgálna. Mutáció-próbával mérve: enélkül a "már van kulcsunk" korai
-           kilépés eltávolítása NEM buktatta ezt a tesztet. */
-        vi.setSystemTime(Date.now() + 1000);
-        const refreshed = fakeToken("u-elso");
-        expect(refreshed).not.toBe(TOKEN);
-        rerender(<Probe token={refreshed} />);
+        /* A VÉDELEM MA KETTŐS, és ezt érdemes kimondani. Korábban a hook a
+           munkamenet tokenjét kapta, ami ötpercenként megújult: minden megújulás
+           új prop-értéket jelentett, az effekt lefutott, és csak a "már van
+           kulcsunk" korai kilépés akadályozta meg a fölösleges kérést. Ma a hook a
+           NEVET kapja, ami megújuláskor változatlan — az effekt tehát le sem fut.
+
+           A korai kilépés mégis a helyén marad: az effektet az újrapróbálás-
+           számláló (tick) is újrafuttathatja, és ott ugyanúgy nem szabad új kulcsot
+           kérni. Azt a "kulcs birtokában az újrapróbálás nem küld új KÉRÉST" teszt
+           méri; ez itt a stabil prop-ot rögzíti. */
+        rerender(<Probe user={USER} />);
 
         await waitFor(() => expect(keyRequests()).toHaveLength(1));
     });
@@ -130,10 +136,10 @@ describe("a kulcs eldobása", () => {
            várja meg a mentést (pendingSave.ts), az újrapróbálás viszont tovább
            tart — a piszkozat gyakran a kijelentkezés UTÁN íródik ki. Kulcs nélkül
            az a szöveg veszne el, amiért az egész mechanizmus van. */
-        const {rerender} = render(<Probe token={TOKEN} />);
+        const {rerender} = render(<Probe user={USER} />);
         await waitFor(() => expect(hasDraftKey()).toBe(true));
 
-        rerender(<Probe token={null} />);
+        rerender(<Probe user={null} />);
 
         expect(hasDraftKey()).toBe(true);
     });
@@ -142,13 +148,13 @@ describe("a kulcs eldobása", () => {
         /* Ha ugyanabban a lapban másik felhasználó lép be, a memóriában még az
            előző fiók kulcsa ül. Az ő piszkozatai azzal titkosítva neki soha nem
            lennének visszafejthetők. */
-        const {rerender} = render(<Probe token={TOKEN} />);
+        const {rerender} = render(<Probe user={USER} />);
         await waitFor(() => expect(hasDraftKey()).toBe(true));
         const writtenByFirstUser = encryptDraft("az első felhasználó szövege");
 
-        rerender(<Probe token={null} />);
+        rerender(<Probe user={null} />);
         postSpy().mockResolvedValue(axiosResponse(KEY_B));
-        rerender(<Probe token={OTHER_TOKEN} />);
+        rerender(<Probe user={OTHER_USER} />);
 
         await waitFor(() => expect(keyRequests()).toHaveLength(2));
         expect(() => decryptDraft(writtenByFirstUser)).toThrow();
@@ -159,7 +165,7 @@ describe("ha a kulcs nem szerezhető meg", () => {
     it("hálózati hibánál NINCS kulcs — de HÁROM próbát tesz, mielőtt feladja", async () => {
         postSpy().mockRejectedValue(new Error("Network Error"));
 
-        await renderAndDrain(<Probe token={TOKEN} />);
+        await renderAndDrain(<Probe user={USER} />);
 
         /* Három próba, 1 és 3 másodperc szünettel (saveRetry.ts). Ez fedi a
            leggyakoribb esetet: az élesítés alatt a szerver MÉRT 2 553 ms-ig nem
@@ -172,7 +178,7 @@ describe("ha a kulcs nem szerezhető meg", () => {
         // Burkolóba tett kulcs: pontosan az az elcsúszás, amit a séma megfog.
         postSpy().mockResolvedValue(axiosResponse({key: KEY_A}));
 
-        await renderAndDrain(<Probe token={TOKEN} />);
+        await renderAndDrain(<Probe user={USER} />);
 
         expect(hasDraftKey()).toBe(false);
     });
@@ -180,7 +186,7 @@ describe("ha a kulcs nem szerezhető meg", () => {
     it("HIBÁS HOSSZÚ kulcsot nem vesz át", async () => {
         postSpy().mockResolvedValue(axiosResponse(btoa(String.fromCharCode(...new Uint8Array(16)))));
 
-        await renderAndDrain(<Probe token={TOKEN} />);
+        await renderAndDrain(<Probe user={USER} />);
 
         expect(hasDraftKey()).toBe(false);
     });
@@ -202,11 +208,11 @@ describe("versenyhelyzet a kulcs-lekérésben", () => {
             resolvers.push((key) => resolve(axiosResponse(key)));
         }));
 
-        const {rerender} = render(<Probe token={TOKEN} />);
+        const {rerender} = render(<Probe user={USER} />);
         await waitFor(() => expect(resolvers).toHaveLength(1));
         // Felhasználó-váltás: kijelentkezés, majd egy MÁSIK fiók belépése.
-        rerender(<Probe token={null} />);
-        rerender(<Probe token={OTHER_TOKEN} />);
+        rerender(<Probe user={null} />);
+        rerender(<Probe user={OTHER_USER} />);
         await waitFor(() => expect(resolvers).toHaveLength(2));
 
         // A FRISS válasz érkezik előbb, a RÉGI utána.
@@ -259,7 +265,7 @@ describe("a kapu állapota", () => {
     });
 
     it("kulcs birtokában az újrapróbálás nem küld új KÉRÉST", async () => {
-        render(<Probe token={TOKEN} />);
+        render(<Probe user={USER} />);
         await waitFor(() => expect(hasDraftKey()).toBe(true));
         const before = keyRequests().length;
 
@@ -283,7 +289,7 @@ describe("az újrapróbálás rétegei", () => {
     });
 
     it("a HÁLÓZAT VISSZATÉRÉSE (online esemény) újra lekéri a kulcsot", async () => {
-        await renderAndDrain(<Probe token={TOKEN} />);
+        await renderAndDrain(<Probe user={USER} />);
         const before = keyRequests().length;
 
         act(() => { window.dispatchEvent(new Event("online")); });
@@ -292,11 +298,11 @@ describe("az újrapróbálás rétegei", () => {
     });
 
     it("a SZERKESZTŐ MEGNYITÁSA azonnal újrapróbál (a felhasználó épp írni akarna)", async () => {
-        const {rerender} = await renderAndDrain(<Probe token={TOKEN} />);
+        const {rerender} = await renderAndDrain(<Probe user={USER} />);
         const before = keyRequests().length;
 
         // A szerkesztő megnyitása = a kapu hookjának mountja.
-        rerender(<><Probe token={TOKEN} /><GateProbe /></>);
+        rerender(<><Probe user={USER} /><GateProbe /></>);
 
         await waitFor(() => expect(keyRequests().length).toBeGreaterThan(before));
     });
@@ -306,7 +312,7 @@ describe("az újrapróbálás rétegei", () => {
            képernyő), hanem a SIKERE. A felhasználónak nem kell nyomnia semmit:
            amint a hálózat visszatér, a szerkesztő magától használhatóvá válik. */
         postSpy().mockRejectedValue(new Error("Network Error"));
-        await renderAndDrain(<><Probe token={TOKEN} /><GateProbe /></>);
+        await renderAndDrain(<><Probe user={USER} /><GateProbe /></>);
         expect(gateStatus()).toBe("failed");
 
         postSpy().mockResolvedValue(axiosResponse(KEY_A));
@@ -322,16 +328,16 @@ describe("az újrapróbálás rétegei", () => {
            életben maradt volna, az ÚJ munkamenet azonnal hibakártyát kapna,
            mielőtt egyetlen kérés is elindult volna. */
         postSpy().mockRejectedValue(new Error("Network Error"));
-        const {rerender} = await renderAndDrain(<><Probe token={TOKEN} /><GateProbe /></>);
+        const {rerender} = await renderAndDrain(<><Probe user={USER} /><GateProbe /></>);
         expect(gateStatus()).toBe("failed");
         postSpy().mockResolvedValue(axiosResponse(KEY_A));
         act(() => { window.dispatchEvent(new Event("online")); });
         await waitFor(() => expect(gateStatus()).toBe("ready"));
 
         // Kijelentkezés, majd egy MÁSIK fiók belépése — a válasz még nem érkezett meg.
-        rerender(<><Probe token={null} /><GateProbe /></>);
+        rerender(<><Probe user={null} /><GateProbe /></>);
         postSpy().mockImplementation(() => new Promise(() => undefined));
-        rerender(<><Probe token={OTHER_TOKEN} /><GateProbe /></>);
+        rerender(<><Probe user={OTHER_USER} /><GateProbe /></>);
 
         expect(gateStatus()).toBe("loading");
     });
@@ -342,19 +348,19 @@ describe("az újrapróbálás rétegei", () => {
            indult el. (Két külön értékadás őrzi a kettőt; egyik sem fölösleges,
            ezért mindkettőnek külön tesztje van.) */
         postSpy().mockRejectedValue(new Error("Network Error"));
-        const {rerender} = await renderAndDrain(<><Probe token={TOKEN} /><GateProbe /></>);
+        const {rerender} = await renderAndDrain(<><Probe user={USER} /><GateProbe /></>);
         expect(gateStatus()).toBe("failed");
 
-        rerender(<><Probe token={null} /><GateProbe /></>);
+        rerender(<><Probe user={null} /><GateProbe /></>);
         postSpy().mockImplementation(() => new Promise(() => undefined));
-        rerender(<><Probe token={OTHER_TOKEN} /><GateProbe /></>);
+        rerender(<><Probe user={OTHER_USER} /><GateProbe /></>);
 
         expect(gateStatus()).toBe("loading");
     });
 
     it("a NYITOTT, de zárt kapu tízmásodpercenként újra próbálkozik", async () => {
         vi.useFakeTimers();
-        render(<><Probe token={TOKEN} /><GateProbe /></>);
+        render(<><Probe user={USER} /><GateProbe /></>);
         // Az első lánc (három próba) lefut, a kapu bezárul.
         await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
         const before = keyRequests().length;

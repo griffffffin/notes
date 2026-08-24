@@ -10,7 +10,7 @@ const assert = require("node:assert");
 const express = require("express");
 const mongoose = require("mongoose");
 const request = require("supertest");
-const {userStub, bearerFor} = require("../../test/authStub");
+const {userStub, sessionCookieFor} = require("../../test/authStub");
 
 process.env.JWT_SECRET = "teszt-titok-csak-a-teszthez";
 
@@ -42,7 +42,7 @@ app.use(auth);
 app.use("/logout", logout);
 
 const post = (id, body = {}) =>
-    request(app).post("/logout").set("Authorization", bearerFor(id)).send(body);
+    request(app).post("/logout").set("Cookie", sessionCookieFor(id)).send(body);
 
 test.beforeEach(() => { updates = []; updateFails = false; });
 

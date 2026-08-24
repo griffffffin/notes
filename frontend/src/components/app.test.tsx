@@ -32,7 +32,7 @@ const TODO = {
    építi fel a contextet, és a fordító a VALÓDI Auth alakjához méri. */
 const {auth, handleAxios} = await vi.hoisted(async () => {
     const {mockAuth} = await import("../test/mockAuth");
-    return mockAuth({isLoggedIn: true, token: "teszt-token"});
+    return mockAuth({isLoggedIn: true, session: {name: "teszt"}});
 });
 vi.mock(import("../contexts/auth-context"), () => ({useAuth: () => auth}));
 

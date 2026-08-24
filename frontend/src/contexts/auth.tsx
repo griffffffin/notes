@@ -2,18 +2,15 @@ import axios from "axios";
 import type {AxiosResponse} from "axios";
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import type {ReactNode} from "react";
-import {useCookies} from "react-cookie";
-import * as v from "valibot";
 import {AuthContext} from "./auth-context";
 import type {Auth} from "./auth-context";
-import {authTokenSchema} from "../types/api";
-import type {AuthToken} from "../types/api";
+import {sessionSchema} from "../types/api";
+import type {Session} from "../types/api";
 import {ENDPOINTS} from "../endpoints";
 import type {Endpoint} from "../endpoints";
 import {ACTIVITY_EVENTS, IDLE_LOGOUT_MS} from "../idle";
 import {responseStatus} from "../httpError";
 import {BACKEND_URL} from "../backendUrl";
-import {COOKIES, SESSION_COOKIE} from "../cookies";
 import {logRequestError} from "../log";
 import {dropDraftKey, useDraftKeySession} from "../draftKeySession";
 import {parseResponse, reportContractFault} from "../contractFault";
@@ -22,27 +19,28 @@ import {reloadToRoot} from "../reload";
 
 /* Bejelentkezés és szerverhívás egy helyen.
 
-   A token-süti (COOKIES.token) értéke a bejelentkezéskor kapott JWT. Minden kérés
-   Authorization fejlécben viszi; a szerver EBBŐL tudja, ki vagy — a kérés
-   törzsében küldött azonosítót figyelmen kívül hagyja (a régi app fő
-   biztonsági gyengesége pont az volt, hogy hitt neki).
+   A MUNKAMENET A SZERVERÉ. A token HttpOnly sütiben él, amit ez a kód NEM LÁT és
+   nem is tud beállítani (backend/src/tokenCookie.js) — a böngésző küldi minden
+   kéréssel, a `withCredentials` hatására. Ennek két következménye van, és
+   mindkettő végigfut ezen a fájlon:
 
-   401-nél (lejárt vagy érvénytelen token) a süti törlődik, így az app
-   automatikusan visszavált a bejelentkező képernyőre. */
+     - a bejelentkezettséget MEGKÉRDEZNI kell (POST /me), nem kiolvasni;
+     - a kijelentkezés SZERVER-MŰVELET: ha nem ér célba, a munkamenet él tovább,
+       és nincs mit eldobnunk helyben.
+
+   A 401 továbbra is kijelentkezésnek számít: ilyenkor a szerver mondta ki, hogy
+   nincs érvényes munkamenet. */
 
 /* A tétlenségi kijelentkezés határa (IDLE_LOGOUT_MS) az idle.ts-ben van, a
    szerkesztők autosave-órájával EGY helyen: a kettő viszonya (az autosave
    hamarabb sül el) az, ami a mentetlen munkát megvédi. Az érték emellett
    SZÁNDÉKOSAN egyezik a token szerveroldali élettartamával (backend/src/token.js:
-   15m) — így a felület és a token egyszerre jár le, nem fordulhat elő, hogy a
-   képernyő kijelentkezettnek látszik, miközben a lemásolt süti a szerveren még
-   működik. Az a kötés két csomag között van, tehát csak komment tartja. */
+   15m) — így a felület és a munkamenet egyszerre jár le. Az a kötés két csomag
+   között van, tehát csak komment tartja. */
 
-/* A megújítást AKTIVITÁS váltja ki, nem az óra — így a token lejárata mindig a
-   legutóbbi tevékenységhez igazodik, és tétlen munkamenetet soha nem
-   hosszabbít meg. Az egérmozgás másodpercenként sokszor tüzel, ezért fékezzük:
-   legfeljebb ennyinként fordulunk a szerverhez. Bőven a 15 perces lejárat
-   alatt van, tehát aktív használat közben a token nem tud lejárni. */
+/* A megújítást AKTIVITÁS váltja ki, nem az óra — így a lejárat mindig a legutóbbi
+   tevékenységhez igazodik, és tétlen munkamenetet soha nem hosszabbít meg. Az
+   egérmozgás másodpercenként sokszor tüzel, ezért fékezzük. */
 const REFRESH_EVERY_MS = 5 * 60 * 1000;
 
 // Ilyen sűrűn nézzük, tétlen vagy-e. Egy perc pontosság bőven elég egy negyed
@@ -52,185 +50,178 @@ const IDLE_CHECK_MS = 60 * 1000;
 /* Egy szerverhívás legfeljebb ennyi ideig várhat válaszra. Timeout NÉLKÜL egy
    néma szerver vagy megszakadt hálózat esetén a kérés örökké függne — sem a
    siker-, sem a hiba-ág nem futna le —, és a betöltő-jelző a végtelenségig
-   pörögne (ez okozta a törlés-modal szellemének "örök töltését" is). 15 s bőven
-   elég a leglassabb valós válasznak is, de véges: utána a kérés ECONNABORTED
-   hibával elszáll, és lefut a hiba-ág. */
+   pörögne. 15 s bőven elég a leglassabb valós válasznak is, de véges. */
 const REQUEST_TIMEOUT_MS = 15 * 1000;
 
-// Mi számít aktivitásnak: a lista (és a passive: true indoka) az idle.ts-ben —
-// a szerkesztők autosave-órája UGYANEZT a halmazt figyeli.
+/* MINDEN KÉRÉS VIGYE A SÜTIT. Az axios alapból NEM küld sütit cross-origin
+   kérésnél, és fejlesztéskor épp ilyen a felállás: a Vite dev szervere az
+   5173-on, az API a 3001-en — más origin, hiába ugyanaz a gép. Enélkül a
+   fejlesztői mód némán hitelesítetlen volna (minden kérés 401), miközben a süti
+   ott van a böngészőben. Élesben azonos originről megy, ott ez a beállítás nem
+   változtat semmin — de kimondva nem tud elcsúszni. */
+const withSession = {timeout: REQUEST_TIMEOUT_MS, withCredentials: true} as const;
 
 export function AuthProvider({children}: {children: ReactNode}) {
-    const [cookies, setCookie, removeCookie] = useCookies([COOKIES.token]);
-    /* A SÜTI TARTALMA NEM MEGBÍZHATÓ FORRÁS, ezért ellenőrizzük — a `cookies.user`
-       a react-cookie-tól `any`-ként jön, tehát a korábbi `AuthToken | null`
-       annotáció csak ÁLLÍTÁS volt, nem vizsgálat (l. CLAUDE.md, "az `as` nem
-       ellenőrzés").
-
-       Nem elméleti kockázat: a sütit a felhasználó (vagy bármelyik böngésző-
-       kiegészítő) átírhatja, a react-cookie pedig a JSON-nak látszó értéket
-       MAGÁTÓL objektummá alakítja. Egy `user={"a":1}` süti így objektumot adna,
-       amiből a fejléc "Bearer [object Object]" lenne — a szerver 401-gyel
-       elutasítana, a felület viszont bejelentkezettnek látszana. Az `undefined`
-       (nincs süti) ugyanezen az úton lesz `null`: a hiányzó és az értelmezhetetlen
-       token egyaránt "nem vagy bejelentkezve". */
-    const storedToken = v.safeParse(authTokenSchema, cookies[COOKIES.token]);
-    const token: AuthToken | null = storedToken.success ? storedToken.output : null;
-    /* A friss tokent egy refben is tartjuk, hogy a handleAxios NE függjön tőle.
-       Enélkül a token 5 percenkénti megújulása minden alkalommal új handleAxios-
-       referenciát gyártana, amitől a rá épülő effektek (pl. a lista lekérése a
-       read.tsx-ben) fölöslegesen újrafutnának. A refből a hívás PILLANATÁBAN
-       mindig a legfrissebb tokent olvassuk, tehát a fejléc így is helyes. */
-    const tokenRef = useRef<AuthToken | null>(token);
-    tokenRef.current = token;
-    /* Refek és nem state-ek: másodpercenként sokszor frissülnek, és senki nem
-       jeleníti meg őket — state-ként minden egérmozdulat újrarajzolná az egész
-       appot. */
-    /* Épp a kijelentkezés mentésére várunk-e (l. a logout késleltetett jelzőjét).
-       A felület ebből tudja, hogy karikát mutasson a szerkesztő helyett. */
+    /* A MUNKAMENET HÁROM ÁLLAPOTA. `undefined` = még nem tudjuk (úton a válasz),
+       `null` = bizonyítottan nincs, objektum = van. A harmadik állapot azért kell,
+       mert a bejelentkezettség többé nem olvasható ki azonnal: ha a "még nem
+       tudjuk" összemosódna a "nincs"-csel, a felület minden indulásnál
+       felvillantaná a belépő képernyőt. */
+    const [session, setSession] = useState<Session | null | undefined>(undefined);
+    /* NEM TUDTUK MEGKÉRDEZNI (hálózat, időtúllépés, alvó szerver). Külön a
+       `null`-tól: ez NEM kijelentkezettség, és nem is szabad annak mutatni. */
+    const [sessionFailed, setSessionFailed] = useState(false);
+    /* A KIJELENTKEZÉS ELBUKOTT. A süti a szerveré: ha a /logout nem ér célba, a
+       munkamenet ÉL, és nincs mit eldobnunk helyben — azt állítani, hogy
+       kiléptünk, hazugság volna. */
+    const [logoutFailed, setLogoutFailed] = useState(false);
+    /* Épp a kijelentkezés mentésére várunk-e. KÉSLELTETVE gyullad ki (300 ms):
+       egy egészséges mentés századmásodpercek alatt lefut, és egy azonnal
+       megjelenő karika csak villanna egyet. */
     const [showsLogoutSpinner, setShowsLogoutSpinner] = useState(false);
-    /* FUT-E A KIJELENTKEZÉS — a karikával ellentétben AZONNAL igaz. Azért kell
-       külön, mert a karika 300 ms-ot vár, és abban a résben a navbar még
-       teljesen ott van: a linkjei kéz-kurzorral azt ígérnék, hogy visznek
-       valahova, holott a lap pillanatokon belül eltűnik. Egészséges mentésnél
-       ráadásul az EGÉSZ kijelentkezés lefut 300 ms alatt, tehát a karika meg sem
-       jelenik — vagyis a rés nem szélső eset, hanem a tipikus eset. */
+    /* FUT-E A KIJELENTKEZÉS — a karikával ellentétben AZONNAL igaz. A navbar
+       ebből tudja, hogy a linkjei már nem kattinthatók (a lap mindjárt elmegy);
+       a karika villanása zavaró volna, a linkek letiltása nem, tehát a kettő nem
+       várhat ugyanannyit. */
     const [isLoggingOut, setIsLoggingOut] = useState(false);
+    /* Refek és nem state-ek: másodpercenként sokszor frissülnek, és senki nem
+       jeleníti meg őket — state-ként minden egérmozdulat újrarajzolná az appot. */
     const lastActivity = useRef(Date.now());
     const lastRefresh = useRef(Date.now());
 
-    const login = useCallback((newToken: AuthToken) =>
-        setCookie(COOKIES.token, newToken, SESSION_COOKIE), [setCookie]);
+    /* KI VAN BEJELENTKEZVE — a lapbetöltés első kérdése.
 
-    /* A MUNKAMENETEK VISSZAVONÁSA A SZERVEREN. A süti eldobása csak ezt a
-       böngészőt lépteti ki; a token maga a lejáratáig élne, és a /refresh minden
-       érvényes tokenért frisset ad — vagyis egy lemásolt munkamenetet semmi nem
-       zavarna meg. Ez a hívás növeli a fiók munkamenet-verzióját, amitől MINDEN
-       eddig kiadott token azonnal érvénytelen lesz (backend: controllers/Users/logout.js).
+       A HIBAÁGAK KÜLÖNBÖZNEK, és ez a lényeg. A 401 azt jelenti, hogy a SZERVER
+       mondta ki: nincs munkamenet — ilyenkor `null`, mehet a belépő képernyő.
+       Minden más (hálózati hiba, időtúllépés, 503 a zárt kötet miatt) csak annyit
+       jelent, hogy MOST NEM TUDJUK. Abból kijelentkeztetni azt a felhasználót,
+       aki be van jelentkezve, néma hazugság volna — ezért marad az "ismeretlen"
+       állapot, és a felület újrapróbálást kínál. */
+    const loadSession = useCallback(() => {
+        setSessionFailed(false);
+        axios.post<unknown>(BACKEND_URL + ENDPOINTS.me, {}, withSession)
+            .then((response) => {
+                const answer = parseResponse(sessionSchema, response.data, ENDPOINTS.me);
+                setSession((current) => current === undefined ? answer : current);
+            })
+            .catch((error: unknown) => {
+                reportContractFault(error);
+                if (responseStatus(error) === 401)
+                    return setSession((current) => current === undefined ? null : current);
+                logRequestError(error);
+                setSessionFailed(true);
+            });
+    }, []);
 
-       NEM a handleAxios-on megy, két okból: az a 401-re kiléptetne (itt épp az a
-       cél, tehát fölösleges kör), és visszahívásokkal dolgozik, nekünk viszont
-       PROMISE kell — a válasz megérkezése az, amihez az újratöltést kötjük.
+    /* MIÉRT CSAK AZ "ISMERETLEN" ÁLLAPOTOT TÖLTI KI a fenti válasz — és miért nem
+       egyszerűen `setSession(answer)`.
 
-       A VÁLASZ TARTALMÁT nem ellenőrizzük sémával, és ez kivétel a projekt
-       szabálya alól: itt nem HASZNÁLUNK semmit a válaszból, csak azt kérdezzük,
-       eljutott-e a kérés. Egy séma itt olyasmit állítana, amire nem építünk. */
-    const revokeSessions = useCallback((sessionToken: AuthToken) =>
-        axios.post<unknown>(BACKEND_URL + ENDPOINTS.logout, {}, {
-            timeout: REQUEST_TIMEOUT_MS,
-            headers: {Authorization: "Bearer " + sessionToken},
-        }), []);
+       Ez a lekérés a lapbetöltéskor indul, és a válasza KÉSHET. Közben a
+       felhasználó már be is jelentkezhet (a belépő űrlap nem várja meg), ki is
+       léphet, vagy egy 401 kiléptetheti. Ha a késve érkező /me-válasz felülírná az
+       azóta megtörtént eseményt, az visszaforgatná az időt: egy 401-es /me
+       kidobná a frissen bejelentkezett felhasználót, egy sikeres pedig
+       visszahozná a kijelentkezettet.
+
+       MÉRVE: a tétlenségi tesztek pontosan ezt fogták meg — ott a bejelentkezés a
+       /me válasza ELŐTT történt, és a késve érkező 401 kiléptetett.
+
+       A szabály tehát: a /me a KEZDETI állapotot deríti fel, és semmi mást nem ír
+       felül. Minden későbbi tényt (belépés, kilépés, 401) a saját eseménye ír. */
+
+
+
+    useEffect(loadSession, [loadSession]);
+
+    /* A BELÉPÉS UTÁN nincs mit eltenni: a tokent a szerver már sütibe tette. Ez a
+       hívás csak TUDATJA a felülettel, hogy megvan a munkamenet — így nem kell
+       fölösleges /me kört futni közvetlenül a bejelentkezés után. */
+    const login = useCallback((newSession: Session) => {
+        setSessionFailed(false);
+        setSession(newSession);
+    }, []);
+
+    /* A MUNKAMENETEK VISSZAVONÁSA A SZERVEREN. Nem elég a sütit eldobni (nem is
+       tudnánk: HttpOnly): a token a lejáratáig élne, és a /refresh minden érvényes
+       tokenért frisset ad. Ez a hívás növeli a fiók munkamenet-verzióját, amitől
+       MINDEN eddig kiadott token azonnal érvénytelen lesz — és a szerver a sütit
+       is törli (backend/src/controllers/Users/logout.js).
+
+       NEM a handleAxios-on megy: az visszahívásokkal dolgozik, nekünk viszont
+       PROMISE kell — a válasz megérkezése az, amihez a továbblépést kötjük. */
+    const revokeSessions = useCallback(() =>
+        axios.post<unknown>(BACKEND_URL + ENDPOINTS.logout, {}, withSession), []);
+
     /* A KIJELENTKEZÉS MEGVÁRJA a szerkesztő függő mentését — ugyanaz a szabály,
-       ami a navigációra már érvényes (a blocker csak a mentés után enged tovább).
-       Eddig a süti törlése azonnal megtörtént, a szerkesztő azonnal levált, és a
-       mentése a háttérben, MÁR TÖRÖLT élő token mellett indult el (a zárványolt
-       tokenre épült). Így viszont a mentés még a teljes jogú munkamenetben fut le.
-
-       A `void` KIMONDVA: a `logout` szerződése szerint semmit nem ad vissza (a
-       hívók gombok onClickje és a tétlenségi óra), de belül aszinkron munka van —
-       a promise-t itt nyeljük el, a hibáit pedig a flush maga (l. pendingSave.ts:
-       egy sikertelen mentés sem akadályozhatja meg a kilépést). */
-    /* A kijelentkezés VÁRAKOZIK a mentésre — és ha a várakozás ÉRZÉKELHETŐ, azt
-       meg is mutatjuk (l. isLoggingOut lentebb). */
+       ami a navigációra már érvényes. A `void` KIMONDVA: a szerződés szerint ez a
+       függvény semmit nem ad vissza, de belül aszinkron munka folyik. */
     const logout = useCallback(() => {
-        /* A JELZŐ KÉSLELTETVE gyullad ki. Egészséges esetben a mentés
-           századmásodpercek alatt lefut — egy azonnal megjelenő karika ilyenkor
-           csak VILLANNA egyet, ami zavaróbb, mint a semmi. A 300 ms az a küszöb,
-           ami alatt a felhasználó a késleltetést nem érzékeli várakozásnak. */
+        setLogoutFailed(false);
         setIsLoggingOut(true);
         const showSpinner = setTimeout(() => setShowsLogoutSpinner(true), 300);
-        /* A PISZKOZAT-KULCS ELDOBÁSA a mentés-láncok TELJES lefutásához van kötve,
-           nem a lenti `finally`-hez. A kettő nem ugyanaz az időpont: a `finally`
-           legkésőbb 3 másodperc múlva lefut (annyit várakoztatjuk a felhasználót),
-           az újrapróbálás viszont tovább tart — és a végén épp az a PISZKOZAT
-           születik meg, ami a mentetlen munkát őrzi. Kulcs nélkül azt már nem
-           lehetne kiírni.
-
-           Amint viszont a láncok véget értek, a kulcsnak nincs többé dolga a
-           memóriában: onnantól már csak támadási felület volna (egy nyitva
-           felejtett lapon a devtools kiolvashatná, és a lemezen fekvő
-           piszkozatokat visszafejthetné vele). */
-        /* A TOKEN ZÁRVÁNYOLVA. A visszavonás a mentés-láncok UTÁN indul, amikorra a
-           süti már törölve lehet (a lenti `finally` legkésőbb 3 másodperc múlva
-           lefut, a `tokenRef` pedig akkor már null). Ez az érték viszont a
-           kattintás pillanatában még érvényes tokent őrzi meg — épp azzal kell
-           kérnünk a visszavonást.
-
-           MÉRVE: a `tokenRef.current` MA ugyanezt adná, mert a kiolvasás a
-           kattintás pillanatában történik, amikor a kettő azonos — a mutáció-próba
-           nem is tud különbséget tenni köztük. A zárványolt alak mégis ez marad,
-           mert azt mondja ki, hogy a KATTINTÁSKORI tokent akarjuk; a ref a
-           mindenkori legfrissebbet jelenti, és ha a kiolvasás egyszer lejjebb
-           csúszna (a láncba, a `finish` mellé), ott már `null` volna.
-
-           ÉS EZT NEM CSAK ÁLLÍTJUK. A lejjebb csúsztatott kiolvasásra a „MENTÉS
-           UTÁN vonja vissza" teszt MEGBUKIK (mérve): a lassú mentés ágán a
-           határidő már törölte a sütit, tehát a ref üres, a visszavonás pedig
-           némán elmarad. Vagyis a KIOLVASÁS HELYE tesztelt — csak a két forrás
-           cseréje UGYANEBBEN a pozícióban ekvivalens. */
-        const sessionToken = token;
         void flushPendingSaves(() => {
+            /* A PISZKOZAT-KULCS ELDOBÁSA a mentés-láncok TELJES lefutásához van
+               kötve, nem a 3 másodperces határidőhöz: a lánc végén épp az a
+               piszkozat születik meg, ami a mentetlen munkát őrzi, és kulcs
+               nélkül azt már nem lehetne kiírni. */
             dropDraftKey();
-            /* A VISSZAVONÁS ÉS AZ ÚJRATÖLTÉS A LÁNCOK TÉNYLEGES VÉGÉHEZ VAN KÖTVE,
-               nem a 3 másodperces határidőhöz — és mindkettőnek megvan az oka.
-
-               A visszavonásnak azért, mert a megnövelt verzió minden korábbi
-               tokent megöl: ha a mentés ELŐTT futna le, a még úton lévő mentés
-               401-et kapna, és pontosan az a munka veszne el, amit a kijelentkezés
-               meg akart menteni.
-
-               Az újratöltésnek azért, mert az ELDOBJA a lapot — vele a háttérben
-               futó újrapróbálást és a végén születő piszkozatot is. A határidőhöz
-               kötve tehát a lassú (hálózati hibába futó) mentés munkája veszne el:
-               a felület kijelentkezettnek látszana, a szöveg pedig sehol nem
-               maradna meg. Ugyanaz a sorrend-szabály, ami a piszkozat-kulcs
-               eldobására is érvényes. */
-            const finish = () => {
-                /* A süti törlése az újratöltés ELŐTT, kimondva. A lenti `finally`
-                   is törli — de a kettő két külön csatorna, és ha a sorrendjük
-                   egyszer megfordul, az újratöltött lap BEJELENTKEZVE jönne vissza.
-                   Ez idempotens, és nem hagyja a helyességet időzítésen múlni. */
-                removeCookie(COOKIES.token, SESSION_COOKIE);
-                reloadToRoot();
-            };
-            /* HA A VISSZAVONÁS ELBUKIK (hálózat, alvó szerver), a kilépés AKKOR IS
-               megtörténik — `finally`, nem `then`. A projekt szabálya szerint a
-               hiányzó védelem vagy lezárja a műveletet, vagy csendben kimarad:
-               itt csak egy extra réteg esik ki, mert a token magától meghal
-               negyed óra alatt (nincs, ami megújítsa: a lap elment, a süti pedig
-               munkamenet-süti). A kilépést megtagadni emiatt aránytalan volna —
-               a felhasználó kilépni akart, és a gépén ez meg is történik. */
-            if (sessionToken) void revokeSessions(sessionToken).catch(logRequestError).finally(finish);
-            else finish();
+            /* A VISSZAVONÁS ÉS AZ ÚJRATÖLTÉS IS IDE VAN KÖTVE, nem a határidőhöz.
+               A visszavonás azért, mert a megnövelt verzió minden korábbi tokent
+               megöl: a mentés ELŐTT lefutva 401-gyel ölné meg a még úton lévő
+               mentést. Az újratöltés azért, mert ELDOBJA a lapot — vele a
+               háttérben futó újrapróbálást és a végén születő piszkozatot is. */
+            void revokeSessions()
+                .then(() => {
+                    /* A MUNKAMENET ELDOBÁSA a sikerhez van kötve, nem a
+                       kattintáshoz: innentől bizonyítottan nincs mit őrizni (a
+                       szerver a sütit is törölte). Az újratöltés úgyis eldobja az
+                       egész lapot, de a kettő közti pillanatban sem szabad
+                       bejelentkezettnek látszania. */
+                    setSession(null);
+                    reloadToRoot();
+                })
+                /* HA A VISSZAVONÁS ELBUKIK, NEM TÖLTÜNK ÚJRA, és nem is állítjuk,
+                   hogy kiléptünk. Ez változás a süti-alapú munkamenettel: korábban
+                   a kliens maga dobta el a tokent, tehát a kilépés helyben akkor is
+                   megtörtént, ha a szerver nem válaszolt. A HttpOnly sütit viszont
+                   nem tudjuk eldobni — ha a kérés nem ért célba, a munkamenet ÉL
+                   TOVÁBB. Újratöltve a felhasználó bejelentkezve találná magát,
+                   miután azt hitte, kilépett; ez a "hiba, ami normálisnak látszik"
+                   legrosszabb fajtája. Ezért inkább kimondjuk, és marad a
+                   munkamenet — a felület jelzi, és újra lehet próbálni. */
+                .catch((error: unknown) => {
+                    logRequestError(error);
+                    setLogoutFailed(true);
+                });
         }).finally(() => {
             clearTimeout(showSpinner);
             setShowsLogoutSpinner(false);
             setIsLoggingOut(false);
-            removeCookie(COOKIES.token, SESSION_COOKIE);
+            /* A FELÜLET ITT JELENTKEZIK KI — legkésőbb a 3 másodperces határidőnél
+               (pendingSave.ts), akkor is, ha a mentés-lánc még fut. A felhasználó
+               kilépni akart; nem várakoztathatjuk a végtelenségig.
+
+               Ez CSAK a felület állapota. A munkamenetet a szerver vonja vissza, a
+               láncok tényleges végén — a köztes időben a még futó mentés a sütivel
+               ugyanúgy célba ér, épp ezért nem itt szakítjuk el. Ha a visszavonás
+               elbukik, arról a `logoutFailed` szól: a felület kijelentkezett, de a
+               munkamenet a szerveren ÉLHET, és ezt ki kell mondani. */
+            setSession(null);
         });
-    }, [removeCookie, revokeSessions, token]);
+    }, [revokeSessions]);
 
-    /* Az `authToken` OPCIONÁLIS felülírás: alapból az ÉLŐ tokent (tokenRef) küldjük.
-       A kijelentkezéskori unmount-mentés (Quotes/save.tsx) viszont a MÁR TÖRÖLT élő
-       token helyett a leváláskor még érvényes, ZÁRVÁNYOLT tokent adja át — enélkül a
-       mentés token nélkül, 401-gyel bukna (removeCookie már lefutott, tokenRef null).
-
-       A válasz típusa `unknown`, nem a hívó által megadott `<T>`: az ellenőrzés a
-       hívási helyen történik, sémával (l. auth-context.ts és types/api.ts). */
+    /* AZ EGYETLEN SZERVERHÍVÓ. A hitelesítés a sütiből megy (withSession), tehát
+       tokent sem átadni, sem zárványolni nem kell — a korábbi `authToken`
+       felülíró paraméter ezzel megszűnt. A szerkesztők leváláskori mentése is
+       ugyanezen az úton megy: a süti akkor is ott van, amikor a React-fa már
+       lebomlott. */
     const handleAxios = useCallback((
-        // Csak létező végpont adható át (l. endpoints.ts) — a szerződést a
-        // HandleAxios típus mondja ki, ez itt annak a megvalósítása.
+        // Csak létező végpont adható át (l. endpoints.ts).
         url: Endpoint,
         data: unknown,
         then: (response: AxiosResponse<unknown>) => void,
         catchError: (error: unknown) => void,
-        // A felülíró token a szerkesztők ZÁRVÁNYOLT tokene, ami `AuthToken | null`
-        // (a legutóbbi render tokene). A `?? tokenRef.current` a null-t is elnyeli:
-        // nincs override → az élő tokent küldi. Ezért a null megengedett bemenet.
-        authToken?: AuthToken | null,
-        // A típus `void`: a promise befelé kell, kifelé nem (l. auth-context.ts).
     ): void => {
-        const bearer = authToken ?? tokenRef.current;
         /* A `<unknown>` KIMONDVA: az axios alapértelmezése `any` volna, ami
            csendben mindent átengedne — épp azt a védelmet kapcsolná ki, amiért a
            válasz típusa `unknown` lett (l. auth-context.ts).
@@ -238,49 +229,31 @@ export function AuthProvider({children}: {children: ReactNode}) {
            A láncot elindítjuk, de NEM adjuk ki (nincs `return`): a hívó a
            visszahívásokból dolgozik, és a lánc végén álló `.catch` miatt ez a
            promise sosem utasítódik el. */
-        /* A FEJLÉC KULCSA is csak akkor kerül bele, ha van mit küldeni — korábban
-           `headers: undefined` állt itt. Az axios `AxiosRequestConfig`-ja a
-           `headers`-t explicit `undefined` nélkül deklarálja, tehát az
-           `exactOptionalPropertyTypes` alatt a kulcs jelenléte döntés, nem
-           mellékhatás. Hogy a két alak a hálózaton ugyanoda fut-e ki, azt eddig az
-           axios BELSŐ viselkedése döntötte el (nem mértük) — most a kódunk dönti
-           el: fejléc csak akkor van, ha van mit beletenni. */
-        axios.post<unknown>(BACKEND_URL + url, data, {
-            timeout: REQUEST_TIMEOUT_MS,
-            ...(bearer ? {headers: {Authorization: "Bearer " + bearer}} : {}),
-        })
+        axios.post<unknown>(BACKEND_URL + url, data, withSession)
             .then(then)
             /* A hibaág típusa `unknown`, mert bármi ideérhet: hálózati hiba,
-               időtúllépés, VAGY a fenti `then`-ben dobott kivétel. A 401 felismerése
-               az ALAKRA néz, nem arra, ki dobta — az indoklás és a hozzá tartozó
-               valódi (nem `as`-os) ellenőrzés a httpError.ts-ben. */
+               időtúllépés, VAGY a fenti `then`-ben dobott kivétel. A 401
+               felismerése az ALAKRA néz, nem arra, ki dobta (httpError.ts). */
             .catch((error: unknown) => {
-                if (responseStatus(error) === 401) removeCookie(COOKIES.token, SESSION_COOKIE);
-                /* A SZERZŐDÉS-HIBA KÖZPONTI KEZELÉSE. Ide minden elkapott hiba
-                   befut, tehát ez az egyetlen hely, ahol egyszer kell kimondani:
-                   ha a fenti `then`-ben a séma utasította el a választ, arról a
-                   felhasználót ÉS a szerver naplóját is értesíteni kell
-                   (contractFault.ts). Nem szerződés-hibára nem csinál semmit.
-
-                   A hívási helyek hibaága ATTÓL FÜGGETLENÜL fut tovább: a lista
-                   ugyanúgy kiüríti magát, a szerkesztő ugyanúgy kilép. Ez a hívás
-                   nem VÁLTJA KI a helyi kezelést, hanem melléteszi azt, amit
-                   helyben nem lehet tudni — hogy ez a mi hibánk, nem a hálózaté. */
+                if (responseStatus(error) === 401) setSession(null);
+                /* A SZERZŐDÉS-HIBA KÖZPONTI KEZELÉSE: ez az egyetlen hely, ahol
+                   egyszer kell kimondani, hogy a séma által elutasított választ a
+                   felhasználónak ÉS a szerver naplójának is jelenteni kell
+                   (contractFault.ts). A hívási helyek hibaága ettől függetlenül
+                   fut tovább. */
                 reportContractFault(error);
                 catchError(error);
             });
-    }, [removeCookie]);
+    }, []);
 
     /* A PISZKOZAT-TITKOSÍTÁS KULCSA a munkamenethez tartozik, ezért itt, a
        munkamenet gazdájánál kérjük le — a mikorját és a miértjeit a hook mondja
-       ki (draftKeySession.ts). Azért külön modul, mert a kulcs életciklusa
-       önálló szabályokra épül (lapbetöltés, felhasználó-váltás, a kijelentkezéskor
-       SZÁNDÉKOSAN megtartott kulcs), és azokat külön is lehet tesztelni. */
-    useDraftKeySession(token);
+       ki (draftKeySession.ts). */
+    useDraftKeySession(session?.name ?? null);
 
     useEffect(() => {
-        // Kijelentkezve nincs mit lejáratni és nincs mit figyelni.
-        if (!token) return;
+        // Kijelentkezve (vagy amíg nem tudjuk) nincs mit lejáratni és figyelni.
+        if (!session) return;
         lastActivity.current = Date.now();
         lastRefresh.current = Date.now();
 
@@ -288,31 +261,17 @@ export function AuthProvider({children}: {children: ReactNode}) {
             lastActivity.current = Date.now();
             if (Date.now() - lastRefresh.current < REFRESH_EVERY_MS) return;
             lastRefresh.current = Date.now();
-            /* A `<unknown>` és a séma ugyanabból az okból, mint a handleAxios-ban:
-               a megújított tokent nem hihetjük el, ELLENŐRIZZÜK — ez az érték megy
-               egyenesen a sütibe, tehát ha a szerver egyszer mást ad (pl.
-               {token: "…"} burkolót), a hibás érték némán kiszorítaná a működő
-               tokent, és a következő kérés 401-gyel léptetne ki. */
-            axios.post<unknown>(BACKEND_URL + ENDPOINTS.refresh, {},
-                {headers: {Authorization: "Bearer " + token}})
+            /* A MEGÚJÍTÁS a sütit írja felül a szerveren, tehát itt nincs mit
+               eltenni — a válasz sémáját mégis ellenőrizzük: ha a szerződés
+               elcsúszik, arról tudni akarunk, és ez a hívás nem a handleAxios-on
+               megy (nem akarunk tőle 401-kiléptetést a háttérben). */
+            axios.post<unknown>(BACKEND_URL + ENDPOINTS.refresh, {}, withSession)
                 .then((response) =>
-                    setCookie(COOKIES.token,
-                        parseResponse(authTokenSchema, response.data, ENDPOINTS.refresh),
-                        SESSION_COOKIE))
-                /* A FELHASZNÁLÓ felé néma bukás szándékos: ez háttérmunka, amiről
-                   nem tud. Ha a token időközben mégis lejárt, a következő valódi
-                   kérés 401-et kap, és az jelentkeztet ki — nem kell két helyen
-                   ugyanazt csinálni.
-
-                   A NAPLÓZÁS (logRequestError) csak fejlesztéskor szólal meg, és
-                   éles buildből kiesik (log.ts) — ezért kevés önmagában. A
-                   SZERZŐDÉS-HIBA viszont más súlyú: az a MI hibánk, tartós, és
-                   éles buildben is tudni akarunk róla, ezért megy külön a
-                   reportContractFault-on (contractFault.ts).
-
-                   Kézzel, mert ez a hívás NEM a handleAxios-on megy (nem akarunk
-                   tőle 401-kiléptetést) — enélkül épp a háttérben megújuló token
-                   elcsúszott alakja maradna néma. */
+                    setSession(parseResponse(sessionSchema, response.data, ENDPOINTS.refresh)))
+                /* A FELHASZNÁLÓ felé néma bukás szándékos: ez háttérmunka. Ha a
+                   munkamenet időközben lejárt, a következő valódi kérés 401-et
+                   kap, és az jelentkeztet ki. A SZERZŐDÉS-hiba viszont a MI
+                   hibánk, tartós, és éles buildben is tudni akarunk róla. */
                 .catch((error: unknown) => {
                     reportContractFault(error);
                     logRequestError(error);
@@ -328,20 +287,25 @@ export function AuthProvider({children}: {children: ReactNode}) {
             ACTIVITY_EVENTS.forEach((name) => window.removeEventListener(name, markActivity));
             clearInterval(idleCheck);
         };
-    }, [token, setCookie, logout]);
+    }, [session, logout]);
 
     /* A típus KIMONDVA (`: Auth`), nem csak következtetve: így ha a context
        szerződése bővül vagy változik, a hiba ITT jelentkezik — nem valamelyik
        távoli fogyasztónál, ahol a hiányzó mező már csak `undefined`-ként látszana. */
     const value: Auth = useMemo(() => ({
-        token,
-        isLoggedIn: Boolean(token),
+        session,
+        isSessionKnown: session !== undefined,
+        sessionFailed,
+        retrySession: loadSession,
+        isLoggedIn: Boolean(session),
         login,
         logout,
+        logoutFailed,
         isLoggingOut,
         showsLogoutSpinner,
         handleAxios,
-    }), [token, login, logout, isLoggingOut, showsLogoutSpinner, handleAxios]);
+    }), [session, sessionFailed, loadSession, login, logout, logoutFailed,
+        isLoggingOut, showsLogoutSpinner, handleAxios]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const Users = require("../../models/users");
 const serverError = require("../../serverError");
 const {signToken} = require("../../token");
+const {setTokenCookie} = require("../../tokenCookie");
 // A költségtényező a login álca-hash-ével KÖZÖS forrásból jön (l. password.js).
 const {SALT_WORK_FACTOR} = require("../../password");
 
@@ -35,7 +36,13 @@ module.exports = router.post("/", async (request, response) => {
     try {
         const hashedPassword = await bcrypt.hash(password, SALT_WORK_FACTOR);
         const user = await new Users({name: name, password: hashedPassword}).save();
-        return response.json(signToken(user._id, user.tokenVersion));
+        /* A TOKEN A SÜTIBE MEGY, A TÖRZSBE A NÉV. A törzsben visszaadott token
+           azt jelentette, hogy a JavaScript megkapja — épp azt szüntetjük meg
+           (l. tokenCookie.js). A név viszont kell: a felület ebből tudja, hogy
+           sikerült a belépés, és kit köszöntsön; ugyanaz az alak, amit a /me ad,
+           tehát a kliensnek egyetlen szerződést kell ismernie. */
+        setTokenCookie(request, response, signToken(user._id, user.tokenVersion));
+        return response.json({name: user.name});
     } catch (error) {
         /* 11000: a Mongo egyedi indexének ütközés-kódja — a név már foglalt.
            A státusz indoklása a NAME_TAKEN_STATUS-nál, a fájl tetején. */

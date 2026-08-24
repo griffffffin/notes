@@ -4,6 +4,7 @@ import axios from "axios";
 import {CookiesProvider} from "react-cookie";
 import {MemoryRouter} from "react-router-dom";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
+import {ENDPOINTS} from "../../endpoints";
 import {AuthProvider} from "../../contexts/auth";
 import {ThemeProvider} from "../../contexts/theme";
 import Entry from "./entry";
@@ -15,7 +16,6 @@ import Routes from "../routes";
    esetet ismerte fel a felület. */
 import {ENTRY_ERROR_MESSAGES} from "./entryError";
 import {axiosResponse} from "../../test/axiosResponse";
-import {fakeToken} from "../../test/fakeToken";
 import type {RoutesProps} from "../routes";
 import {at} from "../../test/at";
 
@@ -54,7 +54,19 @@ const submitButton = () => screen.getByRole("button", {name: "Tovább"});
 
 beforeEach(() => {
     postSpy().mockReset();
-    postSpy().mockResolvedValue(axiosResponse(fakeToken()));
+    /* A BEJELENTKEZÉS VÁLASZA A MUNKAMENET, nem a token: azt a szerver HttpOnly
+       sütibe teszi, a törzsbe csak a név kerül (backend/src/controllers/Users/login.js).
+       A mock a valóságot tükrözze — rossz alakkal a séma elutasítana, és a teszt
+       a hibaágat mérné, miközben a sikerágat hiszi.
+
+       A /me VISZONT 401. Ez a belépő űrlap tesztje: KIJELENTKEZVE kell indulnia.
+       A provider minden induláskor megkérdezi a szervert, és ha arra is a fenti
+       "sikeres" válasz menne, a teszt egy már bejelentkezett appot kapna — a
+       belépő űrlap ott nem is létezik. */
+    postSpy().mockImplementation((url) =>
+        typeof url === "string" && url.endsWith(ENDPOINTS.me)
+            ? Promise.reject({response: {status: 401}})
+            : Promise.resolve(axiosResponse({name: "teszt"})));
 });
 
 afterEach(() => {
@@ -153,7 +165,7 @@ const ROUTE_PROPS = {
     handleLinkClicked: vi.fn(), handleCategoryChange: vi.fn(),
     setIsColorAngleClicked: vi.fn(), isColorAngleClicked: false,
     setIsCategoryAngleClicked: vi.fn(), isCategoryAngleClicked: false,
-    isNavigationBlocked: false, setIsSaving: vi.fn(),
+    isNavigationBlocked: false,
 } satisfies RoutesProps;
 
 describe("Bejelentkezés és regisztráció közti váltás", () => {
@@ -291,7 +303,19 @@ describe("Entry — hibaüzenetek", () => {
 describe("Sikeres belépés utáni cím", () => {
     it("regisztráció után a főoldalra visz, nem marad a /signup címen", async () => {
         postSpy().mockReset();
-    postSpy().mockResolvedValue(axiosResponse(fakeToken()));
+    /* A BEJELENTKEZÉS VÁLASZA A MUNKAMENET, nem a token: azt a szerver HttpOnly
+       sütibe teszi, a törzsbe csak a név kerül (backend/src/controllers/Users/login.js).
+       A mock a valóságot tükrözze — rossz alakkal a séma elutasítana, és a teszt
+       a hibaágat mérné, miközben a sikerágat hiszi.
+
+       A /me VISZONT 401. Ez a belépő űrlap tesztje: KIJELENTKEZVE kell indulnia.
+       A provider minden induláskor megkérdezi a szervert, és ha arra is a fenti
+       "sikeres" válasz menne, a teszt egy már bejelentkezett appot kapna — a
+       belépő űrlap ott nem is létezik. */
+    postSpy().mockImplementation((url) =>
+        typeof url === "string" && url.endsWith(ENDPOINTS.me)
+            ? Promise.reject({response: {status: 401}})
+            : Promise.resolve(axiosResponse({name: "teszt"})));
         window.history.pushState({}, "", "/signup");
         render(
             <CookiesProvider>

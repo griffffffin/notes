@@ -5,7 +5,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const express = require("express");
-const {userStub, bearerFor} = require("../../test/authStub");
+const {userStub, sessionCookieFor} = require("../../test/authStub");
 const mongoose = require("mongoose");
 const request = require("supertest");
 
@@ -54,8 +54,8 @@ app.use("/delete", deleteQuote);
 app.use("/reorder", reorder);
 app.use("/update", update);
 
-const token = bearerFor(OWNER);
-const post = (path, body) => request(app).post(path).set("Authorization", token).send(body);
+const token = sessionCookieFor(OWNER);
+const post = (path, body) => request(app).post(path).set("Cookie", token).send(body);
 
 test.beforeEach(() => { updateManyCalls.length = 0; });
 

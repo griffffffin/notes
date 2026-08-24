@@ -2,15 +2,12 @@ import {act, render, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axios from "axios";
 import {useState} from "react";
-import {Cookies, CookiesProvider} from "react-cookie";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import {AuthProvider} from "./auth";
 import {useAuth} from "./auth-context";
 import {axiosResponse} from "../test/axiosResponse";
-import {fakeToken} from "../test/fakeToken";
 import {ENDPOINTS} from "../endpoints";
-import {authTokenSchema, quoteListSchema} from "../types/api";
-import {COOKIES} from "../cookies";
+import {sessionSchema, quoteListSchema} from "../types/api";
 import {parseResponse} from "../contractFault";
 import {ACTIVITY_EVENTS} from "../idle";
 import {registerPendingSave} from "../pendingSave";
@@ -38,13 +35,11 @@ vi.mock(import("../reload"));
 
 const postSpy = () => vi.mocked(axios.post);
 
-/* A tokenek VALÓDI ALAKÚAK (l. test/fakeToken.ts): a szerződés megköveteli, hogy
-   a süti és a bejelentkezés válasza JWT legyen, különben a felület nem tekint
-   bejelentkezettnek. Két külön példány, mert a tesztek megkülönböztetik a
-   bejelentkezéskor kapott és a szerkesztő által ZÁRVÁNYOLT (leváláskori mentéshez
-   őrzött) tokent. */
-const TOKEN = fakeToken();
-const CAPTURED_TOKEN = fakeToken("u-zarvany");
+/* A MUNKAMENET, ahogy a szerver leírja. Token SEHOL nem szerepel a tesztekben
+   sem — HttpOnly sütiben él, amit sem a kód, sem a teszt nem lát (a süti-jelzőket
+   a backend session.test.js őrzi). A felület számára a munkamenet ennyi: egy név,
+   ami megérkezett. */
+const SESSION = {name: "anna"};
 
 /* A JELENTÉS TÖRZSÉBŐL a végpont — VALÓDI vizsgálattal, nem `as`-szal.
 
@@ -61,7 +56,8 @@ function reportedEndpoint(body: unknown): unknown {
 /* Próbakomponens: kiírja, amit a Contextből kap, és gombokkal hívja a
    műveleteit — így a hookot komponensfa nélkül vizsgálhatjuk. */
 function AuthProbe() {
-    const {token, isLoggedIn, isLoggingOut, showsLogoutSpinner, login, logout, handleAxios} = useAuth();
+    const {session, isSessionKnown, sessionFailed, retrySession, isLoggedIn, isLoggingOut,
+        showsLogoutSpinner, logoutFailed, login, logout, handleAxios} = useAuth();
     /* A séma-ellenőrzés a HÍVÓ oldalán történik (l. types/api.ts): a próba ezért
        pontosan úgy jár el, ahogy egy valódi hívó — a választ átengedi a sémán, és
        az EREDMÉNYT írja ki. Így a teszt azt látja, melyik ág futott le. */
@@ -69,19 +65,25 @@ function AuthProbe() {
     return (
         <div>
             <span data-testid="belepett">{String(isLoggedIn)}</span>
+            {/* MEGÉRKEZETT-E MÁR a /me válasza. A "még nem tudjuk" külön állapot:
+                nem szabad kijelentkezettnek mutatni (l. contexts/auth.tsx). */}
+            <span data-testid="tudjuk">{String(isSessionKnown)}</span>
+            <span data-testid="lekeres-bukott">{String(sessionFailed)}</span>
+            <span data-testid="kilepes-bukott">{String(logoutFailed)}</span>
+            <span data-testid="nev">{session?.name ?? "nincs"}</span>
             {/* A KARIKA jelzője (késleltetett) és a FOLYAMAT jelzője (azonnali)
                 külön: a tesztek szándéka szerint a "kilepes-alatt" mindig a
                 karikáról szólt, az azonnali pedig azért kell, mert a navbar
                 kurzora abból dolgozik (l. components/app.tsx). */}
             <span data-testid="kilepes-alatt">{String(showsLogoutSpinner)}</span>
             <span data-testid="kilepes-fut">{String(isLoggingOut)}</span>
-            <span data-testid="token">{token ?? "nincs"}</span>
             <span data-testid="eredmeny">{outcome}</span>
             <button onClick={() => handleAxios(ENDPOINTS.login, {}, 
                 (response) => setOutcome("siker: " +
-                    parseResponse(authTokenSchema, response.data, ENDPOINTS.login)),
+                    parseResponse(sessionSchema, response.data, ENDPOINTS.login).name),
                 () => setOutcome("hibaág"))}>kérés-sémával</button>
-            <button onClick={() => login(TOKEN)}>belépés</button>
+            <button onClick={() => login(SESSION)}>belépés</button>
+            <button onClick={retrySession}>újra</button>
             <button onClick={logout}>kilépés</button>
             <button onClick={() => handleAxios(ENDPOINTS.todos, {a: 1}, () => {}, () => {})}>kérés</button>
             {/* MÁSIK végpont, sémával. Azért kell külön, mert a szerződés-hiba
@@ -93,96 +95,151 @@ function AuthProbe() {
                 (response) => setOutcome("siker: " +
                     parseResponse(quoteListSchema, response.data, ENDPOINTS.quotes).length),
                 () => setOutcome("hibaág"))}>idézet-kérés sémával</button>
-            {/* Explicit token-felülírással — ezt használja a leváláskori (kijelentkezés
-                utáni) mentés, amikor az élő token már törlődött. */}
-            <button onClick={() => handleAxios(ENDPOINTS.todos, {a: 1}, () => {}, () => {}, CAPTURED_TOKEN)}>
-                kérés-tokennel</button>
         </div>
     );
 }
 
-const renderAuth = () => render(
-    <CookiesProvider>
-        <AuthProvider><AuthProbe/></AuthProvider>
-    </CookiesProvider>
-);
+/* NINCS CookiesProvider: az AuthProvider egyetlen sütit sem olvas és nem is ír —
+   a munkamenet sütije a szerveré, HttpOnly (l. backend/src/tokenCookie.js). */
+const renderAuth = () => render(<AuthProvider><AuthProbe/></AuthProvider>);
+
+/* A "bizonyítottan nincs munkamenet" válasz. A 401 az EGYETLEN olyan hiba, amiből
+   kijelentkezettségre következtetünk — minden más (hálózat, időtúllépés) csak
+   annyit jelent, hogy most nem tudjuk (l. contexts/auth.tsx). */
+const unauthorized = () => ({response: {status: 401}});
+
+const isEndpoint = (url: unknown, endpoint: string) =>
+    typeof url === "string" && url.endsWith(endpoint);
 
 beforeEach(() => {
     postSpy().mockReset();
-    /* AZ ALAPÉRTELMEZETT VÁLASZ VALÓDI ALAKÚ TOKEN. Korábban egy "ok" szöveg volt,
-       ami egyik végpont válaszára sem hasonlít: a /login és a /refresh JWT-t ad. A
-       különbség nem elméleti volt — a séma minden ilyen válasznál elutasított,
-       vagyis a tesztek észrevétlenül SZERZŐDÉS-HIBÁKAT gyártottak, és az azokat
-       vizsgáló teszt már csak a (végpontonként egyszeri) jelentés hiányát látta.
-       A mock a valóságot tükrözze; amelyik teszt rossz alakot akar, mondja ki. */
-    postSpy().mockResolvedValue(axiosResponse(fakeToken("u-alapertelmezett")));
-});
+    /* AZ ALAPÁLLAPOT: KIJELENTKEZETT, DE MÁR TUDOTT. A provider minden induláskor
+       megkérdezi a szervert (POST /me) — a tesztek nagy része kijelentkezve indul,
+       és a "belépés" gombbal lép be, ezért a /me alapból 401-et ad.
 
-afterEach(() => {
-    document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+       A MOCK A VALÓSÁGOT TÜKRÖZZE: a többi hívás a MUNKAMENET alakját adja
+       ({name}), mert ma azt adja a /login, a /me és a /refresh is. Korábban itt egy
+       JWT állt — akkor az volt a valóság. Rossz alakkal a tesztek észrevétlenül
+       SZERZŐDÉS-HIBÁKAT gyártanának, és az azokat vizsgáló teszt már csak a
+       (végpontonként egyszeri) jelentés hiányát látná. */
+    postSpy().mockImplementation((url) => isEndpoint(url, ENDPOINTS.me)
+        ? Promise.reject(unauthorized())
+        : Promise.resolve(axiosResponse(SESSION)));
 });
 
 describe("AuthProvider", () => {
-    it("süti nélkül kijelentkezett állapottal indul", () => {
+    it("a /me 401-jére kijelentkezett állapotba kerül", async () => {
         renderAuth();
-        expect(screen.getByTestId("belepett")).toHaveTextContent("false");
-        expect(screen.getByTestId("token")).toHaveTextContent("nincs");
+
+        await waitFor(() => {
+            expect(screen.getByTestId("tudjuk")).toHaveTextContent("true");
+            expect(screen.getByTestId("belepett")).toHaveTextContent("false");
+        });
     });
 
-    it("belépés után bejelentkezett, a token a sütiben él", async () => {
+    it("a /me válaszából bejelentkezettként indul — újratöltés után is", async () => {
+        /* EZ AZ ÚJ ALAPESET. Amíg a token JS-ből olvasható sütiben élt, a
+           bejelentkezettség a lap betöltésekor azonnal tudható volt. Most a
+           szervertől kérdezzük meg — ha ez a lekérés kimaradna, minden
+           oldalfrissítés kidobná a felhasználót, holott a munkamenete él. */
+        postSpy().mockImplementation(() => Promise.resolve(axiosResponse(SESSION)));
+
         renderAuth();
+
+        await waitFor(() => {
+            expect(screen.getByTestId("belepett")).toHaveTextContent("true");
+            expect(screen.getByTestId("nev")).toHaveTextContent(SESSION.name);
+        });
+    });
+
+    it("amíg a válasz úton van, NEM állítja, hogy kijelentkezett", async () => {
+        /* A HARMADIK ÁLLAPOT. A "még nem tudjuk" és a "nincs munkamenet" két
+           különböző dolog: ha összemosnánk, a felület minden induláskor
+           felvillantaná a belépő képernyőt annak is, aki be van jelentkezve. */
+        let answer = () => {};
+        postSpy().mockImplementation(() => new Promise((resolve) => {
+            answer = () => resolve(axiosResponse(SESSION));
+        }));
+
+        renderAuth();
+
+        expect(screen.getByTestId("tudjuk")).toHaveTextContent("false");
+        await act(async () => { answer(); await Promise.resolve(); });
+        await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("true"));
+    });
+
+    it("HÁLÓZATI hiba a /me-nél nem kijelentkeztet, hanem újrapróbálhatóvá tesz", async () => {
+        /* A 401 azt jelenti, hogy a szerver MEGMONDTA: nincs munkamenet. Egy
+           megszakadt hálózat vagy egy alvó szerver ellenben semmit nem mond a
+           munkamenetről — abból kijelentkeztetni azt, aki be van jelentkezve,
+           néma hazugság volna. */
+        postSpy().mockImplementation(() => Promise.reject(new Error("Network Error")));
+
+        renderAuth();
+
+        await waitFor(() => {
+            expect(screen.getByTestId("lekeres-bukott")).toHaveTextContent("true");
+            expect(screen.getByTestId("tudjuk")).toHaveTextContent("false");
+        });
+    });
+
+    it("az újrapróbálás sikere bejelentkezettséget hoz", async () => {
+        /* A kapunak KIÚTJA is van, nem csak jelzése: egy múló hiba után a
+           felhasználó egy kattintással visszatalál. */
+        postSpy().mockImplementation(() => Promise.reject(new Error("Network Error")));
+        renderAuth();
+        await waitFor(() => expect(screen.getByTestId("lekeres-bukott")).toHaveTextContent("true"));
+        postSpy().mockImplementation(() => Promise.resolve(axiosResponse(SESSION)));
+
+        await userEvent.click(screen.getByRole("button", {name: "újra"}));
+
+        await waitFor(() => {
+            expect(screen.getByTestId("belepett")).toHaveTextContent("true");
+            expect(screen.getByTestId("lekeres-bukott")).toHaveTextContent("false");
+        });
+    });
+
+    it("belépés után bejelentkezett, /me kör nélkül", async () => {
+        /* A bejelentkezés válasza MAGA a munkamenet — nem kell utána megkérdezni,
+           hogy be vagyunk-e lépve. */
+        renderAuth();
+        await waitFor(() => expect(screen.getByTestId("tudjuk")).toHaveTextContent("true"));
+
         await userEvent.click(screen.getByRole("button", {name: "belépés"}));
 
         expect(screen.getByTestId("belepett")).toHaveTextContent("true");
-        expect(document.cookie).toContain("token=" + TOKEN);
+        expect(screen.getByTestId("nev")).toHaveTextContent(SESSION.name);
     });
 
-    it("kilépés után visszaáll kijelentkezettre", async () => {
+    it("MINDEN kérés viszi a sütit, tokent viszont nem", async () => {
+        /* A `withCredentials` nélkül a böngésző cross-origin kérésnél NEM csatolja
+           a sütit — a fejlesztői felállásban (Vite 5173, API 3001) tehát minden
+           kérés hitelesítetlen volna, némán. A hiánya éles buildben nem látszik,
+           fejlesztésben viszont az egész appot használhatatlanná teszi.
+
+           A MÁSIK ÁLLÍTÁS a fontosabb: NINCS Authorization fejléc. Ha egyszer
+           visszakerülne, az azt jelentené, hogy a token megint megfordul a
+           JavaScriptben — és a HttpOnly süti egész haszna elveszne. */
         renderAuth();
         await userEvent.click(screen.getByRole("button", {name: "belépés"}));
-        await userEvent.click(screen.getByRole("button", {name: "kilépés"}));
 
-        expect(screen.getByTestId("belepett")).toHaveTextContent("false");
-    });
-
-    it("bejelentkezve a kérés Authorization fejlécben viszi a tokent", async () => {
-        renderAuth();
-        await userEvent.click(screen.getByRole("button", {name: "belépés"}));
         await userEvent.click(screen.getByRole("button", {name: "kérés"}));
 
-        // objectContaining: a fejlécre fókuszálunk, a config többi mezőjét (pl. a
-        // timeout-ot) figyelmen kívül hagyjuk, hogy az ne tegye törékennyé a tesztet.
         expect(axios.post).toHaveBeenCalledWith(
             expect.stringContaining(ENDPOINTS.todos), {a: 1},
-            expect.objectContaining({headers: {Authorization: "Bearer " + TOKEN}}));
-    });
-
-    it("kijelentkezve nem küld Authorization fejlécet", async () => {
-        renderAuth();
-        await userEvent.click(screen.getByRole("button", {name: "kérés"}));
-
-        /* Token nélkül NINCS Authorization fejléc. A vizsgálat a VISELKEDÉST köti, nem
-           az alakot: korábban `headers: undefined` ment a configban, az
-           exactOptionalPropertyTypes óta a KULCS is kimarad (auth.tsx) — a kettő
-           között a felhasználó felé nincs különbség, tehát nem szerződés. Ami
-           szerződés: ne menjen fejléc. Az `expect.anything()` nem illeszkedik az
-           `undefined`-ra, ezért ez az állítás MINDKÉT alakot elfogadja, egy valódi
-           Authorization fejlécet viszont elutasít. */
+            expect.objectContaining({withCredentials: true}));
         expect(axios.post).toHaveBeenCalledWith(
             expect.stringContaining(ENDPOINTS.todos), {a: 1},
             expect.not.objectContaining({headers: expect.anything()}));
     });
 
-    it("kijelentkezve is viszi az EXPLICIT kapott tokent (leváláskori mentés)", async () => {
-        // Nincs belépés: az élő token hiányzik (ez a kijelentkezés-utáni állapot). A
-        // leváláskori mentés viszont a leváláskor még érvényes tokent ZÁRVÁNYOLJA és
-        // explicit átadja — a fejlécnek EZT kell vinnie, különben a mentés 401-en veszne.
+    it("kilépés után visszaáll kijelentkezettre", async () => {
         renderAuth();
-        await userEvent.click(screen.getByRole("button", {name: "kérés-tokennel"}));
+        await userEvent.click(screen.getByRole("button", {name: "belépés"}));
 
-        expect(axios.post).toHaveBeenCalledWith(
-            expect.stringContaining(ENDPOINTS.todos), {a: 1},
-            expect.objectContaining({headers: {Authorization: "Bearer " + CAPTURED_TOKEN}}));
+        await userEvent.click(screen.getByRole("button", {name: "kilépés"}));
+
+        await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("false"));
     });
 
     /* A PISZKOZAT-KULCS LEKÉRÉSE a munkamenethez tartozik, ezért az AuthProvider
@@ -197,7 +254,7 @@ describe("AuthProvider", () => {
 
         await waitFor(() => expect(axios.post).toHaveBeenCalledWith(
             expect.stringContaining(ENDPOINTS.draftKey), {},
-            expect.objectContaining({headers: {Authorization: "Bearer " + TOKEN}})));
+            expect.objectContaining({withCredentials: true})));
     });
 
     it("401-es válasznál kilépteti a felhasználót (lejárt token)", async () => {
@@ -217,17 +274,6 @@ describe("AuthProvider", () => {
     });
 });
 
-/* A SÜTIBŐL OLVASOTT TOKEN. A süti a felhasználó gépén él: átírható kézzel, egy
-   böngésző-kiegészítővel, vagy megörökölhető egy régebbi verziótól. A react-cookie
-   `any`-t ad vissza, ráadásul a JSON-nak látszó értéket MAGÁTÓL objektummá
-   alakítja — a korábbi `cookies.user ?? null` tehát nem ellenőrzés volt, hanem
-   feltevés. Ezek a tesztek azt rögzítik, hogy csak VALÓDI token számít
-   bejelentkezésnek. */
-/* AMIT A KÖNYVTÁRNAK ADUNK ÁT, DE VISSZAOLVASNI NEM TUDUNK. Egy beállítás
-   hiánya nem hibázik: a könyvtár az alapértelmezésével dolgozik tovább, és a
-   következménye csak sokkal később, más alakban jelentkezik. Az ilyen beállítás
-   ott kérhető számon, ahol átadjuk — máshol nincs is nyoma (l. CLAUDE.md, a néma
-   minták 6. tétele). Ez a két teszt a kérés két ilyen beállítását rögzíti. */
 describe("A kérés beállításai", () => {
     it("MINDEN kérésre jut időkorlát (különben a betöltő örökké pörögne)", async () => {
         /* Timeout NÉLKÜL egy néma szerver vagy megszakadt hálózat esetén a kérés
@@ -242,7 +288,8 @@ describe("A kérés beállításai", () => {
         renderAuth();
         await userEvent.click(screen.getByRole("button", {name: "kérés"}));
 
-        const config = postSpy().mock.calls[0]?.[2];
+        const config = postSpy().mock.calls
+            .find(([url]) => isEndpoint(url, ENDPOINTS.todos))?.[2];
         expect(config?.timeout).toEqual(expect.any(Number));
         expect(config?.timeout).toBeGreaterThan(0);
         expect(Number.isFinite(config?.timeout)).toBe(true);
@@ -273,92 +320,18 @@ describe("A kérés beállításai", () => {
     });
 });
 
-describe("A token sütijének beállításai", () => {
-    it("a MUNKAMENETTEL él: nincs rajta lejárat", async () => {
-        /* A `document.cookie` csak a nevet és az értéket adja vissza — a Max-Age,
-           a Path és a SameSite onnan visszaolvashatatlan. Ezért a könyvtárnak
-           átadott beállításokat kémleljük: az az egyetlen hely, ahol ez a döntés
-           számon kérhető.
+/* A TOKEN SÜTIJÉNEK TESZTJEI INNEN ELKERÜLTEK, nem elvesztek.
 
-           A lejárat hiánya SZÁNDÉKOS, nem feledékenység: a token 15 perc után
-           amúgy is érvénytelen (backend token.js), egy lemezen felejtett
-           bejelentkezés viszont közös gépen valódi kockázat. A téma sütijei
-           ezzel szemben tartósak (l. theme.test.tsx) — a kettő tudatosan
-           különbözik. */
-        const cookies = new Cookies();
-        const setSpy = vi.spyOn(cookies, "set");
-        render(
-            <CookiesProvider cookies={cookies}>
-                <AuthProvider><AuthProbe/></AuthProvider>
-            </CookiesProvider>
-        );
+   Két blokk állt itt: a süti BEÁLLÍTÁSAI (httpOnly-nak akkor még nem lehetett
+   lennie, de a lejárat, a path és a sameSite igen) és a süti TARTALMA (mi számít
+   érvényes tokennek, ha a felhasználó vagy egy kiegészítő átírja). Mindkettő azért
+   volt itt, mert a sütit a KLIENS írta és olvasta.
 
-        await userEvent.click(screen.getByRole("button", {name: "belépés"}));
-
-        const call = setSpy.mock.calls.find(([name]) => name === COOKIES.token);
-        expect(call, "A bejelentkezés nem írt token-sütit.").toBeDefined();
-        expect(call?.[2]).toMatchObject({path: "/", sameSite: "strict"});
-        expect(call?.[2]).not.toHaveProperty("maxAge");
-        expect(call?.[2]).not.toHaveProperty("expires");
-    });
-});
-
-describe("A süti tartalma", () => {
-    it("érvényes token esetén bejelentkezettként indul", () => {
-        // Kontroll: enélkül a lenti két teszt attól is „zöld" lenne, hogy a
-        // provider egyáltalán nem olvas sütit.
-        document.cookie = "token=" + TOKEN + "; path=/";
-        renderAuth();
-
-        expect(screen.getByTestId("belepett")).toHaveTextContent("true");
-        expect(screen.getByTestId("token")).toHaveTextContent(TOKEN);
-    });
-
-    it("OBJEKTUMMÁ alakuló (JSON) süti nem számít bejelentkezésnek", () => {
-        /* A universal-cookie a JSON-nak látszó értéket objektumként adja vissza.
-           Ellenőrzés nélkül ebből "Bearer [object Object]" fejléc lenne: a felület
-           bejelentkezettnek látszana, a szerver viszont mindent elutasítana. */
-        document.cookie = 'token={"a":1}; path=/';
-        renderAuth();
-
-        expect(screen.getByTestId("belepett")).toHaveTextContent("false");
-    });
-
-    it("TETSZŐLEGES SZÖVEG nem számít bejelentkezésnek", () => {
-        /* Ez a kézzel átírt (vagy egy régi verziótól örökölt) süti esete.
-           Ellenőrzés nélkül a felület bejelentkezettnek látszana, és csak az első
-           kérés 401-e derítené ki az igazságot — addig a felhasználó a saját
-           adatai helyett üres listákat látna. */
-        document.cookie = "token=nem-egy-jwt; path=/";
-        renderAuth();
-
-        expect(screen.getByTestId("belepett")).toHaveTextContent("false");
-    });
-
-    it("HÁROM RÉSZES, de nem dekódolható érték sem elég", () => {
-        /* A pontok száma önmagában semmit nem bizonyít: ez a teszt köti ki, hogy
-           az ellenőrzés tényleg DEKÓDOLJA a középső részt, és a szerver
-           állításait (id/iat/exp) keresi benne. */
-        document.cookie = "token=abc.def.ghi; path=/";
-        renderAuth();
-
-        expect(screen.getByTestId("belepett")).toHaveTextContent("false");
-    });
-
-    it("ÜRES süti sem számít bejelentkezésnek", () => {
-        document.cookie = "token=; path=/";
-        renderAuth();
-
-        expect(screen.getByTestId("belepett")).toHaveTextContent("false");
-        /* A tokenre is ránézünk, nem csak a belépett-jelzőre: az üres szöveget a
-           `Boolean("")` amúgy is hamisnak látná, tehát a fenti sor a séma
-           `nonEmpty` szűkítése NÉLKÜL is átmenne. A "nincs" felirat viszont csak
-           akkor jelenik meg, ha a token tényleg `null` (a próbakomponens
-           `token ?? "nincs"`-e) — vagyis ha az üres sütit ELUTASÍTOTTUK, nem
-           pedig üres tokenként fogadtuk el. */
-        expect(screen.getByTestId("token")).toHaveTextContent("nincs");
-    });
-});
+   Ma a szerver írja, HttpOnly-ként — a JavaScript hozzá sem fér, tehát nincs mit
+   ellenőrizni rajta ezen az oldalon. A megfelelőjük a backendben él:
+   `src/tokenCookie.test.js` (a jelzők és a név pontos illesztése) és
+   `src/controllers/Users/session.test.js` (a kiadás, a megújítás és a törlés
+   szerződése, benne azzal, hogy a token NEM kerülhet a válasz törzsébe). */
 
 /* A HATÁR-ELLENŐRZÉS SZERZŐDÉSE. A hívók sémával szűkítik a választ (types/api.ts),
    a séma pedig DOB, ha a válasz nem illeszkedik. Hogy ez ne egy elszabaduló
@@ -384,12 +357,13 @@ describe("Elutasított (értelmezhetetlen) válasz", () => {
     it("az ÉRVÉNYES válasz a sikerágon, ellenőrzött értékkel érkezik", async () => {
         // Kontroll a fentihez: ugyanaz az út, jó alakú válasszal — enélkül a
         // "hibaág" felirat abból is jöhetne, hogy a hívás el sem indul.
-        postSpy().mockResolvedValue(axiosResponse(TOKEN));
+        postSpy().mockResolvedValue(axiosResponse(SESSION));
         renderAuth();
 
         await userEvent.click(screen.getByRole("button", {name: "kérés-sémával"}));
 
-        await waitFor(() => expect(screen.getByTestId("eredmeny")).toHaveTextContent("siker: " + TOKEN));
+        await waitFor(() =>
+            expect(screen.getByTestId("eredmeny")).toHaveTextContent("siker: " + SESSION.name));
     });
 
     it("NEM lépteti ki a felhasználót (az elutasított válasz nem 401)", async () => {
@@ -492,13 +466,13 @@ describe("Tétlenségi kijelentkezés", () => {
         expect(screen.getByTestId("belepett")).toHaveTextContent("true");
     });
 
-    it("aktivitáskor megújítja a tokent, de legfeljebb 5 percenként", async () => {
+    it("aktivitáskor megújítja a munkamenetet, de legfeljebb 5 percenként", async () => {
         await signIn();
-        /* A megújítás válasza VALÓDI ALAKÚ token. Korábban itt a beforeEach
-           általános "ok" szövege maradt, ami nem JWT — a séma elutasította, és a
-           teszt észrevétlenül szerződés-hibát gyártott (jelentéssel együtt). A
-           mock a valóságot tükrözze: ez a végpont tokent ad. */
-        postSpy().mockResolvedValue(axiosResponse(fakeToken("u-megujitott")));
+        /* A megújítás válasza a MUNKAMENET alakja. A token nincs benne: azt a
+           szerver a sütiben frissíti (backend/src/controllers/Users/refresh.js).
+           A mock a valóságot tükrözze — rossz alakkal a teszt észrevétlenül
+           szerződés-hibát gyártana, jelentéssel együtt. */
+        postSpy().mockResolvedValue(axiosResponse(SESSION));
         postSpy().mockClear();
 
         // Sűrű egérmozgás: ettől még nem szabad kérést indítania.
@@ -516,12 +490,12 @@ describe("Tétlenségi kijelentkezés", () => {
             expect.stringContaining("/refresh"), {}, expect.anything());
     });
 
-    /* A megújított token EGYENESEN A SÜTIBE megy, tehát ez a válasz a legkényesebb
-       az összes közül: ha a szerver egyszer mást ad (pl. {token: "…"} burkolót), a
-       hibás érték kiszorítaná a működő tokent, és a következő kérés 401-gyel
-       léptetne ki — látszólag ok nélkül. Ezért a séma itt is fut, a két teszt pedig
-       együtt bizonyít: a második mutatja, hogy a megújítás egyáltalán ír sütit
-       (enélkül az első attól is „zöld" lenne, hogy semmi nem történik). */
+    /* A MEGÚJÍTÁS A HÁTTÉRBEN FUT, a felhasználó tudta nélkül — ez a legkönnyebben
+       elnémuló út az egész appban. A tokent ma a szerver frissíti a sütiben, tehát
+       az nem figyelhető meg innen; ami IGEN, az a válasz alakja és a belőle vett
+       munkamenet. A két teszt együtt bizonyít: a második mutatja, hogy a megújítás
+       egyáltalán ELFOGADJA a választ (enélkül az első attól is „zöld" lenne, hogy
+       semmi nem történik). */
     const refreshOnActivity = async () => {
         await act(async () => vi.advanceTimersByTime(5 * 60 * 1000));
         await act(async () => {
@@ -540,25 +514,25 @@ describe("Tétlenségi kijelentkezés", () => {
            a handleAxios-on megy (nem akarunk tőle 401-kiléptetést), tehát a
            jelentést kézzel kötöttük be; ha valaki kiveszi, ez a teszt bukik. */
         await signIn();
-        postSpy().mockResolvedValue(axiosResponse({token: "burkolt"}));
+        postSpy().mockResolvedValue(axiosResponse({user: "burkolt"}));
 
         await refreshOnActivity();
 
-        expect(screen.getByTestId("token")).toHaveTextContent(TOKEN);
+        expect(screen.getByTestId("nev"),
+            "a hibás alakú válasz kiszorította a működő munkamenetet").toHaveTextContent(SESSION.name);
         const reported = postSpy().mock.calls
             .filter(([url]) => String(url).endsWith(ENDPOINTS.clientError))
             .map(([, body]) => reportedEndpoint(body));
         expect(reported).toEqual([ENDPOINTS.refresh]);
     });
 
-    it("ÉRVÉNYES megújítás a friss tokenre cseréli a sütit", async () => {
+    it("ÉRVÉNYES megújítás a friss munkamenetet veszi át", async () => {
         await signIn();
-        const refreshed = fakeToken("u-frissitett");
-        postSpy().mockResolvedValue(axiosResponse(refreshed));
+        postSpy().mockResolvedValue(axiosResponse({name: "atnevezett"}));
 
         await refreshOnActivity();
 
-        expect(screen.getByTestId("token")).toHaveTextContent(refreshed);
+        expect(screen.getByTestId("nev")).toHaveTextContent("atnevezett");
     });
 });
 
@@ -569,14 +543,18 @@ describe("Tétlenségi kijelentkezés", () => {
    a leválás pillanatában, a háttérben indult. Most ugyanaz a szabály él rá.
 
    A SORRENDET mérjük, nem csak azt, hogy "lefutott": a mentésnek AKKOR kell
-   lefutnia, amikor a token még megvan — különben ugyanott vagyunk, ahol
-   voltunk. */
+   lefutnia, amikor a munkamenet még él. A süti óta ez konkrétan azt jelenti, hogy
+   a VISSZAVONÁS (POST /logout) még nem ment el — az növeli a munkamenet-verziót,
+   amitől a még úton lévő mentés 401-et kapna, és pontosan az a munka veszne el,
+   amiért az egész várakozás van. */
 describe("Kijelentkezés és a függő mentés", () => {
-    it("a mentés a token TÖRLÉSE ELŐTT fut le", async () => {
+    it("a mentés a VISSZAVONÁS előtt fut le", async () => {
         let tokenAtSave: string | null = null;
         const unregister = registerPendingSave(async () => {
             await new Promise((resolve) => setTimeout(resolve, 5));
-            tokenAtSave = document.cookie.includes(COOKIES.token + "=") ? "megvan" : "törölve";
+            const revoked = postSpy().mock.calls
+                .some(([url]) => typeof url === "string" && url.endsWith(ENDPOINTS.logout));
+            tokenAtSave = revoked ? "törölve" : "megvan";
         });
         renderAuth();
         await userEvent.click(screen.getByRole("button", {name: "belépés"}));
@@ -619,7 +597,7 @@ describe("Kijelentkezés és a piszkozat-kulcs", () => {
         postSpy().mockImplementation((url) => Promise.resolve(
             typeof url === "string" && url.includes(ENDPOINTS.draftKey)
                 ? axiosResponse(DRAFT_KEY)
-                : axiosResponse(TOKEN)));
+                : axiosResponse(SESSION)));
     });
 
     afterEach(() => {
@@ -767,17 +745,17 @@ describe("Kijelentkezés: visszavonás a szerveren, majd teljes újratöltés", 
         await waitFor(() => { expect(vi.mocked(reloadToRoot)).toHaveBeenCalled(); });
     });
 
-    it("a visszavonás a MÉG ÉRVÉNYES tokennel megy", async () => {
-        /* A süti ekkorra már törölve lehet (a 3 másodperces határidő ága), tehát az
-           élő tokenre nem lehet építeni — a kattintáskori, zárványolt kell. Enélkül
-           a kérés token nélkül menne el, 401-et kapna, és a visszavonás CSENDBEN
-           elmaradna: a felület kijelentkezne, a szerveren viszont minden token
-           életben maradna. */
+    it("a visszavonás VISZI A SÜTIT, és nem ad át tokent", async () => {
+        /* A `withCredentials` nélkül a kérés hitelesítetlenül menne el, 401-et
+           kapna, és a visszavonás CSENDBEN elmaradna: a felület kijelentkezne, a
+           szerveren viszont minden munkamenet életben maradna. Tokent viszont nem
+           adunk át — nem is tudnánk, a JavaScript nem látja. */
         await loginThenLogout();
 
         await waitFor(() => { expect(logoutCalls()).toHaveLength(1); });
         const call = logoutCalls()[0];
-        expect(call?.[2]?.headers?.Authorization).toBe("Bearer " + TOKEN);
+        expect(call?.[2]).toMatchObject({withCredentials: true});
+        expect(call?.[2]?.headers).toBeUndefined();
     });
 
     it("a MENTÉS UTÁN vonja vissza, nem a határidő leteltekor", async () => {
@@ -802,31 +780,57 @@ describe("Kijelentkezés: visszavonás a szerveren, majd teljes újratöltés", 
         await waitFor(() => { expect(vi.mocked(reloadToRoot)).toHaveBeenCalled(); });
     });
 
-    it("az újratöltés pillanatában a süti MÁR törölve van", async () => {
-        /* Különben a frissen betöltött lap BEJELENTKEZVE jönne vissza — a
-           kijelentkezés pontosan az ellenkezőjét érné el annak, amiért van. */
-        let cookieAtReload: string | null = null;
-        vi.mocked(reloadToRoot).mockImplementation(() => { cookieAtReload = document.cookie; });
+    it("az újratöltés CSAK a visszavonás SIKERE után történik meg", async () => {
+        /* A sütit a szerver törli (backend/src/controllers/Users/logout.js) — a
+           JavaScript nem tudja, és nem is látja. Ha a visszavonás előtt töltenénk
+           újra, a frissen betöltött lap BEJELENTKEZVE jönne vissza: a kijelentkezés
+           pontosan az ellenkezőjét érné el annak, amiért van. */
+        let answerLogout = () => {};
+        postSpy().mockImplementation((url) => isEndpoint(url, ENDPOINTS.logout)
+            ? new Promise((resolve) => { answerLogout = () => resolve(axiosResponse("ok")); })
+            : Promise.resolve(axiosResponse(SESSION)));
 
         await loginThenLogout();
+        await waitFor(() => { expect(logoutCalls()).toHaveLength(1); });
+
+        expect(vi.mocked(reloadToRoot),
+            "a válasz még meg sem jött: az újratöltött lap bejelentkezve térne vissza")
+            .not.toHaveBeenCalled();
+
+        await act(async () => { answerLogout(); await Promise.resolve(); });
 
         await waitFor(() => { expect(vi.mocked(reloadToRoot)).toHaveBeenCalled(); });
-        expect(cookieAtReload).not.toContain(COOKIES.token + "=");
     });
 
-    it("ha a visszavonás ELBUKIK, a kilépés és az újratöltés akkor is megtörténik", async () => {
-        /* A hiányzó védelem nem tarthatja bent a felhasználót: a token magától
-           meghal negyed óra alatt (nincs, ami megújítsa), a kilépést megtagadni
-           emiatt aránytalan volna. A projekt szabálya szerint ez a "csak egy extra
-           réteg esik ki" eset — csendben tovább, figyelmeztetés nélkül. */
-        postSpy().mockImplementation((url) =>
-            typeof url === "string" && url.endsWith(ENDPOINTS.logout)
-                ? Promise.reject(new Error("a hálózat nem elérhető"))
-                : Promise.resolve(axiosResponse(fakeToken("u-alapertelmezett"))));
+    it("ha a visszavonás ELBUKIK, NEM tölt újra, és jelzi a hibát", async () => {
+        /* EZ A VISELKEDÉS A SÜTIVEL EGYÜTT VÁLTOZOTT MEG, és fontos.
+
+           Korábban a kliens maga dobta el a tokent, tehát a kilépés helyben akkor
+           is megtörtént, ha a szerver nem válaszolt — a hiányzó visszavonás csak
+           egy extra réteg volt, amiről csendben le lehetett mondani.
+
+           A HttpOnly sütit viszont nem tudjuk eldobni. Ha a kérés nem ér célba, a
+           munkamenet ÉL TOVÁBB — újratöltve a felhasználó bejelentkezve találná
+           magát, miután azt hitte, kilépett. Ez a "hiba, ami normálisnak látszik"
+           legrosszabb fajtája, ezért itt a szabály másik ága érvényes: a hiányzó
+           védelem magát a MŰVELETET veszélyezteti, tehát nem állítjuk, hogy
+           megtörtént. */
+        postSpy().mockImplementation((url) => isEndpoint(url, ENDPOINTS.logout)
+            ? Promise.reject(new Error("a hálózat nem elérhető"))
+            : Promise.resolve(axiosResponse(SESSION)));
 
         await loginThenLogout();
 
-        await waitFor(() => { expect(vi.mocked(reloadToRoot)).toHaveBeenCalled(); });
-        expect(screen.getByTestId("belepett")).toHaveTextContent("false");
+        await waitFor(() => {
+            expect(screen.getByTestId("kilepes-bukott")).toHaveTextContent("true");
+        });
+        expect(vi.mocked(reloadToRoot),
+            "újratöltve a felhasználó bejelentkezve térne vissza, miután azt hitte, kilépett")
+            .not.toHaveBeenCalled();
+        /* A FELÜLET kijelentkezik — a felhasználó ezt kérte, és a helyi állapotot
+           el is dobtuk. Amit NEM állítunk: hogy a munkamenet megszűnt. Az a
+           szerveren élhet tovább, és épp ezért kell a jelzés: enélkül egy F5
+           visszahozná a bejelentkezett appot, magyarázat nélkül. */
+        await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("false"));
     });
 });

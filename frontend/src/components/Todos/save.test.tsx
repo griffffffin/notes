@@ -40,13 +40,9 @@ const TODO = {
 /* A Context-mock ÁLLANDÓ objektumot adjon vissza: a komponensek effektjei a
    handleAxios azonosságára vannak felfüggesztve, így egy rendernként újra
    gyártott függvény végtelen újratöltő ciklust okozna a tesztben. */
-/* A `token` a mockban is szerepel: a leváláskori mentés ezt zárványolja, és
-   EXPLICIT ötödik argumentumként adja át a handleAxios-nak (kijelentkezéskor az
-   élő token már törölve van). Az alábbi teszt épp ezt az átadást rögzíti. */
-const TEST_TOKEN = "teszt-token";
 const {auth, handleAxios} = await vi.hoisted(async () => {
     const {mockAuth} = await import("../../test/mockAuth");
-    return mockAuth({isLoggedIn: true, token: "teszt-token"});
+    return mockAuth({isLoggedIn: true, session: {name: "teszt"}});
 });
 
 vi.mock(import("../../contexts/auth-context"), () => ({useAuth: () => auth}));
@@ -493,11 +489,20 @@ describe("Save — autosave tétlenség után", () => {
     });
 });
 
-/* A KIJELENTKEZÉSKORI mentés a leváláskor még ÉRVÉNYES tokent zárványolja: a
-   removeCookie a hívás pillanatára már törli az élőt, tehát token nélkül a mentés
-   401-gyel elveszne. A handleAxios ötödik paramétere ez a felülíró token. */
-describe("Save — a leváláskori mentés zárványolt tokennel megy", () => {
-    it("az unmount-mentés EXPLICIT tokent ad át a hívásnak", async () => {
+/* A LEVÁLÁSKORI MENTÉS — és amit ez a teszt MA rögzít.
+
+   Korábban itt egy zárványolt token átadását kértük számon: a kijelentkezés a
+   hívás pillanatára már törölte az élő tokent, tehát a mentésnek magával kellett
+   vinnie a leváláskor még érvényeset, a handleAxios ötödik argumentumaként.
+
+   EZ A MECHANIZMUS MEGSZŰNT, mert szükségtelenné vált: a hitelesítés HttpOnly
+   sütiből megy, amit a böngésző a React-fa lebomlása után is elküld. A teszt
+   viszont marad, két állítással — hogy a mentés LEVÁLÁSKOR IS elindul (ez a
+   lényeg, ez őrzi a mentetlen munkát), és hogy tokent NEM adunk át. A második
+   nem formaság: ha egyszer visszakerülne egy ötödik argumentum, az azt
+   jelentené, hogy a token megint megfordul a JavaScriptben. */
+describe("Save — a leváláskori mentés", () => {
+    it("az unmount elindítja a mentést, tokent viszont nem ad át", async () => {
         window.history.pushState({}, "", "/to-dos/update/todo-1");
         const view = renderRoutes();
         await waitFor(() => expect(screen.getByPlaceholderText("Cím")).toHaveValue("Bevásárlás"));
@@ -507,8 +512,8 @@ describe("Save — a leváláskori mentés zárványolt tokennel megy", () => {
         view.unmount();
 
         const call = handleAxios.mock.calls.find((c) => c[0] === "/to-dos/update");
-        // Az ötödik argumentum a felülíró token (az auth-mock TEST_TOKEN-t ad).
-        expect(call?.[4]).toBe(TEST_TOKEN);
+        expect(call, "a leváláskor el kell indulnia a mentésnek").toBeTruthy();
+        expect(call?.length, "ötödik argumentum = a token megint a JS kezében van").toBe(4);
     });
 });
 

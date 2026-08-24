@@ -18,6 +18,7 @@
    származhatnak — épp az a kérdésük, mit kezd a szerver azzal, amit nem ő adott
    ki. Egy "adj nekem hibás tokent" segéd elmosná ezt a különbséget. */
 const {signToken} = require("../token");
+const {TOKEN_COOKIE} = require("../tokenCookie");
 
 /* A felhasználó, ahogy az auth middleware LÁTJA az adatbázisból. Csak azok a
    mezők vannak benne, amiket az auth tényleg olvas — a `name` a hibakeresést
@@ -28,9 +29,14 @@ const {signToken} = require("../token");
    fizikailag nincs benne (mérve, élő adatbázison — l. models/users.js). */
 const userStub = (id, tokenVersion = 0) => ({_id: String(id), name: "teszt", tokenVersion});
 
-/* A kész Authorization fejléc-érték. A "Bearer " előtag itt van, mert minden
-   hívó ugyanazt írta oda, és a hiánya nem elgépelésnek látszik, hanem hiányzó
-   tokennek: 401, ugyanaz a tünet, mint húsz másik hibánál. */
-const bearerFor = (id, tokenVersion = 0) => "Bearer " + signToken(String(id), tokenVersion);
+/* A kész COOKIE fejléc-érték. Korábban `Authorization: Bearer …` volt; a token
+   azóta HttpOnly sütiben utazik (l. tokenCookie.js), és a tesztek is azon az úton
+   hitelesítenek, amin a böngésző — nem egy másikon, ami már nem is létezik.
 
-module.exports = {userStub, bearerFor};
+   Épp ezért ér valamit, hogy egy helyen van: ez a váltás kilenc tesztfájlt
+   érintett volna, és minden kimaradó hely olyan bukást hagy maga után, aminek
+   semmi köze ahhoz, amit az a teszt vizsgál. */
+const sessionCookieFor = (id, tokenVersion = 0) =>
+    TOKEN_COOKIE + "=" + signToken(String(id), tokenVersion);
+
+module.exports = {userStub, sessionCookieFor};

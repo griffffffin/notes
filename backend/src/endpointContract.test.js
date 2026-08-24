@@ -28,7 +28,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const express = require("express");
 const request = require("supertest");
-const {userStub, bearerFor} = require("./test/authStub");
+const {userStub, sessionCookieFor} = require("./test/authStub");
 const mongoose = require("mongoose");
 
 // A tesztfutónak nincs .env-je; az auth middleware betöltéséhez elég egy álérték.
@@ -89,9 +89,9 @@ function buildApp() {
     return app;
 }
 
-const token = bearerFor(TEST_USER_ID);
+const token = sessionCookieFor(TEST_USER_ID);
 
-const post = (url) => request(buildApp()).post(url).set("Authorization", token).send({});
+const post = (url) => request(buildApp()).post(url).set("Cookie", token).send({});
 
 /* A LISTA MAGA. Ha az `ENDPOINTS` export egyszer átalakul vagy átnevezik, a lenti
    ciklus üresen futna le — nulla teszttel, zölden. Az "elnémult őr" rosszabb, mint

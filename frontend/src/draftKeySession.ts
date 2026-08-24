@@ -64,7 +64,6 @@ import {logRequestError} from "./log";
 import {parseResponse, reportContractFault} from "./contractFault";
 import {saveWithRetry} from "./saveRetry";
 import {draftKeySchema} from "./types/api";
-import type {AuthToken} from "./types/api";
 
 /* Ugyanaz az időkorlát, mint a többi kérésé (contexts/auth.tsx): egy néma
    szerver mellett a kérés különben örökké függne, és sosem derülne ki, hogy
@@ -225,7 +224,12 @@ export function useDraftKeyGate(): DraftKeyStatus {
     return status;
 }
 
-export function useDraftKeySession(token: AuthToken | null): void {
+/* A MUNKAMENET AZONOSÍTÓJA, nem a token. A token HttpOnly sütiben él, ez a kód
+   nem látja (l. contexts/auth.tsx) — a hooknak viszont csak arra van szüksége,
+   hogy ÉSZREVEGYE a munkamenet-váltást. Erre a felhasználónév alkalmas, és jobb
+   is: STABIL érték. A `session` objektum minden megújuláskor (5 percenként) új
+   referencia volna, amitől ez az effekt fölöslegesen újrafutna. */
+export function useDraftKeySession(userName: string | null): void {
     /* AZ ELŐZŐ RENDER TOKENJE — ebből látszik a kijelentkezés → bejelentkezés
        átmenet (3. szabály). Ref, nem state: senki nem jeleníti meg, és a
        változása nem indíthat újrarajzolást. A TÍPUS KIMONDVA: `null`
@@ -236,19 +240,19 @@ export function useDraftKeySession(token: AuthToken | null): void {
        (AuthProvider), viszont a tesztek egy fájlon belül többször is
        felépítik-lebontják — modul-szinten az előző teszt tokenje szivárogna át,
        és a "kijelentkezés → bejelentkezés" átmenet némán elmaradna. */
-    const previousToken = useRef<AuthToken | null>(null);
+    const previousUser = useRef<string | null>(null);
     /* AZ ÚJRAPRÓBÁLÁS-SZÁMLÁLÓ a lenti effekt függősége: az újrapróbálás
        (bármelyik alakja) ezt lépteti, és ettől fut újra a lekérés. */
     const tick = useSyncExternalStore(subscribe, () => retryTick);
 
     useEffect(() => {
-        const startsNewSession = previousToken.current === null;
-        previousToken.current = token;
+        const startsNewSession = previousUser.current === null;
+        previousUser.current = userName;
         // Kijelentkezve nincs kinek kulcsot kérni (és a régit szándékosan megtartjuk).
-        if (token === null) return;
+        if (userName === null) return;
         if (startsNewSession) dropDraftKey();
-        // Már van kulcsunk ehhez a munkamenethez: a token 5 percenkénti megújulása
-        // nem ok új kérésre (a szerver úgyis ugyanazt adná).
+        // Már van kulcsunk ehhez a munkamenethez: a munkamenet 5 percenkénti
+        // megújulása nem ok új kérésre (a szerver úgyis ugyanazt adná).
         if (hasDraftKey()) return;
 
         /* VERSENYHELYZET-ŐR. Ez az effekt újra tud futni (token-megújulás,
@@ -268,9 +272,11 @@ export function useDraftKeySession(token: AuthToken | null): void {
                    volna át. Enélkül egy elavult munkamenet lánca még percekig
                    kérdezgetne. */
                 if (!active) return onSuccess();
+                /* A HITELESÍTÉS A SÜTIBŐL megy (withCredentials), tokent nem
+                   adunk át — nem is tudnánk: a JavaScript nem látja. */
                 axios.post<unknown>(BACKEND_URL + ENDPOINTS.draftKey, {}, {
                     timeout: REQUEST_TIMEOUT_MS,
-                    headers: {Authorization: "Bearer " + token},
+                    withCredentials: true,
                 })
                     .then((response) => {
                         if (!active) return onSuccess();
@@ -294,7 +300,7 @@ export function useDraftKeySession(token: AuthToken | null): void {
         );
 
         return () => { active = false; };
-    }, [token, tick]);
+    }, [userName, tick]);
 
     /* A HÁLÓZAT VISSZATÉRÉSE. A böngésző `online` eseménye pontosan azt jelenti,
        amire várunk — nem kell találgatni időzítővel. A figyelő olcsó, ezért akkor

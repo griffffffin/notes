@@ -70,10 +70,6 @@ type StoredDraft = QuoteSnapshot;
 type SaveProps = {
     isUpdate: boolean;
     handleLinkClicked: () => void;
-    /* JELENTÉS FELFELÉ, hogy fut-e mentés — a navbar ebből tudja, hogy a linkjei
-       most nem visznek sehova (l. RoutesProps). Külön prop, nem a belső state:
-       a szerkesztő állapotát az App tárolja, mert a navbar is olvassa. */
-    setIsSaving: (isSaving: boolean) => void;
 };
 
 /* Az idézet-szerkesztő (create és update). A to-do save.tsx VÉKONYABB mása: az
@@ -137,7 +133,7 @@ function QuoteEditor(props: SaveProps) {
     const {id} = useParams();
     const location = useLocation();
     const navigate = useNavigate();
-    const {handleAxios, token} = useAuth();
+    const {handleAxios} = useAuth();
     const {color} = useTheme();
     // A szerkesztő is a quotes szekció része: világos témán tinta-kék akcentus.
     useQuoteAccent();
@@ -171,18 +167,13 @@ function QuoteEditor(props: SaveProps) {
 
     /* A MENTÉS ELBUKOTT — csak a fókusz-visszajelzéshez (l. lentebb az effektet). */
     const [saveFailed, setSaveFailed] = useState(false);
-    const setIsSavingUp = props.setIsSaving;
+    // A felfelé jelentés megszűnt — az indoklás a Todos/save.tsx azonos pontján.
     const markSaving = useCallback((value: boolean) => {
         savingRef.current = value;
         setIsSaving(value);
-        setIsSavingUp(value);
         if (value) setSaveFailed(false);
         else inFlightRef.current = null;
-    }, [setIsSavingUp]);
-    /* Leváláskor visszavonjuk a felfelé jelentett állapotot — különben egy mentés
-       közbeni kijelentkezés után a navbar linkjei örökre a "nem visz sehova"
-       egérmutatót viselnék (l. Todos/save.tsx részletes indoklását). */
-    useEffect(() => () => setIsSavingUp(false), [setIsSavingUp]);
+    }, []);
     /* A leváláskor futtatandó mentés legfrissebb változata — minden renderben
        frissül, hogy az unmount az aktuális állapotot mentse (l. lentebb). */
     /* A típus KIMONDVA: a kezdőérték egy üres függvény volna, amiből a fordító
@@ -703,7 +694,7 @@ function QuoteEditor(props: SaveProps) {
             (onSuccess, onFailure) => handleAxios(url, buildPayload(), () => {
                 clearDraft(draftStorageKey);
                 onSuccess();
-            }, onFailure, token),
+            }, onFailure),
             (error) => {
                 // Feladtuk: egy későbbi távozás újrapróbálhatja, a szöveg a piszkozatban.
                 leftViaForm.current = false;

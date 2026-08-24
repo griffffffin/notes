@@ -40,7 +40,7 @@ export function renderRoutes(path?: string, props: Partial<RoutesProps> = {}) {
                         handleLinkClicked={vi.fn()} handleCategoryChange={vi.fn()}
                         setIsColorAngleClicked={vi.fn()} isColorAngleClicked={false}
                         setIsCategoryAngleClicked={vi.fn()} isCategoryAngleClicked={false}
-                        isNavigationBlocked={false} setIsSaving={vi.fn()}
+                        isNavigationBlocked={false}
                         {...props}/>
             </ThemeProvider>
         </CookiesProvider>

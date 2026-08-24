@@ -21,7 +21,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const express = require("express");
-const {userStub, bearerFor} = require("../test/authStub");
+const {userStub, sessionCookieFor} = require("../test/authStub");
 const mongoose = require("mongoose");
 const request = require("supertest");
 
@@ -112,9 +112,9 @@ for (const section of SECTIONS) {
     apps[section.name] = app;
 }
 
-const token = bearerFor(OWNER);
+const token = sessionCookieFor(OWNER);
 const post = (section, path, body) =>
-    request(apps[section.name]).post(path).set("Authorization", token).send(body);
+    request(apps[section.name]).post(path).set("Cookie", token).send(body);
 
 test.beforeEach(() => { saved.length = 0; updates.length = 0; });
 
