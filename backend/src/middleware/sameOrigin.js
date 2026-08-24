@@ -24,14 +24,22 @@
        cím, könyvjelző) indult.
      - `Origin`: a kérést indító oldal origin-je.
 
-   A SZIGORÚ IRÁNY: ami BIZONYÍTOTTAN idegen, azt elutasítjuk; ami bizonyítottan a
-   miénk, azt átengedjük; ami NEM DÖNTHETŐ EL (egyik fejléc sincs), azt átengedjük
-   — és ez tudatos. A CSRF fogalmilag BÖNGÉSZŐ-alapú támadás, a böngészők pedig
-   POST-nál mindig küldenek `Origin`-t; egy fejléc nélküli kérés tehát nem
-   böngészőből jön (curl, teszt, jövőbeli API-kliens), ott pedig nincs mit
-   "átverni": aki közvetlenül hív, annak úgyis kell érvényes süti vagy token.
-   Ha ezt megkövetelnénk, a supertest-es tesztek és minden nem-böngésző kliens
-   elakadna, cserébe egy olyan támadó ellen, aki amúgy sem létezik.
+   LEGALÁBB EGY JEL KÖTELEZŐ. Az első változat átengedte a fejléc nélküli kérést
+   ("a CSRF böngésző-alapú, a böngésző pedig mindig küld Origin-t"), de az
+   engedmény fölösleges volt: ennek az API-nak EGYETLEN kliense van, a saját
+   frontendünk, és az böngészőből fut. Egy fejléc nélküli kérés tehát vagy egy
+   parancssori eszköz (annak nincs mit "átverni": aki közvetlenül hív, az a sütit
+   is kézzel adja meg), vagy valami, amiről nem tudunk — és amiről nem tudunk, azt
+   nem engedjük be a legszigorúbb ágon.
+
+   MÉRVE (2026-08-24, headless Chromium, azonos originről indított fetch POST): a
+   böngésző `Origin: http://…` ÉS `Sec-Fetch-Site: same-origin` fejlécet is küld —
+   AZONOS origin esetén is, nem csak cross-site kérésnél. Ez a mérés az, ami miatt
+   a szigorítás vállalható: enélkül a megkövetelés az egész appot használhatatlanná
+   tehette volna, némán.
+
+   A SZABÁLY TEHÁT: ami bizonyítottan idegen → elutasítjuk; ami bizonyítottan a
+   miénk → átengedjük; ami NEM DÖNTHETŐ EL → elutasítjuk.
 
    CSAK AZ ÁLLAPOTVÁLTOZTATÓ METÓDUSOKRA. A GET/HEAD/OPTIONS nálunk nem ír (a
    /health és a statikus fájlok), és a preflight OPTIONS-t megfogva a CORS
@@ -58,12 +66,15 @@ module.exports = (allowedOrigins = []) => (request, response, next) => {
     if (!UNSAFE_METHODS.has(request.method)) return next();
 
     const fetchSite = request.get("sec-fetch-site");
-    if (fetchSite && !ACCEPTED_FETCH_SITES.has(fetchSite))
-        return response.status(403).json("A kérés nem erről az oldalról indult.");
-
     const origin = request.get("origin");
+    const refuse = () => response.status(403).json("A kérés nem erről az oldalról indult.");
+
+    // Jel nélkül nem tudjuk eldönteni, honnan jött — tehát nem engedjük.
+    if (!fetchSite && !origin) return refuse();
+
+    if (fetchSite && !ACCEPTED_FETCH_SITES.has(fetchSite)) return refuse();
     if (origin && origin !== ownOrigin(request) && !allowedOrigins.includes(origin))
-        return response.status(403).json("A kérés nem erről az oldalról indult.");
+        return refuse();
 
     return next();
 };

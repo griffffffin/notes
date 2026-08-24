@@ -21,14 +21,18 @@ app.use(sameOrigin([DEV_ORIGIN]));
 app.post("/", (request_, response) => response.json({ok: true}));
 app.get("/", (request_, response) => response.json({ok: true}));
 
-test("fejléc nélküli POST átmegy — a CSRF böngésző-alapú, ez nem böngésző", async () => {
-    /* Tudatos engedmény: a böngészők POST-nál mindig küldenek Origin-t, tehát egy
-       fejléc nélküli kérés nem böngészőből jön (curl, teszt, API-kliens). Ha ezt
-       megkövetelnénk, azokat zárnánk ki, egy olyan támadó kedvéért, aki nem
-       létezik. */
+test("fejléc NÉLKÜLI POST-ot elutasít — amiről nem tudunk, azt nem engedjük", async () => {
+    /* Az első változat ezt átengedte, "a böngésző úgyis küld Origin-t" alapon. Az
+       engedmény fölösleges: ennek az API-nak egyetlen kliense van, a saját
+       frontendünk, és az böngészőből fut.
+
+       MÉRVE (headless Chromium): a böngésző AZONOS originről indított POST-ra is
+       küld `Origin`-t és `Sec-Fetch-Site: same-origin`-t — tehát a megkövetelés
+       nem zárja ki a valódi használatot. Enélkül a mérés nélkül ez a szigorítás
+       az egész appot használhatatlanná tehette volna, némán. */
     const response = await request(app).post("/").send({});
 
-    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.status, 403);
 });
 
 test("AZONOS origin-ről indult POST átmegy", async () => {
