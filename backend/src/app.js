@@ -9,6 +9,7 @@ require("dotenv").config();
 const env = process.env;
 const routes = require("./routes");
 const serverError = require("./serverError");
+const {logError} = require("./logError");
 const csp = require("./csp");
 const noStore = require("./middleware/noStore");
 const sameOrigin = require("./middleware/sameOrigin");
@@ -86,9 +87,15 @@ if (hasDist) app.use(express.static(dist));
    sorrendet őrző teszt: middleware/noStore.js, middleware/noStore.test.js. */
 app.use(noStore);
 
+/* A kapcsolat hibája a NAPLÓZÓN át megy (logError.js), két okból is: a
+   `console.log`-ból `console.error` lett (a hiba a hibacsatornára való), és a
+   `DATABASE` env a Postgres-jelszót tartalmazza — egy naplóba került kapcsolati
+   URI volna a legsúlyosabb szivárgás. MÉRVE (2026-08-24): a mai driver a
+   jelszót parse-hibánál és elérhetetlen hosztnál sem írja ki; a redaktor a nem
+   mért utakra és a jövőbeli verziókra szól. */
 mongoose.connect(env.DATABASE)
     .then(() => console.log("Az adatbázis-kapcsolat él."))
-    .catch((error) => console.log("Error: " + error));
+    .catch((error) => logError("Adatbázis-kapcsolat", error));
 
 /* Életjel a monitorozásnak. SZÁNDÉKOSAN hitelesítés nélküli: épp akkor kell
    válaszolnia, amikor baj van, és egy figyelő eszköznek nincs tokenje.
@@ -101,7 +108,7 @@ app.get("/health", async (request, response) => {
         await mongoose.connection.db.admin().ping();
         response.json({status: "ok", database: "ok"});
     } catch (error) {
-        console.error("Health: az adatbázis nem válaszol:", error);
+        logError("Health: az adatbázis nem válaszol", error);
         /* A `status` NEM maradhat "ok", ha az adatbázis nem válaszol (az
            átvizsgálás találata, 2026-08-18): a válasz eddig egyszerre mondta a
            503-at és azt, hogy minden rendben. A mi figyelőnk a HTTP-kódot nézi

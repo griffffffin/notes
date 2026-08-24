@@ -6,6 +6,8 @@
    — ez a projekt egyik visszatérő csapdája (l. CLAUDE.md, "némán elromló minták"). */
 const test = require("node:test");
 const assert = require("node:assert");
+const {readdirSync, readFileSync} = require("node:fs");
+const {join} = require("node:path");
 
 const {logError, redactSecrets, describeError} = require("./logError");
 
@@ -164,4 +166,64 @@ test("a redaktor önmagában is használható, és a szöveg többi részét nem
 test("describeError: a verem fejlécét nem írja ki kétszer", () => {
     const description = describeError(new Error("egyszer"));
     assert.strictEqual(description.match(/Error: egyszer/g).length, 1);
+});
+
+/* ───────────────────────── AZ ŐR ─────────────────────────
+
+   A naplózás egyetlen kapuja a logError legyen. Ez ma fegyelem kérdése: bárki
+   írhat egy `console.error("valami:", error)` sort, és attól semmi nem hibázik —
+   csak a titok újra kikerül. Ez tehát GÉPI KAPU egy néma visszacsúszás ellen.
+
+   A MINTA a `console.<bármi>(… error …)` alakra illeszt, vagyis arra, hogy egy
+   console-hívás argumentumában szerepel az `error` azonosító. Nem tökéletes
+   (egy angolul írt "error" szó egy üzenetben hamis riasztás volna), de a projekt
+   üzenetei magyarul íródnak, és a hamis riasztás HANGOS — épp az ellenkezője
+   annak a hibafajtának, ami ellen az őr készült.
+
+   A KIVÉTELEK okkal vannak, és ha bővül a lista, azt indokolni kell.
+
+   ⚠ A KITERJESZTÉS-CSAPDA MIATT `.js` ÉS `.ts` fájlokat is nézünk: a backend
+   ESM/TypeScript-átállása alatt a `.js`-re szűrő felderítés NÉMÁN hagyna ki
+   fájlokat (l. CLAUDE.md 4. pont, és scripts/exportSections.js tanulsága).
+
+   ⚠ A `scripts/` MAPPA SZÁNDÉKOSAN NINCS BENNE: azok parancssori eszközök, ahol a
+   `console.error` a felhasználónak szóló KIMENET, nem szerver-napló. */
+const GUARD_EXEMPT = new Set(["logError.js"]);
+/* A `[^;)]*` rész két dolgot zár ki, és MINDKETTŐT egy hamis riasztás tanította.
+   A `;` a következő UTASÍTÁSIG korlátoz — de az nem elég: egy metódus-lánc
+   (`.then(… console.log(…)).catch((error) => …)`) egyetlen utasítás, tehát a
+   minta átnyúlt a következő sorba, és egy ártatlan `console.log`-ot rótt fel a
+   MÖGÖTTE álló `catch` paraméteréért. A `)` kizárása a hívás saját zárójeléig
+   korlátoz — a többsoros hívás így is illeszkedik, a lánc következő tagja már nem. */
+const LOGGING_ERROR = /console\.\w+\([^;)]*\berror\b/;
+
+function sourceFiles() {
+    return readdirSync(__dirname, {recursive: true, encoding: "utf8"})
+        .filter((name) => /\.(js|ts)$/.test(name))
+        .filter((name) => !/\.test\.(js|ts)$/.test(name))
+        .filter((name) => !GUARD_EXEMPT.has(name));
+}
+
+test("ŐR: a forrásban nincs közvetlen console-naplózás hibáról", () => {
+    const files = sourceFiles();
+
+    /* A GYŰJTŐ-CSAPDA ELLEN: ha a felderítés elromlik (rossz glob, átrendezett
+       mappák), a lista ÜRESEN maradna, és a teszt némán zöld lenne. Ezért előbb
+       azt állítjuk, hogy egyáltalán találtunk forrást — és egy KONKRÉTAT is. */
+    assert.ok(files.length >= 20, `csak ${files.length} forrásfájlt találtam — a felderítés romlott el`);
+    assert.ok(files.includes("serverError.js"), "a serverError.js kimaradt a felderítésből");
+
+    /* KONTROLL: a minta tényleg felismeri a tiltott alakot, és nem riad a jóra.
+       A harmadik eset MÉRT hamis riasztásból való: a lánc következő tagjának
+       `error` paramétere nem a `console.log` bűne. */
+    assert.match('console.error("Bejelentkezési hiba:", error);', LOGGING_ERROR);
+    assert.match('console.error(\n    "Bejelentkezési hiba:", error);', LOGGING_ERROR);
+    assert.doesNotMatch('console.error(`Kliens-szerződés hiba: ${endpoint}`);', LOGGING_ERROR);
+    assert.doesNotMatch('.then(() => console.log("kész"))\n    .catch((error) => logError("ctx", error));',
+        LOGGING_ERROR);
+
+    const offenders = files.filter((name) => LOGGING_ERROR.test(readFileSync(join(__dirname, name), "utf8")));
+    assert.deepStrictEqual(offenders, [],
+        "ezek a fájlok közvetlenül naplóznak hibát — a logError.js-en át menjenek: " + offenders.join(", ") +
+        ". (Ha KOMMENTBEN idéznéd a tiltott alakot, hagyd el a zárójelet — a minta a hívásra illeszt.)");
 });

@@ -3,6 +3,8 @@ const Users = require("../../models/users");
 const bcrypt = require("bcrypt");
 const {signToken} = require("../../token");
 const {setTokenCookie} = require("../../tokenCookie");
+// A naplózás egyetlen kapuja — a hibaobjektum titkot vihetne a naplóba (logError.js).
+const {logError} = require("../../logError");
 
 /* A hibaüzenet SZÁNDÉKOSAN ugyanaz ismeretlen névre és rossz jelszóra.
    Korábban a kettő elkülönült ("Hibas felhasznalonev." / "Hibas jelszo."), ami
@@ -66,14 +68,14 @@ function rehashIfOutdated(user, password) {
     try {
         rounds = bcrypt.getRounds(user.password);
     } catch (error) {
-        return console.error("A tárolt jelszó-hash nem olvasható (költségtényező):", error);
+        return logError("A tárolt jelszó-hash nem olvasható (költségtényező)", error);
     }
     if (rounds === SALT_WORK_FACTOR) return;
 
     bcrypt.hash(password, SALT_WORK_FACTOR)
         .then((hashedPassword) => Users.updateOne({_id: user._id}, {password: hashedPassword}))
         .then(() => console.log(`A(z) ${user._id} jelszava átállt a ${SALT_WORK_FACTOR}-es költségtényezőre.`))
-        .catch((error) => console.error("Sikertelen jelszó-áthashelés:", error));
+        .catch((error) => logError("Sikertelen jelszó-áthashelés", error));
 }
 
 module.exports = router.post("/", async (request, response) => {
@@ -91,7 +93,7 @@ module.exports = router.post("/", async (request, response) => {
         return response.json({name: user.name});
     } catch (error) {
         // A részletek a szerver naplójába valók, nem a válaszba.
-        console.error("Bejelentkezési hiba:", error);
+        logError("Bejelentkezési hiba", error);
         return response.status(500).json("Sikertelen bejelentkezés.");
     }
 });
