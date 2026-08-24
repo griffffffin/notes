@@ -10,8 +10,16 @@
    FONTOS: a VÁRT, felhasználónak szóló hibák (üres cím, foglalt név, hibás
    jelszó) NEM ide tartoznak — azokat a hívó maga fogalmazza meg, mert a
    felhasználó azokból tud javítani. Ez a függvény csak arra való, amire nincs
-   értelmes válasz. */
+   értelmes válasz.
+
+   A NAPLÓZÁS MAGA A logError.js-ben van, és ez nem stílus-kérdés: a korábbi alak a
+   hibaOBJEKTUMOT adta át a `console.error`-nak, amiből a Node minden
+   mezőt kiírt — mérve odáig, hogy egy driver-hiba mélyén ülő jelszó-hash és
+   `draftKey` is a naplóba került volna. Az indoklás és a két védelmi réteg
+   (whitelist + redaktor) ott, egy helyen van. */
+const {logError} = require("./logError");
+
 module.exports = function serverError(response, error, context) {
-    console.error(`[${new Date().toISOString()}] ${context}:`, error);
+    logError(context, error);
     return response.status(500).json("Sikertelen művelet.");
 };
