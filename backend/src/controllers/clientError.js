@@ -1,4 +1,5 @@
 const router = require("express").Router();
+const {logProblem} = require("../log");
 
 /* A KLIENS SZERZŐDÉS-HIBÁJÁNAK FOGADÁSA — a szerver naplójába, nem a felhasználó
    konzoljába.
@@ -30,6 +31,9 @@ const router = require("express").Router();
    MENNYISÉGÉ a korlátozóé (middleware/rateLimit.js) — mindkettő a routes.js-ben
    ül a végpont előtt. Ide már csak ellenőrzött, útvonal-alakú kulcs jut. */
 module.exports = router.post("/", (request, response) => {
-    console.error(`[${new Date().toISOString()}] Kliens-szerződés hiba: ${request.body.endpoint}`);
+    /* A naplózás a log.js-en át megy: az időbélyeget és a redakciót az adja, és
+       a kapu miatt nem is lehet megkerülni. Hibaobjektum nincs — a jelentés maga
+       az esemény —, ezért logProblem, nem logError. */
+    logProblem(`Kliens-szerződés hiba: ${request.body.endpoint}`);
     return response.status(204).end();
 });

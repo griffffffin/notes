@@ -3,8 +3,8 @@ const Users = require("../../models/users");
 const bcrypt = require("bcrypt");
 const {signToken} = require("../../token");
 const {setTokenCookie} = require("../../tokenCookie");
-// A naplózás egyetlen kapuja — a hibaobjektum titkot vihetne a naplóba (logError.js).
-const {logError} = require("../../logError");
+// A naplózás egyetlen kapuja — a hibaobjektum titkot vihetne a naplóba (log.js).
+const {logInfo, logError} = require("../../log");
 
 /* A hibaüzenet SZÁNDÉKOSAN ugyanaz ismeretlen névre és rossz jelszóra.
    Korábban a kettő elkülönült ("Hibas felhasznalonev." / "Hibas jelszo."), ami
@@ -74,7 +74,7 @@ function rehashIfOutdated(user, password) {
 
     bcrypt.hash(password, SALT_WORK_FACTOR)
         .then((hashedPassword) => Users.updateOne({_id: user._id}, {password: hashedPassword}))
-        .then(() => console.log(`A(z) ${user._id} jelszava átállt a ${SALT_WORK_FACTOR}-es költségtényezőre.`))
+        .then(() => logInfo(`A(z) ${user._id} jelszava átállt a ${SALT_WORK_FACTOR}-es költségtényezőre.`))
         .catch((error) => logError("Sikertelen jelszó-áthashelés", error));
 }
 

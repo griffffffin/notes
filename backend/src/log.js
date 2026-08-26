@@ -1,4 +1,4 @@
-/* HIBANAPLÓZÁS — a részletek a naplóba, de TITOK NÉLKÜL.
+/* NAPLÓZÁS — a részletek a naplóba, de TITOK NÉLKÜL.
 
    MI VOLT A BAJ A KORÁBBI ALAKKAL. A naplózás eddig `console.error(context, error)`
    volt: a hibaOBJEKTUMOT adtuk át, és a kiírást a Node-ra bíztuk. A Node ilyenkor
@@ -97,6 +97,18 @@ function describeError(error) {
     }
 }
 
+/* A HIBACSATORNA, HIBAOBJEKTUM NÉLKÜL. Van baj, amihez nincs `Error` — a kliens
+   szerződés-hibájának jelentése (controllers/clientError.js) ilyen: az esemény
+   maga a hír, nincs mit leírni belőle. Az stderr-re megy, mert a naplóban a
+   szintje ettől lesz megkülönböztethető (`journalctl -p err`), és mert a
+   figyelőnk is ezt nézi.
+
+   A logError EZT HASZNÁLJA, nem külön ír: így a redakció és az időbélyeg egy
+   helyen van, és nem tud elcsúszni a két hiba-út között. */
+function logProblem(message) {
+    console.error(redactSecrets(`[${new Date().toISOString()}] ${message}`));
+}
+
 /**
  * Egyetlen, kész szövegként naplóz egy hibát — időbélyeggel, redaktálva.
  * @param {string} context hol történt (pl. "Users.create")
@@ -104,7 +116,24 @@ function describeError(error) {
  */
 function logError(context, error) {
     // A kontextus is átmegy a redaktoron: oda is kerülhet titok, véletlenül.
-    console.error(redactSecrets(`[${new Date().toISOString()}] ${context}: ${describeError(error)}`));
+    logProblem(`${context}: ${describeError(error)}`);
 }
 
-module.exports = {logError, redactSecrets, describeError};
+/* AZ ÜZENET-NAPLÓZÁS IS IDE TARTOZIK, és ez nem szimmetria-kedvelés.
+
+   Az őr eddig csak a `console.<bármi>(… error …)` alakot tiltotta, vagyis azt
+   nézte, szerepel-e a hívásban az `error` szó. Egy `console.log(user)` viszont
+   ugyanúgy kiírta volna a jelszó-hasht ÉS a piszkozat-kulcsot — és semmi nem
+   szólt volna, mert nincs benne az a szó. Egy kapu, ami mellett nyitva marad egy
+   ajtó, nem kapu: az őr innentől MINDEN közvetlen console-hívást tilt a
+   forrásban, tehát a naplózásnak ez a modul az egyetlen útja.
+
+   A logInfo SZÖVEGET vár, nem objektumot. Ez szándékos: így a hívó dönti el, mit
+   mond, és a legrosszabb, amit egy elgépelés okozhat, egy `[object Object]` a
+   naplóban — nem pedig egy dokumentum minden mezője. A redaktor ezen az úton is
+   lefut, mert egy interpolált érték is hozhat titkot. */
+function logInfo(message) {
+    console.log(redactSecrets(`[${new Date().toISOString()}] ${message}`));
+}
+
+module.exports = {logInfo, logProblem, logError, redactSecrets, describeError};

@@ -9,7 +9,7 @@ require("dotenv").config();
 const env = process.env;
 const routes = require("./routes");
 const serverError = require("./serverError");
-const {logError} = require("./logError");
+const {logInfo, logError} = require("./log");
 const csp = require("./csp");
 const noStore = require("./middleware/noStore");
 const sameOrigin = require("./middleware/sameOrigin");
@@ -87,14 +87,14 @@ if (hasDist) app.use(express.static(dist));
    sorrendet őrző teszt: middleware/noStore.js, middleware/noStore.test.js. */
 app.use(noStore);
 
-/* A kapcsolat hibája a NAPLÓZÓN át megy (logError.js), két okból is: a
+/* A kapcsolat hibája a NAPLÓZÓN át megy (log.js), két okból is: a
    `console.log`-ból `console.error` lett (a hiba a hibacsatornára való), és a
    `DATABASE` env a Postgres-jelszót tartalmazza — egy naplóba került kapcsolati
    URI volna a legsúlyosabb szivárgás. MÉRVE (2026-08-24): a mai driver a
    jelszót parse-hibánál és elérhetetlen hosztnál sem írja ki; a redaktor a nem
    mért utakra és a jövőbeli verziókra szól. */
 mongoose.connect(env.DATABASE)
-    .then(() => console.log("Az adatbázis-kapcsolat él."))
+    .then(() => logInfo("Az adatbázis-kapcsolat él."))
     .catch((error) => logError("Adatbázis-kapcsolat", error));
 
 /* Életjel a monitorozásnak. SZÁNDÉKOSAN hitelesítés nélküli: épp akkor kell
@@ -146,4 +146,4 @@ app.use(routes);
 app.use((error, request, response, next) =>
     serverError(response, error, `${request.method} ${request.path}`));
 
-app.listen(env.PORT, env.HOST, () => console.log("A szerver fut."));
+app.listen(env.PORT, env.HOST, () => logInfo("A szerver fut."));

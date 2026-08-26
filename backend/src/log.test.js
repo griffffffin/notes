@@ -1,4 +1,4 @@
-/* A HIBANAPLÓZÁS TESZTJEI — a napló ne szivárogtasson titkot.
+/* A NAPLÓZÁS TESZTJEI — a napló ne szivárogtasson titkot.
 
    A SORREND ITT SZÁNDÉKOS: elöl a KONTROLL áll ("egyáltalán naplózunk-e, és
    benne van-e a hasznos tartalom"), és csak utána a "nem tartalmazza" állítások.
@@ -7,9 +7,9 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const {readdirSync, readFileSync} = require("node:fs");
-const {join} = require("node:path");
+const {basename, join} = require("node:path");
 
-const {logError, redactSecrets, describeError} = require("./logError");
+const {logInfo, logError, redactSecrets, describeError} = require("./log");
 
 // Valósághű alakok — a formájuk számít, mert a redaktor a FORMÁRA illeszt.
 const HASH = "$2b$11$abcdefghijklmnopqrstuvABCDEFGHIJKLMNOPQRSTUVWXYZ01234";
@@ -51,8 +51,10 @@ test("KONTROLL: a naplósor időbélyeget, kontextust, üzenetet és vermet tart
     assert.match(lines[0], /^\[\d{4}-\d{2}-\d{2}T/);
     assert.match(lines[0], /Users\.create:/);
     assert.match(lines[0], /valami elromlott/);
-    // A verem nélkül a napló használhatatlan lenne a hibakereséshez.
-    assert.match(lines[0], /at .*logError\.test\.js/);
+    /* A verem nélkül a napló használhatatlan lenne a hibakereséshez. A fájl a
+       SAJÁT nevét kérdezi meg: egy átnevezés különben itt bukna el, ott, ahol a
+       verem tartalmához semmi köze (pontosan ez történt a log.js-re nevezéskor). */
+    assert.match(lines[0], new RegExp(`at .*${basename(__filename)}`));
 });
 
 test("KONTROLL: EGYETLEN argumentumot adunk át, nem a hibaobjektumot", () => {
@@ -168,17 +170,60 @@ test("describeError: a verem fejlécét nem írja ki kétszer", () => {
     assert.strictEqual(description.match(/Error: egyszer/g).length, 1);
 });
 
+test("logInfo: időbélyeggel, egyetlen szövegként naplóz", () => {
+    const original = console.log;
+    const received = [];
+    console.log = (...args) => received.push(args);
+    try {
+        logInfo("A szerver fut.");
+    } finally {
+        console.log = original;
+    }
+
+    assert.strictEqual(received.length, 1);
+    assert.strictEqual(received[0].length, 1, "a naplózó egyetlen, kész szöveget adjon át");
+    assert.match(received[0][0], /^\[\d{4}-\d{2}-\d{2}T.*A szerver fut\.$/);
+});
+
+test("logInfo: a redaktor ezen az úton is lefut", () => {
+    /* Az üzenet interpolált értéket is hordozhat, és az hozhat titkot — pl. egy
+       "a(z) X felhasználó kulcsa megújult" alakú sor. A hiba-ág redakciója
+       önmagában nem véd meg ettől: ez másik csatorna (console.log). */
+    const original = console.log;
+    const lines = [];
+    console.log = (...args) => lines.push(args.map(String).join(" "));
+    try {
+        logInfo(`kulcs kiadva: ${DRAFT_KEY}`);
+    } finally {
+        console.log = original;
+    }
+
+    assert.ok(!lines[0].includes(DRAFT_KEY), "a piszkozat-kulcs a naplóba került");
+    assert.match(lines[0], /kulcs kiadva: \[REDACTED\]/);
+});
+
 /* ───────────────────────── AZ ŐR ─────────────────────────
 
-   A naplózás egyetlen kapuja a logError legyen. Ez ma fegyelem kérdése: bárki
-   írhat egy `console.error("valami:", error)` sort, és attól semmi nem hibázik —
-   csak a titok újra kikerül. Ez tehát GÉPI KAPU egy néma visszacsúszás ellen.
+   A naplózás egyetlen kapuja a log.js legyen. Ez ma fegyelem kérdése: bárki
+   írhat egy közvetlen console-hívást, és attól semmi nem hibázik — csak a titok
+   kikerül. Ez tehát GÉPI KAPU egy néma visszacsúszás ellen.
 
-   A MINTA a `console.<bármi>(… error …)` alakra illeszt, vagyis arra, hogy egy
-   console-hívás argumentumában szerepel az `error` azonosító. Nem tökéletes
-   (egy angolul írt "error" szó egy üzenetben hamis riasztás volna), de a projekt
-   üzenetei magyarul íródnak, és a hamis riasztás HANGOS — épp az ellenkezője
-   annak a hibafajtának, ami ellen az őr készült.
+   MIÉRT TILOS MINDEN CONSOLE-HÍVÁS, és nem csak a hibás. Az őr korábban azt
+   nézte, szerepel-e a hívásban az `error` szó — de egy `console.log(user)`
+   ugyanúgy kiírja a jelszó-hasht, és abban nincs benne az a szó. A szűkebb
+   szabály tehát nem kevesebbet védett, hanem rosszabbul: pont a legártatlanabbnak
+   látszó alakot engedte át.
+
+   ÉS A SZIGORÚBB SZABÁLY EGYSZERŰBB ŐRT AD. A régi minta az `error` KÖZELSÉGÉT
+   kereste a hívás után, amiből két hamis riasztás is származott: a `[^;]*`
+   átnyúlt a következő sorba (egy metódus-lánc egyetlen utasítás, így egy ártatlan
+   `console.log`-ot rótt fel a mögötte álló `.catch` paraméteréért), és a
+   kommentben IDÉZETT hívás is illeszkedett rá. Most elég a puszta hívás alakja:
+   `console.<bármi>(`. A soron átnyúlás kérdése ezzel megszűnt.
+
+   AMI MARADT A RÉGI TANULSÁGBÓL: a kommentben idézett alak továbbra is illeszkedne,
+   ezért a magyarázó kommentek a hívást ZÁRÓJEL NÉLKÜL írják — az őr hibaüzenete meg
+   is mondja ezt annak, aki belefut.
 
    A KIVÉTELEK okkal vannak, és ha bővül a lista, azt indokolni kell.
 
@@ -187,15 +232,10 @@ test("describeError: a verem fejlécét nem írja ki kétszer", () => {
    fájlokat (l. CLAUDE.md 4. pont, és scripts/exportSections.js tanulsága).
 
    ⚠ A `scripts/` MAPPA SZÁNDÉKOSAN NINCS BENNE: azok parancssori eszközök, ahol a
-   `console.error` a felhasználónak szóló KIMENET, nem szerver-napló. */
-const GUARD_EXEMPT = new Set(["logError.js"]);
-/* A `[^;)]*` rész két dolgot zár ki, és MINDKETTŐT egy hamis riasztás tanította.
-   A `;` a következő UTASÍTÁSIG korlátoz — de az nem elég: egy metódus-lánc
-   (`.then(… console.log(…)).catch((error) => …)`) egyetlen utasítás, tehát a
-   minta átnyúlt a következő sorba, és egy ártatlan `console.log`-ot rótt fel a
-   MÖGÖTTE álló `catch` paraméteréért. A `)` kizárása a hívás saját zárójeléig
-   korlátoz — a többsoros hívás így is illeszkedik, a lánc következő tagja már nem. */
-const LOGGING_ERROR = /console\.\w+\([^;)]*\berror\b/;
+   console a felhasználónak szóló KIMENET, nem szerver-napló. */
+const GUARD_EXEMPT = new Set(["log.js"]);
+// A puszta hívás alakja. Az `\w+` bármely csatornát fedi (log, error, warn, info…).
+const CONSOLE_CALL = /console\.\w+\(/;
 
 function sourceFiles() {
     return readdirSync(__dirname, {recursive: true, encoding: "utf8"})
@@ -204,7 +244,7 @@ function sourceFiles() {
         .filter((name) => !GUARD_EXEMPT.has(name));
 }
 
-test("ŐR: a forrásban nincs közvetlen console-naplózás hibáról", () => {
+test("ŐR: a forrásban nincs közvetlen console-hívás", () => {
     const files = sourceFiles();
 
     /* A GYŰJTŐ-CSAPDA ELLEN: ha a felderítés elromlik (rossz glob, átrendezett
@@ -213,17 +253,14 @@ test("ŐR: a forrásban nincs közvetlen console-naplózás hibáról", () => {
     assert.ok(files.length >= 20, `csak ${files.length} forrásfájlt találtam — a felderítés romlott el`);
     assert.ok(files.includes("serverError.js"), "a serverError.js kimaradt a felderítésből");
 
-    /* KONTROLL: a minta tényleg felismeri a tiltott alakot, és nem riad a jóra.
-       A harmadik eset MÉRT hamis riasztásból való: a lánc következő tagjának
-       `error` paramétere nem a `console.log` bűne. */
-    assert.match('console.error("Bejelentkezési hiba:", error);', LOGGING_ERROR);
-    assert.match('console.error(\n    "Bejelentkezési hiba:", error);', LOGGING_ERROR);
-    assert.doesNotMatch('console.error(`Kliens-szerződés hiba: ${endpoint}`);', LOGGING_ERROR);
-    assert.doesNotMatch('.then(() => console.log("kész"))\n    .catch((error) => logError("ctx", error));',
-        LOGGING_ERROR);
+    /* KONTROLL: a minta felismeri MINDKÉT csatornát (a `console.log` volt a rés),
+       és nem riad a kommentben, zárójel nélkül IDÉZETT alakra. */
+    assert.match('console.error("Bejelentkezési hiba:", error);', CONSOLE_CALL);
+    assert.match('console.log(`A(z) ${user._id} jelszava átállt.`);', CONSOLE_CALL);
+    assert.doesNotMatch("a hibaobjektumot adta át a `console.error`-nak", CONSOLE_CALL);
 
-    const offenders = files.filter((name) => LOGGING_ERROR.test(readFileSync(join(__dirname, name), "utf8")));
+    const offenders = files.filter((name) => CONSOLE_CALL.test(readFileSync(join(__dirname, name), "utf8")));
     assert.deepStrictEqual(offenders, [],
-        "ezek a fájlok közvetlenül naplóznak hibát — a logError.js-en át menjenek: " + offenders.join(", ") +
+        "ezek a fájlok közvetlenül naplóznak — a log.js-en át menjenek (logInfo/logError): " + offenders.join(", ") +
         ". (Ha KOMMENTBEN idéznéd a tiltott alakot, hagyd el a zárójelet — a minta a hívásra illeszt.)");
 });
