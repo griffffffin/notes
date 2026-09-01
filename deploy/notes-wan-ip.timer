@@ -4,7 +4,7 @@ Description=Hourly check whether the public IP address changed
 [Timer]
 OnCalendar=hourly
 # Szórás, hogy ne pont az egész órakor kérdezzen, mint mindenki más.
-RandomizedDelaySec=5min
+RandomizedDelaySec=10min
 # A kimaradt futást bepótolja (pl. ha a gép állt) — a cím épp akkor is
 # változhatott, amikor nem figyeltünk.
 Persistent=true
