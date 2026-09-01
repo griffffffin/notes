@@ -3,10 +3,39 @@
 [Unit]
 Description=Notes daily JSON export
 
+# A ROBBANASI KORLAT AZ UJRAPROBALKOZASHOZ (l. a Restart= alatti indoklast).
+# 9 inditas 3 oran belul: az elso + nyolc ujraprobalkozas 15 percenkent, azaz
+# ket ora. A kilencedik utan a systemd nem indit tobbet — a unit HIBAS allapotban
+# marad, es a napi Pi-allapotellenorzes 6. pontja megtalalja. A korlat nelkul egy
+# valodi export-hiba (nem a zarolt /opt) orokke ismetlodne, csendben.
+StartLimitIntervalSec=3h
+StartLimitBurst=9
+
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/notes/backend
 ExecStart=/usr/bin/node scripts/daily-export.js
+
+# UJRAPROBALKOZAS — a titkositott kotet kezi feloldasa miatt kell.
+#
+# A /opt bootkor NEM csatolodik (a kulcs nincs a gepen, l. CLAUDE.md), a
+# notes-export.timer viszont Persistent=true: a kimaradt ejfeli futast bootkor
+# bepotolja. Aramszunet utan a ketto egymasnak feszul — a bepotlas azelott indul,
+# hogy a `sudo unlock-opt` lefutna, es a unit elhasal:
+#   "Failed to set up mount namespacing: /opt/backups/notes/daily:
+#    No such file or directory" (226/NAMESPACE)
+# Ez tortent 2026-08-26-an: a Pi 08-25 19:40-kor esett ki, 17:09-kor jott vissza,
+# es a 17:08:55-os bepotlas azonnal elszallt.
+#
+# MIERT NEM ConditionPathIsDirectory=: az NEM hibanak, hanem "kihagyva"-nak
+# jelolne a futast. A hiba eltunne a szem elol, de a mentes is elmaradna — az
+# adott nap pillanatkepe NEMAN veszne el. Itt pont az a cel, hogy a mentes
+# MEGTORTENJEN, amint lehet.
+#
+# Igy viszont a unit magatol ujraprobalja, es a feloldas utani elso probalkozas
+# sikerul. Ha soha nem oldod fel, a StartLimitBurst kifut, es hangosan hibas marad.
+Restart=on-failure
+RestartSec=15min
 
 # Ugyanaz a szolgáltatás-felhasználó, mint az appé (l. notes.service): nincs
 # shellje, nincs sudója. A titkokat csoporton át olvassa (backend/.env =
