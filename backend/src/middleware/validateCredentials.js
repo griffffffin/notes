@@ -12,7 +12,7 @@
    Users/create controllerben él (ott a hibaüzenete is). */
 
 const MAX_NAME = 50;
-const MAX_PASSWORD = 200;   // a bcrypt 72 bájt fölött csonkol; a korlát a DoS ellen van
+const MAX_PASSWORD = 200;   // józansági/DoS-korlát; az argon2id az egész bemenetet hasheli, nincs csonkolás
 
 module.exports = (request, response, next) => {
     const {name, password} = request.body ?? {};

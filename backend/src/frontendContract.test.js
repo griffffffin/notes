@@ -116,6 +116,21 @@ test("a névütközés státusza egyezik a felület 'foglalt név' ágával", ()
         "Elcsúszva a regisztráció általános hibát mutatna, és a felhasználó nem tudná, hogy nevet kell váltania.");
 });
 
+test("a gyenge jelszó státusza egyezik a felület 'túl gyakori' ágával", () => {
+    /* A regisztráció 422-t ad a gyenge (túl gyakori vagy a névvel egyező)
+       jelszóra — a formailag rossz 400-tól megkülönböztetve. A felület erre a
+       kódra írja ki, hogy válasszon egyedibbet; elcsúszva a felhasználó a
+       félrevezető "helytelen formátum" üzenetet látná egy formailag jó jelszóra. */
+    const backend = declared("backend/src/controllers/Users/create",
+        /WEAK_PASSWORD_STATUS\s*=\s*(\d+)/, "a gyenge jelszó státusza");
+    const frontend = declared("frontend/src/components/User/entryError",
+        /WEAK_PASSWORD_STATUS\s*=\s*(\d+)/, "a 'túl gyakori jelszó' ág státusza");
+
+    assert.strictEqual(Number(backend), Number(frontend),
+        `A szerver ${backend}-t ad a gyenge jelszóra, a felület ${frontend}-re számít. ` +
+        "Elcsúszva a felhasználó a valódi ok helyett félrevezető formátum-hibát látna.");
+});
+
 /* A PISZKOZAT-KULCS HOSSZA. A szerver GENERÁLJA (32 véletlen bájt), a kliens
    pedig ELLENŐRZI, mielőtt átvenné — ha a kettő elcsúszik, a kliens minden kulcsot
    elutasít, és onnantól NINCS piszkozat: a szerkesztő be sem nyílik, a mentetlen

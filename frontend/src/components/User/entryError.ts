@@ -33,7 +33,15 @@ const NAME_TAKEN_STATUS = 409;
    hogy a regisztrációs ágon a 400 a jelszóról szól. */
 const BAD_PASSWORD_STATUS = 400;
 
-export type EntryError = "credentials" | "taken" | "password" | "request";
+/* ELTÉRÉS a BAD_PASSWORD_STATUS-tól: EZ a backendhez KÖTÖTT szám, mint a
+   NAME_TAKEN_STATUS. A regisztráció 422-t ad a GYENGE (túl gyakori vagy a névvel
+   egyező) jelszóra — a formailag rossztól (400) szándékosan megkülönböztetve,
+   mert az itt más üzenetet érdemel: a formátum jó, csak a jelszó nem elég erős.
+   A backend párja: create.js WEAK_PASSWORD_STATUS; az egyezést a
+   frontendContract.test.js őrzi. */
+const WEAK_PASSWORD_STATUS = 422;
+
+export type EntryError = "credentials" | "taken" | "password" | "common" | "request";
 
 /* A `Record<EntryError, string>` nem díszítés: ha az union új esettel bővül és
    ide nem kerül szöveg, az FORDÍTÁSI HIBA — nem egy üres felirat a képernyőn. */
@@ -44,6 +52,10 @@ export const ENTRY_ERROR_MESSAGES: Record<EntryError, string> = {
     credentials: "Hibás felhasználónév vagy jelszó.",
     taken: "A felhasználónév már foglalt.",
     password: "Helytelen jelszó formátum.",
+    /* A formátum jó, de a jelszó gyenge: túl gyakori, vagy megegyezik a névvel.
+       A "próbáld újra" itt is félrevezetne — ugyanaz a jelszó megint elbukna —,
+       ezért kimondjuk, mit kell tenni: másikat választani. */
+    common: "Ez a jelszó túl gyakori. Válassz egy egyedibbet.",
     /* Minden, ami nem a szerver szerződéses "nem"-je: hálózati hiba,
        időtúllépés, 500. Szándékosan nem mondja meg, MI romlott el (az a naplóba
        való, l. logRequestError), csak azt, hogy nem a felhasználón múlt. */
@@ -66,5 +78,9 @@ export function entryError(isLogin: boolean, status: number | undefined): EntryE
        üzenet a hasznos — a "próbáld újra" félrevezetne, mert az újrapróbálás
        ugyanígy elbukna. */
     if (status === BAD_PASSWORD_STATUS) return "password";
+    /* A gyenge jelszó (gyakori vagy a névvel egyező) a szerver saját, formától
+       független elutasítása — a kliens ezt nem tudja előre leszűrni (a listát nem
+       tölti le), tehát ez a válasz VALÓDI úton is ide ér, nem csak elcsúszáskor. */
+    if (status === WEAK_PASSWORD_STATUS) return "common";
     return "request";
 }

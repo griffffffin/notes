@@ -1,57 +1,104 @@
+const argon2 = require("argon2");
 const bcrypt = require("bcrypt");
 
-/* A JELSZÓ-TÁROLÁS két összetartozó paramétere — EGY helyen, mert a kettőnek
-   együtt kell mozognia.
+/* A JELSZÓ-TÁROLÁS egyetlen helye. Itt dől el, MIVEL hashelünk (argon2id), MILYEN
+   paraméterekkel, és hogyan ellenőrzünk egy MÁR TÁROLT hasht — beleértve a régi,
+   bcrypt-tel készült hasheket a migráció idejére.
 
-   A bcrypt KÖLTSÉGTÉNYEZŐJE (SALT_WORK_FACTOR) azt szabja meg, hányszorozódik a
-   hash kiszámításának ideje: minden +1 kétszerezi. Ez szándékos lassítás — a
-   jelszó offline törését teszi drágává.
+   MIÉRT ARGON2ID a bcrypt helyett. A bcrypt lassítása tisztán SZÁMÍTÁSI: a
+   munkaterülete ~4 kB, ami elfér egy GPU vagy ASIC gyorsítótárában, így a támadó
+   sok ezer példányt futtathat párhuzamosan olcsón. Az argon2id ezzel szemben
+   MEMÓRIA-IGÉNYES: minden egyes hash-számítás egy nagy (itt 46 MiB) memóriatömböt
+   tölt fel és olvas vissza. Ez nem fér a gyorsítótárba, tehát a támadó
+   párhuzamossága a memória SÁVSZÉLESSÉGÉBE ütközik, nem a számításba — épp az a
+   hardveres előny esik ki, amivel a jelszavakat tömegével törik. Az argon2id az
+   OWASP első ajánlása jelszó-tárolásra.
 
-   MÉRVE EZEN A GÉPEN (Pi 4B, 2026-08-18; hash / compare, ms):
-       10 = 129 / 126     11 = 245 / 242     12 = 493 / 490
-       13 = 973 / 968     14 = 1938 / 1951   15 = 3896 / 3914
+   A PARAMÉTEREK — MÉRVE EZEN A GÉPEN (Pi 4B, 2026-09-06; argon2id, p=1, a hash
+   mediánja 7 futásból, ms):
+       m=19 MiB: t1=59  t2=106  t3=157
+       m=32 MiB: t1=171 t2=253  t3=338
+       m=46 MiB: t1=244 t2=364  t3=484
+       m=64 MiB: t1=353 t2=508  t3=681
+       m=96 MiB: t1=515 t2=771  t3=1041
 
-   A 10-ről 11-re emelés 2026-08-18-án történt. MIÉRT NEM TÖBB: a bcrypt a libuv
-   NÉGY szálas threadpoolján fut, tehát a költség nem csak a támadót lassítja,
-   hanem a saját kiszolgálásunkat is — négy párhuzamos bejelentkezési kérés a
-   teljes poolt lefoglalja (amit a fájlműveletek is használnak). Minden +1 tehát
-   megkétszerezi egy hitelesítés NÉLKÜLI kérés terhelő erejét is. A 20-as
-   nagyságrend (amit fölvetettünk) a mérésből extrapolálva ~125 másodperc lenne
-   bejelentkezésenként, és az indulás is annyit állna a lenti hashSync-en — az app
-   használhatatlanná válna. A 11 az a pont, ahol a lassítás érezhetően drágítja a
-   törést, de a belépés még azonnalinak érződik.
+   VÁLASZTÁS: memoryCost=47104 KiB (46 MiB), timeCost=1, parallelism=1 → 244 ms.
+   Miért ez: (1) a cél a bcrypt-11 eddigi ~245 ms-je volt, hogy a belépés továbbra
+   is azonnalinak érződjön, az indulás (álca-hash) ne álljon sokat, és a
+   libuv NÉGY szálas threadpoolját egy belépés-hullám ne fojtsa meg — négy
+   párhuzamos hash itt 4×46 MiB = 184 MiB csúcsot jelent, a 7,6 GB-nak töredéke.
+   (2) Azonos idő mellett a NAGYOBB memóriát preferáljuk (több GPU-ellenállás),
+   ezért esett a t=1/46 MiB (244 ms) a t=2/32 MiB (253 ms) helyett. (3) Ez egyben
+   egy OWASP-ajánlott konfiguráció is (m=47104, t=1, p=1).
 
-   A KÖLTSÉG ÉS A KÉRÉS-KORLÁTOZÁS EGYÜTT JÁR: a tényező emelése önmagában többet
-   adna a támadónak (olcsóbb DoS), mint nekünk — a hitelesítési végpontok
-   kérés-korlátozása ezért ennek az emelésnek a FELTÉTELE, nem a következménye.
+   A KÖLTSÉG ÉS A KÉRÉS-KORLÁTOZÁS EGYÜTT JÁR: a hashelés drágítása önmagában
+   többet adna a támadónak (olcsóbb DoS a hitelesítési végpontokon), mint nekünk —
+   a login/regisztráció kérés-korlátozása ezért ennek a FELTÉTELE. */
+const ARGON2_OPTIONS = {
+    type: argon2.argon2id,
+    memoryCost: 47104,   // 46 MiB — l. a mérést fent
+    timeCost: 1,
+    parallelism: 1,
+};
 
-   Az ÁLCA-HASH (DUMMY_HASH) a bejelentkezés időzítés-szivárgása ellen véd. Ha
-   ismeretlen névnél azonnal válaszolnánk, létező névnél pedig megvárnánk a
-   bcrypt ~130 ms-át, a válaszidőből kiderülne, létezik-e a fiók — hiába azonos a
-   hibaüzenet. Ezért ismeretlen névnél is lefuttatunk egy összehasonlítást, EZZEL
-   a hash-sel (l. controllers/Users/login.js).
+/* A MIGRÁCIÓ: két algoritmus él egyszerre. A bcrypt-tel készült régi hasheket a
+   verifyPassword az előtagjukból ismeri fel ("$2b$"/"$2a$"/"$2y$" = bcrypt,
+   "$argon2" = argon2), és a megfelelő könyvtárral ellenőrzi. Új hash MINDIG
+   argon2id (hashPassword). A régi hash a tulajdonosa KÖVETKEZŐ sikeres
+   belépésekor íródik át argon2id-re (l. controllers/Users/login.js
+   rehashIfNeeded) — felhasználónként egyetlen belépés zárja le. A bcrypt akkor
+   vehető ki innen és a package.json-ból, ha a DB-ben már nincs "$2b$"-hash. */
+async function hashPassword(password) {
+    return argon2.hash(password, ARGON2_OPTIONS);
+}
 
-   KRITIKUS, hogy az álca-hash UGYANAZZAL a költségtényezővel készüljön, mint a
-   valódi jelszavaké — különben a két ág mérhetően eltérő ideig futna, és épp azt
-   árulná el, amit el akarunk rejteni. Korábban a tényező két helyen szerepelt
-   (a create.js konstansaként és a login.js hashSync-hívásába beégetve), és csak
-   egy komment kérte az olvasót, hogy tartsa őket szinkronban. Itt a kötés
-   SZERKEZETI: az álca-hash ugyanabból a konstansból készül, elcsúszni nem tud.
+/* A tárolt hash ellenőrzése a jelszóval szemben, algoritmus-függetlenül.
 
-   Indításkor egyszer számoljuk ki (hashSync): a login-végpontnak készen kell
-   állnia, nem kérésenként újragyártani.
+   Az argon2.verify a ROSSZ jelszóra `false`-t ad, de egy STRUKTURÁLISAN romlott
+   ("$argon2" előtagú, de értelmezhetetlen) hashre DOB. Az ilyet nem engedjük
+   500-zá dagadni: nem-egyezésként kezeljük (a hívó a szokásos 400-at adja,
+   l. login.js), a hibát a hívó naplózza. A bcrypt.compare érvénytelen hashre
+   `false`-t ad (nem dob), ezért a bcrypt-ág nem igényel külön kezelést. */
+async function verifyPassword(hash, password) {
+    if (hash.startsWith("$argon2"))
+        return argon2.verify(hash, password);
+    return bcrypt.compare(password, hash);
+}
 
-   HA A TÉNYEZŐ VÁLTOZIK: a bcrypt a hashbe írja, tehát a RÉGI jelszavak továbbra
-   is a régivel ellenőrződnek. Kevert tényezők = felhasználónként eltérő válaszidő,
-   azaz visszanyílik ez a szivárgás — és a 10→11 emelés PILLANATÁBAN pontosan ez
-   az állapot áll elő: az álca-hash már 11-es (245 ms), a még nem frissített
-   jelszavak 10-esek (129 ms), tehát az ismeretlen NÉV ága lassabb, mint a
-   létezőé. Ez az átmenet tudatosan vállalt, és rövid: a login.js a KÖVETKEZŐ
-   SIKERES BELÉPÉSKOR újrahasheli a jelszót az aktuális tényezővel, tehát
-   felhasználónként egyetlen bejelentkezés zárja le. Ezért került az emelés és az
-   újra-hashelés UGYANABBA a változtatásba — külön-külön az egyik biztonsági rést
-   nyitna, a másik pedig értelmetlen volna. */
-const SALT_WORK_FACTOR = 11;
-const DUMMY_HASH = bcrypt.hashSync("nincs-ilyen-jelszo", SALT_WORK_FACTOR);
+/* Igaz, ha a tárolt hasht ÚJRA KELL hashelni a mai beállítással. Két ok:
+     - nem argon2id (tehát régi bcrypt-hash) → át kell állni;
+     - argon2id, de más paraméterrel készült (jövőbeli m/t/p-emelés) → az
+       argon2.needsRehash ezt az összevetést végzi, csak érvényes argon2-hasht kap
+       (ide már csak sikeres verifyPassword után jutunk, tehát a hash ép). */
+function needsRehash(hash) {
+    if (!hash.startsWith("$argon2")) return true;
+    return argon2.needsRehash(hash, ARGON2_OPTIONS);
+}
 
-module.exports = {SALT_WORK_FACTOR, DUMMY_HASH};
+/* AZ ÁLCA-HASH a bejelentkezés időzítés-szivárgása ellen véd. Ha ismeretlen névnél
+   azonnal válaszolnánk, létező névnél viszont megvárnánk az argon2id ~244 ms-át, a
+   válaszidőből kiderülne, létezik-e a fiók — hiába azonos a hibaüzenet. Ezért
+   ismeretlen névnél is lefuttatunk egy ellenőrzést EZZEL a hash-sel (l. login.js).
+
+   KRITIKUS, hogy az álca-hash UGYANAZZAL az algoritmussal és paraméterrel készüljön,
+   mint a valódi jelszavaké — különben a két ág mérhetően eltérő ideig futna, és épp
+   azt árulná el, amit rejteni akarunk. A kötés SZERKEZETI: ugyanabból az
+   ARGON2_OPTIONS-ból származik, elcsúszni nem tud.
+
+   AZ ÁTMENET IDEJÉN kevert a mező: a még át nem hashelt jelszavak bcrypt-11-esek
+   (~245 ms), az álca-hash már argon2id (~244 ms). A két szám szándékosan van
+   egymáshoz hangolva (l. a paraméter-választást fent), ezért az ismeretlen-név ág
+   és a bcrypt-fiók ág ideje az átmenet alatt is fedi egymást.
+
+   ELTÉRÉS a régi bcrypt-es változattól: a bcryptnek volt szinkron hashSync-je, így
+   az álca-hash egy modul-szintű konstans lehetett. Az argon2 CSAK aszinkron, ezért
+   az álca-hasht egy Promise-ban tartjuk. A modul betöltésekor MELEGEN indítjuk (az
+   első belépés ne várjon a számításra), a login pedig ugyanezt a Promise-t várja
+   be. A no-op .catch csak azt akadályozza meg, hogy egy induláskori elutasítás
+   „unhandledRejection"-ként dobjon; a VALÓDI kezelés (és a hiba felszínre hozása) a
+   login await-jén történik. */
+const DUMMY_PASSWORD = "nincs-ilyen-jelszo";
+const dummyHashPromise = argon2.hash(DUMMY_PASSWORD, ARGON2_OPTIONS);
+dummyHashPromise.catch(() => {});
+
+module.exports = {hashPassword, verifyPassword, needsRehash, dummyHashPromise};

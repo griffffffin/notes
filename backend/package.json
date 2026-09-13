@@ -9,6 +9,7 @@
     "knip": "knip"
   },
   "dependencies": {
+    "argon2": "^0.45.1",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",

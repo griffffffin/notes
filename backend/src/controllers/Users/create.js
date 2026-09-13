@@ -1,13 +1,26 @@
 const router = require("express").Router();
-const bcrypt = require("bcrypt");
 const Users = require("../../models/users");
 const serverError = require("../../serverError");
 const {signToken} = require("../../token");
 const {setTokenCookie} = require("../../tokenCookie");
-// A költségtényező a login álca-hash-ével KÖZÖS forrásból jön (l. password.js).
-const {SALT_WORK_FACTOR} = require("../../password");
+// A hashelés a login álca-hash-ével KÖZÖS forrásból jön (argon2id, l. password.js).
+const {hashPassword} = require("../../password");
+const {isCommonPassword} = require("../../commonPasswords");
 
 const PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/;
+
+/* A GYENGE JELSZÓ státusza 422 (Unprocessable Entity), NEM 400 — és ez tudatos.
+
+   A frontend a regisztrációs 400-at fixen a „Helytelen jelszó formátum." üzenetre
+   képezi (entryError.ts, BAD_PASSWORD_STATUS). Egy gyakori vagy a névvel egyező
+   jelszó viszont FORMAILAG teljesen rendben van — csak nem elég erős. Ha ezt is
+   400-cal utasítanánk el, a felhasználó azt olvasná, hogy „rossz a formátum",
+   holott a formátum jó, és hiába próbálná átalakítani. Ezért külön kód (422) és
+   külön üzenet; a frontend erre a kódra a „common" hibaesetet írja ki
+   (entryError.ts), és a két oldal egyezését a frontendContract.test.js őrzi. */
+const WEAK_PASSWORD_STATUS = 422;
+const WEAK_PASSWORD_MESSAGE =
+    "Ez a jelszó túl gyakori vagy megegyezik a felhasználónévvel — válassz másikat.";
 
 /* A névütközés válasza 409 (Conflict), nem 400: a kérés önmagában rendben van,
    csak a szerver JELENLEGI állapotával ütközik. Nevesítve, mert a frontend EBBŐL
@@ -38,7 +51,7 @@ const NAME_TAKEN_STATUS = 409;
 
    ⚠ MITŐL ROMLANA EL: ha a `/user/create` korlátja valaha lazul (vagy lekerül), ez
    a döntés a döntés MAGYARÁZATÁVAL együtt érvényét veszti. A kettő tehát össze van
-   kötve — ezt a kötést ma csak ez a komment tartja. */
+   kötve. */
 
 /* A név megléte és típusa a validateCredentials middleware dolga; itt már csak
    a jelszó-szabály és a névütközés maradt — ezek VÁRT hibák, a felhasználónak
@@ -57,8 +70,16 @@ module.exports = router.post("/", async (request, response) => {
         return response.status(400).json(
             "A jelszó legalább 8 karakter legyen. Kis-, nagybetűkből és számokból álljon.");
 
+    /* A FORMA rendben — most az ERŐSSÉG. Két olcsó, hálózat nélküli ellenőrzés,
+       még a bcrypt (a drága művelet) ELŐTT:
+         - a jelszó ne EGYEZZEN a felhasználónévvel (kis-/nagybetűtől függetlenül) —
+           ez a legkézenfekvőbb tipp, és a fiók-korlát után az első, amit próbálnak;
+         - a jelszó ne legyen rajta a gyakori-jelszó-listán (commonPasswords.js). */
+    if (password.toLowerCase() === name.toLowerCase() || isCommonPassword(password))
+        return response.status(WEAK_PASSWORD_STATUS).json(WEAK_PASSWORD_MESSAGE);
+
     try {
-        const hashedPassword = await bcrypt.hash(password, SALT_WORK_FACTOR);
+        const hashedPassword = await hashPassword(password);
         const user = await new Users({name: name, password: hashedPassword}).save();
         /* A TOKEN A SÜTIBE MEGY, A TÖRZSBE A NÉV. A törzsben visszaadott token
            azt jelentette, hogy a JavaScript megkapja — épp azt szüntetjük meg

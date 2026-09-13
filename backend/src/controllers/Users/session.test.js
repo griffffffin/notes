@@ -14,9 +14,9 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const express = require("express");
-const bcrypt = require("bcrypt");
 const mongoose = require("mongoose");
 const request = require("supertest");
+const {hashPassword} = require("../../password");
 const {userStub} = require("../../test/authStub");
 
 process.env.JWT_SECRET = "teszt-titok-csak-a-teszthez";
@@ -55,7 +55,9 @@ app.use("/refresh", refresh);
 app.use("/logout", logout);
 
 test.before(async () => {
-    storedUser = {_id: USER_ID, name: NAME, password: await bcrypt.hash(PASSWORD, 11), tokenVersion: 0};
+    /* MAI (argon2id) hash: így a belépés nem indít háttér-áthashelést, ami itt
+       csak zajt adna — ez a teszt a süti-szerződésről szól, nem a migrációról. */
+    storedUser = {_id: USER_ID, name: NAME, password: await hashPassword(PASSWORD), tokenVersion: 0};
 });
 
 /* A Set-Cookie fejléc EGY sütijére bontva. A supertest tömböt ad (több süti is

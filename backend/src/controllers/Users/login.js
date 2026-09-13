@@ -1,6 +1,5 @@
 const router = require("express").Router();
 const Users = require("../../models/users");
-const bcrypt = require("bcrypt");
 const {signToken} = require("../../token");
 const {setTokenCookie} = require("../../tokenCookie");
 // A naplózás egyetlen kapuja — a hibaobjektum titkot vihetne a naplóba (log.js).
@@ -29,61 +28,74 @@ const BAD_LOGIN = "Hibás felhasználónév vagy jelszó.";
    401-re, a teszt hangosan megbukik — nem a felhasználó fedezi fel. */
 const BAD_LOGIN_STATUS = 400;
 
-/* Az álca-hash a KÖZÖS password.js-ből jön, a jelszó-hashelés költségtényezőjével
-   együtt. Miért ott: a kettőnek azonos tényezővel kell készülnie, különben a
-   bejelentkezés két ága mérhetően eltérő ideig fut, és a válaszidőből kiderül,
-   létezik-e a fiók — hiába azonos a hibaüzenet. A kötés ezért szerkezeti, nem
-   kommentre bízott (a részletes indoklás a password.js-ben).
+/* Az álca-hash, a hashelés és az ellenőrzés a KÖZÖS password.js-ből jön. Miért
+   ott: az álca-hashnek azonos algoritmussal és paraméterrel kell készülnie, mint a
+   valódi jelszavaké, különben a bejelentkezés két ága mérhetően eltérő ideig fut, és
+   a válaszidőből kiderül, létezik-e a fiók — hiába azonos a hibaüzenet. A kötés ezért
+   szerkezeti, nem kommentre bízott (a részletes indoklás a password.js-ben).
 
-   Mérés a Pi-n, 40-40 kérés (2026-07-16): ismeretlen név átlag 134 ms
-   (min 130 / max 139), létező név átlag 134 ms (min 130 / max 146) — az
-   eloszlások fedik egymást, nincs kinyerhető jel. */
-const {DUMMY_HASH, SALT_WORK_FACTOR} = require("../../password");
+   Az álca-hash az argon2 szinkron API-jának hiánya miatt egy Promise, amit
+   belépésenként bevárunk (a modul betöltésekor melegen indul, tehát ez rendszerint
+   egy már beolvadt érték).
 
-/* A JELSZÓ ÁTHASHELÉSE, ha a tárolt hash még a RÉGI költségtényezővel készült.
+   Mérés a Pi-n, 40-40 kérés (2026-07-16, bcrypt-11): ismeretlen név átlag 134 ms,
+   létező név átlag 134 ms — az eloszlások fedték egymást. Az argon2id álca-hash
+   (~244 ms) a bcrypt-11-hez (~245 ms) hangolva, tehát az egyezés a migráció alatt
+   is áll (l. password.js paraméter-választás). */
+const {dummyHashPromise, verifyPassword, needsRehash, hashPassword} = require("../../password");
 
-   Miért kell. A bcrypt a tényezőt beleírja a hashbe, tehát egy emelés (2026-08-18:
-   10 → 11) a MEGLÉVŐ jelszavakat nem érinti: azok továbbra is a régi, olcsóbb
-   tényezővel ellenőrződnek. Két baj származik ebből, és a második a súlyosabb:
+/* A JELSZÓ ÁTHASHELÉSE, ha a tárolt hash nem a mai beállítással készült.
 
-     - a régi jelszó nem kapja meg a védelmet, amiért az emelés történt;
-     - KEVERT tényezők mellett a bejelentkezés ideje felhasználónként eltér, az
-       álca-hash pedig már az ÚJ tényezőt használja — vagyis a válaszidőből megint
-       kiolvasható lenne, létezik-e a fiók (l. password.js).
+   Miért kell. A migráció alatt a régi jelszavak bcrypt-tel vannak tárolva; a mai
+   algoritmus argon2id (l. password.js). Két baj él, amíg egy fiók bcrypt-hasht
+   hordoz, és a második a súlyosabb:
 
-   Ezért az emelés után az ELSŐ sikeres belépés újraírja a hasht. Csak akkor, ha a
-   jelszó helyes volt: ilyenkor a nyílt szöveg a kezünkben van, és csak ilyenkor
-   van jogunk hozzányúlni a fiókhoz.
+     - a régi jelszó nem kapja meg az argon2id memória-keménységét;
+     - KEVERT hashek mellett a bejelentkezés ideje felhasználónként eltér, az
+       álca-hash pedig már argon2id — vagyis a válaszidőből megint kiolvasható
+       lenne, létezik-e a fiók (l. password.js). Ezt az eltérést a bcrypt-11 és az
+       argon2id azonos időre hangolása enyhíti, de a végleges gyógyír az áthashelés.
+
+   Ezért az ELSŐ sikeres belépés átírja a hasht argon2id-re. Csak akkor, ha a jelszó
+   helyes volt: ilyenkor a nyílt szöveg a kezünkben van, és csak ilyenkor van jogunk
+   a fiókhoz nyúlni. Ugyanez a gépezet vitte korábban a bcrypt-költségtényező
+   emelését is — most az ALGORITMUST váltja, nem a költséget.
 
    NEM VÁRJUK MEG a mentést a válasszal (`await` nélkül, saját hibaággal): a
-   felhasználót nem hátráltathatja egy karbantartó művelet, és ha a mentés
-   elbukik, a belépés akkor is sikeres — a következő belépéskor újra megpróbáljuk.
-   A hiba a szerver naplójába megy, nem a válaszba.
+   felhasználót nem hátráltathatja egy karbantartó művelet, és ha a mentés elbukik,
+   a belépés akkor is sikeres — a következő belépéskor újra megpróbáljuk. A hiba a
+   szerver naplójába megy, nem a válaszba.
 
-   A `getRounds` ÉRVÉNYES bcrypt-hasht vár; ha az adatbázisban valaha más állna, a
-   dobott kivétel egy egyébként sikeres belépést rontana el. Ezért van try/catch:
-   a felismerhetetlen hasht nem hasheljük át, csak naplózzuk. */
-function rehashIfOutdated(user, password) {
-    let rounds;
-    try {
-        rounds = bcrypt.getRounds(user.password);
-    } catch (error) {
-        return logError("A tárolt jelszó-hash nem olvasható (költségtényező)", error);
-    }
-    if (rounds === SALT_WORK_FACTOR) return;
+   A needsRehash ide már csak SIKERES verifyPassword után jut, tehát a hash ép; a
+   régi (bcrypt) hasht az előtagja alapján ismeri fel, argon2-t nem próbál rá
+   értelmezni (l. password.js). */
+function rehashIfNeeded(user, password) {
+    if (!needsRehash(user.password)) return;
 
-    bcrypt.hash(password, SALT_WORK_FACTOR)
+    hashPassword(password)
         .then((hashedPassword) => Users.updateOne({_id: user._id}, {password: hashedPassword}))
-        .then(() => logInfo(`A(z) ${user._id} jelszava átállt a ${SALT_WORK_FACTOR}-es költségtényezőre.`))
+        .then(() => logInfo(`A(z) ${user._id} jelszava átállt argon2id-re.`))
         .catch((error) => logError("Sikertelen jelszó-áthashelés", error));
 }
 
 module.exports = router.post("/", async (request, response) => {
     try {
         const user = await Users.findOne({name: request.body.name});
-        const isMatch = await bcrypt.compare(request.body.password, user?.password ?? DUMMY_HASH);
+        const storedHash = user?.password ?? await dummyHashPromise;
+        /* A verifyPassword a ROSSZ jelszóra false-t ad; egy STRUKTURÁLISAN romlott
+           tárolt hashre viszont dobhat (argon2-ág). Az ilyet NEM engedjük 500-zá
+           dagadni: naplózzuk, és nem-egyezésként kezeljük — a felhasználó a szokásos,
+           megkülönböztethetetlen 400-at kapja, nem tudja meg, hogy létező fiók
+           hasht rontott el. (Őre: loginBadHash.test.js.) */
+        let isMatch;
+        try {
+            isMatch = await verifyPassword(storedHash, request.body.password);
+        } catch (error) {
+            logError("A tárolt jelszó-hash nem ellenőrizhető", error);
+            isMatch = false;
+        }
         if (!user || !isMatch) return response.status(BAD_LOGIN_STATUS).json(BAD_LOGIN);
-        rehashIfOutdated(user, request.body.password);
+        rehashIfNeeded(user, request.body.password);
         /* A TOKEN A SÜTIBE MEGY, A TÖRZSBE A NÉV. A törzsben visszaadott token
            azt jelentette, hogy a JavaScript megkapja — épp azt szüntetjük meg
            (l. tokenCookie.js). A név viszont kell: a felület ebből tudja, hogy
