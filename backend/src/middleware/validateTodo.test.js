@@ -122,3 +122,38 @@ test("a tasks kulcsaira hivatkozó sorrendet átengedi", async () => {
     const tasks = {0: {id: "0", content: "a", done: false}, 1: {id: "1", content: "b", done: true}};
     assert.strictEqual((await post({...VALID, tasks, taskOrder: [1, 0]})).status, 200);
 });
+
+test("ismétlődő elemet tartalmazó sorrendet elutasít (400)", async () => {
+    /* A taskOrder minden elemének PONTOSAN EGYSZER kell szerepelnie. Az
+       ismétlődés tiltása egyben a MÉRET-korlát: enélkül egy [id, id, id, …]
+       tömb akárhány elemmel átmenne (az 1 MB-os törzs-korlátig), noha minden
+       elem létező kulcsra mutat — ez a felhasználó saját dokumentumát hizlalná. */
+    const tasks = {0: {id: "0", content: "a", done: false}};
+    assert.strictEqual((await post({...VALID, tasks, taskOrder: [0, 0]})).status, 400);
+    // A DoS-alak: egyetlen érvényes kulcs sokszorozva.
+    assert.strictEqual((await post({...VALID, tasks, taskOrder: Array(10000).fill(0)})).status, 400);
+});
+
+test("nem egész alakú listaelem-azonosítót elutasít (400)", async () => {
+    /* A kulcs kanonikus nemnegatív egész (l. TASK_ID). A nem-szám és a negatív
+       kulcs is kizárt — utóbbira a taskOrder String(id)-hivatkozása sem
+       illeszkedne megbízhatóan. */
+    assert.strictEqual((await post({...VALID, tasks: {abc: {id: "abc", content: "a", done: false}}})).status, 400);
+    assert.strictEqual((await post({...VALID, tasks: {"-5": {id: "-5", content: "a", done: false}}})).status, 400);
+});
+
+test("túl hosszú listaelem-azonosítót elutasít (400)", async () => {
+    // Nyolc számjegy — a hétjegyű józansági/DoS-határ fölött.
+    const tasks = {12345678: {id: "12345678", content: "a", done: false}};
+    assert.strictEqual((await post({...VALID, tasks})).status, 400);
+});
+
+test("a kulcstól eltérő task.id-t elutasít (400)", async () => {
+    /* A task.id a kulcs redundáns mása, és ENGEDÉLYEZETT mező — az
+       ismeretlen-mező-szűrő tehát nem fogja meg. Ellenőrizetlenül ide
+       tetszőleges méretű/típusú adat rejthető; a kulcshoz kötjük. */
+    const bigId = {0: {id: "x".repeat(1000), content: "a", done: false}};
+    assert.strictEqual((await post({...VALID, tasks: bigId, taskOrder: [0]})).status, 400);
+    const wrongType = {0: {id: 5, content: "a", done: false}};
+    assert.strictEqual((await post({...VALID, tasks: wrongType, taskOrder: [0]})).status, 400);
+});

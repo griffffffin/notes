@@ -29,7 +29,17 @@ const TASK_FIELDS = ["id", "content", "done"];
 const MAX_TITLE = 200;
 const MAX_CATEGORY = 100;
 const MAX_TASK_TEXT = 1000;
-const MAX_TASK_COUNT = 500;
+const MAX_TASK_COUNT = 3000;
+/* A listaelem AZONOSÍTÓJÁNAK alakja: kanonikus nemnegatív egész, legfeljebb 7
+   számjegy. Ez az alak három helyre igaz egyszerre: a `tasks` objektum KULCSA, a
+   listaelem `id` mezője (a frontend key.toString()-gel állítja elő), és a
+   `taskOrder` egészei erre hivatkoznak (moreTask.tsx a kulcsot max+1-gyel képzi).
+   A 7 számjegy bőséges józansági/DoS-határ (az egyidejű elemek valódi korlátja a
+   MAX_TASK_COUNT); nélküle egy saját kliens tetszőleges hosszú/alakú kulcsot
+   küldhetne, ami tárolódik és az exportba/mentésbe is átfolyik. A kanonikus alak
+   (nincs vezető nulla, nincs előjel) egyben azt is garantálja, hogy a kulcs és a
+   rá `String(id)`-vel hivatkozó taskOrder-egész ugyanaz a szöveg legyen. */
+const TASK_ID = /^(0|[1-9]\d{0,6})$/;
 
 function todoErrors(body) {
     const errors = [];
@@ -54,6 +64,13 @@ function todoErrors(body) {
             const keys = Object.keys(tasks);
             if (keys.length > MAX_TASK_COUNT) errors.push(`Legfeljebb ${MAX_TASK_COUNT} listaelem lehet.`);
             for (const key of keys) {
+                // A kulcs alakja (l. TASK_ID) — enélkül "-5" vagy egy abszurd
+                // hosszú kulcs is bejutna, és a taskOrder String(id)-hivatkozása
+                // sem illeszkedne rá megbízhatóan.
+                if (!TASK_ID.test(key)) {
+                    errors.push("A listaelem azonosítója hibás.");
+                    break;
+                }
                 const task = tasks[key];
                 if (!task || typeof task !== "object" || Array.isArray(task)) {
                     errors.push("A listaelemek formátuma hibás.");
@@ -75,6 +92,17 @@ function todoErrors(body) {
                     errors.push("A listaelemek formátuma hibás.");
                     break;
                 }
+                /* A task.id a KULCS redundáns mása (a frontend key.toString()-gel
+                   állítja elő). Az `id` engedélyezett mező (TASK_FIELDS), tehát a
+                   fenti ismeretlen-mező-szűrő nem fogja meg — ellenőrizetlenül egy
+                   saját kliens ide tetszőleges típusú/méretű adatot rejthetne, ami
+                   tárolódik és az exportba is átfolyik. Kössük a kulcshoz: pontosan
+                   az a string lehet, aminek a frontend is szánta. Így a mező
+                   alakja (TASK_ID) és mérete a kulcséval együtt garantált. */
+                if (task.id !== key) {
+                    errors.push("A listaelem azonosítója nem egyezik.");
+                    break;
+                }
             }
         }
     }
@@ -83,6 +111,16 @@ function todoErrors(body) {
     if (taskOrder !== undefined && taskOrder !== null) {
         if (!Array.isArray(taskOrder) || !taskOrder.every(isInteger)) {
             errors.push("A listaelemek sorrendje hibás.");
+        } else if (new Set(taskOrder).size !== taskOrder.length) {
+            /* A taskOrder a listaelemek MEGJELENÍTÉSI sorrendje: minden elem
+               PONTOSAN EGYSZER szerepel benne. Az ismétlődés sosem jogos (a
+               nézet ugyanazt az elemet kétszer rajzolná), és ez egyben a
+               MÉRET-KORLÁT is: külön hosszkorlát REDUNDÁNS lenne. Ha nincs
+               ismétlődés, minden elem létező kulcsra mutat (lenti ellenőrzés) és
+               a kulcsokból legfeljebb MAX_TASK_COUNT van, akkor a taskOrder
+               hossza is legfeljebb ennyi — egy [1, 1, 1, …] alakú, akármilyen
+               hosszú tömböt tehát már itt elutasítunk. */
+            errors.push("A listaelemek sorrendje ismétlődő elemet tartalmaz.");
         } else {
             /* A taskOrder a tasks KULCSAIRA hivatkozik. Ha olyanra mutat, ami
                nincs meg, a lista-nézet elhasal rajta (todoUpdate.tsx:
