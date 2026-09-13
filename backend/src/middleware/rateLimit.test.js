@@ -169,6 +169,34 @@ test("a hívókat KÜLÖN számoljuk (az egyik kimerítése nem zárja ki a más
     })();
 });
 
+test("a `keyOf` a vödör kulcsa — más IP, AZONOS kulcs egy vödörbe esik", () => {
+    /* Ez a login fiók-korlátjának a lényege (routes.js): a kulcs a fióknév, nem
+       az IP. Két kérés KÜLÖNBÖZŐ IP-ről, de AZONOS névre ugyanabba a vödörbe kell
+       essen — különben egy botnet ezer címről egyetlen fiókra próbálhatna. A
+       kontroll a végén: MÁS névre külön vödör jár, tehát a korlát nem globális. */
+    const clock = {value: 0};
+    const limiter = rateLimit({
+        windowMs: WINDOW_MS, max: 1, message: "x", now: () => clock.value,
+        keyOf: (request) => request.body.name,
+    });
+    const results = [];
+    const call = (ip, name) => new Promise((resolve) => {
+        limiter({ip, body: {name}}, {
+            set: () => {},
+            status: (code) => ({json: () => { results.push(code); resolve(); }}),
+        }, () => { results.push(200); resolve(); });
+    });
+
+    return (async () => {
+        await call("1.1.1.1", "alice");
+        await call("2.2.2.2", "alice");   // más IP, de ugyanaz a fiók → tele
+        await call("9.9.9.9", "bob");     // kontroll: más fiók, saját vödör
+
+        assert.deepStrictEqual(results, [200, 429, 200],
+            "az azonos kulcsú kérések egy vödörbe esnek, a másik kulcs külön vödröt kap");
+    })();
+});
+
 test("IP nélküli kérés sem csúszik át korlátozás nélkül", () => {
     /* A megengedő ág (nincs IP → engedd) néma kiskapu lenne. Az ismeretlen
        hívókat közös vödörbe soroljuk, tehát a második kérésük már 429. */

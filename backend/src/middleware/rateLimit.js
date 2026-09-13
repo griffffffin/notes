@@ -34,28 +34,43 @@
    ez lassú memóriaszivárgás. A takarítás lusta: kérésenként legfeljebb egyszer,
    és csak ha az utolsó takarítás óta eltelt egy teljes ablak.
 
-   AZ AZONOSÍTÁS a `request.ip`-re épül. Ma nincs proxy az app előtt, tehát ez a
-   valódi TCP-forrás. Ha egyszer fordított proxy (nginx, Cloudflare) kerül elé, két
-   dolgot KELL tenni: `app.set("trust proxy", …)` a helyes lánchosszal, különben
-   minden kérés ugyanattól az egy IP-től (a proxytól) látszik érkezni, és a korlát
-   az egész világot egyetlen vödörbe teszi. Ez néma hiba: semmi nem jelez, csak
-   hirtelen mindenki 429-et kap. A `trust proxy` viszont CSAK proxy mögött
-   kapcsolható be: proxy nélkül az X-Forwarded-For fejlécet bárki hamisíthatná,
-   és ezzel megkerülné a korlátot. */
+   AZ AZONOSÍTÁS ALAPÉRTELMEZETTEN a `request.ip`-re épül. Ma nincs proxy az app
+   előtt, tehát ez a valódi TCP-forrás. Ha egyszer fordított proxy (nginx,
+   Cloudflare) kerül elé, két dolgot KELL tenni: `app.set("trust proxy", …)` a
+   helyes lánchosszal, különben minden kérés ugyanattól az egy IP-től (a proxytól)
+   látszik érkezni, és a korlát az egész világot egyetlen vödörbe teszi. Ez néma
+   hiba: semmi nem jelez, csak hirtelen mindenki 429-et kap. A `trust proxy`
+   viszont CSAK proxy mögött kapcsolható be: proxy nélkül az X-Forwarded-For
+   fejlécet bárki hamisíthatná, és ezzel megkerülné a korlátot.
+
+   A KULCS CSERÉLHETŐ (`keyOf`). Az alapértelmezett vödör a hívó IP-je, de a
+   korlát bármi másra is számolhat — a login-nál például a BEKÜLDÖTT FIÓKNÉVRE,
+   IP-től függetlenül (l. routes.js). Enélkül egy botnet ezer címről egyetlen
+   fiókra próbálhatna végig egy jelszó-szótárat, és minden kérés külön IP-vödörbe
+   esve átcsúszna az IP-korláton. A `keyOf` ugyanahhoz a fiókhoz tartozó kéréseket
+   egy vödörbe teszi. Két korlát egymás után (IP ÉS fiók) mindkét irányból zár. */
 
 /* Az óra ALAPÉRTELMEZETT forrása. A tesztek saját `now`-t adnak át, hogy ne
    kelljen valódi időt várni — az időfüggő tesztek különben vagy lassúak, vagy
    véletlenszerűen buknak. */
 const systemClock = () => Date.now();
 
+/* A vödör ALAPÉRTELMEZETT kulcsa: a hívó IP-je. A `request.ip` hiányozhat (nem
+   HTTP-szerverből hívott middleware, vagy lecsatlakozott socket). Ilyenkor NEM
+   engedünk át korlátozás nélkül: egyetlen közös vödörbe soroljuk az
+   ismeretleneket. A megengedő ág pontosan az a néma kiskapu lenne, amit egy
+   támadó keres. */
+const clientAddress = (request) => request.ip ?? "ismeretlen";
+
 /**
  * @param {object} options
  * @param {number} options.windowMs   a visszatekintés hossza ezredmásodpercben
  * @param {number} options.max        ennyi kérés fér bele egy ablakba, hívónként
  * @param {string} options.message    a 429 válasz szövege (a felhasználónak szól)
+ * @param {(request) => string} [options.keyOf] a vödör kulcsa (alapból az IP)
  * @param {() => number} [options.now] óra — a tesztek írják felül
  */
-function rateLimit({windowMs, max, message, now = systemClock}) {
+function rateLimit({windowMs, max, message, keyOf = clientAddress, now = systemClock}) {
     /* A feltevéseket KIMONDJUK: egy elgépelt vagy hiányzó beállítás különben néma
        lenne — egy `undefined` max mellett minden kérés átmenne (a `length < undefined`
        mindig hamis… illetve épp fordítva: sosem engedne), vagyis a korlát csendben
@@ -85,11 +100,10 @@ function rateLimit({windowMs, max, message, now = systemClock}) {
         const currentTime = now();
         cleanup(currentTime);
 
-        /* A `request.ip` hiányozhat (nem HTTP-szerverből hívott middleware, vagy
-           lecsatlakozott socket). Ilyenkor NEM engedünk át korlátozás nélkül:
-           egyetlen közös vödörbe soroljuk az ismeretleneket. A megengedő ág
-           pontosan az a néma kiskapu lenne, amit egy támadó keres. */
-        const caller = request.ip ?? "ismeretlen";
+        /* A vödör kulcsa: alapból az IP (l. clientAddress), a login-nál a fióknév
+           (l. routes.js). A megengedő „mindenkit átenged" ág itt sem létezik: a
+           `keyOf`-nak mindig konkrét kulcsot kell adnia. */
+        const caller = keyOf(request);
         const times = prune(callers.get(caller) ?? [], currentTime);
         callers.set(caller, times);
 

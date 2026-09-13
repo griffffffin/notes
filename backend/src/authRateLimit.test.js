@@ -72,6 +72,21 @@ test("a /user/create is korlátozva van, a loginnál SZŰKEBBEN", async () => {
         `a regisztráció kerete (${statuses.length}) nem szűkebb a loginénál — felcserélt beállítás?`);
 });
 
+test("a publikus /quotes/id korlátozva van (előbb-utóbb 429), de nem szűkebben pár kérésnél", async () => {
+    /* Ez az egyetlen auth ELŐTTI OLVASÓ végpont (megosztott idézet-link). Publikus
+       és DB-t olvas, tehát korlát nélkül végtelen terhelés a Pi-n. Üres törzzsel
+       kérünk: a rate limit a validáció ELŐTT áll, tehát a 400-as elutasítás is
+       fogyaszt — így a teszt nem hívja a DB-t, és gyorsan lefut. */
+    const statuses = await untilBlocked("/quotes/id", 120);
+
+    assert.ok(statuses.includes(429),
+        "120 kérés után sem jött 429 — a rateLimit nincs bekötve a /quotes/id elé");
+    /* A jogos használatnak bőven elégnek kell lennie: egy megosztott idézetet egy
+       ember többször is megnyithat. Tíz kérésnek minden körülmények között átmennie. */
+    assert.ok(statuses.filter((status) => status !== 429).length >= 10,
+        `a /quotes/id már ${statuses.length}. kérésre kizárt — ez a jogos használatot is akadályozza`);
+});
+
 test("a KORLÁTOZÁS NEM ÉRINTI a többi végpontot (nem globális)", async () => {
     /* Kontroll: ha a korlátozó véletlenül útvonal NÉLKÜL kerülne a routerbe
        (`router.use(rateLimit(…))`), MINDENT korlátozna — és a fenti tesztek

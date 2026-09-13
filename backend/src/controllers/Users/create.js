@@ -51,7 +51,9 @@ const NAME_TAKEN_STATUS = 409;
 
    ⚠ MITŐL ROMLANA EL: ha a `/user/create` korlátja valaha lazul (vagy lekerül), ez
    a döntés a döntés MAGYARÁZATÁVAL együtt érvényét veszti. A kettő tehát össze van
-   kötve. */
+   kötve — és a kötést már NEM csak ez a komment tartja: a
+   userCreateRateLimitBinding.test.js kiolvassa a routes.js tényleges keretét, és
+   hangosan megbukik, ha az enumerációs költségvetés (név/óra) a küszöb fölé nő. */
 
 /* A név megléte és típusa a validateCredentials middleware dolga; itt már csak
    a jelszó-szabály és a névütközés maradt — ezek VÁRT hibák, a felhasználónak

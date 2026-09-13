@@ -72,18 +72,63 @@ router.use("/user/create",
         message: "Túl sok regisztrációs kísérlet.",
     }),
     validateCredentials, usersCreate);
+/* A BEJELENTKEZÉS KÉT KORLÁT KÖZÖTT áll, és a kettő két különböző támadást zár.
+
+   1) IP-alapú (az első réteg): egy címről ne lehessen sokat próbálni.
+   2) FIÓK-alapú (a harmadik réteg, a validáció után): egy adott fiókNÉVRE ne
+      lehessen sokat próbálni, AKÁRHÁNY IP-ről. Enélkül egy botnet ezer címről,
+      címenként 20 kérést leadva ~20 000 jelszót próbálhatna EGYETLEN fiókra, és
+      az IP-korlát ezt nem fogná meg (minden IP a saját vödrében marad).
+
+   ⚠ A FIÓK-KORLÁT DoS-FEGYVER: egy idegen a más nevére küldött kérésekkel ki
+   tudja zárni a valódi felhasználót a saját fiókjából. Ezért SZÁNDÉKOSAN
+   nagyvonalú a keret (15 perc / 50), jóval tágabb az IP 20-ánál: elég szűk, hogy
+   egy szótár-támadás ne férjen bele, de elég tág, hogy pár elgépelés + némi zaj
+   ne zárjon ki egy valós embert. A szám nem bűvös érték, hanem kimondott
+   kompromisszum a törés és a kizárás kockázata között.
+
+   A fiók-réteg a `validateCredentials` UTÁN áll: onnan a `name` garantáltan
+   trimmelt, nem üres string, tehát a kulcsfüggvény nem kell hogy típus-védelmet
+   duplikáljon. Kisbetűsítünk és trimmelünk, hogy „Alice" és „alice" ne külön
+   vödörbe essen (és így ne lehessen a korlátot a kis-/nagybetűvel megkerülni).
+
+   NEM SZIVÁROGTAT FELSOROLÁST: a 429 a BEKÜLDÖTT névre szól, függetlenül attól,
+   létezik-e a fiók — és a bcrypt ELŐTT üt, tehát a login egyenlő-válaszidő
+   védelmét (login.js álca-hash) sem befolyásolja. */
 router.use("/login",
     rateLimit({
         windowMs: 15 * 60 * 1000,
         max: 20,
         message: "Túl sok bejelentkezési kísérlet.",
     }),
-    validateCredentials, usersLogin);
+    validateCredentials,
+    rateLimit({
+        windowMs: 15 * 60 * 1000,
+        max: 50,
+        message: "Túl sok bejelentkezési kísérlet ehhez a fiókhoz.",
+        keyOf: (request) => request.body.name.trim().toLowerCase(),
+    }),
+    usersLogin);
 
 /* Egy idézet PUBLIKUSAN olvasható az azonosítója alapján (a megosztott link egy
    konkrét idézetre mutat) — ezért ül ez az EGYETLEN idézet-végpont az auth
-   ELŐTT. A lista és minden írás-művelet auth mögött van. */
-router.use("/quotes/id", validateObjectId, quotesReadById);
+   ELŐTT. A lista és minden írás-művelet auth mögött van.
+
+   KORLÁTOZVA, mert PUBLIKUS és DB-t olvas. A többi publikus végpont (login,
+   regisztráció, /client-error) mind korlátozott; ez maradt ki. Az azonosító nem
+   kitalálható (24 hexa, felsorolás nem reális), de a végpont korlát nélkül
+   végtelen CPU/DB-terhelés a Pi-n — ezt zárjuk le, nem az adatszivárgást. A keret
+   BŐSÉGES: egy megosztott idézetet sokan nyitnak meg, de KÜLÖNBÖZŐ IP-kről,
+   egyenként; egy emberre percenként 60 kérés bőven elég, egy IP-ről ID-ket pörgető
+   scrapert viszont megfog. A rate limit a validáció ELŐTT áll, tehát a rossz alakú
+   kérés is fogyaszt a keretből (mint a loginnál). */
+router.use("/quotes/id",
+    rateLimit({
+        windowMs: 60 * 1000,
+        max: 60,
+        message: "Túl sok kérés.",
+    }),
+    validateObjectId, quotesReadById);
 
 /* A kliens szerződés-hibáinak fogadása (l. controllers/clientError.js). Az auth
    ELŐTT, mert a publikus idézet-nézet is sémán ellenőrzött választ kap: a
