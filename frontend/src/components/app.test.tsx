@@ -14,15 +14,15 @@ import {giveDraftKey} from "../test/draftKey";
    valódi. A providerek sorrendje a main.tsx-ét követi (CookiesProvider →
    ThemeProvider); az AuthProvider helyett a context-mock áll be. */
 
-/* A `satisfies Todo` a fixtúrát a VALÓDI szerződéshez méri: a tulajdonos és az
-   időbélyegek is jelen vannak, ahogy a szerver küldi (a /to-dos/id a teljes
-   dokumentumot adja vissza, l. Todos/readById.js). Korábban ez a három mező
-   hiányzott innen, és semmi nem szólt érte — a válasz alakját akkor még csak egy
-   típusparaméter "ígérte"; a séma-ellenőrzés bevezetése mutatta meg a hiányt. */
+/* A `satisfies Todo` a fixtúrát a VALÓDI szerződéshez méri: pontosan a hálózatra
+   szánt mezők vannak jelen, ahogy a szerver küldi. A `user` és az időbélyegek
+   SZÁNDÉKOSAN nincsenek itt — a válasz whitelistje (backend models/todos.js
+   toJSON) nem adja ki őket, a /to-dos/id (readById.js) is csak ezt a szűkített
+   alakot adja. A fixtúra és a séma együtt mozog: ha valamelyik elcsúszik, a
+   `satisfies` vagy a futásidejű séma-ellenőrzés hangosan jelez. */
 const TODO = {
-    _id: "todo-1", user: "u-1", title: "Bevásárlás", color: "danger", category: "otthon", order: 1,
+    _id: "todo-1", title: "Bevásárlás", color: "danger", category: "otthon", order: 1,
     percentage: 0, tasks: {}, taskOrder: [],
-    createdAt: "2026-01-01T10:00:00.000Z", updatedAt: "2026-01-01T10:00:00.000Z",
 } satisfies Todo;
 
 /* Állandó handleAxios: az App effektje az azonosságára függ, egy rendernként

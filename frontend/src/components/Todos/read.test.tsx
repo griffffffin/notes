@@ -73,12 +73,11 @@ const filterOf = (data: unknown): string => {
 /* A sorszámok SZÁNDÉKOSAN nem 1,2,3: egy szűrt nézetben (kategória/szín) a
    lista részhalmaz, tehát a sorszámok hézagosak. A húzásnak ott is helyesen
    kell működnie — épp ezért nem az indexet küldjük a szervernek. */
-/* A közös mezők, amiket a szerver MINDEN to-dóval küld (tulajdonos, időbélyegek),
-   és amiket ez a teszt nem vizsgál. A fixtúrából eddig hiányoztak — a válasz
-   viszont sosem jön nélkülük, és a mai kód bármikor hozzájuk nyúlhatna. */
+/* A közös mezők, amiket a szerver MINDEN to-dóval küld. A `user` és az időbélyegek
+   SZÁNDÉKOSAN nincsenek itt: a lista-válasz whitelistje (backend models/todos.js
+   toJSON) nem adja ki őket, mert a frontend nem használja. A fixtúra ezt tükrözi. */
 const TODO_BASE = {
-    user: "u-1", percentage: 0, tasks: {}, taskOrder: [],
-    createdAt: "2026-01-01T10:00:00.000Z", updatedAt: "2026-01-01T10:00:00.000Z",
+    percentage: 0, tasks: {}, taskOrder: [],
 };
 
 const TODOS = [

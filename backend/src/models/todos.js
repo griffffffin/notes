@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
+const {publicJsonTransform} = require("../publicJson");
 
 const todoSchema = new Schema({
     /* A tulajdonos azonosítója SZÖVEGKÉNT, nem ObjectId-ref-ként. Ez tudatos:
@@ -86,6 +87,13 @@ const todoSchema = new Schema({
    foglalnak. Ezen a méreten ez elhanyagolható a nyereséghez képest. */
 todoSchema.index({user: 1, order: 1});
 todoSchema.index({user: 1, category: 1, order: 1});
+
+/* A HÁLÓZATRA SZÁNT MEZŐK whitelistje (l. publicJson.js). A `user`, a `__v` és az
+   időbélyegek SZÁNDÉKOSAN kimaradnak: a frontend nem használja őket, és nem is
+   tartoznak a kliensre. A lista- és a szerkesztő-betöltő (readById.js) végpont
+   innen kapja a szűkítést; a párja a frontend todoSchema-ja (types/api.ts). */
+todoSchema.set("toJSON", publicJsonTransform(
+    ["_id", "title", "tasks", "taskOrder", "category", "color", "percentage", "order"]));
 
 const Todos = mongoose.model("Todos", todoSchema);
 

@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
+const {publicJsonTransform} = require("../publicJson");
 
 /* Az idézetek külön collectionben élnek, nem a to-dók közé keverve (a projekt
    adatmodell-elve: szekciónként külön tábla). A séma a to-do VÉKONYABB mása:
@@ -65,6 +66,13 @@ const quoteSchema = new Schema({
    betöltés a teljes collection átfésülése lenne. */
 quoteSchema.index({user: 1, order: 1});
 quoteSchema.index({user: 1, author: 1});
+
+/* A HÁLÓZATRA SZÁNT MEZŐK whitelistje (l. publicJson.js). A `user`, a `__v` és az
+   időbélyegek SZÁNDÉKOSAN kimaradnak: a frontend nem használja őket, és nem is
+   tartoznak a kliensre. A lista- és szerkesztő-végpontok innen kapják a szűkítést;
+   a párja a frontend quoteSchema-ja (types/api.ts). A publikus /quotes/id még
+   ennél is szűkebb (kézi whitelist a readById.js-ben, order nélkül). */
+quoteSchema.set("toJSON", publicJsonTransform(["_id", "quote", "author", "order", "fontSize"]));
 
 const Quotes = mongoose.model("Quotes", quoteSchema);
 

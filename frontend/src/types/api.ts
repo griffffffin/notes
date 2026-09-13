@@ -86,13 +86,6 @@ export type Validator<T> = v.GenericSchema<unknown, T>;
 const idSchema = v.string();
 export type Id = v.InferOutput<typeof idSchema>;
 
-/* MINDEN időbélyeg STRING, nem Date. A Mongoose-sémában `Date`, de a
-   JSON-ná alakítás ISO-alakú szöveggé írja, és az axios sem alakítja vissza — a
-   frontend tehát szöveget kap. Ha itt Date-et írnánk, a típus HAZUDNA: a
-   `createdAt.getTime()` a fordítónak rendben lenne, futásidőben elszállna.
-   Ahol dátumként kell, ott `new Date(...)`. */
-const isoDateSchema = v.string();
-
 /* A TOKEN SÉMÁJA INNEN ELKERÜLT. Amíg a JWT-t a kliens tette sütibe és olvasta
    ki onnan, a szervertől jövő szöveget ellenőrizni KELLETT — az a program
    határán érkező, nem megbízható érték volt. Ma a token HttpOnly sütiben utazik:
@@ -170,10 +163,6 @@ export type Tasks = v.InferOutput<typeof tasksSchema>;
 
 export const todoSchema = v.object({
     _id: idSchema,
-    /* A TULAJDONOS azonosítója szövegként — az okát a backend/src/models/todos.js
-       fejti ki (a jogosultság-ellenőrzés szöveget hasonlít a tokenből jövő
-       szöveggel). Ugyanaz a döntés, mint az idézeteknél. */
-    user: idSchema,
     title: v.string(),
     /* MINDKETTŐ opcionális: a Mongoose-séma nem teszi kötelezővé őket, és egy
        listaelemek nélküli to-do teljesen érvényes (csak cím és kategória). Az
@@ -194,8 +183,6 @@ export const todoSchema = v.object({
        kártya csak kiírja. */
     percentage: v.number(),
     order: v.number(),
-    createdAt: isoDateSchema,
-    updatedAt: isoDateSchema,
 });
 export type Todo = v.InferOutput<typeof todoSchema>;
 
@@ -205,11 +192,6 @@ export type Todo = v.InferOutput<typeof todoSchema>;
    kifelé nem kell, az bent marad (a knip CI-kapuja pedig számon kéri). */
 const quoteSchema = v.object({
     _id: idSchema,
-    /* A TULAJDONOS azonosítója, szövegként (nem ObjectId-ref — az okát a
-       backend/src/models/quotes.js fejti ki: a jogosultság-ellenőrzés szöveget
-       hasonlít a tokenből jövő szöveggel, és típuseltérésnél mindenki 403-at
-       kapna a sajátjára). */
-    user: idSchema,
     /* A mező neve `quote`, nem `text` — maga az idézet szövege. */
     quote: v.string(),
     /* OPCIONÁLIS a Mongoose-sémában is: névtelen vagy ismeretlen szerzőjű idézet
@@ -224,8 +206,6 @@ const quoteSchema = v.object({
        17-ben nincs fontSize a lemezen, hidratálva mind az 55-ben van. (A napi
        export .lean()-nel megy, az a NYERS alakot menti — ott hiányzik.) */
     fontSize: v.number(),
-    createdAt: isoDateSchema,
-    updatedAt: isoDateSchema,
 });
 export type Quote = v.InferOutput<typeof quoteSchema>;
 

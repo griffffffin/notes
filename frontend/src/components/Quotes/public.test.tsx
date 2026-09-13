@@ -7,12 +7,14 @@ import type {Quote} from "../../types/api";
 import {at} from "../../test/at";
 
 
-/* A fixtúra a szerver VALÓDI válaszának alakjában: a tulajdonos, a betűméret és
-   az időbélyegek is benne vannak, még ha ez a teszt nem is vizsgálja őket. A
-   `satisfies` a szerződéshez méri — egy hiányzó mező innentől fordítási hiba. */
+/* A fixtúra a Quote alakjában (a `satisfies` a szerződéshez méri). A `user` és az
+   időbélyegek NINCSENEK benne: a hálózati válasz whitelistje (backend
+   models/quotes.js toJSON) nem adja ki őket. A publikus /quotes/id ennél is
+   szűkebbet küld (csak quote/author/fontSize, l. readById.js), de a fixtúra a
+   teljesebb Quote-alakot használja — a publikus nézet úgyis csak a maga mezőit
+   olvassa. */
 const QUOTE = {
-    _id: "q-1", user: "u-1", quote: "Megosztott idézet.", author: "Márai", order: 1, fontSize: 155,
-    createdAt: "2026-01-01T10:00:00.000Z", updatedAt: "2026-01-01T10:00:00.000Z",
+    _id: "q-1", quote: "Megosztott idézet.", author: "Márai", order: 1, fontSize: 155,
 } satisfies Quote;
 
 const {auth, handleAxios} = await vi.hoisted(async () => {

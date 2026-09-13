@@ -6,12 +6,13 @@ import {axiosResponse} from "../../test/axiosResponse";
 import type {Quote} from "../../types/api";
 
 
-/* A lista-válasz a TELJES idézeteket adja (a szerkesztő szűkített alakja külön
-   szerződés, l. QuoteForEdit). A `satisfies` a fixtúrát ehhez méri: a tulajdonos,
-   a betűméret és az időbélyegek is jelen vannak, ahogy a szerver küldi. */
+/* A lista-válasz a HÁLÓZATRA SZÁNT mezőket adja (whitelist a backend
+   models/quotes.js toJSON-jában): a `user` és az időbélyegek NEM jönnek — a
+   frontend nem használja őket. A `satisfies Quote[]` ezt méri: a fixtúra pontosan
+   azt tartalmazza, amit a szerver küld. A szerkesztő még szűkebb alakot kap
+   (QuoteForEdit). */
 const QUOTE_BASE = {
-    user: "u-1", fontSize: 155,
-    createdAt: "2026-01-01T10:00:00.000Z", updatedAt: "2026-01-01T10:00:00.000Z",
+    fontSize: 155,
 };
 
 const QUOTES = [

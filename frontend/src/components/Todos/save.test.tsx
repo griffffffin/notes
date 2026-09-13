@@ -32,9 +32,8 @@ const idOf = (data: unknown): string => {
    innentől fordítási hiba —, de megtartja a literálokat, így a "danger" a szűk
    TodoColor unióhoz illeszkedik. */
 const TODO = {
-    _id: "todo-1", user: "u-1", title: "Bevásárlás", color: "danger", category: "otthon",
+    _id: "todo-1", title: "Bevásárlás", color: "danger", category: "otthon",
     order: 1, percentage: 0, tasks: {}, taskOrder: [],
-    createdAt: "2026-01-01T10:00:00.000Z", updatedAt: "2026-01-01T10:00:00.000Z",
 } satisfies Todo;
 
 /* A Context-mock ÁLLANDÓ objektumot adjon vissza: a komponensek effektjei a
