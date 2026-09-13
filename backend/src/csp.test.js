@@ -79,17 +79,30 @@ test("a házirend tartalma", async (t) => {
         assert.doesNotMatch(directive("script-src"), /unsafe-eval/);
     });
 
-    /* ELTÉRÉS a script-src-től: a style-src SZÁNDÉKOSAN enged inline stílust (a
-       React style attribútumai, a @dnd-kit és a @floating-ui miatt), és éppen
-       ezért NEM kaphat hasht — a hash jelenléte a böngészőben hatástalanítaná az
-       'unsafe-inline'-t, azaz eltörné a húzást és a buborékokat. */
-    await t.test("a style-src enged inline stílust, és nincs benne hash", () => {
-        assert.match(directive("style-src"), /unsafe-inline/);
-        assert.doesNotMatch(directive("style-src"), /sha256-/);
+    /* ELTÉRÉS a script-src-től: a stílus KÉT irányra bontott. Az ELEM-irány
+       ('self') tiltja az injektált <style>-t (felület-hamisítás ellen); az
+       ATTRIBÚTUM-irány engedi az inline `style=`-t (React/@dnd-kit/@floating-ui).
+       Hash egyikben sincs (l. csp.js indoklás). */
+    await t.test("a style-src-elem CSAK sajátról enged, inline <style>-t NEM", () => {
+        assert.strictEqual(directive("style-src-elem"), "style-src-elem 'self'");
+        assert.doesNotMatch(directive("style-src-elem"), /unsafe-inline/);
+        assert.doesNotMatch(directive("style-src-elem"), /sha256-/);
+    });
+
+    await t.test("a style-src-attr engedi az inline style ATTRIBÚTUMOT", () => {
+        assert.match(directive("style-src-attr"), /unsafe-inline/);
+        assert.doesNotMatch(directive("style-src-attr"), /sha256-/);
     });
 
     await t.test("az img-src engedi a data: URI-t (a Bootstrap beágyazott SVG-i)", () => {
         assert.match(directive("img-src"), /data:/);
+    });
+
+    await t.test("a Trusted Types kapu 'script'-re követeli meg (DOM-XSS ellen)", () => {
+        /* A direktíva elvesztése NÉMA: a lap ugyanúgy működne, csak egy jövőbeli
+           HTML-sink (innerHTML) megint némán DOM-XSS-t nyithatna. */
+        assert.strictEqual(directive("require-trusted-types-for"),
+            "require-trusted-types-for 'script'");
     });
 
     await t.test("a beágyazás és a <base> korlátozva van", () => {

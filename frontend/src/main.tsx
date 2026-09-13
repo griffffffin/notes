@@ -1,3 +1,6 @@
+// ELSŐ import: a react-tooltip stílus-injektálását kapcsolja ki, MÉG a
+// react-tooltip modul betöltése előtt (l. a fájl fejlécét, ott az indoklás).
+import './reactTooltipEnv'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { CookiesProvider } from 'react-cookie'
@@ -8,8 +11,11 @@ import { config } from '@fortawesome/fontawesome-svg-core'
 // kikapcsoljuk; így az ikonok azonnal a végleges méretükben rajzolódnak ki.
 import '@fortawesome/fontawesome-svg-core/styles.css'
 // Ugyanez a react-tooltipnél: ő is futásidőben injektálná a CSS-ét (késve, és a
-// saját z-index-ével). Statikusan importáljuk — az injektálást a Tooltip
-// komponens disableStyleInjection propja kapcsolja ki.
+// saját z-index-ével). Statikusan importáljuk. Az injektálást KÉT réteg tiltja,
+// és MINDKETTŐ kell: a Tooltip-ek disableStyleInjection propja a BASE stílust, a
+// legfelső import (./reactTooltipEnv) pedig a CORE stílust (l. az ottani fejlécet
+// — a core-t egy process.env-flag zárja, ami Vite-SPA-ban shim nélkül sosem hat,
+// ezért egyedül a prop CSENDBEN átengedte a core <style>-t). A CSP-mérés fedte fel.
 import 'react-tooltip/dist/react-tooltip.css'
 // A sorrend kötött: az index.css és a Bootstrap !important-szabályai közti
 // döntetleneket a később betöltött nyeri — a design a Bootstrap győzelmére épít

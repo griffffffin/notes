@@ -13,6 +13,7 @@ const {logInfo, logError} = require("./log");
 const csp = require("./csp");
 const noStore = require("./middleware/noStore");
 const sameOrigin = require("./middleware/sameOrigin");
+const {permissionsPolicy} = require("./middleware/permissionsPolicy");
 
 /* Élesben a backend szolgálja ki a frontend buildjét is (dist) — fejlesztésnél
    a dist hiányozhat (akkor a Vite dev szerver a frontend), ezért feltételes. */
@@ -35,6 +36,9 @@ const hasDist = fs.existsSync(dist);
    véd semmit, csak zajt csinál. */
 app.use(helmet({contentSecurityPolicy: false, crossOriginOpenerPolicy: false}));
 app.use(csp.header(path.join(dist, "index.html")));
+/* A Permissions-Policy a helmet mellé, külön modulból: a helmet ma NEM adja, és a
+   vágólap-kivétel indoklása egy helyen tartandó (middleware/permissionsPolicy.js). */
+app.use(permissionsPolicy);
 
 /* CORS: a böngésző szabálya, hogy egy oldal alapból csak a SAJÁT origin-jához
    (protokoll+host+port) fordulhat; a szerver a CORS-fejlécekkel engedhet
@@ -78,6 +82,18 @@ if (corsOrigins.length) app.use(cors({origin: corsOrigins, credentials: true}));
 app.use(sameOrigin(corsOrigins));
 
 app.use(express.json({limit: "1mb"}));   // a törzs mérete se legyen korlátlan
+
+/* A SOURCE MAPEKET NEM SZOLGÁLJUK KI. Az éles build source mapet is legyárt
+   (frontend/vite.config.js `sourcemap: true`) — az a saját hibakeresésünkhöz
+   hasznos —, de a `.map` fájl a MINIFIKÁLT kódból visszaadja a teljes forrást, a
+   biztonsági kommentekkel együtt. Egy futó appból ez feltétel nélkül, minden
+   névtelen látogatónak kimenne (más, mint a forrás GitHubon: ott a néző választ).
+   Ezért a statikus kiszolgálás ELŐTT elzárjuk: minden `.map` kérés 404. A térkép a
+   buildben/gépen megmarad; ha egyszer hibakövető (pl. Sentry) kell, oda külön
+   tölthető. Least privilege — ugyanaz az elv, mint a válasz-whitelisté. */
+app.use((request, response, next) =>
+    request.path.endsWith(".map") ? response.status(404).end() : next());
+
 if (hasDist) app.use(express.static(dist));
 
 /* INNENTŐL MINDEN VÁLASZ DINAMIKUS — és egyiket sem szabad letárolni. A sor

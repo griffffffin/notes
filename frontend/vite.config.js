@@ -4,6 +4,20 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  /* A react-tooltip a CORE stílusát futásidőben egy <style>-ba injektálná; a CSP
+     style-src-elem 'self'-je ezt (redundáns, mert a CSS a bundle-ölt <link>-ben
+     is ott van) blokkolná, néma jogsértést hagyva. A kikapcsoló feltétele:
+     `typeof process !== "undefined" && process.env.REACT_TOOLTIP_DISABLE_CORE_STYLES`.
+     A KETTŐ KÜLÖN eszközt igényel, és EGYÜTT kell mindkettő (mérve):
+       - a `define` a flag-tokent fordításkor igazra cseréli (a Vite különben
+         falsyra cserélné),
+       - a src/reactTooltipEnv.ts runtime-shim a `typeof process`-t teszi
+         definiálttá (a define ezt nem tudja).
+     Külön-külön egyik sem elég. */
+  define: {
+    'process.env.REACT_TOOLTIP_DISABLE_CORE_STYLES': '"true"',
+    'process.env.REACT_TOOLTIP_DISABLE_BASE_STYLES': '"true"',
+  },
   server: {
     // a dev szerver a helyi hálózaton is elérhető legyen (a Pi-n fut,
     // a böngésző egy másik gépen), ne csak localhost-on

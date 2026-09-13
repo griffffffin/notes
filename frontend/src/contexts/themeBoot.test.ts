@@ -103,8 +103,11 @@ describe("index.html boot-szkript", () => {
     });
 
     it("a legelső látogatás háttere a sötét téma színe", () => {
-        const fallback = html.match(/html\s*\{\s*background:\s*(#[0-9a-fA-F]{3,8})\s*;?\s*\}/);
-        expect(fallback, "Nem találtam az index.html <style>-jában a html{background:#…} alapértéket. " +
+        /* Az alapérték a <html> `style` ATTRIBÚTUMÁBAN áll (nem külön <style>
+           elemben) — l. index.html: a CSP style-src-elem 'self'-je egy inline
+           <style>-t hash nélkül tiltana, az attribútumot a style-src-attr engedi. */
+        const fallback = html.match(/<html\b[^>]*\bstyle\s*=\s*"[^"]*background:\s*(#[0-9a-fA-F]{3,8})/i);
+        expect(fallback, "Nem találtam a <html style=\"background:#…\"> alapértéket az index.html-ben. " +
             "Ha az alakja változott, ezt a tesztet is vezesd át.").not.toBeNull();
 
         expect(fallback?.[1]).toBe(THEMES.dark.pageBackground);

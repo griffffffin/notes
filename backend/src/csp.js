@@ -28,25 +28,34 @@
    fehér villanás. Semmi nem hibázik — csak rossz lesz. Ezért a hasht a kiszolgált
    index.html-ből számoljuk, futásidőben.
 
-   A STÍLUSOKRÓL — SZÁNDÉKOS ENGEDMÉNY. A `style-src` megkapja az
-   'unsafe-inline'-t, a szkriptekkel ellentétben. Két okból:
+   A STÍLUSOK — KÉT IRÁNYRA BONTVA (`style-src-elem` + `style-src-attr`). A stílus
+   kétféleképp kerülhet a lapra, és a kettőt KÜLÖN kezeljük:
 
-     - a React `style={{…}}` propja, a @dnd-kit húzás-transzformációi és a
-       @floating-ui buborék-pozicionálása mind `style` ATTRIBÚTUMOT írnak, amit
-       csak az 'unsafe-inline' (vagy a `style-src-attr`) enged;
-     - a `style-src-attr`/`style-src-elem` finomabb bontását nem minden böngésző
-       ismeri, és ahol nem, ott a durvább `style-src`-re esik vissza — vagyis a
-       "finomabb" megoldás egyes böngészőkben pont a húzást törné el, némán.
+     - `style-src-elem 'self'`: a <style> ELEMEK és a <link rel=stylesheet> csak a
+       saját originünkről jöhetnek. Egy befecskendezett <style> így NEM fut le —
+       ez a felület MEGHAMISÍTÁSA (vizuális megtévesztés: hamis beviteli mező
+       rárajzolása) ellen zár. Az index.html-ben SZÁNDÉKOSAN nincs inline <style>
+       (a téma-háttér a <html> `style` ATTRIBÚTUMÁBAN áll), tehát ehhez nem kell hash.
+     - `style-src-attr 'unsafe-inline'`: a `style="…"` ATTRIBÚTUMOK szabadok. Ez
+       KELL: a React `style={{…}}` propja, a @dnd-kit húzás-transzformációi és a
+       @floating-ui buborék-pozicionálása mind attribútumba ír, és a boot-szkript
+       is a `document.documentElement.style`-t állítja.
 
-   A hash-t és az 'unsafe-inline'-t EGYÜTT megadni hiba volna: ha hash is szerepel
-   a listában, a böngésző FIGYELMEN KÍVÜL HAGYJA az 'unsafe-inline'-t — vagyis a
-   stílus-hash hozzáadása kapcsolná ki a style attribútumokat. Ezért a stílusokhoz
-   szándékosan NINCS hash.
+   MIÉRT VÁLTOTTUNK a korábbi durva `style-src 'unsafe-inline'`-ról (2026-09-06).
+   Az eredeti döntés a finom bontást böngésző-kompatibilitási okból kerülte: egy
+   régi motor, ami a `style-src-elem`/`-attr`-t nem ismeri, a durvább `style-src`-re
+   esik vissza — és mivel azt már nem adjuk meg, a `default-src 'self'`-re, ami a
+   style ATTRIBÚTUMOKAT (húzás, tooltip) NÉMÁN eltörné. Ez a rés 2026-ban
+   gyakorlatilag nem áll fenn: a `style-src-elem`/`-attr`-t minden nagy motor
+   (Chrome, Firefox, Safari) 2020 óta érti. MÉRVE a buildelt appon (loopback,
+   headless): a húzás, a tooltip és a `style={{…}}` propok az új házirenddel is
+   működnek, injektált <style> pedig tiltva. A nyereség a felület-hamisítás elleni
+   zár; az ára a fenti, mára elenyésző kompatibilitási kockázat.
 
-   A kockázat különbsége indokolja az aszimmetriát: egy befecskendezett SZKRIPT
-   átveszi a lapot (és elviszi a kulcsot), egy befecskendezett STÍLUS legrosszabb
-   esetben adatot szivárogtat szelektor-trükkökkel. A szigor oda kell, ahol a
-   titok van. */
+   A kockázat aszimmetriája továbbra is áll: egy befecskendezett SZKRIPT átveszi a
+   lapot (és elviszi a piszkozat-kulcsot) — ezért ott hash-alapú, kőkemény zár;
+   egy befecskendezett STÍLUS legrosszabb esetben megtéveszt vagy szelektor-
+   trükkel szivárogtat, amit az `img-src`/`connect-src 'self'` amúgy is fog. */
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 
@@ -114,7 +123,11 @@ function policy(hashes) {
     const directives = {
         "default-src": ["'self'"],
         "script-src": ["'self'", ...hashes],
-        "style-src": ["'self'", "'unsafe-inline'"],
+        /* Stílus két irányra bontva (l. a fenti hosszú indoklást): a <style>/<link>
+           csak sajátról (injektált <style> tiltva), a `style=` attribútum szabad
+           (React/dnd-kit/floating-ui inline stílusai). */
+        "style-src-elem": ["'self'"],
+        "style-src-attr": ["'unsafe-inline'"],
         "img-src": ["'self'", "data:"],
         "font-src": ["'self'"],
         "connect-src": ["'self'"],
@@ -122,6 +135,24 @@ function policy(hashes) {
         "base-uri": ["'self'"],
         "form-action": ["'self'"],
         "frame-ancestors": ["'self'"],
+        /* require-trusted-types-for 'script': a DOM-XSS gépi kapuja. A többi
+           direktíva azt korlátozza, MI TÖLTHETŐ BE; ez azt, MI ÍRHATÓ a DOM
+           veszélyes „sinkjeibe" (innerHTML, outerHTML, insertAdjacentHTML,
+           document.write, <script>.src…). Enélkül egy jövőbeli, HTML-t stringként
+           a DOM-ba író kód némán DOM-XSS-t nyitna; ezzel a böngésző az ilyen
+           írást ELUTASÍTJA, hacsak nem Trusted Types-on át megy — vagyis a
+           fejlemény egy tudatos, látható döntést kényszerít ki.
+
+           MÉRVE (2026-09-06, headless, a buildelt appon, Report-Only módban): a
+           bejelentkezés, a lista, a szerkesztő, a húzás (@dnd-kit), a keresés és a
+           tooltip (react-tooltip/@floating-ui) EGYETLEN jelzést sem adott — sem a
+           React 19, sem a react-bootstrap nem ír HTML-sinkbe. A saját kódban sincs
+           ilyen sink (grep: innerHTML/dangerouslySetInnerHTML/eval/new Function =
+           0). Az élesítés tehát nem tör el semmit; a `trusted-types` allowlistet
+           SZÁNDÉKOSAN nem szűkítjük, hogy egy jövőbeli, legitim policy (pl. egy
+           majdani rich-text mező) létrehozható maradjon — a kapu maga a
+           require-trusted-types-for. */
+        "require-trusted-types-for": ["'script'"],
     };
     return Object.entries(directives)
         .map(([name, values]) => `${name} ${values.join(" ")}`)

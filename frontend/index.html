@@ -2,8 +2,15 @@
 <!-- A régi class="bg-black" szándékosan NINCS itt: a Bootstrap .bg-black
      !important-os, ezért legyőzné a téma inline hátterét, és a világos témán is
      feketén tartaná a html-t (a tartalom alatti sáv fekete maradt). A hátteret a
-     lenti boot-szkript és a ThemeProvider állítja. -->
-<html lang="hu">
+     lenti boot-szkript és a ThemeProvider állítja.
+
+     A legelső látogatás alapértelmezett háttere a `style` ATTRIBÚTUMBAN áll (nem
+     külön <style> elemben). Ez tudatos: a CSP `style-src-elem 'self'`-je hash
+     nélkül tiltana egy inline <style>-t, az attribútumot viszont a
+     `style-src-attr 'unsafe-inline'` engedi (l. backend/src/csp.js). A #000 csak
+     az első, süti nélküli látogatás alapértéke; utána a boot-szkript a sütiből
+     vett tényleges témaszínt írja ugyanide. -->
+<html lang="hu" style="background:#000">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -31,9 +38,6 @@
     <link rel="preload" href="/fonts/DancingScript-VariableFont_wght.ttf" as="font" type="font/ttf" crossorigin />
     <link rel="preload" href="/fonts/EncodeSansSemiExpanded-Regular.ttf" as="font" type="font/ttf" crossorigin />
 
-    <style>
-      html { background: #000; }
-    </style>
     <script>
       // A sütiből kiolvassuk a téma hátterét, és azzal festünk. Csak érvényes
       // színt fogadunk el (# + hex), hogy egy sérült süti ne törhesse el a lapot.
