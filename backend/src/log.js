@@ -66,6 +66,31 @@ function redactSecrets(text) {
         (result, [pattern, replacement]) => result.replace(pattern, replacement), text);
 }
 
+/* A VEZÉRLŐKARAKTEREK SEMLEGESÍTÉSE — a NAPLÓ-INJEKCIÓ ellen. A redaktor a
+   TITOK alakjára illeszt; ez a réteg a napló SZERKEZETÉT védi. Egy sortörés a
+   szövegben ÚJ naplósort nyit: a támadó egy hamis bejegyzést költhetne a
+   journalba (»[…] a rendszergazda törölte a fiókot«). Ez ugyanaz a „log
+   injection", amit a /client-error kulcs-validátora lokálisan már tilt.
+
+   MÉRVE (2026-09-13), hogy nem elméleti: egy hibás JSON-törzsre az express.json
+   olyan SyntaxError-t dob, amelynek üzenete BEIDÉZI a törzs egy darabját,
+   sortörésestül (»Unexpected token …, "garbage\nHAMIS"…«). Ez az üzenet a
+   globális hibakezelő → serverError → logError úton, HITELESÍTÉS NÉLKÜL a
+   naplóba kerülne.
+
+   Minden C0 vezérlőt (a \n és \r is) és a DEL-t látható escape-re cseréljük: a
+   nyoma megmarad, de nem tud sort nyitni. FONTOS, hogy ezt CSAK a kívülről jövő
+   szövegre alkalmazzuk (a hiba üzenete, az interpolált értékek), a verem
+   keret-soraira NEM — azok a MI tartalmunk, és a sortöréseik a napló
+   olvashatóságához kellenek (l. describeError, logProblem). */
+// A vezérlőkarakterek a mintában SZÁNDÉKOSAK: épp ezeket escape-eljük (napló-
+// injekció elleni neutralizálás). A szabály a VÉLETLEN vezérlőt hivatott fogni,
+// ezért csak ERRE a sorra oldjuk fel — másutt aktív marad.
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARS = /[\u0000-\u001F\u007F]/g;
+const neutralizeControls = (text) =>
+    text.replace(CONTROL_CHARS, (character) => "\\x" + character.charCodeAt(0).toString(16).padStart(2, "0"));
+
 /* A HIBA LEÍRÁSA — a whitelist maga.
 
    A `stack` már tartalmazza a "Név: üzenet" első sort (a motor így állítja elő),
@@ -87,11 +112,20 @@ function describeError(error) {
         if (error instanceof Error) {
             const code = typeof error.code === "string" || typeof error.code === "number"
                 ? `\n(code: ${error.code})` : "";
+            const message = typeof error.message === "string" ? error.message : "";
             const stack = typeof error.stack === "string" && error.stack !== "" ? error.stack : "";
-            return (stack === "" ? `${error.name}: ${error.message}` : stack) + code;
+            /* A KÍVÜLRŐL JÖVŐ RÉSZ az ÜZENET (message): abba idézhet be egy külső
+               könyvtár támadó-vezérelt szöveget, sortörésestül (l.
+               neutralizeControls, és a mért express.json-eset). A verem KERET-sorai
+               viszont a MI tartalmunk, azok sortöréseit MEGTARTJUK (olvashatóság).
+               A verem első sora épp a "Név: üzenet", ezért az üzenetet A VERMEN
+               BELÜL, célzottan cseréljük a semlegesített alakjára — függvény-
+               cserével, hogy a $-minták a cserében ne értelmeződjenek. */
+            if (stack === "") return `${error.name}: ${neutralizeControls(message)}` + code;
+            return (message === "" ? stack : stack.replace(message, () => neutralizeControls(message))) + code;
         }
         // Nem Error: a típusát is kiírjuk, mert az önmagában is hibára utal.
-        return `nem Error típusú hiba (${typeof error}): ${String(error)}`;
+        return `nem Error típusú hiba (${typeof error}): ${neutralizeControls(String(error))}`;
     } catch {
         return "[a hiba leírása nem állítható elő]";
     }
@@ -104,7 +138,13 @@ function describeError(error) {
    figyelőnk is ezt nézi.
 
    A logError EZT HASZNÁLJA, nem külön ír: így a redakció és az időbélyeg egy
-   helyen van, és nem tud elcsúszni a két hiba-út között. */
+   helyen van, és nem tud elcsúszni a két hiba-út között.
+
+   ITT SZÁNDÉKOSAN NINCS teljes vezérlőkarakter-semlegesítés: ezen az úton a
+   describeError TÖBBSOROS vermet ad át, aminek a keret-sorai a mi tartalmunk, és
+   olvashatónak kell maradniuk. A kívülről jövő rész (a hiba üzenete) már a
+   describeError-ban semlegesült; az egyetlen közvetlen hívó (clientError.js)
+   pedig validált, sortörés-mentes kulcsot ad (ENDPOINT_KEY). */
 function logProblem(message) {
     console.error(redactSecrets(`[${new Date().toISOString()}] ${message}`));
 }
@@ -133,7 +173,11 @@ function logError(context, error) {
    naplóban — nem pedig egy dokumentum minden mezője. A redaktor ezen az úton is
    lefut, mert egy interpolált érték is hozhat titkot. */
 function logInfo(message) {
-    console.log(redactSecrets(`[${new Date().toISOString()}] ${message}`));
+    /* A logInfo SOSEM hordoz vermet (csak sima üzenetet, esetleg interpolált
+       külső értékkel), ezért itt az EGÉSZ sort semlegesíthetjük — nincs benne
+       megőrzendő, szándékos sortörés. Így egy interpolált érték sortörése sem
+       nyithat új naplósort. */
+    console.log(neutralizeControls(redactSecrets(`[${new Date().toISOString()}] ${message}`)));
 }
 
-module.exports = {logInfo, logProblem, logError, redactSecrets, describeError};
+module.exports = {logInfo, logProblem, logError, redactSecrets, describeError, neutralizeControls};

@@ -9,7 +9,7 @@ const assert = require("node:assert");
 const {readdirSync, readFileSync} = require("node:fs");
 const {basename, join} = require("node:path");
 
-const {logInfo, logError, redactSecrets, describeError} = require("./log");
+const {logInfo, logError, redactSecrets, describeError, neutralizeControls} = require("./log");
 
 // Valósághű alakok — a formájuk számít, mert a redaktor a FORMÁRA illeszt.
 const HASH = "$2b$11$abcdefghijklmnopqrstuvABCDEFGHIJKLMNOPQRSTUVWXYZ01234";
@@ -200,6 +200,48 @@ test("logInfo: a redaktor ezen az úton is lefut", () => {
 
     assert.ok(!lines[0].includes(DRAFT_KEY), "a piszkozat-kulcs a naplóba került");
     assert.match(lines[0], /kulcs kiadva: \[REDACTED\]/);
+});
+
+test("napló-injekció: a hibaüzenet sortörése nem nyit új sort, a verem viszont ép marad", () => {
+    /* MÉRVE (2026-09-13): az express.json a hibás törzs egy darabját idézi a
+       SyntaxError üzenetébe, sortörésestül — ez a serverError → logError úton,
+       HITELESÍTÉS NÉLKÜL a journalba kerülne, és a sortörés hamis bejegyzést
+       nyitna. A beidézett sortörést semlegesítjük; a verem KERET-sorai (a mi
+       tartalmunk) viszont ép sortöréssel maradnak. */
+    const injected = new Error('Unexpected token, "garbage\nHAMIS naplósor" is not valid JSON');
+    const lines = captureLog(() => logError("POST /to-dos", injected));
+
+    assert.strictEqual(lines.length, 1, "pontosan egy console.error hívás várt");
+    assert.ok(!lines[0].includes("\nHAMIS"), "a beinjektált sortörés a naplóban maradt");
+    assert.match(lines[0], /garbage\\x0aHAMIS naplósor/, "a beidézett tartalom láthatóan escape-elve kell maradjon");
+    /* KONTROLL a TÚL-semlegesítés ellen: a verem keret-sorai ép sortöréssel
+       maradnak — enélkül a fenti állítások egy „mindent ellapítunk" megoldásra is
+       zöldek lennének, az viszont olvashatatlanná tenné a stacket. */
+    assert.ok(lines[0].includes("\n    at "), "a verem keret-sorainak sortörései elvesztek");
+});
+
+test("logInfo: a vezérlőkaraktert semlegesíti (napló-injekció ellen)", () => {
+    /* A logInfo interpolált külső értéket hordozhat (pl. egy jövőbeli
+       felhasználónév), és NINCS benne verem — ezért az egész sor egyetlen sor
+       kell maradjon. */
+    const original = console.log;
+    const lines = [];
+    console.log = (...args) => lines.push(args.map(String).join(" "));
+    try {
+        logInfo("normál\nHAMIS érték");
+    } finally {
+        console.log = original;
+    }
+
+    assert.strictEqual(lines.length, 1);
+    assert.ok(!lines[0].includes("\n"), "a sortörés a logInfo-naplóban maradt");
+    assert.match(lines[0], /normál\\x0aHAMIS érték/);
+});
+
+test("neutralizeControls: a vezérlőket escape-eli, a többit békén hagyja", () => {
+    assert.strictEqual(neutralizeControls("a\nb\tc\rd\x7fe"), "a\\x0ab\\x09c\\x0dd\\x7fe");
+    // Ártalmatlan szöveget nem bánt (nem „minden gyanús karaktert" cserél).
+    assert.strictEqual(neutralizeControls("egy egészen hétköznapi mondat"), "egy egészen hétköznapi mondat");
 });
 
 /* ───────────────────────── AZ ŐR ─────────────────────────
