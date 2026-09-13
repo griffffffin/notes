@@ -251,6 +251,38 @@ elmaradt átvezetés.
      `document.cookie`-ból VISSZA SEM OLVASHATÓ, tehát csak ott kérhető számon,
      ahol átadjuk: `frontend/src/cookies.ts` (a szándék kimondva:
      `SESSION_COOKIE` vs. `PERSISTENT_COOKIE`) + a rájuk írt tesztek.
+  7. **A KIFELÉ MENŐ DOKUMENTUM-VÁLASZ WHITELIST, nem a teljes doksi.** Ami a
+     `response.json(doc)`-kal kimegy, az alapból a TELJES Mongoose-dokumentum: a
+     tulajdonos (`user`), a `__v` és az időbélyegek is — és egy jövőbeli ÉRZÉKENY
+     séma-mező is, magától, némán. Ezért minden szekció-modell `toJSON`-ja
+     WHITELIST (l. `backend/src/publicJson.js`): csak a hálózatra szánt
+     mezőket adja ki, új mező nem szivárog. A whitelist PÁRJA a frontend
+     valibot-sémája (`frontend/src/types/api.ts`), a kettőt EGYÜTT kell mozgatni —
+     a veszélyes irányt (kiesik egy kellő mező) a `v.parse` fogja (szerződés-hiba a
+     naplóba). ⚠ A `toJSON` CSAK a JSON-t szűkíti; a napi export `.lean()`-nel
+     olvas, azt NEM érinti — a mentésnek a TELJES doksi kell (a mentés feltétel
+     nélkül mindent visz). Az egy-elemes/publikus végpontok ezen felül kézi, még
+     szűkebb whitelistet adhatnak (`Quotes/readById.js`).
+  8. **A KIFELÉ MENŐ SZÖVEG SZERKEZETE, nem csak a tartalma (napló-injekció).**
+     A napló-kapu (`backend/src/log.js`) a titkok TARTALMÁT redaktálja, de egy
+     kívülről jövő SORTÖRÉS ÚJ naplósort nyit — a támadó hamis bejegyzést költhet a
+     journalba (»log injection«). MÉRVE (2026-09-13): az `express.json` a hibás
+     törzs egy darabját beidézi a `SyntaxError` üzenetébe, sortörésestül, és az a
+     `serverError → logError` úton, HITELESÍTÉS NÉLKÜL a naplóba kerül. A védelem a
+     KAPUNÁL van (`neutralizeControls`): a KÍVÜLRŐL jövő rész (a hiba `message`-e, a
+     `logInfo` interpolált értékei) vezérlőkaraktereit escape-eljük. ⚠ SEBÉSZILEG:
+     csak a külső szövegre, NEM a teljes sorra — a saját, SZÁNDÉKOSAN többsoros
+     tartalmunk (a verem keret-sorai) maradjon ép, különben a stack trace
+     olvashatatlan lesz (l. `describeError`: a `message`-t a vermen belül célzottan
+     cseréli; `log.test.js` a verem-megőrzést KONTROLLKÉNT is állítja). Ugyanez a
+     »log injection« ellen a `/client-error` kulcs-validátora lokálisan is véd.
+  9. **AZ ENGEDÉLYEZETT MEZŐNÉV NEM ELLENŐRZÖTT ÉRTÉK.** Ha egy validátor
+     mezőneveket enged át egy allow-listával (`TASK_FIELDS`), az még nem mondja meg,
+     mi lehet a mező ÉRTÉKE. A `task.id` így sokáig szabadon hordozhatott tetszőleges
+     típusú/méretű adatot: az ismeretlen-mező-szűrő átengedte (a név engedélyezett),
+     a tartalmát viszont senki nem nézte — onnan a tárba és az exportba is átfolyt
+     volna. Minden engedélyezett mező ÉRTÉKÉT is kösd meg (alak/hossz/típus); l.
+     `backend/src/middleware/validateTodo.js` (`task.id !== key`, `TASK_ID`).
 - **`ELTÉRÉS`-komment**: ahol egy szekció (to-do, idézet, később film…) SZÁNDÉKOSAN
   másképp működik, mint a párja, azt kommentben jelöljük, az `ELTÉRÉS` szóval
   kezdve — így `grep "ELTÉRÉS"`-sel az összes tudatos elhajlás előkereshető.

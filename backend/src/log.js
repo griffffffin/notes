@@ -85,7 +85,7 @@ function redactSecrets(text) {
    olvashatóságához kellenek (l. describeError, logProblem). */
 // A vezérlőkarakterek a mintában SZÁNDÉKOSAK: épp ezeket escape-eljük (napló-
 // injekció elleni neutralizálás). A szabály a VÉLETLEN vezérlőt hivatott fogni,
-// ezért csak ERRE a sorra oldjuk fel — másutt aktív marad.
+// ezért csak ERRE a sorra oldjuk fel — másutt aktív marad (l. CLAUDE.md 8. pont).
 // eslint-disable-next-line no-control-regex
 const CONTROL_CHARS = /[\u0000-\u001F\u007F]/g;
 const neutralizeControls = (text) =>
