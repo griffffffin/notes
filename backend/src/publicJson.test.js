@@ -18,7 +18,10 @@
    tesztet — nem csendben szivárog. */
 const test = require("node:test");
 const assert = require("node:assert");
+const fs = require("node:fs");
+const path = require("node:path");
 const mongoose = require("mongoose");
+const {isModelFile} = require("../scripts/exportSections");
 const Quotes = require("./models/quotes");
 const Todos = require("./models/todos");
 
@@ -72,4 +75,57 @@ test("a whitelistelt mezők ÉRTÉKE átjut (nem mindent dobunk el)", () => {
     assert.strictEqual(json.order, 3);
     assert.strictEqual(json.fontSize, 155);
     assert.strictEqual(String(json._id), String(ID));
+});
+
+/* DERIVED GATE — MINDEN szekció, nem csak a fenti kettő.
+
+   A fenti tesztek a Quotes és a Todos PONTOS whitelistjét rögzítik (a legerősebb
+   állítás), de kézzel: egy JÖVŐBELI szekció, ami elfelejt `toJSON`-whitelistet
+   adni, kimaradna belőlük, és a `response.json(doc)` a TULAJDONOST a dróton adná
+   ki — némán. Ez a gate a szekció-modelleket a nyilatkozatukból (exportName = az
+   URL-szegmens, l. itemQuota.test.js) fésüli át, tehát egy új szekció AUTOMATIKUSAN
+   fedve van.
+
+   MIT NÉZ: a `user` (tulajdonos → bérlő-szivárgás) és a `__v` (belső verzió) SOHA
+   nem mehet ki — ezek univerzálisan tiltottak, szekciótól függetlenül. Az
+   időbélyegeket SZÁNDÉKOSAN nem tiltjuk hard-ra: egy jövőbeli szekció akarhat
+   „hozzáadás dátuma" mezőt; a PONTOS whitelistet szekciónként a saját (kézi)
+   tesztje rögzíti, mint fent. */
+const MODELS_DIR = path.join(__dirname, "models");
+const sectionModels = fs.readdirSync(MODELS_DIR).filter(isModelFile).sort()
+    .map((file) => [file, require(path.join(MODELS_DIR, file))])
+    .filter(([, model]) => typeof model.exportName === "string" && model.exportName.trim() !== "");
+
+const FORBIDDEN_IN_RESPONSE = ["user", "__v"];
+
+test("van legalább egy szekció-modell (különben a derived gate üresen zöldülne)", () => {
+    assert.ok(sectionModels.length >= 2, `csak ${sectionModels.length} szekció-modellt találtam`);
+});
+
+for (const [file, Model] of sectionModels) {
+    test(`${file}: a toJSON nem szivárogtatja a tulajdonost és a verziót (derived)`, () => {
+        /* Hidratálunk (mint a DB-ből betöltött alak): a `user`, `__v` és az
+           időbélyegek rajta ülnek a doksin — épp az, amit a végpont szerializálna. */
+        const json = Model.hydrate({
+            _id: new mongoose.Types.ObjectId(), user: "LEAK-ME",
+            __v: 9, createdAt: new Date(), updatedAt: new Date(),
+        }).toJSON();
+
+        for (const field of FORBIDDEN_IN_RESPONSE)
+            assert.strictEqual(json[field], undefined,
+                `${file}: a "${field}" kiment a toJSON-ból — hiányzik a whitelist ` +
+                "(publicJsonTransform, l. todos.js)? A response.json(doc) így a " +
+                "tulajdonost/verziót a dróton adná ki, némán.");
+    });
+}
+
+/* KONTROLL: a fenti "undefined" állítások üresen is teljesülnének, ha a hidratálás
+   vagy a toJSON elromlana. Egy whitelist NÉLKÜLI séma toJSON-ja KIADJA a
+   tulajdonost — ezt itt bizonyítjuk, hogy a gate nem vak. */
+test("kontroll: whitelist NÉLKÜLI séma toJSON-ja tényleg kiadná a tulajdonost", () => {
+    const bareSchema = new mongoose.Schema({user: String, title: String});
+    const Bare = mongoose.model("BareLeakControl", bareSchema);
+    const json = Bare.hydrate({_id: new mongoose.Types.ObjectId(), user: "LEAK-ME"}).toJSON();
+    assert.strictEqual(json.user, "LEAK-ME",
+        "a kontroll-modell nem szivárogtatott — a derived gate vak lehet");
 });
