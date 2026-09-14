@@ -60,6 +60,10 @@ const validateQuoteBody = (request, response, next) => {
     if (errors.length) return response.status(400).json(errors.join(" "));
     next();
 };
+/* ÖNLEÍRÁS: „ez a middleware egy kérés-TÖRZSET validál" — l. a párját a
+   validateTodo.js-ben (validateTodoBody.validatesBody) és a kaput a
+   validationBoundary.test.js-ben. */
+validateQuoteBody.validatesBody = true;
 
 /* A szerző-szűrő (/quotes/:author) a body author mezőjét egyenesen a
    lekérdezésbe teszi — operátor ne juthasson bele. A szerző itt is lehet üres

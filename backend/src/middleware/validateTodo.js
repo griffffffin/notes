@@ -145,6 +145,13 @@ const validateTodoBody = (request, response, next) => {
     request.body.taskOrder = request.body.taskOrder ?? [];
     next();
 };
+/* ÖNLEÍRÁS: „ez a middleware egy kérés-TÖRZSET validál" — mint a Model.exportName
+   nyilatkozata. A szekció-router bekötés-kapuja (validationBoundary.test.js) ebből
+   ismeri fel, hogy a create/update láncában VAN törzs-ellenőrzés, anélkül hogy
+   szekciónkénti kézi validátor-listát kéne tartania (derived). Egy új szekció
+   törzs-validátorának is meg kell jelölnie magát; ha elmarad, a kapu HANGOSAN
+   jelez — nem néma kihagyás. */
+validateTodoBody.validatesBody = true;
 
 /* A szűrő-végpontok (/category, /color) a body mezőit EGYENESEN a lekérdezésbe
    teszik. A user: request.userId miatt idegen adat így sem szivároghatna ki, de
