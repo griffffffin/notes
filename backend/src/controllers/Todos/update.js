@@ -2,7 +2,7 @@ const router = require("express").Router();
 const Todos = require("../../models/todos");
 const serverError = require("../../serverError");
 const calculatePercentage = require("./functions/calculatePercentage");
-const {shiftForMove, undoShiftForMove} = require("../../ordering");
+const {shiftForMove, undoShiftForMove, writeItem} = require("../../ordering");
 const {shiftThenWrite} = require("../orderedWrite");
 
 /* To-do szerkesztése. A tartalom mellett a sorszám is változhat — ilyenkor a
@@ -14,7 +14,11 @@ module.exports = router.post("/", (request, response) => {
     const id = request.body.id;
     const title = request.body.title;
     const order = request.body.order;
-    const save = () => Todos.findByIdAndUpdate(id, {
+    /* Az updatedAt-et és a runValidators-t a writeItem adja (ordering.js) — egy
+       helyen minden item-írásnak, hogy az időbélyeg egyikből se maradhasson ki, és
+       a módosítás ne kerülje meg a required-eket (a Mongoose a findByIdAndUpdate-nél
+       alapból nem validál). */
+    const save = () => writeItem(Todos, id, {
         title: title,
         tasks: request.body.tasks,
         taskOrder: request.body.taskOrder,
@@ -23,13 +27,6 @@ module.exports = router.post("/", (request, response) => {
         order: order,
         // A százalékot a szerver számolja a listaelemekből, nem a kliens küldi.
         percentage: calculatePercentage(request),
-        updatedAt: new Date(),
-    }, {
-        /* A findByIdAndUpdate alapból NEM futtatja a séma validátorait (a Mongoose
-           ilyenkor nem tölti be a dokumentumot, csak parancsot küld) — enélkül a
-           módosítás megkerülné a required-eket, amiket a létrehozás betart. A
-           middleware már ellenőrzött, ez a második háló. */
-        runValidators: true,
     }).then(() => response.json(title + " frissítve."));
 
     // Változatlan sorszámnál a shiftForMove nem tol el senkit, tehát nem kell külön

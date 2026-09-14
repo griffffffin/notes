@@ -21,6 +21,24 @@
 
 const touch = (increment) => ({$inc: {order: increment}, $set: {updatedAt: new Date()}});
 
+/* EGY ELEM SAJÁT ÍRÁSA — a tartalom/sorszám mellett az updatedAt-et IS bumpolja,
+   és futtatja a séma-validátorokat. A `touch()` PÁRJA: az a SZOMSZÉDOKAT frissíti
+   (updateMany, sorszám-eltoláskor), ez a MOZGATOTT vagy SZERKESZTETT elemet magát.
+   A kettő együtt teszi az updatedAt-invariánst EGY modulba: az item-írás (update,
+   reorder) sehol máshol nem hív nyers findByIdAndUpdate-et, tehát az időbélyeg
+   egyik írás-útból sem maradhat ki. A napi export ebből dönti el, volt-e aznapi
+   módosítás (l. scripts/exportSections.js); egy elfelejtett bump NÉMÁN kihagyná az
+   elemet a mentésből — a kihagyás ellen a controllerek update/reorder útjának
+   derived forrás-szkenje őrködik (itemWriteFreshness.test.js: nincs nyers
+   update-write a controllerekben).
+
+   A `runValidators` szintén itt, egy helyen: a findByIdAndUpdate alapból NEM
+   futtatja a séma-validátorokat (nem tölti be a dokumentumot, csak parancsot küld),
+   így a required-eket egy módosítás megkerülné — ezt is a writeContract.test.js és
+   az egy-helyen-tartás zárja ki. */
+const writeItem = (Model, id, fields) =>
+    Model.findByIdAndUpdate(id, {...fields, updatedAt: new Date()}, {runValidators: true});
+
 /* BESZÚRÁS a megadott sorszámra: a helyen álló ÉS a fölötte lévők (>=) eggyel
    lejjebb csúsznak, hogy felszabaduljon a hely. A $gte (nem $gt) a lényeg: az
    új elem pontosan annak a helyére kerül, aki eddig ott állt.
@@ -125,4 +143,4 @@ const lastOrder = (Model, userId) =>
         .then((documents) => documents.length ? documents[0].order : 0);
 
 module.exports = {shiftForInsert, shiftForDelete, shiftForMove,
-    undoShiftForDelete, undoShiftForMove, lastOrder};
+    undoShiftForDelete, undoShiftForMove, lastOrder, writeItem};

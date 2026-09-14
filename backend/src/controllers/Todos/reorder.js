@@ -1,7 +1,7 @@
 const router = require("express").Router();
 const Todos = require("../../models/todos");
 const serverError = require("../../serverError");
-const {shiftForMove, undoShiftForMove} = require("../../ordering");
+const {shiftForMove, undoShiftForMove, writeItem} = require("../../ordering");
 const {shiftThenWrite} = require("../orderedWrite");
 
 /* Egyetlen to-do átsorolása — a főoldali húzás ezt hívja. A TULAJDON-ellenőrzést
@@ -27,8 +27,7 @@ module.exports = router.post("/", (request, response) => {
        enélkül ütközés vagy hézag maradna a listában (l. orderedWrite.js). */
     return shiftThenWrite({
         shift: () => shiftForMove(Todos, request.userId, todo.order, order),
-        write: () => Todos.findByIdAndUpdate(id, {order: order, updatedAt: new Date()},
-            {runValidators: true}),
+        write: () => writeItem(Todos, id, {order: order}),
         undo: () => undoShiftForMove(Todos, request.userId, todo.order, order, id),
     })
         .then(() => response.json("Sorrend frissítve."))

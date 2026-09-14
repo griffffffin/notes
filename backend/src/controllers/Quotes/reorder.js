@@ -1,7 +1,7 @@
 const router = require("express").Router();
 const Quotes = require("../../models/quotes");
 const serverError = require("../../serverError");
-const {shiftForMove, undoShiftForMove} = require("../../ordering");
+const {shiftForMove, undoShiftForMove, writeItem} = require("../../ordering");
 const {shiftThenWrite} = require("../orderedWrite");
 
 /* Egy idézet átsorolása (a lista húzása). A TULAJDON-ellenőrzést a route-lánc
@@ -23,8 +23,7 @@ module.exports = router.post("/", (request, response) => {
        enélkül ütközés vagy hézag maradna a listában (l. orderedWrite.js). */
     return shiftThenWrite({
         shift: () => shiftForMove(Quotes, request.userId, quote.order, order),
-        write: () => Quotes.findByIdAndUpdate(id, {order: order, updatedAt: new Date()},
-            {runValidators: true}),
+        write: () => writeItem(Quotes, id, {order: order}),
         undo: () => undoShiftForMove(Quotes, request.userId, quote.order, order, id),
     })
         .then(() => response.json("Sorrend frissítve."))
