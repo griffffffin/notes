@@ -8,7 +8,7 @@
    való felderítést értelmetlenné teszi. */
 const test = require("node:test");
 const assert = require("node:assert");
-const {findOwned, forbidden} = require("./ownership");
+const {findOwned, existsOwned, countOwned, findOneOwned, ownedMatch, forbidden} = require("./ownership");
 
 const OWNER = "user-1";
 const STRANGER = "user-2";
@@ -58,4 +58,46 @@ test("az elutasítás 403, egységes üzenettel", () => {
 
     assert.strictEqual(captured.code, 403);
     assert.strictEqual(captured.body, "Nincs jogosultságod.");
+});
+
+/* A findOwnedList TESTVÉREI (existsOwned/countOwned/findOneOwned/ownedMatch). A
+   közös, kritikus tulajdonságuk: a `user` kulcsot UTOLJÁRA teszik rá a szűrőre,
+   tehát a hívó `filter`-e csak SZŰKÍTHET — a saját tulajdont felülírni nem tudja.
+   Ezt a "user felülírhatatlan" tulajdonságot külön ellenőrizzük: a hívónak
+   SZÁNDÉKOSAN egy hamis `user: STRANGER`-t is átadunk, és azt kell látnunk, hogy a
+   kérőé (OWNER) marad. (Ez az, amiért a szűrés ezekben a helperekben él, nem a
+   hívóban — l. ownership.js.) */
+test("existsOwned a kérőre szűr, a hívó nem írhatja felül a user-t", async () => {
+    let captured;
+    const Model = {exists: (query) => { captured = query; return Promise.resolve(null); }};
+
+    await existsOwned(Model, OWNER, {quote: "x", user: STRANGER});
+
+    assert.strictEqual(captured.user, OWNER, "a user a kérőé, a hívó filtere nem írja felül");
+    assert.strictEqual(captured.quote, "x", "a hívó szűrője megmarad");
+});
+
+test("countOwned a kérőre szűr, a hívó nem írhatja felül a user-t", async () => {
+    let captured;
+    const Model = {countDocuments: (query) => { captured = query; return Promise.resolve(0); }};
+
+    await countOwned(Model, OWNER, {user: STRANGER});
+
+    assert.strictEqual(captured.user, OWNER);
+});
+
+test("findOneOwned a kérőre szűr, a hívó nem írhatja felül a user-t", async () => {
+    let captured;
+    const Model = {findOne: (query) => { captured = query; return Promise.resolve(null); }};
+
+    await findOneOwned(Model, OWNER, {author: "a", user: STRANGER});
+
+    assert.strictEqual(captured.user, OWNER);
+    assert.strictEqual(captured.author, "a");
+});
+
+test("ownedMatch a kérőre szűkítő $match-stage, a hívó nem írhatja felül a user-t", () => {
+    assert.deepStrictEqual(
+        ownedMatch(OWNER, {author: "a", user: STRANGER}),
+        {$match: {author: "a", user: OWNER}});
 });

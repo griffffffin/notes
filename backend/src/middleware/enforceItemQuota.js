@@ -1,4 +1,5 @@
 const serverError = require("../serverError");
+const {countOwned, existsOwned} = require("../ownership");
 
 /* FIÓKONKÉNTI ELEM-KVÓTA — egy szekció ennyi elemnél többet nem enged létrehozni
    egy fióknak. A kvótát a MODELL deklarálja (Model.itemQuota, l. models/todos.js);
@@ -39,8 +40,8 @@ function enforceItemQuota(Model) {
 
     return async (request, response, next) => {
         try {
-            if (await Model.countDocuments({user: request.userId}) < quota) return next();
-            if (await Model.exists({_id: request.body.id, user: request.userId})) return next();
+            if (await countOwned(Model, request.userId) < quota) return next();
+            if (await existsOwned(Model, request.userId, {_id: request.body.id})) return next();
             return response.status(403).json(
                 "Elérted ennek a szekciónak az elemkorlátját. Új elem felvételéhez törölj néhányat.");
         } catch (error) {

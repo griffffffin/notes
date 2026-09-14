@@ -1,6 +1,7 @@
 const router = require("express").Router();
 const Quotes = require("../../models/quotes");
 const serverError = require("../../serverError");
+const {findOneOwned, existsOwned} = require("../../ownership");
 const escapeRegex = require("./escapeRegex");
 
 /* A keresés MÓD-döntése — a navbar ezt kérdezi meg a kereső beküldésekor, hogy
@@ -22,8 +23,8 @@ const escapeRegex = require("./escapeRegex");
 module.exports = router.post("/", (request, response) => {
     const pattern = escapeRegex(request.body.term.trim());
     Promise.all([
-        Quotes.findOne({user: request.userId, author: {$regex: "^" + pattern + "$", $options: "i"}}),
-        Quotes.exists({user: request.userId, quote: {$regex: pattern, $options: "i"}}),
+        findOneOwned(Quotes, request.userId, {author: {$regex: "^" + pattern + "$", $options: "i"}}),
+        existsOwned(Quotes, request.userId, {quote: {$regex: pattern, $options: "i"}}),
     ])
         .then(([authorMatch, inText]) => {
             if (authorMatch && !inText)

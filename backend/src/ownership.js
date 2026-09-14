@@ -35,8 +35,30 @@ const findOwned = (Model, id, userId) =>
 const findOwnedList = (Model, userId, filter = {}) =>
     Model.find({...filter, user: userId}).sort("order");
 
+/* A findOwnedList TESTVÉREI — ugyanaz a biztonsági tulajdonság MÁS lekérdezés-
+   alakokra, amiket a lista-helper nem szolgál ki (létezés, darabszám, egyetlen
+   találat, aggregáció). Mindegyik a `user` kulcsot UTOLJÁRA teszi rá a szűrőre,
+   tehát a hívó `filter`-e csak SZŰKÍTHET — a saját tulajdont felülírni vagy
+   elhagyni nem tudja. Így a `{user: userId}` injektálás EGY helyen él, és a
+   kihagyása nem egy külön végponton, hanem itt lenne javítható (l. a fenti
+   findOwnedList indoklását: a user-szűrő elhagyása MINDENKI adatát kiadná).
+
+   Miért nem csak "írd oda a {user}-t a hívásban": mert épp azt a néma hibát
+   akarjuk kizárni, hogy valaki egy jövőbeli keresés-/aggregáció-végponton
+   elfelejti. A readerScope.test.js forrás-szken őrzi, hogy a controllerek a kérőre
+   szűrnek; ezek a helperek azt STRUKTURÁLISSÁ teszik (nem lehet elfelejteni). */
+const existsOwned = (Model, userId, filter = {}) => Model.exists({...filter, user: userId});
+const countOwned = (Model, userId, filter = {}) => Model.countDocuments({...filter, user: userId});
+const findOneOwned = (Model, userId, filter = {}) => Model.findOne({...filter, user: userId});
+
+/* Aggregációhoz a $match-stage-et adjuk vissza (a pipeline többi lépését a hívó
+   fűzi hozzá) — a `user` itt is UTOLJÁRA kerül a szűrőbe. Az aggregate nem
+   csomagolható egyetlen helperbe (tetszőleges pipeline), de a KÉRŐRE SZŰKÍTÉST,
+   ami a szivárgás vektora, ez egy helyre teszi. */
+const ownedMatch = (userId, filter = {}) => ({$match: {...filter, user: userId}});
+
 /* Az egységes elutasító válasz. 403 (nem 404): a kérő hitelesített, csak ehhez
    az elemhez nincs joga — a nem létező elem is ezt kapja (l. fent). */
 const forbidden = (response) => response.status(403).json("Nincs jogosultságod.");
 
-module.exports = {findOwned, findOwnedList, forbidden};
+module.exports = {findOwned, findOwnedList, existsOwned, countOwned, findOneOwned, ownedMatch, forbidden};

@@ -1,6 +1,7 @@
 const router = require("express").Router();
 const Quotes = require("../../models/quotes");
 const serverError = require("../../serverError");
+const {ownedMatch} = require("../../ownership");
 const escapeRegex = require("./escapeRegex");
 
 /* Szerző-javaslatok a beírt prefixhez (autocomplete). A felhasználó szerzői, a
@@ -16,7 +17,7 @@ const escapeRegex = require("./escapeRegex");
 module.exports = router.post("/", (request, response) => {
     const prefix = typeof request.body.prefix === "string" ? request.body.prefix : "";
     Quotes.aggregate([
-        {$match: {user: request.userId, author: {$regex: "^" + escapeRegex(prefix), $options: "i", $ne: ""}}},
+        ownedMatch(request.userId, {author: {$regex: "^" + escapeRegex(prefix), $options: "i", $ne: ""}}),
         {$group: {_id: "$author", lastUsed: {$max: "$createdAt"}}},
         {$sort: {lastUsed: -1}},
         {$limit: 1},
