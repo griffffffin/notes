@@ -24,9 +24,12 @@
    alatt lefut. */
 const test = require("node:test");
 const assert = require("node:assert");
+const fs = require("node:fs");
+const path = require("node:path");
 const express = require("express");
 const request = require("supertest");
 const mongoose = require("mongoose");
+const {isModelFile} = require("../scripts/exportSections");
 const {userStub, sessionCookieFor} = require("./test/authStub");
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || "teszt-titok";
@@ -160,3 +163,61 @@ test("a korlát NEM ÉRINTI az OLVASÓ végpontokat (csak az írásra van kötve
     assert.notStrictEqual(read.status, 429,
         "a kimerített írás-keret után az OLVASÁS is 429 — a limiter általánosan, nem csak az írásra van bekötve");
 });
+
+/* ---- DERIVED WIRING: minden szekció írásai korlátozva (auto-felderítve) ----
+
+   A fenti tesztek a to-dón (és egy idézet-DELETE-en) MÉRIK a mechanizmust:
+   Retry-After, fiók-izoláció, olvasás-érintetlenség, a két vödör viszonya. Azok
+   viszont KÉZZEL nevezik meg a szekciókat — egy JÖVŐBELI szekció (film, jegyzet…)
+   írásai kimaradnának a kapuból, és korlátlanul floodolhatók lennének, némán.
+
+   Ez a blokk a szekció-listát a modellek exportName-jéből VESZI (az az URL-
+   szegmens, l. itemQuota.test.js), tehát egy új szekció írásai AUTOMATIKUSAN ide
+   esnek. Szekciónként FRISS fiók-azonosító, mert a korlát process-globális,
+   fiókra kulcsolt — külön fiók, külön vödör, nincs átszivárgás.
+
+   Szekciónként HÁROM tényt állítunk, épp a fenti to-do-specifikus tesztek
+   derived párját: (1) a create korlátozott (van 429), (2) az update ÉS a delete
+   UGYANABBÓL a kimerített vödörből eszik (közös írás-vödör), (3) a reorder KÜLÖN
+   vödör (a kimerített írás-keret nem fogja). */
+const MODELS_DIR = path.join(__dirname, "models");
+const sections = fs.readdirSync(MODELS_DIR).filter(isModelFile).sort()
+    .map((file) => require(path.join(MODELS_DIR, file)))
+    .filter((model) => typeof model.exportName === "string" && model.exportName.trim() !== "")
+    .map((model) => model.exportName);
+
+// Friss, valódi ObjectId minden szerephez — biztosan nem ütközik a fenti USER-ekkel.
+const freshId = () => new mongoose.Types.ObjectId().toString();
+
+test("van legalább két szekció (különben a derived hurok üresen zöldülne)", () => {
+    assert.ok(sections.length >= 2, `csak ${sections.length} szekciót találtam: ${sections.join(", ")}`);
+});
+
+for (const section of sections) {
+    test(`/${section}: create korlátozott, update+delete KÖZÖS vödörben, reorder KÜLÖN (derived)`, async () => {
+        // (1) A create fiók-vödre kimeríthető (előbb-utóbb 429).
+        const writer = freshId();
+        const writeStatuses = await untilBlocked(`/${section}/create`, writer, 200);
+        assert.ok(writeStatuses.includes(429),
+            `/${section}/create sosem adott 429-et — nincs writeRateLimit bekötve?`);
+
+        // (2) Ugyanaz a fiók: az update ÉS a delete is a kimerített vödörből eszik.
+        const update = await request(app).post(`/${section}/update`)
+            .set("Cookie", sessionCookieFor(writer)).send({});
+        assert.strictEqual(update.status, 429,
+            `/${section}/update nem a közös írás-vödörben van (kaptam ${update.status}) — külön vagy hiányzó limiter?`);
+        const remove = await request(app).post(`/${section}/delete`)
+            .set("Cookie", sessionCookieFor(writer)).send({});
+        assert.strictEqual(remove.status, 429,
+            `/${section}/delete nem a közös írás-vödörben van (kaptam ${remove.status}) — külön vagy hiányzó limiter?`);
+
+        // (3) A reorder KÜLÖN vödör: friss fiók írás-keretét kimerítve a húzás átmegy.
+        const dragger = freshId();
+        const draggerWrite = await untilBlocked(`/${section}/create`, dragger, 200);
+        assert.ok(draggerWrite.includes(429), `/${section}/create (dragger) nem merült ki — előfeltétel`);
+        const reorder = await request(app).post(`/${section}/reorder`)
+            .set("Cookie", sessionCookieFor(dragger)).send({});
+        assert.notStrictEqual(reorder.status, 429,
+            `/${section}/reorder a kimerített ÍRÁS-vödörből kapott 429-et — rossz (közös) vödörben van?`);
+    });
+}
