@@ -41,6 +41,7 @@ require.cache[userModelPath] = {
 };
 
 const auth = require("../../middleware/auth");
+const requireOwnership = require("../../middleware/requireOwnership");
 const create = require("./create");
 const deleteQuote = require("./delete");
 const reorder = require("./reorder");
@@ -49,10 +50,13 @@ const update = require("./update");
 const app = express();
 app.use(express.json());
 app.use(auth);
+// A tulajdon-ellenőrzés a route-lánc requireOwnership middleware-ébe költözött (a
+// controllerek a request.item-ből dolgoznak); a /create nem érintett (findOwned
+// helyett idempotens create). A Quotes a fentebb mockolt modell.
 app.use("/create", create);
-app.use("/delete", deleteQuote);
-app.use("/reorder", reorder);
-app.use("/update", update);
+app.use("/delete", requireOwnership(Quotes), deleteQuote);
+app.use("/reorder", requireOwnership(Quotes), reorder);
+app.use("/update", requireOwnership(Quotes), update);
 
 const token = sessionCookieFor(OWNER);
 const post = (path, body) => request(app).post(path).set("Cookie", token).send(body);

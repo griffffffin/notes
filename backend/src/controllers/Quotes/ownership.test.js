@@ -35,6 +35,8 @@ require.cache[userModelPath] = {
 };
 
 const auth = require("../../middleware/auth");
+const requireOwnership = require("../../middleware/requireOwnership");
+const Quotes = require("../../models/quotes");
 const readById = require("./readById");
 const readForEdit = require("./readForEdit");
 const update = require("./update");
@@ -45,13 +47,17 @@ const app = express();
 app.use(express.json());
 // A readById az auth ELŐTT: publikus (megosztott link). app.use (nem app.post):
 // a controller egy Router, amit mountolni kell, hogy a belső "/" illeszkedjen.
+// PUBLIKUS: NINCS requireOwnership (bárki olvashatja az idézetet az id-jával).
 app.use("/id", readById);
 app.use(auth);
-// A szerkesztő-betöltés (/edit) az auth MÖGÖTT: hitelesített, tulajdonos-ellenőrzött.
-app.use("/edit", readForEdit);
-app.use("/update", update);
-app.use("/delete", deleteQuote);
-app.use("/reorder", reorder);
+/* A tulajdon-ellenőrzés a route-lánc requireOwnership middleware-ébe költözött (a
+   controllerek a request.item-ből dolgoznak) — a teszt a valódi láncot tükrözi. A
+   Quotes itt a fent require.cache-be tett mock (findById-t ad). A /edit az auth
+   MÖGÖTT: hitelesített, tulajdonos-ellenőrzött. */
+app.use("/edit", requireOwnership(Quotes), readForEdit);
+app.use("/update", requireOwnership(Quotes), update);
+app.use("/delete", requireOwnership(Quotes), deleteQuote);
+app.use("/reorder", requireOwnership(Quotes), reorder);
 
 const editBody = {id: OWNER_QUOTE._id, quote: "Módosítva", author: "Anna", order: 1};
 

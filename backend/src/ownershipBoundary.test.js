@@ -96,6 +96,28 @@ describe("több-bérlős tulajdon: minden szekció idegent kizár (derived)", ()
             }
         });
 
+        it(`${base}/update: IDEGEN 403, tulajdonos NEM 403`, async () => {
+            /* Ezt a requireOwnership middleware-esítése tette derived-tesztelhetővé:
+               az őr a body-validáció ELŐTT áll, tehát az idegen kérése pusztán az
+               id-val 403-at kap. A tulajdonos ugyanezzel a törzs-nélküli kéréssel a
+               body-validátoron akad el (400) — ami épp azt bizonyítja, hogy az
+               ownership-őr ÁTENGEDTE (nem 403). */
+            const original = Model.findById;
+            Model.findById = async () => ownerItem();
+            try {
+                const stranger = await request(app).post(`${base}/update`)
+                    .set("Cookie", sessionCookieFor(STRANGER)).send({id: ITEM_ID});
+                assert.strictEqual(stranger.status, 403,
+                    `${base}/update idegennek nem 403 (hanem ${stranger.status}) — hiányzik a requireOwnership?`);
+                const owner = await request(app).post(`${base}/update`)
+                    .set("Cookie", sessionCookieFor(OWNER)).send({id: ITEM_ID});
+                assert.notStrictEqual(owner.status, 403,
+                    `${base}/update a TULAJDONOST is elutasította — a 403 feltétel nélküli?`);
+            } finally {
+                Model.findById = original;
+            }
+        });
+
         it(`${base} (lista): a lekérdezés a KÉRŐRE szűr (nem mindenki adatát adja)`, async () => {
             const original = Model.find;
             let captured = null;

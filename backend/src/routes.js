@@ -14,6 +14,10 @@ const rateLimit = require("./middleware/rateLimit");
 /* A fiókonkénti elem-kvóta a create elé kerül; a modell adja a keretét
    (Model.itemQuota), ezért a modellek kellenek a wiringhez. */
 const enforceItemQuota = require("./middleware/enforceItemQuota");
+/* A tulajdon-ellenőrzés (findOwned) middleware-ként, a per-elem végpontok elé — a
+   szabály a láncban látszik, egy helyen, és a bekötése derived-teszttel őrizhető
+   (l. requireOwnership.js, ownershipBoundary.test.js). */
+const requireOwnership = require("./middleware/requireOwnership");
 const Todos = require("./models/todos");
 const Quotes = require("./models/quotes");
 
@@ -254,16 +258,19 @@ todosRouter.use("/create", writeRateLimit, validateObjectId, enforceItemQuota(To
 
 todosRouter.use("/last/order", readLastOrder);
 todosRouter.use("/categories", todosReadCategory);
-todosRouter.use("/id", validateObjectId, todosReadById);
+todosRouter.use("/id", validateObjectId, requireOwnership(Todos), todosReadById);
 todosRouter.use("/category", validateCategoryFilter, todosReadByCategory);
 todosRouter.use("/color", validateColorFilter, todosReadByColor);
 
 // A módosításnak az id-ja ÉS a törzse is ellenőrzendő, a törlésnek csak az id-ja.
-todosRouter.use("/update", writeRateLimit, validateObjectId, validateTodoBody, serializePerUser, todosUpdate);
-todosRouter.use("/delete", writeRateLimit, validateObjectId, serializePerUser, todosDelete);
+/* A requireOwnership a serializePerUser MÖGÖTT (a betöltött elem — és a sorszáma —
+   a zár alatt, frissen), a body-validáció ELŐTT (nincs szüksége a törzsre, csak a
+   már ellenőrzött id-ra) — l. requireOwnership.js. */
+todosRouter.use("/update", writeRateLimit, validateObjectId, serializePerUser, requireOwnership(Todos), validateTodoBody, todosUpdate);
+todosRouter.use("/delete", writeRateLimit, validateObjectId, serializePerUser, requireOwnership(Todos), todosDelete);
 // Csak a sorszámot mozgatja (főoldali húzás) — a tartalomhoz nem nyúl. Külön,
 // LAZÁBB vödör (reorderRateLimit): a húzás burstös, de semmit nem növeszt.
-todosRouter.use("/reorder", reorderRateLimit, validateObjectId, validateOrderOnly, serializePerUser, todosReorder);
+todosRouter.use("/reorder", reorderRateLimit, validateObjectId, serializePerUser, requireOwnership(Todos), validateOrderOnly, todosReorder);
 
 // A to-do főlistája: POST /to-dos
 todosRouter.use(todosRead);
@@ -282,17 +289,17 @@ quotesRouter.use("/author", validateAuthorFilter, quotesReadByAuthor);
 /* A szerkesztő idézet-betöltése — auth MÖGÖTT, tulajdonos-ellenőrzéssel (l.
    readForEdit.js). A publikus /quotes/id (auth ELŐTT, fent) csak a megjelenítő
    mezőket adja; a sorszámot a szerkesztő ezen a hitelesített végponton kapja. */
-quotesRouter.use("/edit", validateObjectId, quotesReadForEdit);
+quotesRouter.use("/edit", validateObjectId, requireOwnership(Quotes), quotesReadForEdit);
 /* A keresés két végpontja. A /search-mode a beküldéskori MÓD-döntés (olcsó,
    lét-kérdések), a /search a szöveg-mód TÖMB-találata (a húzáshoz). A statikus
    nevek nem ütköznek egymással, sem a /author-ral. */
 quotesRouter.use("/search-mode", validateSearchTerm, quotesReadSearchMode);
 quotesRouter.use("/search", validateSearchTerm, quotesReadSearch);
 
-quotesRouter.use("/update", writeRateLimit, validateObjectId, validateQuoteBody, serializePerUser, quotesUpdate);
-quotesRouter.use("/delete", writeRateLimit, validateObjectId, serializePerUser, quotesDelete);
+quotesRouter.use("/update", writeRateLimit, validateObjectId, serializePerUser, requireOwnership(Quotes), validateQuoteBody, quotesUpdate);
+quotesRouter.use("/delete", writeRateLimit, validateObjectId, serializePerUser, requireOwnership(Quotes), quotesDelete);
 // Külön, lazább vödör, mint a to-do reorderé — ugyanaz a példány, egy fiók-vödör.
-quotesRouter.use("/reorder", reorderRateLimit, validateObjectId, validateOrderOnly, serializePerUser, quotesReorder);
+quotesRouter.use("/reorder", reorderRateLimit, validateObjectId, serializePerUser, requireOwnership(Quotes), validateOrderOnly, quotesReorder);
 
 // Az idézet-lista: POST /quotes
 quotesRouter.use(quotesRead);

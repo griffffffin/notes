@@ -88,6 +88,7 @@ for (const section of SECTIONS) {
 
 // A controllereket a mockok BEÁLLÍTÁSA UTÁN töltjük be — így a mockolt modellt látják.
 const auth = require("../middleware/auth");
+const requireOwnership = require("../middleware/requireOwnership");
 const controllers = {
     "to-do": {
         create: require("./Todos/create"),
@@ -103,12 +104,16 @@ const controllers = {
 
 const apps = {};
 for (const section of SECTIONS) {
+    // A fentebb require.cache-be tett mock modell; a tulajdon-ellenőrzés a
+    // requireOwnership middleware-ébe költözött (a controllerek a request.item-ből
+    // dolgoznak). A /create nem érintett.
+    const Model = require(section.modelPath);
     const app = express();
     app.use(express.json());
     app.use(auth);
     app.use("/create", controllers[section.name].create);
-    app.use("/update", controllers[section.name].update);
-    app.use("/reorder", controllers[section.name].reorder);
+    app.use("/update", requireOwnership(Model), controllers[section.name].update);
+    app.use("/reorder", requireOwnership(Model), controllers[section.name].reorder);
     apps[section.name] = app;
 }
 

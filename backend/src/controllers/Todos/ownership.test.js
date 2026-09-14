@@ -46,6 +46,8 @@ require.cache[userModelPath] = {
 };
 
 const auth = require("../../middleware/auth");
+const requireOwnership = require("../../middleware/requireOwnership");
+const Todos = require("../../models/todos");
 const readById = require("./readById");
 const deleteTodo = require("./delete");
 const reorder = require("./reorder");
@@ -53,9 +55,12 @@ const reorder = require("./reorder");
 const app = express();
 app.use(express.json());
 app.use(auth);
-app.use("/id", readById);
-app.use("/delete", deleteTodo);
-app.use("/reorder", reorder);
+/* A tulajdon-ellenőrzés a route-lánc requireOwnership middleware-ébe költözött (a
+   controllerek a request.item-ből dolgoznak) — a teszt a valódi láncot tükrözi.
+   A Todos itt a fent require.cache-be tett mock (findById-t ad). */
+app.use("/id", requireOwnership(Todos), readById);
+app.use("/delete", requireOwnership(Todos), deleteTodo);
+app.use("/reorder", requireOwnership(Todos), reorder);
 
 
 test("a tulajdonos elolvashatja a saját listáját", async () => {

@@ -1,36 +1,31 @@
 const router = require("express").Router();
 const Quotes = require("../../models/quotes");
 const serverError = require("../../serverError");
-const {findOwned, forbidden} = require("../../ownership");
 const {shiftForMove, undoShiftForMove} = require("../../ordering");
 const {shiftThenWrite} = require("../orderedWrite");
 
 /* Idézet szerkesztése. A tartalom (idézet, szerző, betűméret) mellett a sorszám
    is változhat — ilyenkor a reorderrel AZONOS eltolást végezzük a szomszédokon
-   (közös ordering modul). Csak a sajátodat módosíthatod. */
+   (közös ordering modul). A TULAJDON-ellenőrzést a route-lánc requireOwnership
+   middleware-e végezte (a saját elem a request.item-en). */
 module.exports = router.post("/", (request, response) => {
+    const quote = request.item;
     const id = request.body.id;
-    findOwned(Quotes, id, request.userId)
-        .then((quote) => {
-            if (!quote) return forbidden(response);
+    const order = request.body.order;
+    const save = () => Quotes.findByIdAndUpdate(
+        id,
+        {quote: request.body.quote, author: request.body.author, order: order,
+            fontSize: request.body.fontSize, updatedAt: new Date()},
+        {runValidators: true},
+    ).then(() => response.json("Idézet frissítve."));
 
-            const order = request.body.order;
-            const save = () => Quotes.findByIdAndUpdate(
-                id,
-                {quote: request.body.quote, author: request.body.author, order: order,
-                    fontSize: request.body.fontSize, updatedAt: new Date()},
-                {runValidators: true},
-            ).then(() => response.json("Idézet frissítve."));
-
-            // Változatlan sorszámnál a shiftForMove magától nem tol el senkit,
-            // tehát nem kell külön ág — a mentés utána ugyanúgy fut.
-            /* Ha a mentés bukik el az eltolás UTÁN, a szomszédok visszakerülnek —
-               enélkül ütközés vagy hézag maradna a listában (l. orderedWrite.js). */
-            return shiftThenWrite({
-                shift: () => shiftForMove(Quotes, request.userId, quote.order, order),
-                write: save,
-                undo: () => undoShiftForMove(Quotes, request.userId, quote.order, order, id),
-            });
-        })
-        .catch((error) => serverError(response, error, "Quotes.update"));
+    // Változatlan sorszámnál a shiftForMove magától nem tol el senkit, tehát nem
+    // kell külön ág — a mentés utána ugyanúgy fut.
+    /* Ha a mentés bukik el az eltolás UTÁN, a szomszédok visszakerülnek — enélkül
+       ütközés vagy hézag maradna a listában (l. orderedWrite.js). */
+    return shiftThenWrite({
+        shift: () => shiftForMove(Quotes, request.userId, quote.order, order),
+        write: save,
+        undo: () => undoShiftForMove(Quotes, request.userId, quote.order, order, id),
+    }).catch((error) => serverError(response, error, "Quotes.update"));
 });
