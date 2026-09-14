@@ -11,6 +11,11 @@ const {validateQuoteBody, validateAuthorFilter, validateSearchTerm,
 const validateCredentials = require("./middleware/validateCredentials");
 const validateClientError = require("./middleware/validateClientError");
 const rateLimit = require("./middleware/rateLimit");
+/* A fiókonkénti elem-kvóta a create elé kerül; a modell adja a keretét
+   (Model.itemQuota), ezért a modellek kellenek a wiringhez. */
+const enforceItemQuota = require("./middleware/enforceItemQuota");
+const Todos = require("./models/todos");
+const Quotes = require("./models/quotes");
 
 const usersCreate = require("./controllers/Users/create");
 const usersLogin = require("./controllers/Users/login");
@@ -245,7 +250,7 @@ const todosRouter = require("express").Router();
    Ezért ugyanaz a két őr áll előtte, mint a módosítás előtt: az azonosító alakja,
    majd a törzs. A hiányzó azonosító VALIDÁCIÓS HIBA, nem csendes visszaesés a
    szerver-generálásra: a kétoldali kötést jobb kimondani, mint feltételezni. */
-todosRouter.use("/create", writeRateLimit, validateObjectId, validateTodoBody, serializePerUser, todosCreate);
+todosRouter.use("/create", writeRateLimit, validateObjectId, enforceItemQuota(Todos), validateTodoBody, serializePerUser, todosCreate);
 
 todosRouter.use("/last/order", readLastOrder);
 todosRouter.use("/categories", todosReadCategory);
@@ -270,7 +275,7 @@ router.use("/to-dos", todosRouter);
    Szimmetrikus a /to-dos-val, csak vékonyabb (nincs szín, sorszám-lekérdezés). */
 const quotesRouter = require("express").Router();
 
-quotesRouter.use("/create", writeRateLimit, validateObjectId, validateQuoteBody, serializePerUser, quotesCreate);
+quotesRouter.use("/create", writeRateLimit, validateObjectId, enforceItemQuota(Quotes), validateQuoteBody, serializePerUser, quotesCreate);
 quotesRouter.use("/last/order", quotesReadLastOrder);
 quotesRouter.use("/authors", validateAuthorPrefix, quotesReadAuthors);
 quotesRouter.use("/author", validateAuthorFilter, quotesReadByAuthor);

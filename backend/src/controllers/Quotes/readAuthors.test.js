@@ -20,6 +20,12 @@ let lastPipeline = null;
 require.cache[modelPath] = {
     id: modelPath, filename: modelPath, loaded: true,
     exports: {
+        /* A routes.js a betöltésekor `enforceItemQuota(Quotes)`-t hív, ami a
+           modell pozitív egész itemQuota-ját kéri (különben induláskor elszáll).
+           A /quotes/authors OLVASÓ végpont, a kvóta-őr nem fut rajta, tehát az
+           ÉRTÉK itt lényegtelen — csak legyen érvényes, hogy a valódi router
+           betöltődjön (mint az igazi modellben, l. models/quotes.js). */
+        itemQuota: 500000,
         aggregate: (pipeline) => {
             lastPipeline = pipeline;
             return Promise.resolve([{_id: "Márai"}, {_id: "Mátyás"}]);

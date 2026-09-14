@@ -71,4 +71,12 @@ const Users = mongoose.model("Users", new Schema({
    maradhat "véletlenül" kimondatlan. */
 Users.exportName = null;
 
+/* NINCS elem-kvóta — kimondott `null`, nem hiányzó nyilatkozat. A kvóta a
+   FELHASZNÁLÓI TARTALOM szekcióira való (to-do, idézet…); a felhasználói fiók nem
+   ilyen, a létrehozását a /user/create saját rate limitje fogja (routes.js). A
+   `null` itt ugyanaz a „VÉGIGGONDOLTUK", mint az exportName-nél: a gate
+   (itemQuota.test.js) a nyilatkozat nélküli modellt hibának veszi, tehát egy
+   jövőbeli, szintén kvóta-nélküli modell sem maradhat kimondatlan. */
+Users.itemQuota = null;
+
 module.exports = Users;

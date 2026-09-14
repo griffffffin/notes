@@ -110,4 +110,21 @@ const Todos = mongoose.model("Todos", todoSchema);
    örökre ott maradnának. */
 Todos.exportName = "to-dos";
 
+/* FIÓKONKÉNTI ELEM-KVÓTA (l. middleware/enforceItemQuota.js): egy fiók ennyi
+   to-dónál többet nem hozhat létre. Ez ABSZOLÚT felső korlát — a rate limit a
+   SEBESSÉGET fogja, ez a VÉGÖSSZEGET (lassú, kitartó tárhely-feltöltés ellen).
+
+   MIÉRT SZEKCIÓNKÉNT DEKLARÁLT, NEM EGYSÉGES: a szekciók természete eltér (a
+   Notes tíz évek alatt is nőhet, egy zene-szekció töredék marad), ezért mindegyik
+   a SAJÁTJÁT mondja meg — az egységes szám itt hiba volna. A nyilatkozat nélküli
+   szekció-modell HIBA (gate: itemQuota.test.js), pont mint az exportName-nél: új
+   szekció nem maradhat ki némán.
+
+   A SZÁM nagyvonalú: ~500k elem ~50 évnyi nagyon aktív használat fölött van, a
+   maximum is csak ~1–2 GB (a lemezhez képest semmi). Sose érinti a valódi
+   használatot; egy ellopott token abúzusát viszont megfogja. KÉSŐBB EMELHETŐ: ezt
+   a konstanst átírni + redeploy elég, migráció nincs (az emelés csak több elemet
+   enged be, meglévőt nem sért). */
+Todos.itemQuota = 500000;
+
 module.exports = Todos;

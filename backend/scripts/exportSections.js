@@ -149,4 +149,7 @@ function discoverSections(directory = MODELS_DIR) {
     return sectionsFrom(files.map((file) => [file, require(path.join(directory, file))]));
 }
 
-module.exports = {discoverSections, sectionsFrom};
+/* Az isModelFile-t az elem-kvóta gate-je (src/itemQuota.test.js) is használja:
+   a "mi számít modellfájlnak" szűrő EGY helyen éljen, ne két, csendben elcsúszó
+   másolatban (CLAUDE.md, kézzel szinkronizált másolat). */
+module.exports = {discoverSections, sectionsFrom, isModelFile};

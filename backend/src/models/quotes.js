@@ -79,4 +79,9 @@ const Quotes = mongoose.model("Quotes", quoteSchema);
 // Nyilatkozat a napi exportnak — a fájlnév-előtag jelentése a todos.js-ben.
 Quotes.exportName = "quotes";
 
+// Fiókonkénti elem-kvóta — az indoklás és a nagyságrend a todos.js-ben. Az
+// idézetek accumuláló szöveges tartalom, ezért a to-dóéval azonos, nagyvonalú
+// keret; ha egy szekció töredék marad (pl. zene), az kisebbet deklarál.
+Quotes.itemQuota = 500000;
+
 module.exports = Quotes;
