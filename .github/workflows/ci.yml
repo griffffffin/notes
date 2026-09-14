@@ -35,6 +35,16 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci                 # tiszta, lockfile-hű telepítés (nem "install")
+      # SUPPLY-CHAIN KAPU: a függőségek ismert sebezhetőségeit a lockfile alapján
+      # nézi. A `moderate` küszöb a KRITIKUS+MAGAS+KÖZEPES besorolást blokkolja
+      # (exit 1) — ide esnek a valódi web-sebezhetőségek (ReDoS, prototype
+      # pollution, futásidejű XSS); a `low` sáv (jellemzően informatív, nem
+      # javítható tranzitív zaj) nem borítja pirosra a CI-t. Ma 0 sebezhetőség
+      # (l. [[jsdom-undici-audit-backlog]]). ⚠ Ha egy jövőbeli közepes advisory
+      # DEV-only depben (vite/vitest — nem kerül az éles buildbe) fix nélkül
+      # blokkol, ott kezeljük (dep-bump vagy `--omit=dev`). A `npm ci` a
+      # lockfile-hoz nyúl, az audit is — a kettő ugyanazt a fát látja.
+      - run: npm audit --audit-level=moderate
       - run: npm run lint           # oxlint — hibára bukik, a meglévő warningokra nem
       # A TÍPUS-TUDATOS RÉTEG. Külön lépés, mert külön motort hív
       # (oxlint-tsgolint): ez már nem a szintaxist nézi, hanem a típusokat —
@@ -63,6 +73,8 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
+      # SUPPLY-CHAIN KAPU — ugyanaz, mint a frontendnél (moderate küszöb, lockfile-hű).
+      - run: npm audit --audit-level=moderate
       - run: npm run lint           # oxlint — saját szabálykészlet, l. backend/.oxlintrc.json
       - run: npm run knip
       # node --test: a tesztek saját Express appot építenek és a Mongoose-modelleket
