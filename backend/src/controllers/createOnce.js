@@ -36,6 +36,8 @@
    rendezés és a húzás is ebből dolgozik. A visszavétel maga is elbukhat — akkor
    marad az ütközés, de ennél többet tranzakció nélkül nem tehetünk. */
 
+const {findOwned} = require("../ownership");
+
 const DUPLICATE_KEY = 11000;
 
 /**
@@ -54,10 +56,13 @@ async function createOnce({Model, userId, order, document, shift}) {
         saved = await new Model(document).save();
     } catch (error) {
         if (error?.code !== DUPLICATE_KEY) throw error;
-        /* Ugyanaz a kérés másodszor? Csak akkor, ha a meglévő elem a MIÉNK. A
-           tulajdonost a tokenből vett userId adja, nem a kérés törzse. */
-        const existing = await Model.findById(document._id);
-        if (existing && String(existing.user) === String(userId)) return false;
+        /* Ugyanaz a kérés másodszor? Csak akkor, ha a meglévő elem a MIÉNK — a
+           tulajdon-ellenőrzést a KÖZÖS findOwned végzi (ownership.js), nem egy itt
+           megismételt user-hasonlítás. A tulajdonost a tokenből vett userId adja,
+           nem a kérés törzse. Ha az elem a miénk, findOwned visszaadja; idegen VAGY
+           nem létező azonosítóra null — ilyenkor az eredeti duplikált-kulcs hibát
+           dobjuk tovább, és nem áruljuk el, hogy az azonosító létezik. */
+        if (await findOwned(Model, document._id, userId)) return false;
         throw error;
     }
     /* AZ ELTOLÁS A MENTETT dokumentum azonosítóját kapja, nem a bemenetit. A kettő
