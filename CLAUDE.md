@@ -174,6 +174,17 @@ elmaradt átvezetés.
   épül (betöltési sorrend, verziófüggő viselkedés, DOM-sorrend), tedd
   explicitté — konkrét érték + rövid komment a kényszerről. (Tanulság: a régi
   kód CSS-sorrend- és z-index-döntetlenekre épített, amik némán elromlottak.)
+- **Ne az egyszerűség vezérelje az AJÁNLÁST a helyesség rovására.** Amikor két
+  megoldás közül az egyszerűbb egyben a gyengébb is (kevésbé pontos, lazább,
+  kevésbé karbantartható, összemos külön természetű eseteket), a HELYESEBBET
+  ajánld. Az egyszerűbbet csak KIMONDOTT kompromisszumként, az árával együtt add
+  elő — sosem az alapértelmezett javaslatként. A mérleg KIMONDÁSA a dolgom, nem az
+  egyszerű felé billentése; a felhasználó dönthet az egyszerűbb mellett, de a
+  javaslat ne rejtse el a helyesebb opciót. (Tanulság, 2026-09-14: az
+  írás-védelem méretezésénél kétszer egymás után a gyengébbet ajánlottam „az
+  egyszerűség kedvéért" — egy közös rate-limit-vödröt a művelet-természethez
+  szabott kettő helyett, majd egy per-account kvótát a per-section helyett; mind
+  a kettőt a felhasználó javította.)
 - **Az `as` NEM ellenőrzés.** A TypeScript `as` (és a `querySelector<T>`-stílusú
   típusparaméter, meg a `!` non-null jel) nem vizsgál semmit: közli a fordítóval,
   hogy higgyen nekünk. Ha az érték mégis más alakú, senki nem szól — vagyis egy
