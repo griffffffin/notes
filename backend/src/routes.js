@@ -182,6 +182,53 @@ router.use("/drafts/key", draftsKey);
    (pl. /quotes) ütközés nélkül kapják a saját "create", "id", "update"
    végpontjaikat. A user- és auth-útvonalak (login, refresh) szekciótól
    függetlenek, ezért fentebb NEM kerülnek prefix alá. */
+/* AZ ÍRÁS-MŰVELETEK FIÓK-ALAPÚ KÉRÉS-KORLÁTOZÁSA — két vödör, a művelet
+   természetéhez szabva.
+
+   MIÉRT FIÓK (userId), NEM IP. Ezek a végpontok az `auth` MÖGÖTT állnak (l.
+   fentebb, router.use(auth)), tehát a hívót a tokenből ismerjük, és a
+   request.userId garantáltan beállított. Amit itt fékezünk, az egy (akár
+   ellopott) TOKEN teljes írás-mennyisége — azt a fiók kulcsolja pontosan. Az IP
+   itt rossz kulcs volna: egy megosztott kijáraton (egyetem, iroda) sok jogos
+   fiók egy vödörbe esne, egy botnet viszont IP-nként szétosztva megkerülné. A
+   serializePerUser a PÁRHUZAMOSSÁGOT már fogja (fiókonként egy írás fut); ez a
+   MENNYISÉGET.
+
+   MIÉRT KÉT VÖDÖR. A négy írás-művelet nem egyforma kockázatú:
+
+     - a `reorder` a legburstösebb JOGOS művelet (a főoldali húzás), viszont a
+       legártalmatlanabb: MEGLÉVŐ elemek sorrendjét cseréli, semmit nem NÖVESZT,
+       és a legolcsóbb. Mérve (frontend useSortableCards.ts): egy húzás PONTOSAN
+       egy kérés — a köztes „átlépések" lokálisak, csak az `onDragEnd` megy ki.
+       Emberi tempó ~40 húzás/perc a felső széle; a 180-as keret ennek ~4×-e,
+       tehát a jogos használatot sosem érinti.
+
+     - a `create`/`update`/`delete` a tárhely- és erőforrás-vektor (a `create`
+       az egyetlen, ami NÖVESZTI a tárat). Ezek emberi tempójúak: az autosave is
+       csak 10 perc TÉTLENSÉG után fut (l. frontend idle.ts), nem gépelés közben.
+       A kombinált csúcs ~40/perc körül van; a 90-es, SZOROSABB keret ~2×-e.
+
+   A HÁROM ÍRÁS EGY KÖZÖS VÖDÖRBEN (egy limiter-példány mind a hat route-on,
+   to-do ÉS idézet), mert az erőforrás-nyomás a TELJES írás-mennyiséggel arányos,
+   nem szekciónként külön. A reorder külön példány.
+
+   AMIT EZ NEM FOG: a LASSÚ, kitartó feltöltést (90/perc órákon át). Arra a helyes
+   eszköz egy fiókonkénti elem-darabszám-KVÓTA — külön mechanizmus, külön menetben
+   (per-section, modell-deklarált plafon). A kettő két külön tengely: ez a
+   SEBESSÉGET, a kvóta a VÉGÖSSZEGET fogja. */
+const writeRateLimit = rateLimit({
+    windowMs: 60 * 1000,
+    max: 90,
+    message: "Túl sok írási művelet rövid idő alatt. Próbáld újra kicsit később.",
+    keyOf: (request) => request.userId,
+});
+const reorderRateLimit = rateLimit({
+    windowMs: 60 * 1000,
+    max: 180,
+    message: "Túl sok átrendezés rövid idő alatt. Próbáld újra kicsit később.",
+    keyOf: (request) => request.userId,
+});
+
 const todosRouter = require("express").Router();
 
 /* A SORSZÁMOT MOZGATÓ VÉGPONTOK SOROSÍTVA, felhasználónként. Négyen vannak
@@ -198,7 +245,7 @@ const todosRouter = require("express").Router();
    Ezért ugyanaz a két őr áll előtte, mint a módosítás előtt: az azonosító alakja,
    majd a törzs. A hiányzó azonosító VALIDÁCIÓS HIBA, nem csendes visszaesés a
    szerver-generálásra: a kétoldali kötést jobb kimondani, mint feltételezni. */
-todosRouter.use("/create", validateObjectId, validateTodoBody, serializePerUser, todosCreate);
+todosRouter.use("/create", writeRateLimit, validateObjectId, validateTodoBody, serializePerUser, todosCreate);
 
 todosRouter.use("/last/order", readLastOrder);
 todosRouter.use("/categories", todosReadCategory);
@@ -207,10 +254,11 @@ todosRouter.use("/category", validateCategoryFilter, todosReadByCategory);
 todosRouter.use("/color", validateColorFilter, todosReadByColor);
 
 // A módosításnak az id-ja ÉS a törzse is ellenőrzendő, a törlésnek csak az id-ja.
-todosRouter.use("/update", validateObjectId, validateTodoBody, serializePerUser, todosUpdate);
-todosRouter.use("/delete", validateObjectId, serializePerUser, todosDelete);
-// Csak a sorszámot mozgatja (főoldali húzás) — a tartalomhoz nem nyúl.
-todosRouter.use("/reorder", validateObjectId, validateOrderOnly, serializePerUser, todosReorder);
+todosRouter.use("/update", writeRateLimit, validateObjectId, validateTodoBody, serializePerUser, todosUpdate);
+todosRouter.use("/delete", writeRateLimit, validateObjectId, serializePerUser, todosDelete);
+// Csak a sorszámot mozgatja (főoldali húzás) — a tartalomhoz nem nyúl. Külön,
+// LAZÁBB vödör (reorderRateLimit): a húzás burstös, de semmit nem növeszt.
+todosRouter.use("/reorder", reorderRateLimit, validateObjectId, validateOrderOnly, serializePerUser, todosReorder);
 
 // A to-do főlistája: POST /to-dos
 todosRouter.use(todosRead);
@@ -222,7 +270,7 @@ router.use("/to-dos", todosRouter);
    Szimmetrikus a /to-dos-val, csak vékonyabb (nincs szín, sorszám-lekérdezés). */
 const quotesRouter = require("express").Router();
 
-quotesRouter.use("/create", validateObjectId, validateQuoteBody, serializePerUser, quotesCreate);
+quotesRouter.use("/create", writeRateLimit, validateObjectId, validateQuoteBody, serializePerUser, quotesCreate);
 quotesRouter.use("/last/order", quotesReadLastOrder);
 quotesRouter.use("/authors", validateAuthorPrefix, quotesReadAuthors);
 quotesRouter.use("/author", validateAuthorFilter, quotesReadByAuthor);
@@ -236,9 +284,10 @@ quotesRouter.use("/edit", validateObjectId, quotesReadForEdit);
 quotesRouter.use("/search-mode", validateSearchTerm, quotesReadSearchMode);
 quotesRouter.use("/search", validateSearchTerm, quotesReadSearch);
 
-quotesRouter.use("/update", validateObjectId, validateQuoteBody, serializePerUser, quotesUpdate);
-quotesRouter.use("/delete", validateObjectId, serializePerUser, quotesDelete);
-quotesRouter.use("/reorder", validateObjectId, validateOrderOnly, serializePerUser, quotesReorder);
+quotesRouter.use("/update", writeRateLimit, validateObjectId, validateQuoteBody, serializePerUser, quotesUpdate);
+quotesRouter.use("/delete", writeRateLimit, validateObjectId, serializePerUser, quotesDelete);
+// Külön, lazább vödör, mint a to-do reorderé — ugyanaz a példány, egy fiók-vödör.
+quotesRouter.use("/reorder", reorderRateLimit, validateObjectId, validateOrderOnly, serializePerUser, quotesReorder);
 
 // Az idézet-lista: POST /quotes
 quotesRouter.use(quotesRead);
