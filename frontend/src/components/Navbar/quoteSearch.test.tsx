@@ -123,7 +123,11 @@ describe("QuoteSearch — a keresés nem indult el", () => {
 
         await userEvent.type(screen.getByPlaceholderText("Keresés..."), "Márai{Enter}");
 
-        expect(await screen.findByText(MESSAGE)).toBeVisible();
+        // A buborék (AnchoredTooltip → react-tooltip) a láthatóságot a szöveg
+        // megjelenése UTÁN, aszinkron kapcsolja rá (tooltipRegistry); a pillanatnyi
+        // findByText(...).toBeVisible() ezért CI-terhelés alatt elcsúszik. A settled,
+        // LÁTHATÓ állapotot várjuk ki, mint a testvér validationTooltip.test.tsx.
+        await waitFor(() => expect(screen.getByText(MESSAGE)).toBeVisible());
         expect(navigate).not.toHaveBeenCalled();
     });
 
@@ -136,7 +140,11 @@ describe("QuoteSearch — a keresés nem indult el", () => {
 
         await userEvent.type(screen.getByPlaceholderText("Keresés..."), "Márai{Enter}");
 
-        expect(await screen.findByText(MESSAGE)).toBeVisible();
+        // A buborék (AnchoredTooltip → react-tooltip) a láthatóságot a szöveg
+        // megjelenése UTÁN, aszinkron kapcsolja rá (tooltipRegistry); a pillanatnyi
+        // findByText(...).toBeVisible() ezért CI-terhelés alatt elcsúszik. A settled,
+        // LÁTHATÓ állapotot várjuk ki, mint a testvér validationTooltip.test.tsx.
+        await waitFor(() => expect(screen.getByText(MESSAGE)).toBeVisible());
         expect(navigate).not.toHaveBeenCalled();
     });
 
