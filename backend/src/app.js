@@ -12,6 +12,7 @@ const serverError = require("./serverError");
 const {logInfo, logError} = require("./log");
 const csp = require("./csp");
 const noStore = require("./middleware/noStore");
+const notFound = require("./middleware/notFound");
 const sameOrigin = require("./middleware/sameOrigin");
 const {permissionsPolicy} = require("./middleware/permissionsPolicy");
 
@@ -145,6 +146,13 @@ if (hasDist) app.get("/*splat", (request, response) =>
     response.sendFile(path.join(dist, "index.html")));
 
 app.use(routes);
+
+/* Illeszkedés nélküli kérés: egységes, szűkszavú 404 — a keret beépített, az
+   utat visszatükröző és az Express-t eláruló 404-e HELYETT (l. notFound.js). A
+   route-ok UTÁN (hogy csak a valóban illeszkedés nélküli kérés jusson ide), de a
+   hibakezelő ELŐTT (az a dobott hibáké, nem a nem-létező útvonalé). A sorrendet a
+   notFound.test.js forrásból is őrzi. */
+app.use(notFound);
 
 /* Végső háló minden VÁRATLAN hibára: ha egy útvonalon kicsúszik valami (dobott
    kivétel vagy elutasított promise — az Express 5 mindkettőt ide irányítja),
