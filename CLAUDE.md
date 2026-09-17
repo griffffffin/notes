@@ -217,6 +217,33 @@ elmaradt átvezetés.
   (`useState<AccentOverride | null>(null)`). A fordító különben a kezdőértékből
   következtet, és a változót örökre `null`-ra szűkíti. Ez hangos hiba (az első
   értékadás elhasal), de a szabály elébe megy.
+- **NE SEGÍTS A TÁMADÓNAK — a minimális felfedés elve (least disclosure).** A
+  szolgáltatás egy kívülálló szemszögéből ELLENSÉGES felület: mindent, ami kimegy
+  rajta (hibaüzenet, státuszkód, fejléc, válaszidő, a válasz PUSZTA LÉTE), egy
+  támadó információként olvas. Az alapállás ezért: adjunk ki pontosan annyit,
+  amennyi a JOGOS használathoz kell, és semmivel se többet — még akkor sem, ha a
+  „többet" kimondása kényelmesebb vagy beszédesebb. A kérdés minden kimenő adatnál
+  ez: *mit tanul ebből valaki, aki ellenünk dolgozik, és tényleg meg kell-e ezt
+  tudnia?* Konkrét formái, mind ÉLES gyakorlat itt:
+  - **Hiba: a részlet a naplóba, a kliensnek általános üzenet.** Séma-mezőnév,
+    ORM-név, verzió, stack trace, kapcsolati URI — ezek térkép a támadónak, a
+    felhasználónak semmit nem mondanak (`serverError.js`; a forrás-map `.map`-kérés
+    404, `app.js`).
+  - **Ne szivárogtass LÉTEZÉST/FELSOROLÁST.** Azonos üzenet+státusz ismeretlen
+    névre és rossz jelszóra, hangolt válaszidővel (álca-hash, `login.js`);
+    „nincs ilyen elem" és „van, de nem a tiéd" ugyanaz a 403 (`ownership.js`); a
+    rate-limit válasza sem árulja el, létezik-e a fiók (`routes.js`).
+  - **A kimenő csatornák konkrét szabályai a 7–9. pontban** (válasz-whitelist,
+    napló-injekció, a napló-tartalom redakciója) — azok ENNEK az elvnek a példái.
+  - **A hallgatás is felület.** Egy verbózus keretrendszer-alapértelmezés (pl. a
+    beépített 404 „Cannot POST …", ami ujjlenyomatot ad és visszatükrözi az utat),
+    egy fejléc, egy időzítés-különbség — mind felfed valamit anélkül, hogy szántuk
+    volna. A hiányzó szándékos válasz helyére a keret sajátja lép: azt is nézd.
+  ⚠ Ez az elv EGYENSÚLYOZ, nem tilt: a hibának a MI oldalunkon (napló) továbbra is
+  teljesnek kell lennie (a stack megőrzése kontroll, l. 8. pont), és a
+  monitorozásnak/mentésnek járó adat kimehet — a felfedést a KÍVÜLÁLLÓ felé
+  minimalizáljuk, nem magunk elől. (Elv rögzítve 2026-09-17, a felhasználó
+  megfigyeléséből: „a bot ellenünk van, minek segítünk neki".)
 - **A NÉMÁN ELROMLÓ MINTÁK — ellenőrizendők, valahányszor a kód ilyet érint.**
   Ezek nem elméleti kockázatok: mindegyik előfordult már itt, vagy egy audit
   találta meg. Közös bennük, hogy semmi nem hibázik — csak az eredmény rossz.
