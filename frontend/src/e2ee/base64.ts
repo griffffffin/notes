@@ -1,5 +1,5 @@
 /* BASE64 a böngésző btoa/atob-jával, DARABOLVA — a bájt↔szöveg átalakítás egy helyen az
-   e2ee-modulokhoz (aead.ts).
+   e2ee-modulokhoz (aead.ts, masterKeySession.ts).
 
    A DARABOLÁS NEM ÓVATOSKODÁS: a `String.fromCharCode(...bytes)` a tömb MINDEN bájtját
    külön argumentumként adná át, és a JS-motorok argumentum-száma véges — egy nagyobb

@@ -102,7 +102,33 @@ export type Id = v.InferOutput<typeof idSchema>;
    A NÉV nem díszítés: ez az EGYETLEN adat, amit a munkamenetről tudunk, és a
    szerver szándékosan csak ennyit ad (a fiók-dokumentum jelszó-hasht és
    piszkozat-kulcsot is tartalmaz). */
-export const sessionSchema = v.object({name: v.pipe(v.string(), v.nonEmpty())});
+/* AZ E2EE-BEIRATKOZÁS, ahogy a szerver visszaadja (POST /login, /me) — a végpontok
+   közötti titkosítás feloldásához. NEM titok: a `wrappedMk` a jelszóból származtatott
+   kulccsal becsomagolt mesterkulcs (kulcs nélkül értelmezhetetlen), a `kdfSalt` és a
+   `kdf` a kliens KDF-jének sója és paraméterei, hogy a beírt jelszóból UGYANAZT a kulcsot
+   számolja (l. masterKeySession.ts). A szerver ezt a szerkezeti mezőt CSAK beiratkozott
+   fióknál küldi, ezért a sessionSchema-ban `optional` — régi (E2EE előtti) fióknál hiányzik.
+
+   Az `algorithm` `literal("argon2id")`: ma ez az egyetlen támogatott KDF (a kliens
+   masterKey.ts-e is erre szűkít). A memória/iteráció/
+   párhuzamosság CSAK `number`, nem üzleti tartomány — a HATÁRT őrizzük (számot kapunk-e),
+   a tartomány-korlát a backend enrollment-validátoráé. */
+const enrollmentSchema = v.object({
+    wrappedMk: v.pipe(v.string(), v.nonEmpty()),
+    kdfSalt: v.pipe(v.string(), v.nonEmpty()),
+    kdf: v.object({
+        algorithm: v.literal("argon2id"),
+        memorySize: v.number(),
+        iterations: v.number(),
+        parallelism: v.number(),
+    }),
+});
+export type Enrollment = v.InferOutput<typeof enrollmentSchema>;
+
+export const sessionSchema = v.object({
+    name: v.pipe(v.string(), v.nonEmpty()),
+    enrollment: v.optional(enrollmentSchema),
+});
 export type Session = v.InferOutput<typeof sessionSchema>;
 
 /* A PISZKOZAT-TITKOSÍTÁS KULCSA (POST /drafts/key) — 32 véletlen bájt base64-ben.
