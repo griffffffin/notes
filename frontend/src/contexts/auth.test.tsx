@@ -833,4 +833,29 @@ describe("Kijelentkezés: visszavonás a szerveren, majd teljes újratöltés", 
            visszahozná a bejelentkezett appot, magyarázat nélkül. */
         await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("false"));
     });
+
+    it("a /logout 401-je SIKER: nem jelez hibát, hanem újratölt", async () => {
+        /* EZ A HIBAÁG MÁSIK FELE, és pont a fordítottja az előző tesztnek. A
+           /logout az `auth` MÖGÖTT van (backend/src/routes.js): 401-et akkor ad,
+           ha a token MÁR érvénytelen — lejárt (a tétlenségi kilépés a token
+           élettartamának határán fut), vagy egy másik lapon/kérésen már
+           visszavonták a munkamenetet (tokenVersion-eltérés, middleware/auth.js).
+           Ilyenkor NINCS mit visszavonni: a munkamenet elmúlt, a kijelentkezés
+           eredménye megvan. Hibaként mutatni — és az „Újra" gombbal ismételtetni,
+           ami MEGINT 401-et adna — beragadó, hazug állapot volna. Ezért a 401-et a
+           sikerággal AZONOSAN kezeljük: újratöltünk, és nem gyújtjuk ki a jelzést.
+           (Ugyanaz a szabály, amit az app mindenütt követ: 401 = a munkamenet
+           elmúlt — l. a fenti /me- és handleAxios-teszteket.) */
+        postSpy().mockImplementation((url) => isEndpoint(url, ENDPOINTS.logout)
+            ? Promise.reject(unauthorized())
+            : Promise.resolve(axiosResponse(SESSION)));
+
+        await loginThenLogout();
+
+        await waitFor(() => { expect(logoutCalls()).toHaveLength(1); });
+        await waitFor(() => { expect(vi.mocked(reloadToRoot)).toHaveBeenCalled(); });
+        expect(screen.getByTestId("kilepes-bukott"),
+            "a 401 a munkamenet megszűnése, nem bukás — nem szabad beragadó hibát mutatni")
+            .toHaveTextContent("false");
+    });
 });

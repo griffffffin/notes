@@ -190,6 +190,27 @@ export function AuthProvider({children}: {children: ReactNode}) {
                    legrosszabb fajtája. Ezért inkább kimondjuk, és marad a
                    munkamenet — a felület jelzi, és újra lehet próbálni. */
                 .catch((error: unknown) => {
+                    /* A 401 ITT SIKER, NEM HIBA — és ez a különbségtétel a lényeg.
+                       A /logout az `auth` MÖGÖTT áll (backend/src/routes.js): 401-et
+                       akkor kapunk, ha a token MÁR érvénytelen — lejárt (a tétlenségi
+                       kilépés épp a token élettartamának határán fut, l. IDLE_LOGOUT_MS),
+                       vagy egy másik lapon/kérésen már visszavonták a munkamenetet
+                       (tokenVersion-eltérés, middleware/auth.js). Ilyenkor NINCS mit
+                       visszavonni: a munkamenet már nincs, a kijelentkezés eredménye
+                       pontosan megvan. Ugyanaz a szabály, amit az app mindenhol követ
+                       (handleAxios, loadSession fentebb): 401 = a munkamenet elmúlt.
+                       Hibaként mutatni — és a gombbal újrapróbáltatni, ami megint
+                       401-et adna — beragadó, hazug állapot volna. Tehát ugyanazt
+                       tesszük, mint a sikerág: eldobjuk a helyi munkamenetet és
+                       újratöltünk a belépő képernyőre. */
+                    if (responseStatus(error) === 401) {
+                        setSession(null);
+                        return reloadToRoot();
+                    }
+                    /* MINDEN MÁS valódi bukás (hálózati hiba, időtúllépés, 503 a zárt
+                       DB miatt, 500): a munkamenet a szerveren ÉLHET, ezért nem
+                       állítjuk, hogy kiléptünk — kimondjuk (logoutFailed), és
+                       újrapróbálhatóvá tesszük. */
                     logRequestError(error);
                     setLogoutFailed(true);
                 });
