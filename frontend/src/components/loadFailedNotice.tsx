@@ -32,9 +32,18 @@ type LoadFailedNoticeProps = {
     /* A bukott lekérés újraindítása. Kötelező: egy jelzés, amiből nincs kiút,
        fél megoldás — ha egy nézet nem tud újrapróbálni, az a nézet hibája. */
     onRetry: () => void;
+    /* A GOMB FELIRATA. Alapból „Adatok ismételt lekérése", mert a jelzés zöme
+       egy elbukott ADATLEKÉRÉST próbál újra (kategória-lista, session-ellenőrzés).
+       De nem minden újrapróbálás adatlekérés: a kijelentkezés bukásánál (l.
+       components/app.tsx) az „Újra" egy SZERVER-MŰVELETET (a munkamenet
+       visszavonását) ismétli meg, nem adatot hoz be — ott az alapfelirat hazudna.
+       Ezért felülírható; ha nincs megadva, marad az adatlekérős szöveg. */
+    retryLabel?: string;
 };
 
-export default function LoadFailedNotice({message, onRetry}: LoadFailedNoticeProps) {
+export default function LoadFailedNotice({
+    message, onRetry, retryLabel = "Adatok ismételt lekérése",
+}: LoadFailedNoticeProps) {
     return (
         /* A KÁRTYA PIROS, A LAP NEM. Volt egy változat, ami az EGÉSZ lapot
            pirosra váltotta (a navbart is): sötét témán még elment, világoson
@@ -60,15 +69,16 @@ export default function LoadFailedNotice({message, onRetry}: LoadFailedNoticePro
                     viszont nem szín-név, hanem CSS-változó. A `type="button"` itt
                     is kötelező (alapból "submit" lenne).
 
-                    A FELIRAT szándékosan „lekérése", nem „küldése": ADAT jön BE a
-                    szerverről. A „küldés" (resubmission) mást jelentene — a
-                    felhasználó adatainak ismételt elküldését —, ami itt nem
-                    történik. És nem „Frissítés": az oldal NEM töltődik újra, csak
-                    az az egy lekérés fut le megint. */}
+                    AZ ALAPFELIRAT szándékosan „lekérése", nem „küldése": az esetek
+                    zömében ADAT jön BE a szerverről. A „küldés" (resubmission) mást
+                    jelentene — a felhasználó adatainak ismételt elküldését —, ami ott
+                    nem történik; és nem „Frissítés": az oldal NEM töltődik újra, csak
+                    az az egy lekérés fut le megint. Ahol az újrapróbálás NEM
+                    adatlekérés (kijelentkezés), a hívó a `retryLabel`-lel írja felül. */}
                 <div className="d-grid col-10 col-sm-8 mx-auto">
                     <button type="button" onClick={onRetry}
                             className="btn rounded-pill w-100 btn-outline-accent-base">
-                        Adatok ismételt lekérése
+                        {retryLabel}
                     </button>
                 </div>
             </div>

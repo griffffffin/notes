@@ -126,7 +126,14 @@ export default function App() {
                 belépő képernyőt mutatjuk, hanem kimondjuk, és adunk hozzá kiutat.
                 Az "Újra" ugyanazt a kijelentkezést ismétli meg. */}
             {!showsLogoutSpinner && logoutFailed &&
-            <LoadFailedNotice message="A kijelentkezés nem fejeződött be." onRetry={logout}/>}
+            <LoadFailedNotice message="A kijelentkezés nem fejeződött be." onRetry={logout}
+                              /* A gomb itt egy SZERVER-MŰVELETET ismétel (a munkamenet
+                                 visszavonása), nem adatlekérést — az alap „Adatok
+                                 ismételt lekérése" felirat félrevezetne. Ide csak a
+                                 VALÓDI bukás (hálózat/DB) jut el: a 401-et a
+                                 kijelentkezés már sikerként kezeli (contexts/auth.tsx),
+                                 tehát a felhasználó ténylegesen újrapróbálhatja. */
+                              retryLabel="Kijelentkezés újra"/>}
             {/* MÉG NEM TUDJUK, be vagyunk-e jelentkezve: a /me válaszára várunk. Ez
                 NEM kijelentkezettség — a belépő képernyőt felvillantani minden
                 oldalbetöltéskor annak is, aki be van jelentkezve, hibás állítás
