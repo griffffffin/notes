@@ -6,6 +6,7 @@ const {setTokenCookie} = require("../../tokenCookie");
 // A hashelés a login álca-hash-ével KÖZÖS forrásból jön (argon2id, l. password.js).
 const {hashPassword} = require("../../password");
 const {isCommonPassword} = require("../../commonPasswords");
+const {validateEnrollment, enrollmentToStore} = require("../../e2ee/enrollment");
 
 const PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/;
 
@@ -80,9 +81,26 @@ module.exports = router.post("/", async (request, response) => {
     if (password.toLowerCase() === name.toLowerCase() || isCommonPassword(password))
         return response.status(WEAK_PASSWORD_STATUS).json(WEAK_PASSWORD_MESSAGE);
 
+    /* AZ E2EE-BEIRATKOZÁS a jelszó-ellenőrzések UTÁN áll: a gyenge-jelszó eseteknek
+       (400/422) a beiratkozástól függetlenül kell szólniuk (a create.test.js ezt
+       méri). ADDITÍV: ma a beiratkozás opcionális — ha a kliens küld `wrappedMk`-t,
+       validáljuk és eltároljuk; ha nem, a fiók a régi (nem-E2EE) alakban jön létre.
+       Az F4-élesítéskor válik kötelezővé (l. E2EE.md). A validáció HIGIÉNIA (típus,
+       méret, tartomány), nem kriptó — a boríték épségét a kliens dönti el. */
+    const enrolling = request.body.wrappedMk !== undefined;
+    if (enrolling) {
+        const enrollmentError = validateEnrollment(request.body);
+        if (enrollmentError) return response.status(400).json(enrollmentError);
+    }
+
     try {
         const hashedPassword = await hashPassword(password);
-        const user = await new Users({name: name, password: hashedPassword}).save();
+        const userDoc = {name: name, password: hashedPassword};
+        // A wrappedMk BORSOZVA kerül a tárba (enrollmentToStore). A választ NEM
+        // egészítjük ki a beiratkozással: a kliens most generálta, nála van — a
+        // login/me adja vissza más eszközön / újratöltéskor.
+        if (enrolling) Object.assign(userDoc, enrollmentToStore(request.body));
+        const user = await new Users(userDoc).save();
         /* A TOKEN A SÜTIBE MEGY, A TÖRZSBE A NÉV. A törzsben visszaadott token
            azt jelentette, hogy a JavaScript megkapja — épp azt szüntetjük meg
            (l. tokenCookie.js). A név viszont kell: a felület ebből tudja, hogy

@@ -2,6 +2,7 @@ const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const Users = require("../models/users");
 const {readTokenCookie} = require("../tokenCookie");
+const {projectEnrollment} = require("../e2ee/enrollment");
 
 /* Minden védett végpont előtt fut: a HttpOnly SÜTIBŐL veszi az aláírt JWT-t,
    ellenőrzi, és a benne igazolt user-azonosítót teszi a request.userId-ba — a
@@ -75,5 +76,12 @@ module.exports = async (request, response, next) => {
        a friss tokenbe. Azért adjuk tovább, mert az auth már úgyis kiolvasta a
        felhasználót: külön lekérdezés nélkül megvan. */
     request.tokenVersion = user.tokenVersion;
+    /* AZ E2EE-BEIRATKOZÁS a /me válaszához kell (reload utáni feloldás): a kliens a
+       memóriában tartott mesterkulcsot az újratöltéskor elveszti, és a `wrappedMk`+salt+
+       kdf-ből, a jelszó újbóli megadásával oldja fel. Azért innen adjuk tovább, mint a
+       nevet: az auth már kiolvasta a dokumentumot. A `wrappedMk`-ról a projectEnrollment
+       leszedi a borsot; nem beiratkozott (régi) fióknál `null`, és ilyenkor pepper-
+       művelet sem fut (rövidre zár). A jelszó-hash TOVÁBBRA sem kerül a request-re. */
+    request.userEnrollment = projectEnrollment(user);
     next();
 };

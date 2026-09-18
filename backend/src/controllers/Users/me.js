@@ -30,5 +30,12 @@ const router = require("express").Router();
    tankönyvi alak), de az egész API POST-ra épül, és a kivétel ára nagyobb volna,
    mint a haszna: a `no-store` a helyén van (middleware/noStore.js), tehát a
    gyorsítótárazás — a GET fő kockázata — így sem fenyeget. */
+/* A válasz a NÉV, és — ha a fiók E2EE-beiratkozott — a BEIRATKOZÁS is (wrappedMk+salt+
+   kdf), hogy a kliens az újratöltés utáni feloldáshoz a jelszóból kicsomagolhassa a
+   mesterkulcsot. Az auth már kiszedte és a borsot is leszedte róla (request.userEnrollment);
+   régi, nem-E2EE fióknál `null` → a válasz a puszta {name}, ahogy eddig. A jelszó-hash
+   itt sem kerül a request-re, tehát ki sem küldhető. */
 module.exports = router.post("/", (request, response) =>
-    response.json({name: request.userName}));
+    response.json(request.userEnrollment
+        ? {name: request.userName, enrollment: request.userEnrollment}
+        : {name: request.userName}));

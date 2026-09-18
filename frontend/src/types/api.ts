@@ -110,7 +110,7 @@ export type Id = v.InferOutput<typeof idSchema>;
    fióknál küldi, ezért a sessionSchema-ban `optional` — régi (E2EE előtti) fióknál hiányzik.
 
    Az `algorithm` `literal("argon2id")`: ma ez az egyetlen támogatott KDF (a kliens
-   masterKey.ts-e is erre szűkít). A memória/iteráció/
+   masterKey.ts-e és a backend enrollment.js-e is erre szűkít). A memória/iteráció/
    párhuzamosság CSAK `number`, nem üzleti tartomány — a HATÁRT őrizzük (számot kapunk-e),
    a tartomány-korlát a backend enrollment-validátoráé. */
 const enrollmentSchema = v.object({

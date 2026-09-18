@@ -4,6 +4,7 @@ const {signToken} = require("../../token");
 const {setTokenCookie} = require("../../tokenCookie");
 // A naplózás egyetlen kapuja — a hibaobjektum titkot vihetne a naplóba (log.js).
 const {logInfo, logError} = require("../../log");
+const {projectEnrollment} = require("../../e2ee/enrollment");
 
 /* A hibaüzenet SZÁNDÉKOSAN ugyanaz ismeretlen névre és rossz jelszóra.
    Korábban a kettő elkülönült ("Hibas felhasznalonev." / "Hibas jelszo."), ami
@@ -102,7 +103,12 @@ module.exports = router.post("/", async (request, response) => {
            sikerült a belépés, és kit köszöntsön; ugyanaz az alak, amit a /me ad,
            tehát a kliensnek egyetlen szerződést kell ismernie. */
         setTokenCookie(request, response, signToken(user._id, user.tokenVersion));
-        return response.json({name: user.name});
+        /* AZ E2EE-BEIRATKOZÁS a válaszban, ha a fiók be van iratkozva: a kliensnek a
+           `wrappedMk`+salt+kdf kell, hogy a beírt jelszóból kicsomagolja a mesterkulcsot
+           (feloldás). A `wrappedMk`-ról itt lekerül a bors (projectEnrollment). Régi,
+           nem-E2EE fióknál `null` → a válasz marad a puszta {name}, ahogy eddig. */
+        const enrollment = projectEnrollment(user);
+        return response.json(enrollment ? {name: user.name, enrollment} : {name: user.name});
     } catch (error) {
         // A részletek a szerver naplójába valók, nem a válaszba.
         logError("Bejelentkezési hiba", error);

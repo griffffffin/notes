@@ -51,6 +51,28 @@ const Users = mongoose.model("Users", new Schema({
     draftKey: {
         type: String
     },
+    /* AZ E2EE-BEIRATKOZÁS mezői — a végpontok közötti titkosítás kulcs-hierarchiája
+       (l. frontend e2ee/masterKey.ts, backend e2ee/enrollment.js). A `wrappedMk` a
+       jelszóból származtatott kulccsal becsomagolt mesterkulcs, a szerveren még egyszer
+       BORSOZVA (e2ee/pepper.js); a `kdfSalt` és a `kdf` a kliens KDF-jének sója és
+       paraméterei, hogy feloldáskor ugyanazt a kulcsot számolja. A szerver ezekkel
+       SEMMIT nem számol (nem futtat Argon2-t), csak tárolja és a tulajdonosnak visszaadja.
+
+       OPCIONÁLIS, mint a draftKey: a régi (E2EE előtti) fiókoknak nincs, és egy tárolási
+       részlet ne döntse el, be tud-e lépni valaki. Az F4-élesítéskor válik kötelezővé
+       (tiszta újraregisztráció), l. a repó E2EE.md-jét. */
+    wrappedMk: {
+        type: String
+    },
+    kdfSalt: {
+        type: String
+    },
+    kdf: {
+        algorithm: {type: String},
+        memorySize: {type: Number},
+        iterations: {type: Number},
+        parallelism: {type: Number},
+    },
     createdAt: {
         type: Date,
         default: Date.now,
