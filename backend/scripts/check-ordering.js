@@ -16,10 +16,12 @@
    a két azonos sorszámú elem közül az igazi?), és egy néma automatikus átszámozás
    pont azt a fajta beavatkozás lenne, amit ez a projekt kerül.
 
-   Futtatás:  node scripts/check-ordering.js
+   Futtatás:  node --env-file=.env scripts/check-ordering.js
    Kilépési kód: 0 = minden szekció ép, 1 = van sérülés (vagy hiba). */
 
-require("dotenv").config();
+/* Az env-et a Node tölti a `--env-file`-lal (l. a Futtatás-sort és src/app.js
+   indoklását); korábban itt `dotenv` állt. A TESZT (check-ordering.test.js) csak a
+   tiszta `problemsFor`-t importálja, DB nélkül — annak nem kell env-fájl. */
 const mongoose = require("mongoose");
 const {discoverSections} = require("./exportSections");
 

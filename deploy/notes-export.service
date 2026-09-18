@@ -7,33 +7,34 @@ Description=Notes daily JSON export
 # 9 inditas 3 oran belul: az elso + nyolc ujraprobalkozas 15 percenkent, azaz
 # ket ora. A kilencedik utan a systemd nem indit tobbet — a unit HIBAS allapotban
 # marad, es a napi Pi-allapotellenorzes 6. pontja megtalalja. A korlat nelkul egy
-# valodi export-hiba (nem a zarolt /opt) orokke ismetlodne, csendben.
+# valodi export-hiba orokke ismetlodne, csendben.
 StartLimitIntervalSec=3h
 StartLimitBurst=9
 
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/notes/backend
-ExecStart=/usr/bin/node scripts/daily-export.js
+ExecStart=/usr/bin/node --env-file=.env scripts/daily-export.js
 
-# UJRAPROBALKOZAS — a titkositott kotet kezi feloldasa miatt kell.
+# UJRAPROBALKOZAS — egy ATMENETI hiba ne vigye el az adott nap pillanatkepet.
 #
-# A /opt bootkor NEM csatolodik (a kulcs nincs a gepen, l. CLAUDE.md), a
-# notes-export.timer viszont Persistent=true: a kimaradt ejfeli futast bootkor
-# bepotolja. Aramszunet utan a ketto egymasnak feszul — a bepotlas azelott indul,
-# hogy a `sudo unlock-opt` lefutna, es a unit elhasal:
-#   "Failed to set up mount namespacing: /opt/backups/notes/daily:
-#    No such file or directory" (226/NAMESPACE)
-# Ez tortent 2026-08-26-an: a Pi 08-25 19:40-kor esett ki, 17:09-kor jott vissza,
-# es a 17:08:55-os bepotlas azonnal elszallt.
+# A napi export EGYSZER fut ejfelkor, es az ELOZO napot vizsgalja. Ha egy atmeneti
+# hiba (DB-akadozas, pillanatnyi eroforras-szuke) elszallasztja, es nincs ujra-
+# probalkozas, akkor annak a napnak a pillanatkepe NEMAN elveszne — a kovetkezo
+# futas mar a rakovetkezo napot menti. Ezert a unit magatol ujraprobal 15 percenkent
+# (StartLimitBurst-ig), es egy mulo hiba utan a masodik-harmadik probalkozas sikerul.
 #
-# MIERT NEM ConditionPathIsDirectory=: az NEM hibanak, hanem "kihagyva"-nak
-# jelolne a futast. A hiba eltunne a szem elol, de a mentes is elmaradna — az
-# adott nap pillanatkepe NEMAN veszne el. Itt pont az a cel, hogy a mentes
-# MEGTORTENJEN, amint lehet.
+# MIERT NEM ConditionPathExists= a mentes-konyvtarra: az NEM hibanak, hanem
+# "kihagyva"-nak jelolne a futast, tehat a hiba is es a mentes is NEMAN maradna el.
+# Itt pont az a cel, hogy a mentes MEGTORTENJEN, amint lehet, es a tartos hiba
+# HANGOS legyen (StartLimitBurst kifutasa -> a Pi-allapotellenorzes 6. pontja).
 #
-# Igy viszont a unit magatol ujraprobalja, es a feloldas utani elso probalkozas
-# sikerul. Ha soha nem oldod fel, a StartLimitBurst kifut, es hangosan hibas marad.
+# TORTENETI MEGJEGYZES: eredetileg ez az ujraprobalkozas a `/opt` kezi feloldasa
+# miatt kellett — a regi, /opt-only titkositasnal a Persistent=true bepotlas
+# aramszunet utan a meg fel nem oldott /opt-ba futott, es 226/NAMESPACE-szel elszallt.
+# A TELJES rootfs-titkositas ota (l. CLAUDE.md) ez a verseny NEM lehetseges: a gep
+# fel sem bootol feloldas nelkul, tehat mire a systemd a bepotlashoz er, a /opt mar
+# csatolva van. Az ujraprobalkozas viszont a fenti, altalanos okbol MARAD.
 Restart=on-failure
 RestartSec=15min
 

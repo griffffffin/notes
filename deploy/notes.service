@@ -7,7 +7,7 @@ Wants=ferretdb.service
 
 [Service]
 WorkingDirectory=/opt/notes/backend
-ExecStart=/usr/bin/node src/app.js
+ExecStart=/usr/bin/node --env-file=.env src/app.js
 Restart=always
 
 # KÜLÖN SZOLGÁLTATÁS-FELHASZNÁLÓ (2026-08-22). Korábban `ubuntu` volt — az a fő

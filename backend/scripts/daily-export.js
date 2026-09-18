@@ -11,7 +11,10 @@
 const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
-require("dotenv").config({path: path.join(__dirname, "../.env")});
+/* Az env-et a Node tölti a `--env-file`-lal (l. deploy/notes-export.service ExecStart:
+   `node --env-file=.env scripts/daily-export.js`, WorkingDirectory=/opt/notes/backend).
+   Korábban itt `dotenv` állt; leváltva a natív kapcsolóra (l. src/app.js indoklása).
+   Kézi futtatáshoz: `node --env-file=.env scripts/daily-export.js` a backend gyökeréből. */
 const {discoverSections} = require("./exportSections");
 const {localDateString} = require("../src/localDate");
 

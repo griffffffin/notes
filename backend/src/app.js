@@ -5,7 +5,15 @@ const helmet = require("helmet");
 const mongoose = require("mongoose");
 const path = require("path");
 const fs = require("fs");
-require("dotenv").config();
+/* AZ ENV-ET A NODE TÖLTI BE, nem egy csomag. A `dotenv`-et leváltottuk a Node 22
+   natív `--env-file` kapcsolójára (l. deploy/notes.service ExecStart és a package.json
+   `start`/`dev` szkriptjei: `node --env-file=.env …`). Két okból: (1) eggyel kevesebb
+   függőség a boot-úton; (2) a dotenv induláskor rotáló reklám-"tippet" írt a naplóba,
+   külső domainnel együtt (mérve 2026-09-17: "auth for agents [www.vestauth.com]") — egy
+   nulla-3.-fél elvű projekt naplójába kéretlen külső hivatkozás ne kerüljön. A `--env-file`
+   némán, kiírás nélkül tölt; ha a fájl hiányzik, HANGOSAN elhasal (explicit jobb). A
+   tesztek az env-et közvetlenül állítják (nem env-fájlból), ezért a `node --test` nem kap
+   `--env-file`-t — a scriptek (daily-export, check-ordering) is így indulnak vele. */
 const env = process.env;
 const routes = require("./routes");
 const serverError = require("./serverError");
