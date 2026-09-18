@@ -139,7 +139,8 @@ function describeError(error) {
    `info` (6) prioritáson landolt, egy szinten a `logInfo`-val — így a
    `journalctl -p err` és MINDEN prioritás-alapú szűrő/riasztás VAK volt a
    hibáinkra (mérve 2026-09-17: 7 nap alatt 0 err-szintű sor, pedig hiba lehetett).
-   A prefixszel a hiba-sor tényleg `err` lesz.
+   A prefixszel a hiba-sor tényleg `err` lesz, és a heti digest (deploy/error-digest.sh)
+   ezt olvassa megbízhatóan.
 
    MIÉRT NEM SÉRTI A NAPLÓ-RÉTEG ELVÉT. Ez EGY fix jelölő: nincs benne titok, nincs
    vezérlőkarakter, és a kész, redaktált+neutralizált STRING ELÉ kerül (nem bontja

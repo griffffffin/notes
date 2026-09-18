@@ -1,0 +1,19 @@
+# Telepítés (ROOTKÉNT fut — a journalctl -u notes olvasásához kell):
+#   sudo install -o root -g root -m 755 deploy/error-digest.sh /usr/local/sbin/notes-error-digest.sh
+#   sudo install -o root -g root -m 644 deploy/mail-lib.sh /usr/local/sbin/mail-lib.sh   (ha még nincs kint)
+#   sudo cp deploy/notes-error-digest.service deploy/notes-error-digest.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now notes-error-digest.timer
+# (A health.env-nek is a /usr/local/sbin-ben kell lennie — a health-check.sh már oda teszi.)
+[Unit]
+Description=Notes weekly log digest (emails a non-sensitive error summary)
+# Csak akkor fusson, ha az app telepítve van (a Node-aggregáló onnan jön). A
+# hiányzó forrásnál CSENDBEN kihagy — nem hiba, csak nincs mit összegezni.
+ConditionPathExists=/opt/notes/backend/scripts/errorDigest.js
+
+[Service]
+Type=oneshot
+# A SZKRIPT ROOT TULAJDONBAN, /usr/local/sbin-ben van, és ROOTKÉNT fut (nincs
+# User= sor): a `journalctl -u notes` más egység naplóját olvassa, ahhoz root kell.
+# Ugyanaz az elv, mint a notes-health.service-nél: root-ként futó szkriptet
+# nem-root felhasználó nem írhat, ezért nem a repo-writable /opt-ból fut.
+ExecStart=/usr/local/sbin/notes-error-digest.sh

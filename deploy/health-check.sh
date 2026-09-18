@@ -59,41 +59,19 @@ fi
 
 log() { echo "$@"; }
 
-# Egy levél. A hívó dolga eldönteni, KELL-e — ez a függvény csak küld.
-send_mail() {
-    local subject="$1" body="$2"
-
-    if [ -z "${SMTP_SERVER:-}" ] || [ -z "${SENDER_EMAIL:-}" ] || \
-       [ -z "${SENDER_PASSWORD:-}" ] || [ -z "${RECIPIENT_EMAIL:-}" ]; then
-        log "Nem tudok levelet küldeni: hiányoznak az SMTP-adatok ($ENV_FILE)."
-        return 1
-    fi
-
-    # A 465 implicit TLS-t jelent (smtps://), a 587 STARTTLS-t (smtp:// + --ssl-reqd).
-    local url
-    if [ "${SMTP_PORT:-587}" = "465" ]; then
-        url="smtps://${SMTP_SERVER}:${SMTP_PORT}"
-    else
-        url="smtp://${SMTP_SERVER}:${SMTP_PORT:-587}"
-    fi
-
-    # A Subject fejléc csak ASCII-t vihet nyersen, ezért az ékezetes tárgyat
-    # RFC 2047 szerint base64-be csomagoljuk — enélkül a levelezők összetörnék.
-    local encoded_subject
-    encoded_subject="=?UTF-8?B?$(printf '%s' "$subject" | base64 -w0)?="
-
-    {
-        printf 'From: %s\r\n' "$SENDER_EMAIL"
-        printf 'To: %s\r\n' "$RECIPIENT_EMAIL"
-        printf 'Subject: %s\r\n' "$encoded_subject"
-        printf 'Date: %s\r\n' "$(date -R)"
-        printf 'Content-Type: text/plain; charset=UTF-8\r\n'
-        printf '\r\n'
-        printf '%s\r\n' "$body"
-    } | curl -s --max-time 30 --url "$url" --ssl-reqd \
-            --mail-from "$SENDER_EMAIL" --mail-rcpt "$RECIPIENT_EMAIL" \
-            --user "${SENDER_EMAIL}:${SENDER_PASSWORD}" --upload-file - 2>/dev/null
-}
+# A levélküldő (send_mail) a KÖZÖS mail-lib.sh-ból jön — egy forrás, hogy a
+# curl-SMTP logika ne csússzon el az error-digest.sh-étól (l. mail-lib.sh).
+# Ha a lib hiányzik, NEM esünk el: a szkript fő dolga (naplózás + újraindítás)
+# e nélkül is elvégzi, csak levelet nem küld. A mail-lib a szkript mellett van
+# (/usr/local/sbin/mail-lib.sh), ugyanúgy, mint a health.env.
+MAIL_LIB="$(dirname "$(readlink -f "$0")")/mail-lib.sh"
+if [ -r "$MAIL_LIB" ]; then
+    # shellcheck disable=SC1090
+    . "$MAIL_LIB"
+else
+    log "Nincs mail-lib.sh ($MAIL_LIB) — a levélküldést kihagyom."
+    send_mail() { return 1; }
+fi
 
 # Ha a service szándékosan áll (tipikusan reboot után, feloldatlan /opt
 # mellett), nincs mit ellenőrizni: nem a mi dolgunk elindítani, amit valaki

@@ -1,13 +1,18 @@
-# Telepítés (KÉT lépés, mert a szkript ROOTKÉNT fut):
+# Telepítés (ROOTKÉNT fut; a levélküldő a KÖZÖS mail-lib.sh-ból jön):
 #   sudo install -o root -g root -m 755 deploy/health-check.sh /usr/local/sbin/notes-health-check.sh
+#   sudo install -o root -g root -m 644 deploy/mail-lib.sh /usr/local/sbin/mail-lib.sh
 #   sudo cp deploy/notes-health.service /etc/systemd/system/ && sudo systemctl daemon-reload
 [Unit]
 Description=Notes health probe (logs, and restarts the app if it stops answering)
-# Ha a /opt nincs feloldva, az app forrása sem létezik. A ConditionPathExists
-# hatására a systemd ilyenkor CSENDBEN kihagyja a futást — nem hibaként jelenti,
-# tehát a timer nem szemeteli tele a naplót minden percben, amíg a kötet zárva van.
-# (Korábban maga a szkript volt a feltétel; az a /usr/local/sbin-be költözött, ami
-# NEM a titkosított köteten van, tehát mindig létezik — ezért kellett új jelző.)
+# A health-probe csak akkor fusson, ha az app egyáltalán telepítve van. A
+# ConditionPathExists nemlétező forrásnál CSENDBEN kihagyja a futást — nem
+# hibaként jelenti, tehát a percenkénti timer nem szemeteli tele a naplót, ha a
+# /opt/notes épp hiányzik (karbantartás, újratelepítés).
+# (A TELJES rootfs-titkosítás óta — l. CLAUDE.md — a gép fel sem bootol feloldás
+# nélkül, tehát a régi „amíg a /opt zárva van, a systemd mégis fut" állapot már
+# nem áll elő; a feltétel innentől csak a telepítés-hiányt fedi. Korábban maga a
+# szkript útja volt a feltétel, de az /usr/local/sbin-be költözött és mindig
+# létezett, ezért váltottunk az app.js-re, ami a valódi telepítés jele.)
 ConditionPathExists=/opt/notes/backend/src/app.js
 
 [Service]

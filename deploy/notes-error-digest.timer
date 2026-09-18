@@ -1,0 +1,12 @@
+# Telepítés: l. notes-error-digest.service fejléce.
+[Unit]
+Description=Weekly Notes log digest, Sunday 20:00
+
+[Timer]
+OnCalendar=Sun *-*-* 20:00:00
+# Kimaradt futást (pl. a gép aznap ki volt kapcsolva / nem volt feloldva) a
+# legközelebbi indulásnál bepótol — mint a mentés-timerek.
+Persistent=true
+
+[Install]
+WantedBy=timers.target
