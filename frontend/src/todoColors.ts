@@ -12,7 +12,8 @@
 
    MIÉRT CSAK NEVEK, HEXEK NÉLKÜL (2026-08-19). Korábban ez egy NÉV → hex map volt,
    azzal az indoklással, hogy "a hexet a sorszám tooltipjének kerete kéri". Ez már
-   nem igaz: az a keret a `var(--theme-accent)`-ből dolgozik (Todos/order.tsx), és
+   nem igaz: az a keret CSS-változóból dolgozik (Todos/order.tsx: a téma
+   `--theme-accent`-je, vagy to-do-nál a kártya színének `--bs-{color}`-a), és
    MÉRVE egyetlen produkciós fájl sem olvasta a hexeket — csak a neveket és a
    típust. A holt hexek nem is maradtak ártalmatlanok: a `danger`-é a RÉGI
    Bootstrap-piros (#dc3545) maradt, miközben az app egyetlen pirosa azóta #db1937

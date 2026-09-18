@@ -160,4 +160,24 @@ describe("Order", () => {
            határt nézi.) */
         expect(screen.getByText("11")).toBeInTheDocument();
     });
+
+    /* A stepper KIEMELŐSZÍNE. A to-do szerkesztő a kártya saját színét adja át,
+       az idézeté nem ad semmit — a kettőnek látszania KELL a toolbar
+       osztálynevén, különben a sorszám csendben visszahull a téma-színre (a
+       hiba, amit ez a viselkedés javít). A `color` prop egyetlen elhagyása
+       pontosan ezt a két állítást buktatja. */
+    it("a kártya színét viseli, ha kap `color`-t (to-do szerkesztő)", () => {
+        const {container} = render(<Order current={1} setOrder={vi.fn()} last={3} color="danger"/>);
+
+        const toolbar = requireElement(".card-header", HTMLDivElement, container);
+        expect(toolbar).toHaveClass("text-danger");
+        expect(toolbar).not.toHaveClass("text-theme");
+    });
+
+    it("a téma színét viseli `color` nélkül (idézet-szerkesztő)", () => {
+        const {container} = render(<Order current={1} setOrder={vi.fn()} last={3}/>);
+
+        const toolbar = requireElement(".card-header", HTMLDivElement, container);
+        expect(toolbar).toHaveClass("text-theme");
+    });
 });

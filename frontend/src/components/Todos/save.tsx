@@ -797,7 +797,7 @@ function TodoEditor(props: SaveProps) {
                 <NoFocusInput id="createColumn" value={title} onChange={handleTitleChange} placeholder="Cím"
                               autoComplete="off" autoFocus={true} required={true} color={color}
                               class="card-header caveat ms-1"/>
-                <Order current={order} setOrder={setOrder} last={lastOrder}/>
+                <Order current={order} setOrder={setOrder} last={lastOrder} color={color}/>
             </div>
 
             <div className="card-body py-1">

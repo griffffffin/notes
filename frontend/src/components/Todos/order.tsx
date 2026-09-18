@@ -4,6 +4,7 @@ import type {PlacesType} from "react-tooltip";
 import type {MouseEvent, TouchEvent} from "react";
 import {TOOLTIP_MIDDLEWARES} from "../../tooltipMiddlewares";
 import {useTooltipOpen, useTooltipToggle} from "../../tooltipRegistry";
+import type {TodoColor} from "../../todoColors";
 
 /* Ennyit vár a léptető két lépés között — ÉS ennyivel később mozdul a kattintásra
    is (a kattintás egyetlen lépése is ezen az időzítőn megy). EGY helyen áll, mert
@@ -34,6 +35,10 @@ type OrderProps = OrderRange & {
     /* A react-tooltip saját elhelyezés-típusa (nem szabad string): így egy
        elgépelt "topp" fordítási hiba, nem néma alapértelmezés. */
     tooltipPlace?: PlacesType;
+    /* A KIEMELŐSZÍN forrása. Megadva (to-do szerkesztő) a stepper a KÁRTYA saját
+       színét viseli (a hat paletta-név egyike), elhagyva (idézet szerkesztő) a
+       TÉMA kiemelőszínét — l. a render alatti ELTÉRÉS-kommentet. */
+    color?: TodoColor;
 };
 
 export default function Order(props: OrderProps) {
@@ -157,11 +162,22 @@ export default function Order(props: OrderProps) {
         }
     }, [release]);
 
-    /* A sorszám-toolbar a TÉMA színeit viseli (nem a to-do sajátját): a háttere a
-       lap háttere (bg-theme-page), a szám és a gombok a kiemelőszínt (text-theme;
-       a gombok fill=currentColor ebből veszik). */
+    /* ELTÉRÉS a Quotes/save.tsx-beli használattól: ha a hívó ÁTAD egy `color`-t
+       (a to-do szerkesztő a kártya saját színét adja), a szám és a gombok azt
+       viselik (text-{color}); ha nem (az idézet-szerkesztő két steppere), a TÉMA
+       kiemelőszínét (text-theme). MIÉRT: a to-do-kártya végig a felhasználó által
+       választott SAJÁT színét hordja (l. Todos/card.tsx ELTÉRÉS-e) — a
+       szerkesztőben a keret, a cím, a gombok mind text-{color}-osak, egyedül a
+       sorszám lógott ki a téma-színnel. Az idézetnek nincs saját színe, ott a
+       téma marad. A háttér mindkét esetben a lap háttere (bg-theme-page); a
+       gombok <svg>-i fill=currentColor-ral a szövegszínt öröklik.
+       A kiemelőszín (a súgó kerete/szövege) a `--bs-{color}` CSS-változóból jön,
+       ami PONTOSAN a text-{color} színe (a `danger` az app pirosa, l. index.css
+       --bs-danger felülírását) — így a hex nem szivárog vissza a palettába. */
+    const accent = props.color ? `var(--bs-${props.color})` : "var(--theme-accent)";
     return (
-        <div className="card-header no-focus bg-theme-page fs-4 user-select-none pe-2 text-theme flex-shrink-0">
+        <div className={"card-header no-focus bg-theme-page fs-4 user-select-none pe-2 flex-shrink-0 " +
+            (props.color ? "text-" + props.color : "text-theme")}>
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor"
                  className="bi bi-dash-circle me-1 pb-1" viewBox="0 0 16 16"
                  onMouseDown={handleMinusDown} onTouchStart={handleMinusDown}>
@@ -183,11 +199,12 @@ export default function Order(props: OrderProps) {
                 z-index 10: a react-tooltip alapértéke 1, ami a fókuszált input
                 (Bootstrap: 5) alá esne.
 
-                A háttér/szöveg a TÉMA színeit viseli (mint a sorszám-toolbar), a
+                A háttér/szöveg a sorszám-toolbarral EGYEZŐ színt visel, a
                 react-tooltip alapértelmezett szürke háttere + fehér szövege
                 helyett: háttér a lap (--theme-page-bg), szöveg és keret a
-                kiemelőszín (--theme-accent). A színeket inline adjuk, mert a
-                react-tooltip a saját (injektálatlan) stílusát tenné rá.
+                kiemelőszín (`accent`: a kártya színe vagy a témáé). A színeket
+                inline adjuk, mert a react-tooltip a saját (injektálatlan)
+                stílusát tenné rá.
 
                 A middlewares (l. tooltipMiddlewares.ts) az egész appban közös: a
                 buborék KERESZTirányú kilógástól nem billenhet át oldalra, csak
@@ -203,9 +220,9 @@ export default function Order(props: OrderProps) {
                           middlewares={TOOLTIP_MIDDLEWARES}
                           isOpen={isTooltipOpen} setIsOpen={toggleTooltip}
                           disableStyleInjection={true}
-                          border="1px solid var(--theme-accent)"
+                          border={"1px solid " + accent}
                           style={{zIndex: 10, backgroundColor: "var(--theme-page-bg)",
-                                  color: "var(--theme-accent)", fontSize: "60%",
+                                  color: accent, fontSize: "60%",
                                   userSelect: "none"}}>
                 {props.tooltip ?? "Sorszám"}
             </ReactTooltip>
