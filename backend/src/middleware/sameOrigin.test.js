@@ -106,3 +106,51 @@ test("az app.js-ben a CORS UTÁN és a route-ok ELŐTT áll", () => {
     assert.ok(guardLine < routesLine,
         "Az őr a route-ok MÖGÉ került: soha nem fut le, a CSRF-védelem némán eltűnt.");
 });
+
+/* A KANONIKUS ORIGIN (APP_ORIGIN) — a Host-ból származtatott egyezés lezárása.
+   A három teszt EGYÜTT bizonyít: a pozitív út, a mutáció-gyilkos, és a kontroll,
+   ami kimondja, hogy a 403 PONTOSAN a kanonikus origintól van, nem valami mástól. */
+const CANONICAL = "https://notes.pelda.hu";
+const guardedWith = (canonical) => {
+    const guarded = express();
+    guarded.use(sameOrigin([], canonical));
+    guarded.post("/", (request_, response) => response.json({ok: true}));
+    return guarded;
+};
+
+test("kanonikus origin: a vele egyező Origin átmegy, a Host-tól FÜGGETLENÜL", async () => {
+    // A Host szándékosan hamis: ha be van állítva a kanonikus origin, a Host már
+    // nem számít az összehasonlításban.
+    const response = await request(guardedWith(CANONICAL)).post("/")
+        .set("Origin", CANONICAL)
+        .set("Host", "barmi.hamis")
+        .send({});
+
+    assert.strictEqual(response.status, 200);
+});
+
+test("kanonikus origin: a hamisított Host+Origin pár NEM jut át (403)", async () => {
+    /* Host==Origin==idegen: a Host-ból származtatott ownOrigin (http://tamado.example)
+       EGYEZNE az Originnel, tehát a régi ellenőrzés ÁTENGEDNÉ. A kanonikus origin
+       lezárja. EZ a mutáció-gyilkos: ha az `own` visszaáll csupán `ownOrigin(request)`-re,
+       ez a teszt bukik. */
+    const response = await request(guardedWith(CANONICAL)).post("/")
+        .set("Origin", "http://tamado.example")
+        .set("Host", "tamado.example")
+        .send({});
+
+    assert.strictEqual(response.status, 403);
+});
+
+test("kanonikus origin NÉLKÜL ugyanaz a hamisított pár átmegy — a fenti 403 KONTROLLJA", async () => {
+    /* Ugyanaz a kérés, de canonicalOrigin nélkül (a mai visszaeső viselkedés): a
+       Host-ból származtatott origin egyezik az Originnel, tehát átmegy. Ez KÜLÖN
+       kimondja, hogy az előző teszt 403-át PONTOSAN a kanonikus origin okozza —
+       enélkül a mutáció-gyilkos „ekvivalens mutánst" is elfogadhatna. */
+    const response = await request(guardedWith(undefined)).post("/")
+        .set("Origin", "http://tamado.example")
+        .set("Host", "tamado.example")
+        .send({});
+
+    assert.strictEqual(response.status, 200);
+});

@@ -49,9 +49,19 @@
    támadás: a támadó a SAJÁT fiókjába jelentkeztet be valakit, aki utána
    észrevétlenül az ő fiókjába ír. Ezért ül ez a middleware mindenek előtt. */
 
-/* A KÉRÉS SAJÁT ORIGIN-JE. A protokollt a kérésből vesszük (HTTPS mögött ez lesz
+/* A KÉRÉS SAJÁT ORIGIN-JE — a VISSZAESŐ forrás, ha nincs konfigurált kanonikus
+   origin (l. lentebb). A protokollt a kérésből vesszük (HTTPS mögött ez lesz
    "https"), a hostot a Host fejlécből — ugyanaz a pár, amit a böngésző is
-   összerak, amikor eldönti, azonos origin-ről van-e szó. */
+   összerak, amikor eldönti, azonos origin-ről van-e szó.
+
+   ⚠ AMIÉRT NEM EZ AZ ELSŐDLEGES FORRÁS: a Host fejlécet a KLIENS küldi. Böngészős
+   CSRF-nél ez ártalmatlan (a böngésző a valódi cél-hostot írja, az Origin meg az
+   idegen oldalé → nem egyeznek → elutasítjuk). De egy nem-böngésző hívó a Host-ot
+   ÉS az Origin-t párban azonosra hamisíthatja, és így ez a származtatott origin
+   egyezne az Origin-nal — az ellenőrzés önmagában átengedné. (Gyakorlati kártétel
+   nélkül, mert az íráshoz a HttpOnly+SameSite=Strict süti is kell, amit egy ilyen
+   hívónak nincs honnan; de a MÁSODIK réteg ne támaszkodjon kliens-adta fejlécre.)
+   Ezért, ha van FIX, konfigurált kanonikus origin, ahhoz hasonlítunk helyette. */
 const ownOrigin = (request) => `${request.protocol}://${request.get("host")}`;
 
 const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -62,19 +72,29 @@ const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
    valami váratlan lehet. */
 const ACCEPTED_FETCH_SITES = new Set(["same-origin", "none"]);
 
-module.exports = (allowedOrigins = []) => (request, response, next) => {
-    if (!UNSAFE_METHODS.has(request.method)) return next();
+/* A KANONIKUS ORIGIN a `APP_ORIGIN` env-ből jön (pl. "https://notes.pelda.hu"). Ha
+   be van állítva, EHHEZ hasonlítjuk az Origin-t — a kérés Host fejléce helyett,
+   amit a kliens hamisíthat (l. ownOrigin ⚠). Ha nincs beállítva (ma: nincs fix
+   domain, IP-n/dev-en fut), visszaesünk a kérésből származtatott origin-ra, tehát
+   a jelenlegi viselkedés VÁLTOZATLAN. A HTTPS/domain-menetben `APP_ORIGIN`
+   beállítása zárja be ezt a rést — és mellékesen a `trust proxy` protokoll-gotchá­t
+   is mitigálja a sameOrigin-oldalon (nem a request.protocol-ból épít). A paraméter
+   a teszthez adható át közvetlenül; alapból az env dönti. */
+module.exports = (allowedOrigins = [], canonicalOrigin = process.env.APP_ORIGIN) =>
+    (request, response, next) => {
+        if (!UNSAFE_METHODS.has(request.method)) return next();
 
-    const fetchSite = request.get("sec-fetch-site");
-    const origin = request.get("origin");
-    const refuse = () => response.status(403).json("A kérés nem erről az oldalról indult.");
+        const fetchSite = request.get("sec-fetch-site");
+        const origin = request.get("origin");
+        const refuse = () => response.status(403).json("A kérés nem erről az oldalról indult.");
 
-    // Jel nélkül nem tudjuk eldönteni, honnan jött — tehát nem engedjük.
-    if (!fetchSite && !origin) return refuse();
+        // Jel nélkül nem tudjuk eldönteni, honnan jött — tehát nem engedjük.
+        if (!fetchSite && !origin) return refuse();
 
-    if (fetchSite && !ACCEPTED_FETCH_SITES.has(fetchSite)) return refuse();
-    if (origin && origin !== ownOrigin(request) && !allowedOrigins.includes(origin))
-        return refuse();
+        if (fetchSite && !ACCEPTED_FETCH_SITES.has(fetchSite)) return refuse();
+        const own = canonicalOrigin || ownOrigin(request);
+        if (origin && origin !== own && !allowedOrigins.includes(origin))
+            return refuse();
 
-    return next();
-};
+        return next();
+    };
