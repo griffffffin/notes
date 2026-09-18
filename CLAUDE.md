@@ -48,20 +48,27 @@ elmaradt átvezetés.
   backend titkai a `backend/.env`-be (600, gitignore-olva), NEM más projektek
   közös titokfájljába.
 
-## Lemeztitkosítás (KÉSZ, 2026-07-12)
+## Lemeztitkosítás (KÉSZ; TELJES rootfs 2026-08-29 óta)
 
-- A teljes `/opt` — tehát az app, az adatbázis adatkönyvtára és a mentések is —
-  **titkosított köteten** él. Fenyegetésmodell: ellopott, **kikapcsolt** gép; a
-  lemezről az adat nem olvasható ki. Az OS maga titkosítatlan (nincs benne
-  személyes adat).
-- **A kulcs SEHOL nincs a gépen**, ezért a kötet bootkor nem csatolódik, és a rá
-  épülő szolgáltatások auto-indítása le van tiltva. Reboot után kézzel kell
-  feloldani (`sudo unlock-opt`) — a szkript a gépen él, **szándékosan nem a
-  repóban**: gépspecifikus üzemeltetés, amit rajta kívül senki nem tud
-  használni, viszont pontosan leírná ennek a gépnek a belső elrendezését.
-  Ugyanez az elv, amiért a mentés-lehúzó szkriptek is a repón kívül vannak.
-- **Fejlesztéskor figyelj**: feloldás nélkül a `/opt` üres könyvtárnak látszik —
-  az sshfs-mount is üreset csatolna. Nem hibaüzenetet kapsz, hanem semmit.
+- **A teljes rootfs LUKS2-titkosított** (2026-08-29 óta) — nem csak a `/opt`, hanem
+  az egész rendszer-SSD. A `/opt` (az app, az adatbázis adatkönyvtára és a mentések)
+  a titkosított rootfs sima könyvtára; nincs külön kötet vagy fájl-konténer. A
+  korábbi `/opt`-only megoldás (`opt.img` + `unlock-opt` szkript) **nyugdíjazva**.
+- Fenyegetésmodell: ellopott, **kikapcsolt** gép; a lemezről az adat nem olvasható
+  ki. A teljes titkosítás azért kellett a `/opt`-only helyett, mert a rootfs-en
+  cleartextben álltak titkok (DB-jelszó, SSH host-kulcsok, WireGuard) — most azok is
+  védve vannak. (A JWT_SECRET épp emiatt igényelt rotációt.)
+- **A jelmondat SEHOL nincs a gépen**, ezért a gép bootkor NEM ér el a rendszerig:
+  megáll a feloldásra várva, és fejetlenül, boot után kézzel kell feloldani. A
+  konkrét feloldó-út (mely szolgáltatás, mely parancs) **szándékosan nem a repóban**
+  él, hanem külön, nem verziózott üzemeltetési dokumentációban: gépspecifikus
+  üzemeltetés, ami pontosan leírná ennek a gépnek a belső elrendezését. Ugyanez az
+  elv, amiért a mentés-lehúzó szkriptek is a repón kívül vannak.
+- **Fejlesztéskor figyelj**: feloldás nélkül a Pi el sem jut a rendszerig, tehát az
+  `ubuntu` userrel SSH-zni sem lehet, és az sshfs-mount sem kapcsolódik — nem egy
+  „üres `/opt`" félig-bootolt állapot, hanem a gép egyszerűen nem elérhető, amíg
+  valaki fel nem oldja. (A régi fájl-konténeres modellben látszott üres `/opt`; az
+  már a múlté.)
 
 ## Munkakörnyezet / elérés
 
