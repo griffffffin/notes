@@ -15,6 +15,7 @@ const request = require("supertest");
 
 const validateClientError = require("../middleware/validateClientError");
 const clientError = require("./clientError");
+const {STDERR_PRIORITY} = require("../log");
 
 const app = express();
 app.use(express.json());
@@ -48,8 +49,10 @@ test("érvényes jelentés: 204, és a napló megkapja a végpont kulcsát", asy
     assert.strictEqual(status, 204);
     assert.strictEqual(lines.length, 1, "pontosan egy naplósor várt");
     assert.match(lines[0], /Kliens-szerződés hiba: \/quotes$/);
-    // A sor időbélyeggel kezdődik — a naplóban ez adja meg, mikor romlott el.
-    assert.match(lines[0], /^\[\d{4}-\d{2}-\d{2}T/);
+    // A sor a systemd err-prefixszel kezdődik (logProblem → console.error), és
+    // KÖZVETLENÜL utána az időbélyeg — az adja meg, mikor romlott el.
+    assert.ok(lines[0].startsWith(STDERR_PRIORITY), "a sor a systemd err-prefixszel kezdődik");
+    assert.match(lines[0].slice(STDERR_PRIORITY.length), /^\[\d{4}-\d{2}-\d{2}T/);
 });
 
 test("a válasz TÖRZSE üres (204 No Content)", async () => {

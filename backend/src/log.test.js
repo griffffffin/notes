@@ -9,7 +9,7 @@ const assert = require("node:assert");
 const {readdirSync, readFileSync} = require("node:fs");
 const {basename, join} = require("node:path");
 
-const {logInfo, logError, redactSecrets, describeError, neutralizeControls} = require("./log");
+const {logInfo, logError, redactSecrets, describeError, neutralizeControls, STDERR_PRIORITY} = require("./log");
 
 // Valósághű alakok — a formájuk számít, mert a redaktor a FORMÁRA illeszt.
 const HASH = "$2b$11$abcdefghijklmnopqrstuvABCDEFGHIJKLMNOPQRSTUVWXYZ01234";
@@ -48,13 +48,38 @@ test("KONTROLL: a naplósor időbélyeget, kontextust, üzenetet és vermet tart
     const lines = captureLog(() => logError("Users.create", new Error("valami elromlott")));
 
     assert.strictEqual(lines.length, 1, "pontosan egy naplósor várt");
-    assert.match(lines[0], /^\[\d{4}-\d{2}-\d{2}T/);
+    // A systemd err-prefix a sor legelején; az időbélyeg KÖZVETLENÜL utána.
+    assert.ok(lines[0].startsWith(STDERR_PRIORITY), "a hibasor a systemd err-prefixszel kezdődik");
+    assert.match(lines[0].slice(STDERR_PRIORITY.length), /^\[\d{4}-\d{2}-\d{2}T/);
     assert.match(lines[0], /Users\.create:/);
     assert.match(lines[0], /valami elromlott/);
     /* A verem nélkül a napló használhatatlan lenne a hibakereséshez. A fájl a
        SAJÁT nevét kérdezi meg: egy átnevezés különben itt bukna el, ott, ahol a
        verem tartalmához semmi köze (pontosan ez történt a log.js-re nevezéskor). */
     assert.match(lines[0], new RegExp(`at .*${basename(__filename)}`));
+});
+
+test("a hibasor systemd err-prefixet kap (a -p err ettől lát), az info NEM", () => {
+    /* A hiba (console.error) az err-prefixszel megy — enélkül a journalctl -p err
+       VAK volt rá (mérve 2026-09-17). Az info (console.log) prefix nélkül marad: az
+       info a helyes prioritása, egy téves <3> hamis err-riasztást adna. Ez a két
+       állítás EGYÜTT őrzi a szétválasztást: a prefix elhagyása vagy az infóra
+       tévedése pontosan itt bukik. */
+    const errLines = captureLog(() => logError("Users.create", new Error("bumm")));
+    assert.ok(errLines[0].startsWith(STDERR_PRIORITY),
+        "a hibasor nem kapta meg az err-prefixet — a journalctl -p err vak marad rá");
+
+    // Az info a console.log-ra megy; külön kapjuk el.
+    const original = console.log;
+    const infoLines = [];
+    console.log = (...args) => infoLines.push(args.map(String).join(" "));
+    try {
+        logInfo("A szerver fut.");
+    } finally {
+        console.log = original;
+    }
+    assert.ok(!infoLines[0].startsWith(STDERR_PRIORITY),
+        "az info-sor err-prefixet kapott — az info nem hiba, ez hamis riasztás lenne");
 });
 
 test("KONTROLL: EGYETLEN argumentumot adunk át, nem a hibaobjektumot", () => {

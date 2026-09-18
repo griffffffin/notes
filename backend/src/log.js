@@ -131,11 +131,31 @@ function describeError(error) {
     }
 }
 
+/* A systemd SYSLOG-SZINT-PREFIXE. A sor elején álló `<3>` azt mondja a
+   journaldnak, hogy ez `err` (3) prioritású, ÉS a journald a prefixet LE IS NYELI
+   (a tárolt MESSAGE-ben nem marad ott — mérve 2026-09-18, tranziens egységgel).
+
+   MIÉRT KELL. A service stderr-je (a mi `console.error`-ünk) systemd alatt ALAPBÓL
+   `info` (6) prioritáson landolt, egy szinten a `logInfo`-val — így a
+   `journalctl -p err` és MINDEN prioritás-alapú szűrő/riasztás VAK volt a
+   hibáinkra (mérve 2026-09-17: 7 nap alatt 0 err-szintű sor, pedig hiba lehetett).
+   A prefixszel a hiba-sor tényleg `err` lesz.
+
+   MIÉRT NEM SÉRTI A NAPLÓ-RÉTEG ELVÉT. Ez EGY fix jelölő: nincs benne titok, nincs
+   vezérlőkarakter, és a kész, redaktált+neutralizált STRING ELÉ kerül (nem bontja
+   meg az „egyetlen kész string" tulajdonságot, l. logProblem alatt). A `SyslogLevelPrefix`
+   a notes.service-nél `yes` (különben a `<3>` nyersen bent maradna) — ez kétoldali
+   kötés a unit és a kód között, ezért mérve, és a unit e nélkül a prefixet kiírná,
+   nem elrejtené. Csak a hiba ELSŐ sorára hat (a journald soronként olvas): a
+   többsoros verem keret-sorai info szinten maradnak, de a HIBA JELE — a
+   „context: ErrName" első sor — err lesz, és a digest is azt számolja. */
+const STDERR_PRIORITY = "<3>";
+
 /* A HIBACSATORNA, HIBAOBJEKTUM NÉLKÜL. Van baj, amihez nincs `Error` — a kliens
    szerződés-hibájának jelentése (controllers/clientError.js) ilyen: az esemény
    maga a hír, nincs mit leírni belőle. Az stderr-re megy, mert a naplóban a
-   szintje ettől lesz megkülönböztethető (`journalctl -p err`), és mert a
-   figyelőnk is ezt nézi.
+   szintje ettől lesz megkülönböztethető (`journalctl -p err` — a STDERR_PRIORITY
+   prefix miatt), és mert a figyelőnk is ezt nézi.
 
    A logError EZT HASZNÁLJA, nem külön ír: így a redakció és az időbélyeg egy
    helyen van, és nem tud elcsúszni a két hiba-út között.
@@ -146,7 +166,7 @@ function describeError(error) {
    describeError-ban semlegesült; az egyetlen közvetlen hívó (clientError.js)
    pedig validált, sortörés-mentes kulcsot ad (ENDPOINT_KEY). */
 function logProblem(message) {
-    console.error(redactSecrets(`[${new Date().toISOString()}] ${message}`));
+    console.error(STDERR_PRIORITY + redactSecrets(`[${new Date().toISOString()}] ${message}`));
 }
 
 /**
@@ -180,4 +200,4 @@ function logInfo(message) {
     console.log(neutralizeControls(redactSecrets(`[${new Date().toISOString()}] ${message}`)));
 }
 
-module.exports = {logInfo, logProblem, logError, redactSecrets, describeError, neutralizeControls};
+module.exports = {logInfo, logProblem, logError, redactSecrets, describeError, neutralizeControls, STDERR_PRIORITY};
