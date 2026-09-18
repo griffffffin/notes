@@ -8,6 +8,7 @@ import {responseStatus} from "../../httpError";
 import {ENTRY_ERROR_MESSAGES, entryError, type EntryError} from "./entryError";
 import {sessionSchema} from "../../types/api";
 import {parseResponse} from "../../contractFault";
+import {clearMasterKey, enroll, unlock} from "../../masterKeySession";
 
 /* Ugyanaz a komponens szolgálja ki a belépést és a regisztrációt — a különbséget
    EGYETLEN zászló hordozza, nem két majdnem egyforma fájl. */
@@ -27,6 +28,11 @@ export default function Entry(props: EntryProps) {
     const [passwordConfirm, setPasswordConfirm] = useState("");
     const [isPasswordConfirmValid, setIsPasswordConfirmValid] = useState(false);
     const [isDisabled, setIsDisabled] = useState(true);
+    /* BEKÜLDÉS FOLYAMATBAN. Az E2EE miatt a beküldés már nem azonnali: a
+       kulcs-származtatás (Argon2id) MÉRVE ~1,2 s, plusz a hálózat. E nélkül a gomb
+       aktív maradna, és egy türelmetlen második kattintás MÁSODIK regisztrációt/
+       feloldást indítana. A gombot a beküldés idejére letiltjuk (l. lentebb). */
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const {login, handleAxios} = useAuth();
     // A props-ból csak az isLogin kell — a hookok függőségeiben ezt adjuk meg,
     // ne a teljes props objektumot (az minden rendernél új, a memózás így
@@ -79,49 +85,73 @@ export default function Entry(props: EntryProps) {
             setIsDisabled(!(isNameValid && isPasswordValid && isPasswordConfirmValid)),
         [isLogin, isNameValid, isPasswordValid, isPasswordConfirmValid]);
 
+    /* A KÉRÉS-HIBA KÖZÖS ZÁRÁSA. A döntés STÁTUSZKÓDON áll, nem a hibaüzenet szövegén:
+       a szerver szerződése a kód (409 = névütközés), nem a mondat. A `responseStatus`
+       VALÓDI alak-vizsgálatot végez (httpError.ts), nem `as`-szal. Hálózati hiba/időtúllépés
+       → nincs `response`, tehát `undefined` státusz → `entryError` a „kérés" esetre. A
+       beküldés-jelzőt itt oldjuk fel: a form marad, a gomb újra aktív. */
+    const finishWithError = useCallback((requestError: unknown) => {
+        logRequestError(requestError);
+        setError(entryError(isLogin, responseStatus(requestError)));
+        setIsSubmitting(false);
+    }, [isLogin]);
+
+    /* A SIKERES VÁLASZ FELDOLGOZÁSA. A séma mondja ki, MIT várunk: a törzs a munkamenet
+       (a token HttpOnly sütiben megy). Nem navigálunk kézzel — a `login` átbillenti az
+       isLoggedIn-t, a router a MEGNYITOTT címre renderel (a /login, /signup a belépett
+       tábla „*" ágán a /to-dos-ra megy). A beküldés-jelzőt sikeren NEM oldjuk fel: az app
+       átrenderel, az Entry lebomlik. */
     const handleSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        handleAxios(url, {name: name, password: password}, (response) => {
-                /* A séma mondja ki, MIT várunk a szervertől: a válasz törzse maga
-                   az aláírt JWT, csupasz szövegként — és most már ellenőrizzük is,
-                   mielőtt sütibe tesszük. Ha a szerver egyszer burkolót ad
-                   ({token: "…"}), a bejelentkezés HANGOSAN bukik (hibaüzenet a
-                   belépő űrlapon), nem egy "[object Object]" tokennel, amivel
-                   utána minden kérés 401-et kapna. */
+        setIsSubmitting(true);
+
+        if (isLogin) {
+            handleAxios(url, {name: name, password: password}, (response) => {
                 const newSession = parseResponse(sessionSchema, response.data, url);
-                /* A süti beállítása átbillenti az isLoggedIn-t, a router
-                   újrarenderel a belépett route-táblával — és MOST NEM navigálunk
-                   kézzel: így ha a user login nélkül egy védett címet nyitott meg
-                   (pl. /to-dos/update/:id vagy /quotes/:id), belépés után OTT marad,
-                   nem dobjuk a főoldalra. A /login és /signup címeket a belépett
-                   tábla "*" ága magától a /to-dos listára irányítja át. */
-                login(newSession);
-                /* A paraméter neve `requestError`, nem `error`: a komponens
-                   állapotát hívják `error`-nak, és az árnyékolás itt pont a
-                   fontos helyen zavarna össze (melyiket adjuk a naplónak?). */
-            }, (requestError) => {
-                logRequestError(requestError);
-                /* A döntés STÁTUSZKÓDON áll, nem a hibaüzenet szövegén: a
-                   szerver szerződése a kód (409 = névütközés), nem a mondat.
-                   Korábban a "foglalt" szóra kerestünk rá az üzenetben — az
-                   üzenet átfogalmazása vagy fordítása némán elrontotta volna ezt
-                   az ágat, és semmi nem jelezte volna.
+                /* FELOLDÁS a beléptetés ELŐTT: a beírt jelszóból + a szerver adta
+                   beiratkozásból kicsomagoljuk a mesterkulcsot (masterKeySession.unlock),
+                   és csak utána léptetünk be — így a felület sosem villant „belépve, de
+                   zárolt" állapotot. Beiratkozás nélküli (átmeneti, E2EE előtti) fióknál
+                   nincs mit feloldani. */
+                if (newSession.enrollment === undefined) return login(newSession);
+                unlock(password, newSession.enrollment)
+                    .then(() => login(newSession))
+                    /* A szerver a jelszót MÁR elfogadta, tehát ide csak SÉRÜLT beiratkozás
+                       juthat (rossz wrappedMk/só/paraméter), nem rossz jelszó. Nincs rá
+                       külön felhasználói eset: kérés-hibaként jelezzük, a részlet a naplóba. */
+                    .catch((unlockError: unknown) => {
+                        logRequestError(unlockError);
+                        setError(entryError(true, undefined));
+                        setIsSubmitting(false);
+                    });
+            }, finishWithError);
+            return;
+        }
 
-                   A hibaág paramétere `unknown` (JavaScriptben bármit el lehet
-                   dobni), ezért nem lehet csak úgy `error.response?.status`-t írni.
-                   A `responseStatus` VALÓDI alak-vizsgálatot végez (l. httpError.ts),
-                   nem `as`-szal állítja, hogy Axios-hiba — így a tesztek sima
-                   `{response:{status:409}}` objektuma is átmegy rajta.
-
-                   Hogy melyik kódból melyik üzenet lesz, az az entryError.ts-ben
-                   él, egyetlen táblázatban — itt csak azt mondjuk ki, hogy MINDEN
-                   hiba kap választ. Ez a lényegi javítás: eddig a belépés minden
-                   hibát rossz jelszónak mondott, a regisztráció pedig a 409-en
-                   kívül semmit nem jelzett. */
-                setError(entryError(isLogin, responseStatus(requestError)));
-            }
-        );
-    }, [isLogin, url, name, password, login, handleAxios]);
+        /* REGISZTRÁCIÓ: a kliens ELŐBB legyártja a beiratkozást — friss mesterkulcs, a
+           jelszóból származtatott kulccsal becsomagolva (masterKeySession.enroll). A
+           mesterkulcs a memóriába kerül; a szerver csak a becsomagolt alakot kapja a többi
+           mezővel. A `parallelism` stb. az enrollmenten belül van, ezért terjed szét a
+           törzsbe. */
+        enroll(password)
+            .then((enrollment) => {
+                handleAxios(url, {name: name, password: password, ...enrollment}, (response) => {
+                    login(parseResponse(sessionSchema, response.data, url));
+                }, (requestError) => {
+                    /* A regisztráció elbukott: a memóriában maradt mesterkulcs ÁRVA —
+                       eldobjuk, hogy egy újbóli próbálkozás friss kulcsot generáljon, ne
+                       egy fél állapotút örökítsen tovább. */
+                    clearMasterKey();
+                    finishWithError(requestError);
+                });
+            })
+            /* A kulcs-származtatás (Argon2) elhasalt — kérés-hibaként jelezzük. */
+            .catch((cryptoError: unknown) => {
+                logRequestError(cryptoError);
+                setError(entryError(false, undefined));
+                setIsSubmitting(false);
+            });
+    }, [isLogin, url, name, password, login, handleAxios, finishWithError]);
 
     return (
         <div className="container-fluid d-flex justify-content-center align-items-center mt-4 pt-2 px-0">
@@ -136,7 +166,9 @@ export default function Entry(props: EntryProps) {
                             errorMessage={error && ENTRY_ERROR_MESSAGES[error]}/>
                 {/* A jelszó-ürítés a linkről elmaradhat: a routes.tsx külön key-t
                     ad a két nézetnek, így a váltás új példányt hoz, üres mezőkkel. */}
-                <SubmitButtonGroup isDisabled={isDisabled} isLogin={isLogin}/>
+                {/* A beküldés idejére (Argon2 + hálózat) is tiltjuk: enélkül egy második
+                    kattintás MÁSODIK regisztrációt/feloldást indítana. */}
+                <SubmitButtonGroup isDisabled={isDisabled || isSubmitting} isLogin={isLogin}/>
             </form>
         </div>
     );

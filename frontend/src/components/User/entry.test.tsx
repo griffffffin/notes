@@ -18,6 +18,7 @@ import {ENTRY_ERROR_MESSAGES} from "./entryError";
 import {axiosResponse} from "../../test/axiosResponse";
 import type {RoutesProps} from "../routes";
 import {at} from "../../test/at";
+import {enroll, unlock} from "../../masterKeySession";
 
 /* A login/regisztrációs űrlap viselkedése. A jelszó-szabály és a "Tovább" gomb
    tiltása a felhasználó első találkozása az appal — ha ez elromlik, senki nem
@@ -33,6 +34,25 @@ import {at} from "../../test/at";
    generikus (`post<T, R, D>`), tehát BÁRMELY R-re működő függvényt vár, amit egy
    konkrét visszatérésű vi.fn nem elégít ki. */
 vi.mock(import("axios"));
+
+/* A MESTERKULCS-SESSION KIVÁLTVA: a valódi `enroll`/`unlock` Argon2id-t futtat (MÉRVE
+   ~1,2 s), ami ezt a form-tesztet lassúvá és a kriptóhoz kötötté tenné — azt a
+   masterKeySession.test.ts fedi. Itt a form VISELKEDÉSE a tét (enroll a POST előtt,
+   unlock a beléptetés előtt), ezért a kulcs-műveletek azonnaliak. A `vi.hoisted` kell,
+   mert a mock-gyár a fájl tetejére emelődik, a fixtúra elé (l. vi-mock memória). */
+const {FAKE_ENROLLMENT} = vi.hoisted(() => ({
+    FAKE_ENROLLMENT: {
+        wrappedMk: "e2ee1.aaaa.bbbb",
+        kdfSalt: "c2FsdA==",
+        kdf: {algorithm: "argon2id" as const, memorySize: 65536, iterations: 3, parallelism: 1},
+    },
+}));
+vi.mock(import("../../masterKeySession"), async (importOriginal) => ({
+    ...(await importOriginal()),
+    enroll: vi.fn(async () => FAKE_ENROLLMENT),
+    unlock: vi.fn(async () => {}),
+    clearMasterKey: vi.fn(),
+}));
 
 const postSpy = () => vi.mocked(axios.post);
 
@@ -54,6 +74,9 @@ const submitButton = () => screen.getByRole("button", {name: "Tovább"});
 
 beforeEach(() => {
     postSpy().mockReset();
+    // A kulcs-mockok hívás-történetét is nullázzuk (a viselkedésüket megtartva).
+    vi.mocked(enroll).mockClear();
+    vi.mocked(unlock).mockClear();
     /* A BEJELENTKEZÉS VÁLASZA A MUNKAMENET, nem a token: azt a szerver HttpOnly
        sütibe teszi, a törzsbe csak a név kerül (backend/src/controllers/Users/login.js).
        A mock a valóságot tükrözze — rossz alakkal a séma elutasítana, és a teszt
@@ -144,6 +167,39 @@ describe("Entry — regisztráció", () => {
         await userEvent.click(
             at(screen.getAllByRole("button", {name: /jelszó megjelenítése/i}), 0, "szem-gomb"));
         expect(mezo).toHaveAttribute("type", "text");
+    });
+});
+
+/* AZ E2EE-BEKÖTÉS: a regisztráció a kliens-oldali beiratkozást is elküldi, a belépés
+   pedig a szerver adta beiratkozásból feloldja a mesterkulcsot. A kulcs-műveletek maga a
+   masterKeySession.test.ts tárgya; itt csak azt bizonyítjuk, hogy az Entry a HELYES
+   ponton, a HELYES adattal hívja őket. */
+describe("Entry — E2EE-beiratkozás és feloldás", () => {
+    it("regisztrációnál a beiratkozást is elküldi a szervernek (nem csak név+jelszó)", async () => {
+        renderEntry({isLogin: false});
+        await userEvent.type(screen.getByLabelText("Felhasználónév"), "anna");
+        await userEvent.type(screen.getByLabelText("Jelszó"), "Teszt1234");
+        await userEvent.type(screen.getByLabelText("Jelszó megerősítése"), "Teszt1234");
+        await userEvent.click(submitButton());
+
+        await waitFor(() => expect(axios.post).toHaveBeenCalledWith(
+            expect.stringContaining(ENDPOINTS.signup),
+            {name: "anna", password: "Teszt1234", ...FAKE_ENROLLMENT},
+            expect.anything()));
+    });
+
+    it("belépésnél a szerver adta beiratkozással, a beírt jelszóval old fel", async () => {
+        // A /login most beiratkozott fiókot ad vissza; a /me marad 401 (kijelentkezve indul).
+        postSpy().mockImplementation((url) =>
+            typeof url === "string" && url.endsWith(ENDPOINTS.me)
+                ? Promise.reject({response: {status: 401}})
+                : Promise.resolve(axiosResponse({name: "teszt", enrollment: FAKE_ENROLLMENT})));
+        renderEntry({isLogin: true});
+        await userEvent.type(screen.getByLabelText("Felhasználónév"), "anna");
+        await userEvent.type(screen.getByLabelText("Jelszó"), "Teszt1234");
+        await userEvent.click(submitButton());
+
+        await waitFor(() => expect(vi.mocked(unlock)).toHaveBeenCalledWith("Teszt1234", FAKE_ENROLLMENT));
     });
 });
 

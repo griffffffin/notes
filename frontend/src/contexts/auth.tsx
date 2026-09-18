@@ -13,6 +13,7 @@ import {responseStatus} from "../httpError";
 import {BACKEND_URL} from "../backendUrl";
 import {logRequestError} from "../log";
 import {dropDraftKey, useDraftKeySession} from "../draftKeySession";
+import {clearMasterKey} from "../masterKeySession";
 import {parseResponse, reportContractFault} from "../contractFault";
 import {flushPendingSaves} from "../pendingSave";
 import {reloadToRoot} from "../reload";
@@ -165,6 +166,12 @@ export function AuthProvider({children}: {children: ReactNode}) {
                piszkozat születik meg, ami a mentetlen munkát őrzi, és kulcs
                nélkül azt már nem lehetne kiírni. */
             dropDraftKey();
+            /* A MESTERKULCS ELDOBÁSA is IDE, a mentés-láncok lefutása UTÁN — nem a
+               kattintáshoz kötve. A függő mentések a tartalmat MÉG a mesterkulccsal
+               titkosítják (e2ee/content.ts); ha a kulcsot előbb dobnánk el, épp a
+               kijelentkezéskori mentés hasalna el (getMasterKey dob). Ugyanaz az elv,
+               mint a piszkozat-kulcsnál. */
+            clearMasterKey();
             /* A VISSZAVONÁS ÉS AZ ÚJRATÖLTÉS IS IDE VAN KÖTVE, nem a határidőhöz.
                A visszavonás azért, mert a megnövelt verzió minden korábbi tokent
                megöl: a mentés ELŐTT lefutva 401-gyel ölné meg a még úton lévő
