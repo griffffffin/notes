@@ -127,9 +127,14 @@ tartalom**.
 - **Egyedi nonce** minden titkosításnál (`crypto.getRandomValues`, 96 bit). GCM-nél az IV
   ismétlődése katasztrófa (kiszivárogtatja a hitelesítő kulcsot) — a piszkozat-menetben
   már van rá teszt-minta.
-- **AAD (additional authenticated data): `_id` + `section` + `user`.** Ez a helyéhez köti a
+- **AAD (additional authenticated data): `section` + `_id`.** Ez a helyéhez köti a
   ciphertextet: a szerver nem cserélheti ki két elem blobját (swap-támadás) anélkül, hogy a
   `decrypt` el ne hasalna. E2EE-nél a szerver ELLENSÉGES — ezt teszt bizonyítja.
+  **A `user` KIMARADT az AAD-ból** (2026-09-22, a bekötés hozta felszínre): a kliens a saját
+  Mongo user-id-jét nem ismeri (a szerver szándékosan sosem küldi ki, least-disclosure), és
+  nincs is rá szükség — a user-hez-kötést a **per-user mesterkulcs** adja (más felhasználó a
+  saját MK-jával eleve nem fejti meg a blobot, a GCM-címke bukik). A same-user és a szekció-
+  swapet az `_id` és a `section` fogja; a `user` így redundáns volt ÉS rekonstruálhatatlan.
 
 ## 5. Feloldás-életciklus és a RELOAD-probléma (fontos)
 
