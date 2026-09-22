@@ -33,6 +33,38 @@ vi.mock(import("axios"));
    (l. reload.ts). */
 vi.mock(import("../reload"));
 
+/* A LAPOK KÖZTI KIJELENTKEZÉS csatornáját kiváltjuk: a `broadcastLogout` kém, a
+   `subscribeRemoteLogout` pedig eltárolja a feliratkozót, hogy a teszt egy "másik lap
+   kilépését" a `fire()`-rel elő tudja idézni — valódi BroadcastChannel-időzítés nélkül.
+   A `vi.hoisted` kell, mert a mock-gyár a fájl tetejére emelődik. */
+const remoteLogout = vi.hoisted(() => {
+    const listeners: (() => void)[] = [];
+    return {
+        broadcastLogout: vi.fn(),
+        subscribeRemoteLogout: vi.fn((listener: () => void) => {
+            listeners.push(listener);
+            return () => {
+                const index = listeners.indexOf(listener);
+                if (index >= 0) listeners.splice(index, 1);
+            };
+        }),
+        fire: () => { listeners.slice().forEach((listener) => { listener(); }); },
+        reset: () => { listeners.length = 0; },
+    };
+});
+vi.mock(import("../sessionBroadcast"), () => ({
+    broadcastLogout: remoteLogout.broadcastLogout,
+    subscribeRemoteLogout: remoteLogout.subscribeRemoteLogout,
+}));
+
+/* A mesterkulcs-session valódi marad, EGY kivétellel: a `clearMasterKey` kém, hogy a
+   "másik lap kilépett" ág eldobja-e a kulcsot (biztonsági kötelesség) ellenőrizhető legyen. */
+const clearMasterKey = vi.hoisted(() => vi.fn());
+vi.mock(import("../masterKeySession"), async (importOriginal) => ({
+    ...(await importOriginal()),
+    clearMasterKey,
+}));
+
 const postSpy = () => vi.mocked(axios.post);
 
 /* A MUNKAMENET, ahogy a szerver leírja. Token SEHOL nem szerepel a tesztekben
@@ -113,6 +145,9 @@ const isEndpoint = (url: unknown, endpoint: string) =>
 
 beforeEach(() => {
     postSpy().mockReset();
+    remoteLogout.broadcastLogout.mockClear();
+    remoteLogout.reset();
+    clearMasterKey.mockClear();
     /* AZ ALAPÁLLAPOT: KIJELENTKEZETT, DE MÁR TUDOTT. A provider minden induláskor
        megkérdezi a szervert (POST /me) — a tesztek nagy része kijelentkezve indul,
        és a "belépés" gombbal lép be, ezért a /me alapból 401-et ad.
@@ -857,5 +892,56 @@ describe("Kijelentkezés: visszavonás a szerveren, majd teljes újratöltés", 
         expect(screen.getByTestId("kilepes-bukott"),
             "a 401 a munkamenet megszűnése, nem bukás — nem szabad beragadó hibát mutatni")
             .toHaveTextContent("false");
+    });
+});
+
+/* LAPOK KÖZTI KIJELENTKEZÉS. A kilépés a fiók MINDEN munkamenetét visszavonja a szerveren
+   (account-szintű tokenVersion), tehát a nyitva maradt lapok is halottak — csak a következő
+   kérésükig nem tudják. A kilépő lap ezért szól nekik (broadcastLogout), a fogadó lap pedig
+   kilép ÉS eldobja a mesterkulcsot. */
+describe("Lapok közti kijelentkezés", () => {
+    const logoutCalls = () => postSpy().mock.calls.filter(
+        ([url]) => typeof url === "string" && url.endsWith(ENDPOINTS.logout));
+
+    beforeEach(() => { vi.mocked(reloadToRoot).mockReset(); });
+
+    async function loginThenLogout() {
+        renderAuth();
+        await userEvent.click(screen.getByRole("button", {name: "belépés"}));
+        await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("true"));
+        await userEvent.click(screen.getByRole("button", {name: "kilépés"}));
+    }
+
+    it("a SIKERES visszavonás után szól a többi lapnak", async () => {
+        await loginThenLogout();
+
+        await waitFor(() => { expect(logoutCalls()).toHaveLength(1); });
+        await waitFor(() => { expect(remoteLogout.broadcastLogout).toHaveBeenCalledTimes(1); });
+    });
+
+    it("ha a visszavonás ELBUKIK, NEM szól a többi lapnak (kontroll)", async () => {
+        /* A munkamenet a szerveren ÉLHET (a kérés nem ért célba) — a többi lapot kiléptetni
+           hamis állítás volna. A broadcast csak a bizonyítottan megszűnt munkamenethez jár. */
+        postSpy().mockImplementation((url) => isEndpoint(url, ENDPOINTS.logout)
+            ? Promise.reject(new Error("a hálózat nem elérhető"))
+            : Promise.resolve(axiosResponse(SESSION)));
+
+        await loginThenLogout();
+
+        await waitFor(() => expect(screen.getByTestId("kilepes-bukott")).toHaveTextContent("true"));
+        expect(remoteLogout.broadcastLogout).not.toHaveBeenCalled();
+    });
+
+    it("egy másik lap kilépése itt is kiléptet ÉS eldobja a mesterkulcsot", async () => {
+        renderAuth();
+        await userEvent.click(screen.getByRole("button", {name: "belépés"}));
+        await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("true"));
+        clearMasterKey.mockClear();
+
+        act(() => { remoteLogout.fire(); });
+
+        await waitFor(() => expect(screen.getByTestId("belepett")).toHaveTextContent("false"));
+        expect(clearMasterKey, "a másik lap kilépésekor a memóriabeli kulcs sem maradhat")
+            .toHaveBeenCalledTimes(1);
     });
 });

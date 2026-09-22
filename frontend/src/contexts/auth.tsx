@@ -14,6 +14,7 @@ import {BACKEND_URL} from "../backendUrl";
 import {logRequestError} from "../log";
 import {dropDraftKey, useDraftKeySession} from "../draftKeySession";
 import {clearMasterKey} from "../masterKeySession";
+import {broadcastLogout, subscribeRemoteLogout} from "../sessionBroadcast";
 import {parseResponse, reportContractFault} from "../contractFault";
 import {flushPendingSaves} from "../pendingSave";
 import {reloadToRoot} from "../reload";
@@ -184,6 +185,12 @@ export function AuthProvider({children}: {children: ReactNode}) {
                        szerver a sütit is törölte). Az újratöltés úgyis eldobja az
                        egész lapot, de a kettő közti pillanatban sem szabad
                        bejelentkezettnek látszania. */
+                    /* SZÓLUNK A TÖBBI LAPNAK — a visszavonás a fiók MINDEN munkamenetét
+                       megölte (account-szintű tokenVersion), tehát a nyitva maradt lapok is
+                       ki vannak léptetve; enélkül csak a következő kérésüknél tudnák meg, és
+                       addig kint maradna a dekódolt tartalom. Az újratöltés ELŐTT hívjuk,
+                       hogy a jelzés biztosan elmenjen (l. sessionBroadcast.ts). */
+                    broadcastLogout();
                     setSession(null);
                     reloadToRoot();
                 })
@@ -211,6 +218,9 @@ export function AuthProvider({children}: {children: ReactNode}) {
                        tesszük, mint a sikerág: eldobjuk a helyi munkamenetet és
                        újratöltünk a belépő képernyőre. */
                     if (responseStatus(error) === 401) {
+                        /* A 401 is a munkamenet vége (lejárt vagy máshol visszavonták) — a
+                           többi lap ugyanúgy halott, ezért itt is szólunk nekik. */
+                        broadcastLogout();
                         setSession(null);
                         return reloadToRoot();
                     }
@@ -278,6 +288,17 @@ export function AuthProvider({children}: {children: ReactNode}) {
        munkamenet gazdájánál kérjük le — a mikorját és a miértjeit a hook mondja
        ki (draftKeySession.ts). */
     useDraftKeySession(session?.name ?? null);
+
+    /* EGY MÁSIK LAP KILÉPETT → itt is kilépünk. A kilépő lap a sessionBroadcast csatornán
+       szól; ilyenkor eldobjuk a munkamenetet (a belépő képernyőre esünk) és a mesterkulcsot
+       (nehogy a memóriában maradt kulccsal még dekódolható legyen a tartalom). Nem töltünk
+       újra: a `setSession(null)` a belépő nézetre vált, a szerver-munkamenet pedig már
+       halott (a kilépő lap visszavonta), tehát nincs mit menteni. A `setSession` és a
+       `clearMasterKey` is stabil, ezért a feliratkozás egyszer, üres függőséggel fut. */
+    useEffect(() => subscribeRemoteLogout(() => {
+        setSession(null);
+        clearMasterKey();
+    }), []);
 
     useEffect(() => {
         // Kijelentkezve (vagy amíg nem tudjuk) nincs mit lejáratni és figyelni.
