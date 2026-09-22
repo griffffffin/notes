@@ -21,7 +21,7 @@
    titkosítás a szinkron @noble AES-t használja (e2ee/content.ts), tehát a lapbezárás nem
    akad meg. */
 
-import {useSyncExternalStore} from "react";
+import {useEffect, useState, useSyncExternalStore} from "react";
 import {base64ToBytes, bytesToBase64} from "./e2ee/base64";
 import {deriveKek, generateMasterKey, generateSalt, unwrapMasterKey, wrapMasterKey}
     from "./e2ee/masterKey";
@@ -71,6 +71,86 @@ export function clearMasterKey(): void {
     emit();
 }
 
+/* ─── LAPOK KÖZTI KULCS-MEGOSZTÁS (BroadcastChannel) ────────────────────────────────
+   Cél: egy ÚJ lap (vagy egy frissítés) NE kérjen újra jelszót, ha egy MÁSIK lapon már
+   fel van oldva a munkamenet.
+
+   MIÉRT BroadcastChannel, ÉS MIÉRT NEM localStorage/sessionStorage. Az MK-t SOHA nem
+   írjuk lemezre (l. a fájl eleji kommentet) — a localStorage épp ezt tenné, és lemezre
+   került kulcs meg is maradna a böngésző bezárása után (megtörné a nyugalmi E2EE-t). A
+   sessionStorage laponként KÜLÖN van, tehát egy frissen nyitott lap üresen indulna, nem
+   örökölne. A BroadcastChannel viszont az azonos origin lapjai közti, MEMÓRIÁBAN élő
+   üzenetcsatorna: a zárolt lap megkérdezi a többit, egy feloldott lap pedig átadja neki a
+   kulcsot. A kulcs így végig csak a memóriában utazik. Ha MINDEN lap bezárul, a kulcs
+   eltűnik, és a legközelebbi megnyitás megint jelszót kér — ez a szándékos határ (a user
+   döntése, 2026-09-18).
+
+   FENYEGETÉSMODELL. A csatorna azonos originre korlátozott (a böngésző kényszeríti ki).
+   XSS esetén egy támadó a mi originünkön elkérhetné a kulcsot egy feloldott laptól — de az
+   XSS a saját lapja memóriájában amúgy is elérné az MK-t, tehát ez nem ad érdemi új
+   felületet (ugyanaz az elv, amiért az XSS az E2EE-t általában is megtöri; E2EE.md 1.). */
+
+type ChannelMessage = {type: "request"} | {type: "provide"; mk: string};
+
+/* Feature-detektálás: ahol a BroadcastChannel nem elérhető (régi böngésző), a megosztás
+   egyszerűen kimarad — a lap a lock-képernyőre esik vissza, nem hibázik. */
+const channel: BroadcastChannel | null =
+    typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel("e2ee-master-key");
+/* A Node-beli (teszt) BroadcastChannel életben tartaná az eseményhurkot; ha van `unref`,
+   elengedjük. A böngésző típusa ezt a metódust nem ismeri, ezért `unknown`-on át, VALÓDI
+   futásidejű ellenőrzéssel nyúlunk hozzá (nincs `as`; a létezést a `typeof` dönti el). */
+if (channel) {
+    const candidate: unknown = channel;
+    if (typeof candidate === "object" && candidate !== null && "unref" in candidate
+        && typeof candidate.unref === "function") candidate.unref();
+}
+
+/* AZ ÜZENET KÍVÜLRŐL JÖN (másik lap), ezért `unknown` — még ha a mi kódunk küldi is, egy
+   XSS a mi originünkön hamis alakot posztolhatna. Valódi futásidejű ellenőrzés szűkíti,
+   mielőtt hozzányúlnánk (l. CLAUDE.md, "ami kívülről jön, az unknown"; httpError.ts minta). */
+function parseChannelMessage(data: unknown): ChannelMessage | null {
+    if (typeof data !== "object" || data === null || !("type" in data)) return null;
+    if (data.type === "request") return {type: "request"};
+    if (data.type === "provide" && "mk" in data && typeof data.mk === "string")
+        return {type: "provide", mk: data.mk};
+    return null;
+}
+
+/* A KULCS ÁTVÉTELE egy másik laptól. CSAK ha most zárolva vagyunk: egy már feloldott lap
+   saját kulcsát nem írjuk felül (az a mérvadó, és felül sem KELL írni — minden lap
+   ugyanazé a felhasználóé, hisz egy munkamenet-süti van). */
+function adoptMasterKey(bytes: Uint8Array): void {
+    if (masterKey !== null) return;
+    masterKey = bytes;
+    emit();
+}
+
+// A saját (feloldott) kulcs felajánlása a többi lapnak — feloldáskor és kérésre.
+function announceMasterKey(): void {
+    if (channel && masterKey !== null)
+        channel.postMessage({type: "provide", mk: bytesToBase64(masterKey)});
+}
+
+if (channel) {
+    channel.onmessage = (event: MessageEvent<unknown>): void => {
+        const message = parseChannelMessage(event.data);
+        if (!message) return;
+        // Egy zárolt lap kérdez: ha nálunk fel van oldva, átadjuk. Zárolva HALLGATUNK —
+        // egy "nincs kulcsom" válasz csak zajt adna, és felfedné a lap zárolt állapotát.
+        if (message.type === "request") return announceMasterKey();
+        // Egy feloldott lap átadta a kulcsot — ha zárolva vagyunk, átvesszük.
+        adoptMasterKey(base64ToBytes(message.mk));
+    };
+}
+
+/* A ZÁROLT LAP KÉRÉSE a többi laphoz. A választ (provide) az onmessage kezeli: ha megjön,
+   beállítja a kulcsot és értesíti a felíratkozókat, mire a felület átvált a feloldott
+   nézetre — jelszó nélkül. Ha senki nem válaszol, a hívó (usePeerUnlockAttempt) idővel
+   feladja, és jöhet a lock-képernyő. */
+export function requestMasterKeyFromPeers(): void {
+    if (channel) channel.postMessage({type: "request"});
+}
+
 /* REGISZTRÁCIÓ: friss MK + friss salt, a jelszóból KEK, az MK becsomagolása. A friss
    munkamenet FELOLDVA indul (az MK a memóriába kerül), és VISSZAADJUK a beiratkozást,
    amit a hívó (regisztrációs űrlap) a szervernek küld (POST /user/create). A szerver az
@@ -85,6 +165,8 @@ export async function enroll(password: string, kdf: KdfParams = DEFAULT_KDF): Pr
     const wrappedMk = wrapMasterKey(kek, mk);
     masterKey = mk;
     emit();
+    // A friss kulcsot a többi (esetleg zárolt) lap is átveheti — l. announceMasterKey.
+    announceMasterKey();
     return {
         wrappedMk,
         kdfSalt: bytesToBase64(salt),
@@ -107,9 +189,36 @@ export async function unlock(password: string, enrollment: Enrollment): Promise<
     const kek = await deriveKek(password, salt, enrollment.kdf);
     masterKey = unwrapMasterKey(kek, enrollment.wrappedMk);
     emit();
+    // A feloldott kulcsot a többi, még zárolt lap is átveheti — l. announceMasterKey.
+    announceMasterKey();
 }
 
 /* A ZÁROLT/FELOLDOTT ÁLLAPOT OLVASÁSA a felületnek. A `useSyncExternalStore` gondoskodik
    róla, hogy a kulcs megérkezésekor/eldobásakor a komponens újrarajzolódjon. */
 export const useMasterKeyStatus = (): boolean =>
     useSyncExternalStore(subscribe, hasMasterKey);
+
+/* A LAPOK KÖZTI FELOLDÁS-KÍSÉRLET a lock-képernyő ELŐTT. Amikor a lap zárolt (belépve, de
+   nincs kulcs), NEM ugrunk azonnal a jelszó-kérésre: előbb megkérdezzük a többi lapot
+   (requestMasterKeyFromPeers). Ha egy feloldott lap válaszol, a kulcs megérkezik
+   (onmessage → adoptMasterKey → emit), a `hasMasterKey` átbillen, és a hívó tovább a
+   Routes-ra vált — jelszó nélkül. Ha az időkorláton belül SENKI nem válaszol, feladjuk, és
+   a hívó a lock-képernyőt mutatja.
+
+   Visszaadja: FUT-E MÉG a kísérlet. A hívó ez alatt karikát mutat (nem a lock-képernyőt),
+   így a gyakori esetben (van feloldott lap, ~1 ms válasz) a jelszó-kérdés fel sem villan.
+   A "van feloldott lap"-esetnél a kulcs jóval a határidő előtt megérkezik; a teljes
+   várakozást csak a MAGÁNYOS eset (nincs más lap) fizeti meg. */
+const PEER_UNLOCK_TIMEOUT_MS = 300;
+
+export function usePeerUnlockAttempt(isLocked: boolean): boolean {
+    const [isAsking, setIsAsking] = useState(isLocked);
+    useEffect(() => {
+        if (!isLocked) { setIsAsking(false); return; }
+        setIsAsking(true);
+        requestMasterKeyFromPeers();
+        const timer = setTimeout(() => setIsAsking(false), PEER_UNLOCK_TIMEOUT_MS);
+        return () => clearTimeout(timer);
+    }, [isLocked]);
+    return isAsking;
+}

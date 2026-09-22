@@ -5,7 +5,9 @@ import {
     faPaintRoller, faPlus, faRightFromBracket, faRotate,
 } from "@fortawesome/free-solid-svg-icons";
 import Routes from "./routes";
+import LockScreen from "./User/lockScreen";
 import {useAuth} from "../contexts/auth-context";
+import {useMasterKeyStatus, usePeerUnlockAttempt} from "../masterKeySession";
 import {ENDPOINTS} from "../endpoints";
 import {logRequestError} from "../log";
 import {categoryListSchema} from "../types/api";
@@ -49,8 +51,28 @@ export default function App() {
        gomb halottnak látszana. Nem a gomb saját állapota, mert a lekérést öt hely
        indíthatja (l. lentebb), és mindegyikre igazat kell mondania. */
     const [categoriesLoading, setCategoriesLoading] = useState(false);
-    const {isLoggedIn, isSessionKnown, sessionFailed, retrySession, logoutFailed,
+    const {session, isLoggedIn, isSessionKnown, sessionFailed, retrySession, logoutFailed,
         logout, isLoggingOut, showsLogoutSpinner, handleAxios} = useAuth();
+
+    /* ZÁROLT-E A MUNKAMENET — az E2EE reload utáni következménye. A mesterkulcs csak a
+       memóriában él (masterKeySession.ts), a szerver nem ismeri; reload/új lap után eltűnik,
+       miközben a munkamenet-süti szerint be vagyunk lépve. Ilyenkor a Routes helyett a
+       feloldó képernyő jön (lentebb a kapu).
+
+       A `session?.enrollment` egy feltétellel szűr két esetre is, amikor nincs mit
+       feloldani: kijelentkezve (`session` null/undefined) és E2EE ELŐTTI fiók (a /me nem
+       küld beiratkozást) → marad a Routes. A `hasMasterKey`-t a masterKeySession
+       useSyncExternalStore-ja adja, tehát a feloldás pillanatában ez a komponens
+       újrarajzolódik és átvált a Routes-ra. */
+    const hasMasterKey = useMasterKeyStatus();
+    const enrollment = session?.enrollment;
+    const isLocked = enrollment !== undefined && !hasMasterKey;
+    /* ZÁROLT lapon előbb a többi lapot kérdezzük meg (usePeerUnlockAttempt): ha egy másik,
+       feloldott lap átadja a kulcsot, jelszó nélkül feloldódunk. Amíg ez a rövid kísérlet
+       fut, karika áll a lock-képernyő helyett — így a gyakori esetben (van nyitott,
+       feloldott lap) a jelszó-kérdés fel sem villan. Magányos lapnál a kísérlet gyorsan
+       lejár, és jön a lock-képernyő. */
+    const isAskingPeers = usePeerUnlockAttempt(isLocked);
 
     const handleLinkClicked = useCallback(() => {
         setIsColorAngleClicked(false);
@@ -144,8 +166,17 @@ export default function App() {
                 hogy nincs munkamenet — ezért újrapróbálást kínálunk, nem belépést. */}
             {!showsLogoutSpinner && !logoutFailed && sessionFailed &&
             <LoadFailedNotice message="A bejelentkezés most nem ellenőrizhető." onRetry={retrySession}/>}
+            {/* BELÉPVE, DE ZÁROLT → előbb a lapok közti feloldás-kísérlet karikája, majd (ha
+                senki nem adta át a kulcsot) a feloldó képernyő — a Routes helyett. Az
+                `enrollment !== undefined` nem csak szűr, hanem SZŰKÍT is: a LockScreen
+                `Enrollment`-et vár, és a fordító ezen az ágon már annak látja (a
+                `hasMasterKey` boolean-ből nem következtetne rá). */}
             {!showsLogoutSpinner && !logoutFailed && isSessionKnown && !sessionFailed &&
-            <Routes handleLinkClicked={handleLinkClicked}
+            (enrollment !== undefined && !hasMasterKey
+            ? (isAskingPeers
+                ? <Spinner class="min-vh-75"/>
+                : <LockScreen enrollment={enrollment}/>)
+            : <Routes handleLinkClicked={handleLinkClicked}
                     setIsColorAngleClicked={setIsColorAngleClicked} isColorAngleClicked={isColorAngleClicked}
                     setIsCategoryAngleClicked={setIsCategoryAngleClicked}
                     isCategoryAngleClicked={isCategoryAngleClicked}
@@ -156,7 +187,7 @@ export default function App() {
                        linkeket: a jelző azonnal igaz, a karika csak 300 ms után —
                        és egy egészséges kijelentkezés ennél hamarabb lefut, tehát
                        a navbar tipikusan végig látszik. */
-                    isNavigationBlocked={isLoggingOut}/>}
+                    isNavigationBlocked={isLoggingOut}/>)}
         </div>
     );
 }

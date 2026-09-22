@@ -6,7 +6,7 @@ import App from "./app";
 import {ThemeProvider} from "../contexts/theme";
 import {axiosResponse} from "../test/axiosResponse";
 import type {AxiosResponse} from "axios";
-import type {Todo} from "../types/api";
+import type {Todo, Enrollment} from "../types/api";
 import {at} from "../test/at";
 import {giveDraftKey} from "../test/draftKey";
 
@@ -35,6 +35,18 @@ const {auth, handleAxios} = await vi.hoisted(async () => {
     return mockAuth({isLoggedIn: true, session: {name: "teszt"}});
 });
 vi.mock(import("../contexts/auth-context"), () => ({useAuth: () => auth}));
+
+/* A MESTERKULCS-ÁLLAPOT VEZÉRELHETŐVÉ TÉVE. Az app.tsx kapuja a `useMasterKeyStatus`-ból
+   tudja, feloldott-e a munkamenet; itt egy mutálható jelzőre cseréljük, hogy a zárolt és a
+   feloldott állapotot is elő tudjuk állítani anélkül, hogy Argon2id-t futtatnánk. Az
+   `importOriginal` spread a modul többi (itt nem renderelt úton használt) exportját
+   megtartja, csak ezt a kettőt cseréli. A `vi.hoisted` a mock-gyár emelése miatt kell. */
+const mkStatus = vi.hoisted(() => ({present: false}));
+vi.mock(import("../masterKeySession"), async (importOriginal) => ({
+    ...(await importOriginal()),
+    useMasterKeyStatus: () => mkStatus.present,
+    unlock: vi.fn(async () => {}),
+}));
 
 /* A jsdom nem ad valódi canvas-t; a validáció fieldAnchor-ja measureText-et hív.
    A pótlék a getContext teljes típusát nem tudja betartani (l. a fieldAnchor
@@ -202,5 +214,87 @@ describe("App — a navbar linkjei kijelentkezés közben", () => {
         renderApp();
 
         expect(screen.getByRole("navigation")).not.toHaveClass("navbar-blocked");
+    });
+});
+
+/* AZ E2EE ZÁROLT-MUNKAMENET KAPUJA (F1b-2b).
+
+   Reload után a /me visszaadja a munkamenetet és a beiratkozást, de a mesterkulcs a
+   memóriából eltűnt (masterKeySession.ts) — a süti szerint belépve vagyunk, a tartalom
+   mégsem fejthető vissza. A kapu ilyenkor a feloldó képernyőt rendereli a Routes helyett.
+
+   HÁROM ÁLLAPOT, ÉS KÉT KONTROLL A KAPU-FELTÉTELRE. A feltétel
+   `enrollment !== undefined && !hasMasterKey`: az első teszt a zárolt esetet állítja, a
+   másik kettő pontosan a feltétel két fele ellen véd — ha bármelyiket kivennénk, a hozzá
+   tartozó kontroll bukna. */
+describe("App — az E2EE zárolt munkamenet kapuja", () => {
+    // A beiratkozás alakja a valódi Enrollment-hez mérve.
+    const ENROLLMENT = {
+        wrappedMk: "e2ee1.aaaa.bbbb",
+        kdfSalt: "c2FsdA==",
+        kdf: {algorithm: "argon2id", memorySize: 65536, iterations: 3, parallelism: 1},
+    } satisfies Enrollment;
+
+    // A feloldó képernyő a Routes-tól a saját fejlécével különbözik; a Routes-t a navbarja
+    // jelzi; a lapok közti feloldás-kísérlet alatt karika (role=status) áll.
+    const lockHeading = () => screen.queryByRole("heading", {name: "Zárolt munkamenet"});
+    const navbar = () => screen.queryByRole("navigation");
+    const spinner = () => screen.queryByRole("status");
+
+    beforeEach(() => {
+        // A kapu-tesztek belépve indulnak; a kategória-lekérés bármit visszaadhat.
+        handleAxios.mockImplementation((url, data, then) => { then(axiosResponse([])); });
+    });
+
+    /* A modul-szintű mockokat a többi teszthez visszaállítjuk: a `mkStatus` és az
+       `auth.session` ugyanaz a példány minden renderben, elszivárgásuk a fájl korábbi
+       tesztjeit némán elrontaná (azok beiratkozás nélküli, feloldott állapotot várnak). */
+    afterEach(() => {
+        mkStatus.present = false;
+        auth.session = {name: "teszt"};
+    });
+
+    it("zárolt lapon ELŐSZÖR a lapok közti feloldás-kísérlet karikája jön, nem a jelszó-kérés", () => {
+        auth.session = {name: "teszt", enrollment: ENROLLMENT};
+        mkStatus.present = false;
+
+        renderApp();
+
+        // A karika azonnal ott van; a lock-képernyő NEM villan fel, amíg a peer-kísérlet fut.
+        expect(spinner()).toBeInTheDocument();
+        expect(lockHeading(), "a jelszó-kérés nem villanhat fel a peer-kísérlet alatt")
+            .not.toBeInTheDocument();
+    });
+
+    it("ha egy másik lap nem oldja fel, a kísérlet lejárta után a feloldó képernyő jön", async () => {
+        auth.session = {name: "teszt", enrollment: ENROLLMENT};
+        mkStatus.present = false;
+
+        renderApp();
+
+        // A peer-kísérlet válasz nélkül lejár (nincs másik lap), és jön a jelszó-kérés.
+        expect(await screen.findByRole("heading", {name: "Zárolt munkamenet"})).toBeVisible();
+        expect(navbar(), "zárolt állapotban a Routes navbarja nem jelenhet meg").not.toBeInTheDocument();
+    });
+
+    it("feloldott mesterkulccsal a normál Routes jön (kontroll a !hasMasterKey feltételre)", () => {
+        auth.session = {name: "teszt", enrollment: ENROLLMENT};
+        mkStatus.present = true;
+
+        renderApp();
+
+        expect(lockHeading()).not.toBeInTheDocument();
+        expect(navbar()).toBeInTheDocument();
+    });
+
+    it("beiratkozás NÉLKÜLI fiók a Routes-ot kapja mesterkulcs nélkül is (kontroll az enrollment-feltételre)", () => {
+        // E2EE előtti fiók: a /me nem küld beiratkozást → nincs mit feloldani.
+        auth.session = {name: "teszt"};
+        mkStatus.present = false;
+
+        renderApp();
+
+        expect(lockHeading()).not.toBeInTheDocument();
+        expect(navbar()).toBeInTheDocument();
     });
 });
