@@ -16,6 +16,8 @@ const path = require("path");
    Korábban itt `dotenv` állt; leváltva a natív kapcsolóra (l. src/app.js indoklása).
    Kézi futtatáshoz: `node --env-file=.env scripts/daily-export.js` a backend gyökeréből. */
 const {discoverSections} = require("./exportSections");
+const {enrollmentRecord} = require("./exportEnrollment");
+const Users = require("../src/models/users");
 const {localDateString} = require("../src/localDate");
 
 /* FIGYELEM: ez egy VALÓDI, a gépen létező könyvtár neve, nem kódbeli azonosító —
@@ -104,6 +106,34 @@ function retainSection(section) {
     }
 }
 
+/* A BEIRATKOZÁS EXPORTJA — a mentés ÖNMAGÁBAN visszafejthetőségéhez (l. exportEnrollment.js
+   és [[offline-restorable-backups]]). Külön a szekció-exporttól: a beiratkozás nem szekció
+   (nincs napi módosítás-ablaka, nem idősor, hanem jelenállapot), ezért stabil néven,
+   retenció nélkül írjuk, és csak ha nem üres — üres/félkész fájl ne írja felül a jót.
+
+   ELTÉRÉS a szekció-exporttól (daily-export.js szekció-ága): EXPORT_USER_ID NÉLKÜL a szekció-
+   export „mindenki"-re esik, a beiratkozás-export viszont KIHAGYJA magát. Indok: a beiratkozás
+   kulcsanyag (bár a jelszó nélkül haszontalan), a felesleges kitettséget minimalizáljuk, és a
+   decrypt-export úgyis EGY fiók rekordját várja — minden fiók kulcsanyagának egy fájlba
+   dumpolása se nem kell, se nem kívánatos. */
+async function exportEnrollment() {
+    if (!EXPORT_USER_ID) {
+        console.log("Nincs EXPORT_USER_ID — a beiratkozás-export kihagyva (nem dumpolunk minden fiók kulcsanyagát).");
+        return;
+    }
+    const user = await Users.findById(EXPORT_USER_ID).lean();
+    const record = enrollmentRecord(user);
+    if (!record) {
+        console.log("A fiók nincs E2EE-beiratkozva — nincs beiratkozás-export (a régi mentések nyíltak).");
+        return;
+    }
+    const file = path.join(EXPORT_DIR, "enrollment.json");
+    // 0640, mint a szekció-fájlok: a csoport (a mentés-lehúzó) olvassa, más senki.
+    fs.writeFileSync(file, JSON.stringify(record, null, 2) + "\n", {mode: 0o640});
+    fs.chmodSync(file, 0o640);   // ha a fájl már létezett, a writeFileSync mode-ja nem érvényesül
+    console.log(`Beiratkozás exportálva: ${file}`);
+}
+
 (async () => {
     /* A felderítés a kapcsolat ELŐTT fut, de a hibái NEM állítják meg a mentést:
        ami nyilatkozott, azt lementjük, és a hibás/hiányzó nyilatkozatokkal a
@@ -123,6 +153,8 @@ function retainSection(section) {
         await exportSection(section, startOfWindow, endOfWindow);
         retainSection(section);
     }
+
+    await exportEnrollment();
 
     await mongoose.disconnect();
 

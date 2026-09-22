@@ -40,6 +40,18 @@ const isBoundedString = (value, max) =>
 const isIntInRange = (value, min, max) =>
     typeof value === "number" && Number.isInteger(value) && value >= min && value <= max;
 
+/* A KDF-PARAMÉTEREK WHITELISTJE — egy helyen, mert három út is ugyanezt a négy mezőt
+   másolja (tárolás, tulajdonosnak visszaadás, mentés-export). Külön másolatokban élve egy
+   ötödik paraméter felvételekor csendben elcsúsznának (CLAUDE.md: kézzel szinkronizált
+   másolat). Az engedélyezett mezőnév nem ellenőrzött érték — az értékeket a validateEnrollment
+   köti meg, ez csak a KIMENŐ alakot szűkíti. */
+const pickKdf = (kdf) => ({
+    algorithm: kdf.algorithm,
+    memorySize: kdf.memorySize,
+    iterations: kdf.iterations,
+    parallelism: kdf.parallelism,
+});
+
 /* A REGISZTRÁCIÓS TÖRZS beiratkozási részének ellenőrzése. Igaz/hamis helyett HIBAÜZENETET
    ad vissza (vagy null-t, ha rendben) — a hívó (Users/create) így egyetlen helyen dönt a
    státuszról. A `kdf` egy beágyazott objektum; a mezőit egyenként kötjük meg (az
@@ -75,12 +87,7 @@ function validateEnrollment(body) {
 const enrollmentToStore = (body) => ({
     wrappedMk: sealWithPepper(body.wrappedMk),
     kdfSalt: body.kdfSalt,
-    kdf: {
-        algorithm: body.kdf.algorithm,
-        memorySize: body.kdf.memorySize,
-        iterations: body.kdf.iterations,
-        parallelism: body.kdf.parallelism,
-    },
+    kdf: pickKdf(body.kdf),
 });
 
 /* A KIFELÉ MENŐ ALAK — a tulajdonosnak, feloldáshoz. WHITELIST: pontosan a három
@@ -94,13 +101,8 @@ function projectEnrollment(user) {
     return {
         wrappedMk: openWithPepper(user.wrappedMk),
         kdfSalt: user.kdfSalt,
-        kdf: {
-            algorithm: user.kdf.algorithm,
-            memorySize: user.kdf.memorySize,
-            iterations: user.kdf.iterations,
-            parallelism: user.kdf.parallelism,
-        },
+        kdf: pickKdf(user.kdf),
     };
 }
 
-module.exports = {validateEnrollment, enrollmentToStore, projectEnrollment};
+module.exports = {validateEnrollment, enrollmentToStore, projectEnrollment, pickKdf};
