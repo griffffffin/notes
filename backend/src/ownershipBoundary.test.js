@@ -49,8 +49,9 @@ const sectionModels = fs.readdirSync(MODELS_DIR).filter(isModelFile).sort()
     .filter(([, model]) => typeof model.exportName === "string" && model.exportName.trim() !== "");
 
 // Az OWNER tulajdonú elem, amit a mockolt findById ad vissza (a mezők a delete/
-// reorder controllereknek elegek: user, order, cím).
-const ownerItem = () => ({_id: ITEM_ID, user: OWNER, order: 5, title: "x", quote: "x"});
+// reorder controllereknek elegek: user, order, plusz szekció-specifikus tartalom —
+// a to-do címe, az idézet titkosított borítéka).
+const ownerItem = () => ({_id: ITEM_ID, user: OWNER, order: 5, title: "x", ciphertext: "e2ee1.iv.ct"});
 
 describe("több-bérlős tulajdon: minden szekció idegent kizár (derived)", () => {
     /* KONTROLL az elnémult gate ellen: ha a felderítés elromlik, a lenti hurok

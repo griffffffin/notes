@@ -271,7 +271,7 @@ elmaradt átvezetés.
      vissza, a már elindult kérést nem.
      **És az őr mellé TESZT is kell** — az őr egyetlen `if (!active) return;` sor,
      amit egy refaktor némán kivehet: nem esik szét semmi, a tesztek zöldek
-     maradnak. Minta: `Quotes/public.test.tsx`, `Todos/save.test.tsx`,
+     maradnak. Minta: `Todos/save.test.tsx` és
      `Quotes/save.test.tsx` "versenyhelyzet a betöltésben" blokkjai — a mockolt
      `handleAxios` GYŰJTI a callbackeket ahelyett, hogy válaszolna, a paraméter-
      váltás a böngésző Vissza gombjával megy (`pushState` ×2 +
@@ -306,8 +306,8 @@ elmaradt átvezetés.
      a veszélyes irányt (kiesik egy kellő mező) a `v.parse` fogja (szerződés-hiba a
      naplóba). ⚠ A `toJSON` CSAK a JSON-t szűkíti; a napi export `.lean()`-nel
      olvas, azt NEM érinti — a mentésnek a TELJES doksi kell (a mentés feltétel
-     nélkül mindent visz). Az egy-elemes/publikus végpontok ezen felül kézi, még
-     szűkebb whitelistet adhatnak (`Quotes/readById.js`).
+     nélkül mindent visz). Az egy-elemes végpontok ezen felül kézi, még
+     szűkebb whitelistet adhatnak (`Quotes/readForEdit.js`).
   8. **A KIFELÉ MENŐ SZÖVEG SZERKEZETE, nem csak a tartalma (napló-injekció).**
      A napló-kapu (`backend/src/log.js`) a titkok TARTALMÁT redaktálja, de egy
      kívülről jövő SORTÖRÉS ÚJ naplósort nyit — a támadó hamis bejegyzést költhet a

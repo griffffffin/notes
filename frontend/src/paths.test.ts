@@ -42,9 +42,6 @@ describe("PATHS — a kész címek", () => {
         expect(PATHS.todoColor("warning")).toBe("/to-dos/color/warning");
         expect(PATHS.todoUpdate("todo-1")).toBe("/to-dos/update/todo-1");
         expect(PATHS.quoteUpdate("quote-1")).toBe("/quotes/update/quote-1");
-        expect(PATHS.quoteSearch("szeretet")).toBe("/quotes/search/szeretet");
-        expect(PATHS.quotesByAuthor("Ady")).toBe("/quotes/Ady");
-        expect(PATHS.publicQuote("Ady", "quote-1")).toBe("/quotes/Ady/quote-1");
     });
 
     it("a minták a route-fa alakjában", () => {
@@ -52,15 +49,12 @@ describe("PATHS — a kész címek", () => {
         expect(PATHS.todoColor.pattern).toBe("/to-dos/color/:name");
         expect(PATHS.todoUpdate.pattern).toBe("/to-dos/update/:id");
         expect(PATHS.quoteUpdate.pattern).toBe("/quotes/update/:id");
-        expect(PATHS.quoteSearch.pattern).toBe("/quotes/search/:term");
-        expect(PATHS.quotesByAuthor.pattern).toBe("/quotes/:author");
-        expect(PATHS.publicQuote.pattern).toBe("/quotes/:author/:id");
     });
 
-    /* A kódolás korábban hat helyen, kézzel történt — ez a teszt azt rögzíti,
-       hogy a builder mindenhol elvégzi. A szóköz %20, az "á" %C3%A1. */
+    /* A kódolást a builder végzi — ez a teszt azt rögzíti. A szóköz %20, az "á" %C3%A1.
+       (Korábban az idézet szerző-szűrt címén is mértük; az az E2EE-vel megszűnt, a
+       to-do kategóriája ugyanazt a builder-kódolást bizonyítja.) */
     it("a szóközt és az ékezetet kódolja", () => {
-        expect(PATHS.quotesByAuthor("Márai Sándor")).toBe("/quotes/M%C3%A1rai%20S%C3%A1ndor");
         expect(PATHS.todoCategory("ház és kert")).toBe("/to-dos/category/h%C3%A1z%20%C3%A9s%20kert");
     });
 });
@@ -91,14 +85,11 @@ const DYNAMIC_PATHS: {name: string; build: PathBuilder; values: string[];
         values: ["todo-1"], params: {id: "todo-1"}},
     {name: "quoteUpdate", build: PATHS.quoteUpdate,
         values: ["quote-1"], params: {id: "quote-1"}},
-    /* Perjeles kifejezés és szerzőnév: pont ezek szedték volna szét az útvonalat
-       kódolás nélkül. */
-    {name: "quoteSearch", build: PATHS.quoteSearch,
-        values: ["szeretet/remény"], params: {term: "szeretet/remény"}},
-    {name: "quotesByAuthor", build: PATHS.quotesByAuthor,
-        values: ["AC/DC"], params: {author: "AC/DC"}},
-    {name: "publicQuote", build: PATHS.publicQuote,
-        values: ["Márai Sándor", "quote-1"], params: {author: "Márai Sándor", id: "quote-1"}},
+    /* Perjeles/ékezetes érték: pont ez szedné szét az útvonalat kódolás nélkül. A
+       to-do kategóriája is dinamikus szegmens, tehát ezt itt bizonyítja (az idézet
+       szerző-szűrt és keresés-címei az E2EE-vel megszűntek). */
+    {name: "todoCategoryEncoded", build: PATHS.todoCategory,
+        values: ["AC/DC"], params: {name: "AC/DC"}},
 ];
 
 describe("PATHS — az épített cím illeszkedik a SAJÁT mintájára", () => {

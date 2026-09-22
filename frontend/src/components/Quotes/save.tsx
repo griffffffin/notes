@@ -3,8 +3,6 @@ import {useCallback, useEffect, useLayoutEffect, useRef, useState,
 import {useBlocker, useLocation, useNavigate, useParams} from "react-router-dom";
 import Spinner from "../spinner";
 import SubmitButton from "../Button/submitButton";
-import AuthorInput from "./authorInput";
-import ShareButton from "./shareButton";
 import Order, {STEP_DELAY_MS} from "../Todos/order";
 import DeleteAndModal from "../Todos/deleteAndModal";
 import {toggleBold, normalizeBold} from "./bold";
@@ -19,6 +17,8 @@ import ValidationTooltip from "../Editor/validationTooltip";
 import {useEscapeSubmit} from "../Editor/useEscapeSubmit";
 import {useIdleTimer} from "../Editor/useIdleTimer";
 import {quoteForEditSchema, lastOrderSchema} from "../../types/api";
+import type {QuoteContent} from "../../types/api";
+import {encryptQuote, decryptQuote} from "./quoteContent";
 import {PATHS} from "../../paths";
 import {parseResponse} from "../../contractFault";
 import LoadFailedNotice from "../loadFailedNotice";
@@ -51,9 +51,15 @@ type QuoteSnapshot = v.InferOutput<typeof snapshotSchema>;
    Ugyanaz a fogás, mint a to-do szerkesztőjében és a törlés-modalban. */
 const SAVE_BUTTON_ID = "quoteSaveButton";
 
-/* A MENTENDŐ adat: a pillanatkép + update-nél a szerkesztett elem id-je. A három
-   mentési útvonal (blocker, leváláskori mentés, autosave) ezt küldi. */
-type QuotePayload = QuoteSnapshot & {id?: string};
+/* A SZERVERNEK KÜLDÖTT MENTÉS a VÉGPONTOK KÖZÖTTI TITKOSÍTÁS (E2EE) után: a tartalmi
+   mezők (quote, author, fontSize, createdAt) egyetlen titkosított borítékba (`ciphertext`)
+   kerülnek, nyílt marad az `id` és az `order` (l. quoteContent.ts). A három mentési
+   útvonal (blocker, leváláskori mentés, autosave) ezt küldi.
+
+   KÜLÖNBÖZIK a PISZKOZATTÓL: a piszkozat a NYERS, szerkeszthető pillanatképet tárolja
+   (QuoteSnapshot), mert azt kell visszatölteni a mezőkbe — és a böngésző tárolóján a
+   piszkozat SAJÁT titkosítása véd (draftCrypto.ts), nem ez a boríték. */
+type QuoteServerPayload = {id: string; ciphertext: string; order: number};
 
 /* A PISZKOZAT ugyanaz a négy mező, mint a pillanatkép — ezért UGYANAZ a séma áll
    mögötte, nem egy második leírás. A piszkozat a böngésző tárolójából jön VISSZA,
@@ -143,6 +149,12 @@ function QuoteEditor(props: SaveProps) {
     // újrarajzol, előbb a DOM-értéknek frissülnie kell) — ide tesszük a [start,end]-t.
     const pendingSelection = useRef<[number, number] | null>(null);
     const loaded = useRef<QuoteSnapshot | null>(null);
+    /* A LÉTREHOZÁS IDEJE — a titkosított blobba kerül (a szervernek nincs createdAt
+       oszlopa, l. E2EE.md 4.). Create-nél a szerkesztő megnyitásakor gyártjuk (a
+       load-effekt create-ága), update-nél a betöltött blobból hordozzuk tovább, hogy
+       egy szerkesztés ne írja felül az eredeti dátumot. A típus kimondva (l. CLAUDE.md
+       „kezdőérték ≠ típus"); üresen indul, a mentés fallbackje a mostani idő. */
+    const createdAtRef = useRef<string>("");
     /* Igaz, ha a mentés MÁR elintézte a távozást (a blocker mentés+proceed ága, vagy a
        Törlés) — ilyenkor a leváláskori (unmount) mentés NEM fut le újra (create-nél
        nehogy duplán hozzon létre). A blocker shouldBlock-ja is ezt nézi: ha igaz, nem
@@ -364,25 +376,32 @@ function QuoteEditor(props: SaveProps) {
                 if (!active) return;
                 /* Az ELLENŐRZÉS AZ ELSŐ, minden state-írás előtt: hibás alaknál a
                    v.parse dob, és a szerkesztő a hibaágon lép ki a listára —
-                   nem marad félig kitöltve. */
+                   nem marad félig kitöltve. A válasz a titkosított BORÍTÉK + a sorszám;
+                   a tartalmat a mesterkulccsal fejtjük vissza (E2EE, l. quoteContent.ts).
+                   A visszafejtés is DOBHAT (megbuherált/olvashatatlan blob) — ekkor a
+                   catch-ág (lentebb) a betöltési hibát mutatja, nem marad félig kész. */
                 const q = parseResponse(quoteForEditSchema, response.data, ENDPOINTS.quoteForEdit);
-                setQuote(q.quote);
-                setAuthor(q.author ?? "");
+                const content = decryptQuote(quoteId, q.ciphertext);
+                const author = content.author ?? "";
+                setQuote(content.quote);
+                setAuthor(author);
                 setOrder(q.order);
-                setFontSize(q.fontSize);
-                setIsQuoteValid(Boolean(q.quote));
+                setFontSize(content.fontSize);
+                setIsQuoteValid(Boolean(content.quote));
+                // A createdAt-et a blobból hordozzuk tovább — egy szerkesztés ne írja felül.
+                createdAtRef.current = content.createdAt;
                 /* A kurzort a betöltött szöveg VÉGÉRE tesszük (update, a to-do mintájára).
                    UGYANAZON az úton, mint a Ctrl+B: a pendingSelection-t a lenti layout-
                    effekt fókusz + setSelectionRange + scrollCaretIntoView hármassal
                    dolgozza fel. A scrollCaretIntoView getBoundingClientRect-je reflow-t
                    kényszerít, ami a villogó jelet AZONNAL kirajzolja (asztali Chrome enélkül
                    csak billentyűleütésre mutatta), és a kurzort láthatóvá is görgeti. */
-                pendingSelection.current = [q.quote.length, q.quote.length];
+                pendingSelection.current = [content.quote.length, content.quote.length];
                 // A sorszám ÉS a betűméret is része a "változott-e" ellenőrzésnek: az
                 // Order- és a Betűméret-stepperrel a felhasználó a szöveg érintése
                 // nélkül is módosíthatja az idézetet.
-                loaded.current = {quote: q.quote, author: q.author ?? "", order: q.order,
-                    fontSize: q.fontSize};
+                loaded.current = {quote: content.quote, author, order: q.order,
+                    fontSize: content.fontSize};
 
                 /* A PISZKOZATRÓL a betöltött állapot ismeretében döntünk:
                    visszaáll, ha a szerveren azóta semmi nem változott — különben
@@ -418,7 +437,11 @@ function QuoteEditor(props: SaveProps) {
             setLoadFailed(true);
         });
         // CREATE: nincs betöltendő elem, tehát a piszkozatnak nincs mivel ütköznie.
-        if (!quoteId) decideDraftRef.current(null);
+        // A createdAt-et itt gyártjuk, egyszer a szerkesztő megnyitásakor (a blobba kerül).
+        if (!quoteId) {
+            createdAtRef.current = new Date().toISOString();
+            decideDraftRef.current(null);
+        }
         return () => { active = false; };
     }, [isUpdate, quoteId, handleAxios, leaveEditor, retryCount, draftStorageKey]);
 
@@ -564,24 +587,35 @@ function QuoteEditor(props: SaveProps) {
     }, [quote, isLoading, autoGrow, scrollCaretIntoView]);
 
 
-    /* A MENTENDŐ ADAT — mindhárom mentési útvonal (blocker, leváláskori mentés,
-       autosave) PONTOSAN ezt küldi; csak a hívás KÖRÜLI viselkedés tér el (hova
-       navigál, melyik tokent használja, mit tesz hibánál), ezért maga a mentés
-       szándékosan NEM közös. Egy új mező (pl. címke) így egy helyen kerül be.
+    /* A PILLANATKÉP — a NYERS, szerkeszthető állapot (quote/author/order/fontSize). Ezt
+       tárolja a PISZKOZAT (a böngésző tárolójába, saját titkosítással), és ez a "változott-e"
+       összevetés alapja is. A félkövér-markereket itt NORMALIZÁLJUK: a `**`-ok flip-flopját
+       tiszta bold-futamokra oldjuk fel (a tárolt és a `loaded` érték is normalizált). */
+    const buildSnapshot = useCallback((): QuoteSnapshot =>
+        ({quote: normalizeBold(quote), author: author, order: order, fontSize: fontSize}),
+    [quote, author, order, fontSize]);
 
-       A félkövér-markereket MENTÉSKOR normalizáljuk: a `**`-ok flip-flopját tiszta
-       bold-futamokra oldjuk fel (a tárolt és a `loaded` érték is normalizált).
+    /* A SZERVERNEK KÜLDÖTT, TITKOSÍTOTT mentés (E2EE). A tartalmi mezőket — a createdAt-tel
+       együtt — egyetlen borítékba titkosítjuk a mesterkulccsal (l. quoteContent.ts), nyílt
+       marad az id és az order. Mindhárom mentési útvonal (blocker, leváláskori mentés,
+       autosave) ezt küldi; a hívás KÖRÜLI viselkedés tér el (hova navigál, mit tesz hibánál),
+       ezért maga a mentés szándékosan NEM közös.
 
-       useCallback: a blocker-effekt függőségi listájában ez az EGY érték áll a hat
-       nyers state helyett, így az effekt csak akkor fut újra, ha a payload tényleg
-       változhatott.
+       AZ AZONOSÍTÓ MINDIG BEKERÜL — create-nél is: a szerver ebből ismeri fel a megismételt
+       létrehozást (createOnce.js), a végpont megköveteli, ÉS a boríték AAD-je is erre köt
+       (section|_id). Ha valahogy hiányozna (a route garantálja, hogy nem), DOBUNK, semmint
+       kötés nélküli borítékot küldjünk — a hibát a mentés hibaága kezeli.
 
-       AZ AZONOSÍTÓ MINDIG BEKERÜL — create-nél is: a szerver ebből ismeri fel a
-       megismételt létrehozást (createOnce.js), és a végpont meg is követeli. */
-    const buildPayload = useCallback((): QuotePayload => {
-        const data: QuotePayload = {quote: normalizeBold(quote), author: author, order: order, fontSize: fontSize};
-        if (savedItemId) data.id = savedItemId;
-        return data;
+       useCallback: a blocker-effekt függőségi listájában ez az EGY érték áll a nyers state-ek
+       helyett, így az effekt csak akkor fut újra, ha a payload tényleg változhatott. Az
+       encryptQuote a getMasterKey-t hívja (zároltan DOB) — a kapu a lock-képernyő (app.tsx). */
+    const buildServerPayload = useCallback((): QuoteServerPayload => {
+        if (savedItemId === null) throw new Error("Hiányzó azonosító a mentéshez.");
+        const content: QuoteContent = {
+            quote: normalizeBold(quote), author: author, fontSize: fontSize,
+            createdAt: createdAtRef.current || new Date().toISOString(),
+        };
+        return {id: savedItemId, ciphertext: encryptQuote(savedItemId, content), order: order};
     }, [quote, author, order, fontSize, savedItemId]);
 
     /* A NAVIGÁCIÓ-ELKAPÓ mentés magja: a blocker akkor billen "blocked"-ba, ha van
@@ -613,7 +647,7 @@ function QuoteEditor(props: SaveProps) {
             markSaving(false);
             setSaveFailed(true);
             logRequestError(error);
-            saveDraft(draftStorageKey, buildPayload(), loaded.current ?? undefined, savedItemId ?? undefined);
+            saveDraft(draftStorageKey, buildSnapshot(), loaded.current ?? undefined, savedItemId ?? undefined);
             blocker.reset();
         };
         /* A futó mentés ígérete (l. inFlightRef): a `settled` a promise saját
@@ -621,7 +655,7 @@ function QuoteEditor(props: SaveProps) {
            kijelentkezés megvárja ezt a mentést, másodikat nem indítva mellé. */
         let settled: () => void = () => undefined;
         inFlightRef.current = new Promise<void>((resolve) => { settled = resolve; });
-        handleAxios(url, buildPayload(), (response) => {
+        handleAxios(url, buildServerPayload(), (response) => {
             settled();
             if (response.status !== 200) return failSave(new Error("HTTP " + response.status));
             // A tartalom a szerveren van: a helyi másolat okafogyott.
@@ -634,7 +668,7 @@ function QuoteEditor(props: SaveProps) {
             leftViaForm.current = true;
             blocker.proceed();
         }, (error) => { settled(); failSave(error); });
-    }, [blocker, isQuoteValid, buildPayload, url, handleAxios, props, draftStorageKey, markSaving,
+    }, [blocker, isQuoteValid, buildServerPayload, buildSnapshot, url, handleAxios, props, draftStorageKey, markSaving,
         savedItemId]);
 
     /* A BUKÁS UTÁN A MENTÉS GOMBRA KERÜL A FÓKUSZ — a részletes indoklás a
@@ -691,7 +725,7 @@ function QuoteEditor(props: SaveProps) {
            visszaállított piszkozat a következő megnyitáskor (l. saveRetry.ts).
            A zárványolt `token` (nem az élő tokenRef): kijelentkezéskor az élő már null. */
         return saveWithRetry(
-            (onSuccess, onFailure) => handleAxios(url, buildPayload(), () => {
+            (onSuccess, onFailure) => handleAxios(url, buildServerPayload(), () => {
                 clearDraft(draftStorageKey);
                 onSuccess();
             }, onFailure),
@@ -699,7 +733,7 @@ function QuoteEditor(props: SaveProps) {
                 // Feladtuk: egy későbbi távozás újrapróbálhatja, a szöveg a piszkozatban.
                 leftViaForm.current = false;
                 logRequestError(error);
-                saveDraft(draftStorageKey, buildPayload(), loaded.current ?? undefined, savedItemId ?? undefined);
+                saveDraft(draftStorageKey, buildSnapshot(), loaded.current ?? undefined, savedItemId ?? undefined);
             });
     };
 
@@ -717,7 +751,7 @@ function QuoteEditor(props: SaveProps) {
     useEffect(() => {
         const keepWork = () => {
             if (!hasSilentWork()) return;
-            saveDraft(draftStorageKey, buildPayload(), loaded.current ?? undefined, savedItemId ?? undefined);
+            saveDraft(draftStorageKey, buildSnapshot(), loaded.current ?? undefined, savedItemId ?? undefined);
         };
         window.addEventListener("beforeunload", keepWork);
         return () => window.removeEventListener("beforeunload", keepWork);
@@ -750,7 +784,7 @@ function QuoteEditor(props: SaveProps) {
         // Az autosave ígérete is a kijelentkezésnek szól (l. inFlightRef).
         let settled: () => void = () => undefined;
         inFlightRef.current = new Promise<void>((resolve) => { settled = resolve; });
-        handleAxios(url, buildPayload(), () => {
+        handleAxios(url, buildServerPayload(), () => {
             settled();
             clearDraft(draftStorageKey);
             props.handleLinkClicked();
@@ -773,7 +807,7 @@ function QuoteEditor(props: SaveProps) {
                a szöveg még a képernyőn van — de a 15 perces tétlenségi kijelentkezés
                már a lejárt tokennel érné, ahonnan nincs mentés. A piszkozat ezt a
                rést fedi le. */
-            saveDraft(draftStorageKey, buildPayload(), loaded.current ?? undefined, savedItemId ?? undefined);
+            saveDraft(draftStorageKey, buildSnapshot(), loaded.current ?? undefined, savedItemId ?? undefined);
         });
     });
 
@@ -815,18 +849,12 @@ function QuoteEditor(props: SaveProps) {
                     tudja, hogy a card jobb felső ívét most az oszlop ELSŐ eleme
                     (a sorszám-toolbar) örökölje — enélkül a fekete hátterű
                     toolbar szögletes sarka kitakarná a card lekerekítését. */}
-                <div className="editor-side-column d-flex flex-column align-items-end justify-content-between flex-shrink-0">
+                {/* A megosztás-gomb az E2EE-vel KIKERÜLT: a publikus megosztás a külön
+                    menetben, a Shared táblára + fragment-kulcsra épül (l. e2ee-sharing-design)
+                    — a régi, nyílt idézet-linkes megosztás egy titkosított tartalomhoz nem való.
+                    Így a jobb oldali oszlop egyelőre csak a sorszám-léptetőt tartja. */}
+                <div className="editor-side-column d-flex flex-column align-items-end flex-shrink-0">
                     <Order current={order} setOrder={setOrder} last={lastOrder}/>
-                    {/* Csak update-nél: a publikus cím az idézet azonosítójára
-                        épül, ami create-nél még nem létezik. A quoteId truthy-
-                        vizsgálata egyben szűkít is (string | null → string), így a
-                        ShareButton a szigorú `Id` propját kapja meg. */}
-                    {/* Nincs alsó térköz (pb): az ikon a sor legaljára ül, hogy
-                        minél közelebb legyen az alatta következő betűméret-"+"-hoz.
-                        A pe-2 marad, az adja a "+" gombokkal EGY VONALBA eső jobb szélt. */}
-                    {isUpdate && quoteId && <div className="pe-2 text-theme">
-                        <ShareButton author={author} quoteId={quoteId}/>
-                    </div>}
                 </div>
             </div>
 
@@ -849,8 +877,15 @@ function QuoteEditor(props: SaveProps) {
                     Bootstrap .input-group width:100%, azon a margó nem tolja a jobb szélt;
                     a Bootstrap negatív margó-utility-ket meg alapból nem is generál.) */}
                 <div className="input-group flex-nowrap" style={{width: "calc(100% + 1rem)"}}>
-                    <AuthorInput value={author} onChange={(event) => setAuthor(event.target.value)}
-                                 placeholder="Szerző" class={"caveat ps-2 text-" + color}/>
+                    {/* Sima szerző-mező. A korábbi ghost-text autocomplete (a szerver
+                        legutóbbi szerzőjét ajánlotta) az E2EE-vel megszűnt: a titkosított
+                        tartalomra a szerver nem tud szerzőt javasolni. flex-grow-1 +
+                        minWidth:0: kitölti a maradék helyet a betűméret-stepper mellett,
+                        és telefonon 0-ra zsugorodhat (egy sorban marad). */}
+                    <input value={author} onChange={(event) => setAuthor(event.target.value)}
+                           placeholder="Szerző" autoComplete="off" style={{minWidth: 0}}
+                           className={"caveat ps-2 text-" + color +
+                               " form-control no-focus bg-transparent flex-grow-1"}/>
                     <Order current={fontSize} setOrder={setFontSize} max={200} min={100}
                            stepDelay={STEP_DELAY_MS / 2}
                            tooltip="Betűméret" tooltipPlace="top" tooltipId="fontsize-tooltip"/>

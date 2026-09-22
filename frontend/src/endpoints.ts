@@ -1,7 +1,7 @@
 /* A HÁLÓZATI FELÜLET: minden útvonal, amit a frontend a szervertől kér.
 
-   Eddig ezek az útvonalak (akkor 25, ma 27) 33 helyen, string-literálként éltek a
-   komponensekben, és
+   Eddig ezek az útvonalak (akkor 25, az E2EE-átállás után 22) sok helyen,
+   string-literálként éltek a komponensekben, és
    SEMMI nem kötötte őket a backend routeréhez (backend/src/routes.js). Egy
    elgépelés nem hibázik hangosan: a szerver 404-et ad, a hibaág legfeljebb
    naplóz, a képernyőn pedig üres lista vagy örökké pörgő betöltő marad. Pontosan
@@ -79,25 +79,22 @@ export const ENDPOINTS = {
     todoDelete: "/to-dos/delete",
     todoReorder: "/to-dos/reorder",
 
-    /* Az idézet-szekció. Szimmetrikus a to-dóéval, plusz a keresés két végpontja
-       és a szerző-javaslat.
+    /* Az idézet-szekció. Szimmetrikus a to-dóéval, csak vékonyabb.
 
-       A `quoteById` az EGYETLEN, ami az auth-határ ELŐTT ül a backendben: a
-       megosztott idézet-link kijelentkezve is megnyitható. A szerkesztő ezért NEM
-       ezt hívja, hanem a hitelesített `quoteForEdit`-et — az adja a sorszámot is,
-       tulajdonos-ellenőrzés mögött (l. backend/src/controllers/Quotes/readForEdit.js). */
+       VÉGPONTOK KÖZÖTTI TITKOSÍTÁS (E2EE) UTÁN a szerver a tartalmat csak titkosított
+       borítékként (ciphertext) tárolja és adja vissza — a `quoteForEdit` és a lista
+       (`quotes`) a borítékot adja, a kliens fejti a mesterkulccsal. A szerver-oldali
+       szerző-szűrés, szerző-javaslat és keresés (`/quotes/author`, `/quotes/authors`,
+       `/quotes/search`, `/quotes/search-mode`) MEGSZŰNT (F3 hozza vissza kliens-oldalon),
+       a publikus megosztás (`/quotes/id`) pedig a KÜLÖN megosztás-menetbe került (Shared
+       tábla + fragment-kulcs). Így minden idézet-végpont az auth-határ MÖGÖTT ül. */
     quotes: "/quotes",
-    quotesByAuthor: "/quotes/author",
-    quoteAuthors: "/quotes/authors",
-    quoteById: "/quotes/id",
     quoteForEdit: "/quotes/edit",
     quoteLastOrder: "/quotes/last/order",
     quoteCreate: "/quotes/create",
     quoteUpdate: "/quotes/update",
     quoteDelete: "/quotes/delete",
     quoteReorder: "/quotes/reorder",
-    quoteSearch: "/quotes/search",
-    quoteSearchMode: "/quotes/search-mode",
 } as const;
 
 /* AZ ÖSSZES útvonal UNIÓJA mint típus. Ez teszi a `handleAxios` url-paraméterét

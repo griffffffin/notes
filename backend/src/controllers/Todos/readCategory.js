@@ -7,9 +7,9 @@ const {findOwnedList} = require("../../ownership");
    legördülője. A localeCompare a magyar ékezetes betűket a helyükre teszi (az
    alapértelmezett kódpont-sorrend az "Á"-t a "Z" mögé sorolná).
 
-   ELTÉRÉS az idézetek szerző-javaslataitól (Quotes/readAuthors.js): az ott
-   PREFIX-re szűr és a legutóbb használtat adja (autocomplete, $limit 1), itt a
-   teljes, rendezett lista kell egy legördülőhöz — más a felület, más a lekérdezés.
+   (Az idézeteknek volt hasonló szerző-javaslata, de az az E2EE-átállással megszűnt
+   — a titkosított tartalomra a szerver nem tud szűrni; a kliens-oldali keresés F3-ban
+   jön. A to-do kategóriái nyílt mezők, ezért ez a legördülő marad szerver-oldali.)
 
    A kategóriákat ma a letöltött listából gyűjtjük ki. Ez a to-do méretén rendben
    van, de a mintája nem skálázódik; ha egyszer sok elem lesz, a `distinct` a

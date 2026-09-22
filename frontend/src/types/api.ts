@@ -212,91 +212,60 @@ export const todoSchema = v.object({
 });
 export type Todo = v.InferOutput<typeof todoSchema>;
 
-/* Nem exportált, MERT nincs olyan hívási hely, ami egyetlen teljes idézetet
-   kérne: a lista a quoteListSchema-t, a szerkesztő és a publikus nézet a belőle
-   szűkített whitelistet használja. A fájl növekedési szabálya erre is áll — ami
-   kifelé nem kell, az bent marad (a knip CI-kapuja pedig számon kéri). */
+/* AZ IDÉZET HÁLÓZATI ALAKJA A VÉGPONTOK KÖZÖTTI TITKOSÍTÁS (E2EE) UTÁN. A tartalmi
+   mezők (idézet szövege, szerző, betűméret, createdAt) MÁR NEM nyílt oszlopok: egyetlen
+   titkosított borítékként (`ciphertext`) érkeznek, amit a kliens fejt a mesterkulccsal
+   (l. e2ee/content.ts + quoteContent.ts). Nyílt marad, ami a szervernek kell: `_id`
+   (kulcs), `order` (sorrend). A `ciphertext` NEM üres — üres boríték értelmezhetetlen.
+
+   Nem exportált a séma, csak a lista/edit szűkítései és a belőle származó típus (a
+   fájl növekedési szabálya: ami kifelé nem kell, az bent marad; a knip CI-kapuja
+   számon kéri). */
 const quoteSchema = v.object({
     _id: idSchema,
-    /* A mező neve `quote`, nem `text` — maga az idézet szövege. */
-    quote: v.string(),
-    /* OPCIONÁLIS a Mongoose-sémában is: névtelen vagy ismeretlen szerzőjű idézet
-       is menthető. A szerző tölti be a to-do "kategória" szerepét — erre szűr a
-       /quotes/:author nézet, és erre épül a szerző-autocomplete. */
-    author: v.optional(v.string()),
+    /* A titkosított tartalmi boríték ("e2ee1"-formátum; l. e2ee/aead.ts). Nem üres:
+       a szerver validátora is nem-üres szöveget követel (backend validateQuote.js). */
+    ciphertext: v.pipe(v.string(), v.nonEmpty()),
     order: v.number(),
-    /* Per-idézet betűméret SZÁZALÉKBAN, a body méretéhez képest. NEM opcionális,
-       pedig a régi (a mező bevezetése előtt mentett) dokumentumokban nincs benne:
-       a Mongoose az alapértéket (155) a DB-ből BETÖLTÉSKOR is ráteszi, tehát a
-       válaszban mindig ott van. Mérve a Pi élő adatán (2026-08-15): 55 idézetből
-       17-ben nincs fontSize a lemezen, hidratálva mind az 55-ben van. (A napi
-       export .lean()-nel megy, az a NYERS alakot menti — ott hiányzik.) */
-    fontSize: v.number(),
 });
 export type Quote = v.InferOutput<typeof quoteSchema>;
 
 /* A /quotes/edit VÁLASZA — a szerkesztőnek betöltött idézet. WHITELIST: a szerver
-   (backend/src/controllers/Quotes/readForEdit.js) SZÁNDÉKOSAN csak ezt a négy mezőt
-   adja ki (a user-id és az időbélyegek soha nem mennek ki), és az `order` is CSAK
-   ezen a hitelesített, tulajdonos-ellenőrzött végponton jön — a publikus /quotes/id
-   már nem adja (l. readById.js).
+   (backend/src/controllers/Quotes/readForEdit.js) SZÁNDÉKOSAN csak a borítékot és a
+   sorszámot adja ki (a user-id és az időbélyegek soha), és az `order` is CSAK ezen a
+   hitelesített, tulajdonos-ellenőrzött végponton jön.
 
-   `v.pick` a quoteSchema-ból, nem külön leírás: a mezők ugyanazok az értékek,
-   csak kevesebb — ha a Quote egy mezőjének alakja változik (pl. az author
-   kötelezővé válik), ez magától követi, nem csúszik el. Ugyanaz a gondolat, mint
-   a korábbi `Pick<Quote, …>` a típusok szintjén, csak most az ELLENŐRZÉS is
-   együtt öröklődik. */
-export const quoteForEditSchema = v.pick(quoteSchema, ["quote", "author", "order", "fontSize"]);
+   `v.pick` a quoteSchema-ból, nem külön leírás: a mezők ugyanazok az értékek, csak
+   kevesebb — ha a séma egy mezőjének alakja változik, ez magától követi, nem csúszik el. */
+export const quoteForEditSchema = v.pick(quoteSchema, ["ciphertext", "order"]);
 export type QuoteForEdit = v.InferOutput<typeof quoteForEditSchema>;
 
-/* A PUBLIKUS /quotes/id VÁLASZA — egy megosztott idézet, bejelentkezés nélkül.
-   MÉG SZŰKEBB whitelist: a sorszám (order) sem megy ki, mert a listabeli pozíció
-   egy névtelen látogatóra nem tartozik (l. readById.js).
+/* A TITKOSÍTOTT TARTALMI BLOB alakja — a boríték VISSZAFEJTETT, JSON-ból értelmezett
+   tartalma (a szerver ezt SOHA nem látja). Ezt titkosítja a szerkesztő mentéskor, és
+   ezt fejti vissza a lista/szerkesztő olvasáskor (l. Quotes/quoteContent.ts). Bár a
+   tartalmat MI titkosítjuk, a visszafejtett JSON régebbi verzióból is jöhet, ezért a
+   határon itt is séma szűri (nem hit): a `quote` és a `fontSize` kötelező, a `author`
+   opcionális (névtelen idézet), a `createdAt` ISO-szöveg (a kliens állítja létrehozáskor,
+   és a szerkesztések során a régit hordozza tovább). */
+export const quoteContentSchema = v.object({
+    quote: v.string(),
+    author: v.optional(v.string()),
+    fontSize: v.number(),
+    createdAt: v.string(),
+});
+export type QuoteContent = v.InferOutput<typeof quoteContentSchema>;
 
-   EZ A TÍPUS ÚJ, és a séma-átállás TALÁLTA MEG: a publikus nézet (Quotes/public.tsx)
-   eddig `handleAxios<Quote>`-tal kérte az idézetet, vagyis a teljes dokumentumot
-   ígérte magának — `_id`-vel, `user`-rel, `order`-rel, időbélyegekkel, amiket ez a
-   végpont SOHA nem küld. A típus tehát HAZUDOTT, és pontosan azért nem derült ki,
-   mert senki nem vetette össze a válasszal: a komponens véletlenül csak olyan
-   mezőket olvasott, amiket a szerver tényleg küld. A futásidejű ellenőrzés
-   bevezetésekor ez azonnal kiütközött (a teljes Quote-sémán a valódi válasz
-   megbukott volna) — ezért a saját, igaz alakja. */
-export const publicQuoteSchema = v.pick(quoteSchema, ["quote", "author", "fontSize"]);
-export type PublicQuote = v.InferOutput<typeof publicQuoteSchema>;
-
-/* A LISTA-VÉGPONTOK válasza: csupasz tömb, nem burkoló objektum (l.
-   backend/src/controllers/Quotes/readSearch.js). Modul szintű konstansok, NEM a
-   hívási helyen összerakott `v.array(quoteSchema)`: a lista-hook a sémát az
-   effektjének függőségeként kapja, és egy rendernként újragyártott séma-objektum
-   a betöltést végtelen ciklusba vinné — ugyanaz a kényszer, mint a `filter`
-   memoizálása (l. CardList/useSectionList.ts). */
+/* A LISTA-VÉGPONT válasza: csupasz tömb, nem burkoló objektum (l.
+   backend/src/controllers/Quotes/read.js). Modul szintű konstansok, NEM a hívási
+   helyen összerakott `v.array(quoteSchema)`: a lista-hook a sémát az effektjének
+   függőségeként kapja, és egy rendernként újragyártott séma-objektum a betöltést
+   végtelen ciklusba vinné — ugyanaz a kényszer, mint a `filter` memoizálása (l.
+   CardList/useSectionList.ts). */
 export const todoListSchema = v.array(todoSchema);
 export const quoteListSchema = v.array(quoteSchema);
 
-/* A /to-dos/categories és a /quotes/authors válasza: nevek tömbje. Két külön
-   névvel, mert két külön szerződés — a kategória-legördülő a TELJES, rendezett
-   listát kapja, a szerző-javaslat viszont legfeljebb egy elemet (prefix-szűrt,
-   $limit 1). Ma mindkettő ugyanaz az alak; ha az egyik egyszer bővül (pl. a
-   szerzőkhöz darabszám is jön), az itt egyetlen sor, nem az összes hívási hely
-   újraolvasása. */
+/* A /to-dos/categories válasza: nevek tömbje — a kategória-legördülő a TELJES,
+   rendezett listát kapja. (Az idézeteknek volt hasonló /quotes/authors szerző-
+   javaslata, de az az E2EE-átállással megszűnt: a titkosított tartalomra a szerver
+   nem tud szűrni.) */
 export const categoryListSchema = v.array(v.string());
-export const authorListSchema = v.array(v.string());
-
-/* A /quotes/search-mode VÁLASZA: a szerver dönti el, hogy a beírt kifejezés
-   SZERZŐ-e (ekkor a szerző-szűrt nézetre megyünk) vagy szöveg (ekkor a találati
-   listára) — l. backend/src/controllers/Quotes/readSearchMode.js.
-
-   DISZKRIMINÁLT UNIÓ: nem egy `{mode, author?}` objektum, hanem KÉT alak, amit a
-   `mode` mező különböztet meg. Ez a különbség nem elméleti: a szerző CSAK az
-   "author" ágon létezik, és a fordító pontosan ezt kényszeríti ki — a
-   `data.author` sor csak a `data.mode === "author"` vizsgálat UTÁN fordul le. Egy
-   közös, opcionális mezős alaknál az `encodeURIComponent(undefined)` némán az
-   "undefined" szót tenné az URL-be.
-
-   A `v.variant` a valibot diszkriminált-unió sémája: a `mode` mező alapján
-   választja ki, MELYIK alakra ellenőrizzen, és a hibaüzenete is arról az ágról
-   szól — egy `v.union` csak annyit mondana, hogy egyik alak sem illeszkedett. */
-export const searchModeSchema = v.variant("mode", [
-    v.object({mode: v.literal("author"), author: v.string()}),
-    v.object({mode: v.literal("text")}),
-]);

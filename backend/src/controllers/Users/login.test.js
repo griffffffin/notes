@@ -14,7 +14,7 @@
    a tárolt hash-sel.
 
    Adatbázis nincs: a Users modellt a require.cache-ben cseréljük (a
-   Quotes/readAuthors.test.js mintájára), és rögzítjük, mit mentett volna. */
+   Quotes/ordering.test.js mintájára), és rögzítjük, mit mentett volna. */
 const test = require("node:test");
 const assert = require("node:assert");
 const bcrypt = require("bcrypt");

@@ -67,9 +67,11 @@ const auth = require("./middleware/auth");
 const PUBLIC_ROUTES = {
     "/user/create": "regisztráció — értelemszerűen nincs még tokenje",
     "/login": "bejelentkezés — ez ADJA a tokent",
-    "/quotes/id": "egyetlen idézet megosztható, publikus nézete (l. routes.js)",
+    /* A korábbi "/quotes/id" (publikus megosztott idézet) az E2EE-átállással MEGSZŰNT:
+       névtelen látogatónak nincs kulcsa a boríték visszafejtéséhez. A publikus
+       megosztás a külön menetben, a Shared táblára épül (l. e2ee-sharing-design). */
     "/client-error": "a kliens szerződés-hibáit a KIJELENTKEZETT úton is fogadnunk kell " +
-        "(a publikus idézet-nézet is sémán ellenőriz) — korlátozva és szűk bemenettel, " +
+        "(a bejelentkező-/lock-képernyő is sémán ellenőriz) — korlátozva és szűk bemenettel, " +
         "l. controllers/clientError.js",
 };
 

@@ -125,9 +125,9 @@ describe("Save útvonalai", () => {
        403 a nem létező ÉS az idegen elemre (ownership.js), 500 a saját hibájára
        (serverError.js), és semmilyen státusz a hálózatiakra.
 
-       A három eset ezért három teszt. Ugyanaz a szabály, mint a publikus
-       idézetnél (Quotes/public.tsx) — ott a `notFound`, itt a kinavigálás az,
-       amit csak valódi szerver-válaszra szabad kimondani. */
+       A három eset ezért három teszt. Ugyanaz a szabály, mint az idézet-szerkesztő
+       betöltésénél (Quotes/save.tsx) — csak valódi szerver-válaszra (403) szabad a
+       kinavigálást kimondani, a puszta hiba-tényre nem. */
     describe("a to-do betöltése elbukik", () => {
         const failTodoLoad = (error: unknown) =>
             handleAxios.mockImplementation((url, data, then, catchError) => {

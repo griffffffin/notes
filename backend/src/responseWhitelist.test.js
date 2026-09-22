@@ -24,7 +24,7 @@
    POJO-t ad, de azt a pipeline alakítja (readAuthors: szerzőket csoportosít, nem
    dokumentumot ad ki), és a readerScope.test.js már megköveteli, hogy a kérőre
    szűrjön; egy teljes doksit $project nélkül kiadó aggregate ritkább, más alakú
-   eset. A kézzel összeállított válasz (Quotes/readById.js) eleve whitelist
+   eset. A kézzel összeállított válasz (Quotes/readForEdit.js) eleve whitelist
    konstrukcióból ad ki mezőket. A kaput a lean egyértelmű esetére szabjuk; ha
    valaha az aggregate is vektorrá válik, az a saját, külön kapuja.
 
@@ -49,7 +49,7 @@ const LEAN_QUERY = /\.\s*lean\s*\(/;
    Ma ÜRES, és ez szándékos: egyetlen mai read-controllernek sincs oka megkerülni a
    whitelistet. Bővíteni csak tudatosan, indokkal (mint az authBoundary
    PUBLIC_ROUTES-a vagy a readerScope allowlistja) — és aki ide `.lean()`-t vesz
-   fel, annak a válasz mezőit KÉZZEL kell whitelisteznie (mint Quotes/readById.js),
+   fel, annak a válasz mezőit KÉZZEL kell whitelisteznie (mint Quotes/readForEdit.js),
    különben a teljes doksi kimegy. A kulcs a controllers/-hez relatív, POSIX-
    elválasztóval. */
 const ALLOWED_LEAN = {};
@@ -103,7 +103,7 @@ describe("kimenő válasz-whitelist: egyetlen controller sem kerüli meg a toJSO
         assert.deepStrictEqual(offenders, [],
             ".lean() sima JS-objektumot ad, amin NEM fut a toJSON-whitelist — a válasz a TELJES " +
             "dokumentumot kiadná (user, __v, időbélyeg, jövőbeli érzékeny mező). Ha szándékos " +
-            "(és a válasz mezőit KÉZZEL whitelistezed, mint Quotes/readById.js), vedd fel az " +
+            "(és a válasz mezőit KÉZZEL whitelistezed, mint Quotes/readForEdit.js), vedd fel az " +
             `ALLOWED_LEAN listába az indokával; egyébként olvass toJSON-os dokumentumként. Vétkes(ek): ${offenders.join(", ")}`);
     });
 

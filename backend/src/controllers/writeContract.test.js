@@ -68,8 +68,9 @@ const SECTIONS = [
     {
         name: "idézet",
         modelPath: require.resolve("../models/quotes"),
-        existing: {_id: newId(), user: OWNER, quote: "Idézet", order: 5},
-        createBody: {id: newId(), user: STRANGER, quote: "Új idézet", author: "Szerző", order: 1},
+        // A tartalom titkosított boríték (E2EE); a szerver csak tárolja.
+        existing: {_id: newId(), user: OWNER, ciphertext: "e2ee1.iv.ct", order: 5},
+        createBody: {id: newId(), user: STRANGER, ciphertext: "e2ee1.iv.new", order: 1},
     },
 ];
 

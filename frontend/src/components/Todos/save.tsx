@@ -334,7 +334,7 @@ function TodoEditor(props: SaveProps) {
                 if (!active) return;
                 logRequestError(error);
                 /* A SZERVER VÁLASZA DÖNT, nem a hiba puszta ténye — ugyanaz a
-                   szabály, mint a publikus idézetnél (Quotes/public.tsx).
+                   szabály, mint az idézet-szerkesztő betöltésénél (Quotes/save.tsx).
 
                    403: az elem nem érhető el nekünk. A backend ezt adja a nem
                    létezőre ÉS az idegenre is (ownership.js, szándékosan

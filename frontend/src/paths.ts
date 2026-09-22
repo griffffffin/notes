@@ -112,18 +112,14 @@ export const PATHS = {
     todoColor: route(`${TODOS}/color`, "name"),
     todoUpdate: route(`${TODOS}/update`, "id"),
 
-    /* Az idézet-szekció. Szimmetrikus a to-dóéval, plusz a keresés találati
-       nézete és a megosztható publikus cím.
-
-       A `quotesByAuthor` és a `publicQuote` a szekció GYÖKERÉRE épül, előtag-
-       szegmens nélkül (/quotes/:author, /quotes/:author/:id) — ezért kell a
-       statikus create/update/search a route-fában eléjük. A `publicQuote` az
-       egyetlen cím, ami kijelentkezve is megnyitható. */
+    /* Az idézet-szekció. Szimmetrikus a to-dóéval, csak vékonyabb. VÉGPONTOK KÖZÖTTI
+       TITKOSÍTÁS (E2EE) UTÁN a szerző-szűrt nézet (/quotes/:author), a keresés
+       (/quotes/search/:term) és a publikus megosztott cím (/quotes/:author/:id)
+       MEGSZŰNT: a szerver titkosított tartalomra nem tud szűrni/keresni (a kliens-oldali
+       F3-ban jön), a publikus megosztás pedig a külön menetbe, a Shared táblára került.
+       Így csak a lista, a create és az update marad — mind statikus szegmensű. */
     quotes: QUOTES,
     quoteCreate: QUOTE_CREATE,
     quoteCreateItem: route(QUOTE_CREATE, "id"),
     quoteUpdate: route(`${QUOTES}/update`, "id"),
-    quoteSearch: route(`${QUOTES}/search`, "term"),
-    quotesByAuthor: route(QUOTES, "author"),
-    publicQuote: route(QUOTES, "author", "id"),
 } as const;

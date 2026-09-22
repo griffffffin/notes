@@ -1,4 +1,4 @@
-import {fireEvent, render, screen} from "@testing-library/react";
+import {render, screen} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {CookiesProvider} from "react-cookie";
 import {MemoryRouter} from "react-router-dom";
@@ -94,21 +94,9 @@ describe("Navbar szűrő-kapcsolók", () => {
     });
 });
 
-describe("Navbar — kereső fókusz (mobil kifeszülés)", () => {
-    it("a keresőbe kattintva a container megkapja a quote-search-focused osztályt, blur-re elveszti", async () => {
-        // A Quotes lista-oldalon jelenik meg a kereső.
-        setup({}, "/quotes");
-        const input = screen.getByPlaceholderText("Keresés...");
-        const container = document.querySelector(".container-fluid");
-        expect(container).not.toHaveClass("quote-search-focused");
-
-        await userEvent.click(input);
-        expect(container).toHaveClass("quote-search-focused");
-
-        fireEvent.blur(input);
-        expect(container).not.toHaveClass("quote-search-focused");
-    });
-});
+/* (A navbar-beli idézet-kereső — és a mobil „kifeszülés" fókusz-tesztje — az
+   E2EE-átállással megszűnt: a szerver titkosított tartalomra nem tud keresni, a
+   kliens-oldali keresés F3-ban jön.) */
 
 /* A KATEGÓRIA-LEKÉRÉS HIBÁJA a legördülőben (2026-08-19).
 

@@ -24,19 +24,35 @@ const idOf = (data: unknown): string => {
    valódi (a /quotes/create ↔ /quotes/update viselkedés épp a route-táblán múlik).
    A route-fa renderelésének kerete a közös test/renderRoutes segédben van. */
 
-/* A /quotes/edit válasza SZŰKÍTETT: a backend (readForEdit.js) csak ezt a négy
-   mezőt adja vissza — user-azonosítót és időbélyeget SOHA. A fixtúra ezért a
-   QuoteForEdit szerződéshez méretik, nem a teljes Quote-hoz.
+/* A /quotes/edit válasza a VÉGPONTOK KÖZÖTTI TITKOSÍTÁS (E2EE) után: a titkosított
+   BORÍTÉK (`ciphertext`) + a nyílt sorszám (`order`). A tartalmi mezőket (szöveg, szerző,
+   betűméret, createdAt) a szerkesztő fejti vissza a mesterkulccsal; itt a quoteContent
+   modult MOCKOLJUK (lentebb), hogy a boríték egyszerűen a tartalom JSON-ja legyen — így a
+   szerkesztő-tesztet nem terheli a valódi kriptó (a kör-mérés az e2ee/content.test.ts-ben).
 
-   A `fontSize` korábban SZÁNDÉKOSAN hiányzott innen (`Omit<QuoteForEdit,
-   "fontSize">`), azzal az indokkal, hogy a szerkesztő alapértékre esik vissza
-   nélküle. Csakhogy a szerver SOHA nem küld ilyen választ: a Mongoose az
-   alapértéket a régi, mező nélkül mentett dokumentumokra is ráteszi betöltéskor
-   (mérve a Pi élő adatán, 2026-08-15: 55 idézetből 17-ben nincs fontSize a
-   lemezen, hidratálva mind az 55-ben van). A fixtúra tehát olyan választ
-   utánzott, ami a valóságban nem fordul elő — a séma-ellenőrzés bevezetése ezt
-   azonnal kimutatta. Egy pótlék akkor ér valamit, ha a VALÓSÁG helyett áll be. */
-const QUOTE = {quote: "Az élet szép.", author: "Valaki", order: 1, fontSize: 155} satisfies QuoteForEdit;
+   A `QUOTE_CONTENT` a DEKÓDOLT blob (amit a boríték rejt); az `editResponse` ebből
+   gyártja a /quotes/edit válaszát (QuoteForEdit alak), a `decodeCiphertext` pedig a
+   create/update payload borítékát fejti vissza az állításokhoz. */
+const QUOTE_CONTENT = {quote: "Az élet szép.", author: "Valaki", fontSize: 155,
+    createdAt: "2026-01-01T00:00:00.000Z"};
+
+const editResponse = (content: Partial<typeof QUOTE_CONTENT> = {}, order = 1): QuoteForEdit =>
+    ({ciphertext: JSON.stringify({...QUOTE_CONTENT, ...content}), order});
+
+/* A törzs borítékának visszafejtése — VALÓDI vizsgálattal (a kém felől `unknown`).
+   A mock encryptQuote a tartalom JSON-ját teszi a ciphertextbe, ezt parse-oljuk vissza. */
+const decodeCiphertext = (data: unknown): Partial<typeof QUOTE_CONTENT> => {
+    if (typeof data === "object" && data !== null && "ciphertext" in data && typeof data.ciphertext === "string")
+        return JSON.parse(data.ciphertext);
+    throw new Error(`a lekérés törzsében nincs ciphertext: ${JSON.stringify(data)}`);
+};
+
+/* A tartalom-titkosítás mockja: a boríték a tartalom JSON-ja (encrypt), a visszafejtés
+   pedig visszaparse-olja (decrypt). Hibás JSON-nál a decrypt DOB — mint a valódi. */
+vi.mock(import("./quoteContent"), () => ({
+    encryptQuote: (_id: string, content: unknown) => JSON.stringify(content),
+    decryptQuote: (_id: string, ciphertext: string) => JSON.parse(ciphertext),
+}));
 
 /* Állandó handleAxios: a komponens effektjei az azonosságára függnek, egy
    rendernként újragyártott függvény végtelen újratöltő ciklust okozna. */
@@ -62,15 +78,11 @@ beforeEach(() => {
     giveDraftKey();
     handleAxios.mockReset();
     handleAxios.mockImplementation((url, data, then) => {
-        if (url === "/quotes/edit") then(axiosResponse(QUOTE));
+        if (url === "/quotes/edit") then(axiosResponse(editResponse()));
         else if (url === "/quotes/last/order") then(axiosResponse(3));
-        /* A mentés utáni leaveEditor a /quotes listát tölti, a szerző-mező pedig
-           javaslatot kér — MINDKETTŐ tömböt vár. A kimaradó ág (a szerkesztő
-           AuthorInputja) korábban a közös `{}` fallbackre esett: az a válasz a
-           kódot ugyan nem zavarta (csak a [0]-át olvasta), de a szervertől SOSEM
-           érkezhetett volna — a séma-ellenőrzés ezt is kimutatta. */
-        else if (url === "/quotes" || url === "/quotes/author" || url === "/quotes/authors")
-            then(axiosResponse([]));
+        /* A mentés utáni leaveEditor a /quotes listát tölti — az tömböt vár. (A
+           korábbi szerző-javaslat /quotes/authors az E2EE-vel megszűnt.) */
+        else if (url === "/quotes") then(axiosResponse([]));
         /* Ami marad, az az ÍRÁS-műveletek (create/update/delete) válasza: azokból
            a kód csak a státuszt nézi, törzset nem olvas — ezért marad a `{}`. */
         else then(axiosResponse({}));
@@ -100,7 +112,9 @@ describe("QuoteSave — create", () => {
         // alapból 155 (a Szerző-mező mérete), a "Betűméret"-stepperrel állítható.
         await waitFor(() => {
             const call = handleAxios.mock.calls.find((c) => c[0] === "/quotes/create");
-            expect(call?.[1]).toMatchObject({quote: "Új idézet", author: "Én", order: 1, fontSize: 155});
+            // A nyílt mezők (id, order) a payloadon; a tartalom a titkosított borítékban.
+            expect(call?.[1]).toMatchObject({order: 1});
+            expect(decodeCiphertext(call?.[1])).toMatchObject({quote: "Új idézet", author: "Én", fontSize: 155});
         });
     });
 
@@ -279,8 +293,7 @@ describe("QuoteSave — az idézet betöltése elbukik", () => {
         handleAxios.mockImplementation((url, data, then, catchError) => {
             if (url === "/quotes/edit") catchError(error);
             else if (url === "/quotes/last/order") then(axiosResponse(3));
-            else if (url === "/quotes" || url === "/quotes/author" || url === "/quotes/authors")
-                then(axiosResponse([]));
+            else if (url === "/quotes") then(axiosResponse([]));
             else then(axiosResponse({}));
             return Promise.resolve();
         });
@@ -323,10 +336,9 @@ describe("QuoteSave — az idézet betöltése elbukik", () => {
         let shouldFail = true;
         handleAxios.mockImplementation((url, data, then, catchError) => {
             if (url === "/quotes/edit" && shouldFail) catchError(new Error("Network Error"));
-            else if (url === "/quotes/edit") then(axiosResponse(QUOTE));
+            else if (url === "/quotes/edit") then(axiosResponse(editResponse()));
             else if (url === "/quotes/last/order") then(axiosResponse(3));
-            else if (url === "/quotes" || url === "/quotes/author" || url === "/quotes/authors")
-                then(axiosResponse([]));
+            else if (url === "/quotes") then(axiosResponse([]));
             else then(axiosResponse({}));
             return Promise.resolve();
         });
@@ -362,7 +374,8 @@ describe("QuoteSave — mentés leváláskor (logó/Vissza/navigáció)", () => 
         view.unmount();
 
         const call = handleAxios.mock.calls.find((c) => c[0] === "/quotes/update");
-        expect(call?.[1]).toMatchObject({id: "q-1", quote: "Az élet szép. Tényleg."});
+        expect(call?.[1]).toMatchObject({id: "q-1"});
+        expect(decodeCiphertext(call?.[1])).toMatchObject({quote: "Az élet szép. Tényleg."});
     });
 
     it("érintetlen szerkesztő leválása NEM ment", async () => {
@@ -485,12 +498,11 @@ describe("QuoteSave — versenyhelyzet a betöltésben", () => {
     const capturePendingLoads = () => {
         /* A típus kimondja, mit tart a tömb: a kért azonosítót és azt a
            visszahívást, ami MAJD a szerkesztendő idézetet kapja. */
-        const pending: {id: string; then: (response: AxiosResponse<typeof QUOTE>) => void}[] = [];
+        const pending: {id: string; then: (response: AxiosResponse<QuoteForEdit>) => void}[] = [];
         handleAxios.mockImplementation((url, data, then) => {
             if (url === "/quotes/edit") pending.push({id: idOf(data), then});
             else if (url === "/quotes/last/order") then(axiosResponse(3));
-            else if (url === "/quotes" || url === "/quotes/author" || url === "/quotes/authors")
-                then(axiosResponse([]));
+            else if (url === "/quotes") then(axiosResponse([]));
             else then(axiosResponse({}));
             return Promise.resolve();
         });
@@ -519,13 +531,10 @@ describe("QuoteSave — versenyhelyzet a betöltésben", () => {
         const pending = await openTwoEditorsAndGoBack();
 
         // Előbb a FRISS (q-1) válasza érkezik meg, és csak utána a lejárt q-2-é.
-        act(() => at(pending, 1).then(axiosResponse({...QUOTE, quote: "A friss idézet."})));
-        /* A `_id` KIMARADT a lejárt válaszból: a /quotes/edit whitelistje nem is
-           küldi (l. a fixtúra kommentjét) — eddig a fércmű-válaszban benne volt,
-           holott a szerkesztő sosem kapja meg. */
-        act(() => at(pending, 0).then(axiosResponse({
-            ...QUOTE, quote: "A lejárt idézet.", author: "Másvalaki",
-        })));
+        act(() => at(pending, 1).then(axiosResponse(editResponse({quote: "A friss idézet."}))));
+        // A lejárt (q-2) válasza más tartalommal — ez NEM írhatja felül a frisset.
+        act(() => at(pending, 0).then(axiosResponse(
+            editResponse({quote: "A lejárt idézet.", author: "Másvalaki"}))));
 
         await waitFor(() => expect(quoteField()).toHaveValue("A friss idézet."));
         expect(screen.getByPlaceholderText("Szerző")).toHaveValue("Valaki");
@@ -539,7 +548,7 @@ describe("QuoteSave — versenyhelyzet a betöltésben", () => {
         if (!staleCall) throw new Error("nem indult lekérés a q-2-re");
         const staleError = staleCall[3];
 
-        act(() => at(pending, 1).then(axiosResponse({...QUOTE, quote: "A friss idézet."})));
+        act(() => at(pending, 1).then(axiosResponse(editResponse({quote: "A friss idézet."}))));
         await waitFor(() => expect(quoteField()).toHaveValue("A friss idézet."));
         /* A lejárt kérés elszáll (idegen vagy közben törölt idézet: 403) — az ő
            hiba-ága a listára navigálna. Ez az az eset, amit a save.tsx komment a
@@ -565,7 +574,7 @@ describe("QuoteSave — piszkozat sikertelen mentés után", () => {
     const DRAFT_KEY = "notes-draft:quotes:q-1";
     const failSave = () => handleAxios.mockImplementation((url, data, then, catchError) => {
         if (url === "/quotes/update" || url === "/quotes/create") catchError(new Error("Network Error"));
-        else if (url === "/quotes/edit") then(axiosResponse(QUOTE));
+        else if (url === "/quotes/edit") then(axiosResponse(editResponse()));
         else if (url === "/quotes/last/order") then(axiosResponse(3));
         else then(axiosResponse({}));
         return Promise.resolve();
@@ -854,10 +863,9 @@ describe("QuoteSave — mentés közben nem lehet elhagyni a szerkesztőt", () =
     const pendingSave = () => {
         const pending: Array<{ok: () => void; fail: () => void}> = [];
         handleAxios.mockImplementation((url, data, then, catchError) => {
-            if (url === "/quotes/edit") then(axiosResponse(QUOTE));
+            if (url === "/quotes/edit") then(axiosResponse(editResponse()));
             else if (url === "/quotes/last/order") then(axiosResponse(3));
-            else if (url === "/quotes" || url === "/quotes/author" || url === "/quotes/authors")
-                then(axiosResponse([]));
+            else if (url === "/quotes") then(axiosResponse([]));
             else if (url === "/quotes/update") pending.push({
                 ok: () => then(axiosResponse({})),
                 fail: () => catchError({message: "timeout of 15000ms exceeded"}),
@@ -871,7 +879,7 @@ describe("QuoteSave — mentés közben nem lehet elhagyni a szerkesztőt", () =
     const openAndEdit = async () => {
         window.history.pushState({}, "", "/quotes/update/q-1");
         const view = renderRoutes();
-        await waitFor(() => expect(screen.getByPlaceholderText("Idézet szövege")).toHaveValue(QUOTE.quote), CHAIN);
+        await waitFor(() => expect(screen.getByPlaceholderText("Idézet szövege")).toHaveValue(QUOTE_CONTENT.quote), CHAIN);
         await userEvent.type(screen.getByPlaceholderText("Idézet szövege"), " Nagyon.");
         return view;
     };
@@ -889,7 +897,7 @@ describe("QuoteSave — mentés közben nem lehet elhagyni a szerkesztőt", () =
 
         await waitFor(() => {
             expect(window.location.pathname).toBe("/quotes/update/q-1");
-            expect(screen.getByPlaceholderText("Idézet szövege")).toHaveValue(QUOTE.quote + " Nagyon.");
+            expect(screen.getByPlaceholderText("Idézet szövege")).toHaveValue(QUOTE_CONTENT.quote + " Nagyon.");
         }, CHAIN);
     });
 
@@ -906,12 +914,12 @@ describe("QuoteSave — mentés közben nem lehet elhagyni a szerkesztőt", () =
         await waitFor(() => expect(pending).toHaveLength(1), CHAIN);
 
         await userEvent.clear(screen.getByPlaceholderText("Idézet szövege"));
-        await userEvent.type(screen.getByPlaceholderText("Idézet szövege"), QUOTE.quote);
+        await userEvent.type(screen.getByPlaceholderText("Idézet szövege"), QUOTE_CONTENT.quote);
         await userEvent.click(requireElement("a", HTMLAnchorElement));
 
         await waitFor(() => {
             expect(window.location.pathname).toBe("/quotes/update/q-1");
-            expect(screen.getByPlaceholderText("Idézet szövege")).toHaveValue(QUOTE.quote);
+            expect(screen.getByPlaceholderText("Idézet szövege")).toHaveValue(QUOTE_CONTENT.quote);
         }, CHAIN);
     });
 
@@ -940,7 +948,7 @@ describe("QuoteSave — mentés közben nem lehet elhagyni a szerkesztőt", () =
         expect(window.location.pathname).toBe("/quotes/update/q-1");
 
         expect(readStoredDraft("notes-draft:quotes:q-1"))
-            .toMatchObject({payload: {quote: QUOTE.quote + " Nagyon."}});
+            .toMatchObject({payload: {quote: QUOTE_CONTENT.quote + " Nagyon."}});
     });
 
     it("a LOGÓval indított mentés bukása után a Mentés gombra kerül a fókusz", async () => {

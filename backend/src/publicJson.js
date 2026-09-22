@@ -10,7 +10,7 @@
    A MEGOLDÁS whitelist, nem blacklist: a transzformáció ÚJ objektumot épít, és CSAK
    a felsorolt mezőket teszi bele. Ami nincs a listán — beleértve a jövőbeli új
    mezőket —, az nem megy ki. Ugyanaz az elv, amit az egy-elemes végpontok kézzel
-   csináltak (Quotes/readById.js, readForEdit.js); ez kiterjeszti az összes
+   csináltak (Quotes/readForEdit.js); ez kiterjeszti az összes
    doksi-visszaadó végpontra, egyetlen helyről.
 
    MIÉRT A `toJSON`-ON, ÉS MIÉRT BIZTONSÁGOS A MENTÉSRE. A `set("toJSON", …)` CSAK a

@@ -1,10 +1,9 @@
 /* A PERMISSIONS-POLICY fejléc tesztjei.
 
    A fejléc néma védelem: ha lemarad vagy elgépeljük, semmi nem hibázik — a lap
-   ugyanúgy működik, csak a felesleges böngésző-képességek megint nyitva állnak, és
-   a vágólap-kivétel rossz iránya (write helyett read) épp a megosztást törné el
-   vagy a vágólap-olvasást nyitná meg. Ezért a fejléc MEGLÉTÉT és a kényes két
-   vágólap-irányt külön állítjuk. */
+   ugyanúgy működik, csak a felesleges böngésző-képességek megint nyitva állnak.
+   Ezért a fejléc MEGLÉTÉT és a kényes vágólap-irányokat külön állítjuk. Az E2EE-átállás
+   után a link-másoló megosztás kikerült, tehát a vágólap MINDKÉT iránya tiltva. */
 const test = require("node:test");
 const assert = require("node:assert");
 const express = require("express");
@@ -22,10 +21,11 @@ test("a válasz VISZ Permissions-Policy fejlécet", async () => {
         "nincs Permissions-Policy fejléc — a képességek alapból mind nyitva állnának");
 });
 
-test("a vágólap-ÍRÁS engedett az azonos originnek (a megosztás gomb enélkül elromlana)", async () => {
+test("a vágólap-ÍRÁS is tiltott (az E2EE után nincs link-másoló megosztás)", async () => {
     const response = await request(app).get("/probe");
-    assert.match(response.headers["permissions-policy"], /clipboard-write=\(self\)/,
-        "a clipboard-write nem (self) — a Quotes/shareButton.tsx másolása némán elromlana");
+    assert.match(response.headers["permissions-policy"], /clipboard-write=\(\)/,
+        "a clipboard-write nincs tiltva — ma senki nem ír a vágólapra, tehát a legkisebb " +
+        "jogosultság elve szerint zárva legyen (a megosztás-menet nyitja majd újra, ha kell)");
 });
 
 test("a vágólap-OLVASÁS teljesen tiltott", async () => {

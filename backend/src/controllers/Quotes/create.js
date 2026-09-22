@@ -4,8 +4,9 @@ const serverError = require("../../serverError");
 const {shiftForInsert} = require("../../ordering");
 const {createOnce} = require("../createOnce");
 
-/* Új idézet a megadott sorszámra. Az author elhagyható: névtelen idézet is
-   menthető.
+/* Új idézet a megadott sorszámra. A TARTALOM (idézet, szerző, betűméret, createdAt)
+   a kliens által titkosított `ciphertext` borítékban érkezik — a szerver csak
+   tárolja, sosem értelmezi (E2EE, l. models/quotes.js).
 
    A LÉTREHOZÁS IDEMPOTENS, a to-dóéval azonos módon: az azonosítót a kliens
    adja, és ugyanaz a kérés másodszor sem hoz létre újabb elemet — a miértjét és
@@ -22,11 +23,8 @@ module.exports = router.post("/", (request, response) => {
                elhagyásával viszont egyértelműen ő generál. */
             ...(request.body.id ? {_id: request.body.id} : {}),
             user: request.userId,
-            quote: request.body.quote,
-            author: request.body.author,
+            ciphertext: request.body.ciphertext,
             order: order,
-            // Hiányában a séma alapértéke (155) áll be — l. models/quotes.js.
-            fontSize: request.body.fontSize,
         },
         shift: shiftForInsert,
     })

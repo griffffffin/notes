@@ -23,10 +23,7 @@ import {draftKey, saveDraft} from "../drafts";
 
    ITT NINCS ÉRTELMES HIBAÜZENET. Egy elgépelt cím a szűrt nézetek miatt nem is
    megkülönböztethető egy kihalt szűrőtől, ezért az átirányítás a helyes válasz —
-   csak oda kell vinnie, ahol a felhasználó dolgozott. (ELTÉRÉS: a megosztott
-   idézet halott linkje NEM így viselkedik: az /quotes/:author/:id egy LÉTEZŐ
-   címforma nem létező azonosítóval, ott a szerver mondja meg, hogy nincs ilyen —
-   ezért ott beszédes üzenet áll, nem átirányítás. L. Quotes/public.tsx.)
+   csak oda kell vinnie, ahol a felhasználó dolgozott.
 
    A tesztek az ÜRES listát adják vissza mindenre: minket nem a lista tartalma
    érdekel, hanem hogy hol kötünk ki. A címet a `window.location.pathname`-ből
@@ -190,14 +187,11 @@ describe("minden szekció útja él a route-fában", () => {
 
 /* A ROUTE-FA MINDEN ÚTJA A paths.ts-BŐL JÖN — eddig konvenció, mostantól ellenőrzés.
 
-   Miért itt, és miért most? Mert egy MÁSIK őr feltevése ez. A
-   Navbar/quoteSearchState.test.ts kapuja azt követeli meg, hogy minden
-   idézet-útvonalról nyilatkozzon a navbar kereső-táblája — de az összevetést a
-   PATHS-szal végzi. Ha valaki egy route-ot szó szerint ír be ide
-   (`path="/quotes/favorites"`), az kikerüli a paths.ts-t, és vele együtt azt a
-   kaput is: a navbar némán a `:author`-ágra esne, "favorites" szöveggel a
-   mezőben. Vagyis a kapu zöld maradna egy olyan területre, amit nem véd — a
-   CLAUDE.md szerint ez rosszabb, mint ha nem is lenne kapu.
+   Miért fontos? A paths.ts egy helyen mondja ki minden útvonal alakját, és a rá
+   mutató linkek címét is onnan építjük — a kettő így nem tud elcsúszni. Ha valaki egy
+   route-ot szó szerint ír be ide (`path="/quotes/favorites"`), az kikerüli a paths.ts-t:
+   a route létezne, de nem volna hozzá se builder, se a paths-ra épülő ellenőrzés — pont
+   az a fajta néma, egyoldalú kötés, ami ellen a paths.ts van.
 
    Ez a teszt a FORRÁST olvassa, nem a viselkedést, mert épp az ÍRÁSMÓD a tárgya:
    a felépült route-fából már nem látszik, hogy a "/quotes/create" a PATHS-ból

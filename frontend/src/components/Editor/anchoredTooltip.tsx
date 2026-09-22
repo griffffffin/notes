@@ -35,10 +35,10 @@ type AnchoredTooltipProps = {
        pirosa (ACCENT_RED), tehát a felület eddigi nyelvén beszél.
 
        MIÉRT "red" ÉS NEM "error" (2026-08-19). Kézenfekvő volna a SZEREPPEL
-       nevezni, ahogy az "accent" is szerepet nevez — de ez a piros nálunk NEM a
-       hiba színe: ugyanez az érték az akcentusa a szerző-szűrt idézet-nézetnek is
-       (Link/author.tsx), ahol semmi baj nem történt. Egy "error" név tehát a
-       használatainak a felét meghazudtolná. A "danger" ugyanezért volt rossz, és
+       nevezni, ahogy az "accent" is szerepet nevez — de ez a piros nálunk NEM csak a
+       hiba színe: ugyanez az érték a kötelező-mező hibabuborékjáé is (validationTooltip),
+       ami figyelmeztetés, nem hiba. Egy "error" név tehát a használatainak egy részét
+       meghazudtolná. A "danger" ugyanezért volt rossz, és
        ráadásul összekeverhető a Bootstrap `danger` osztályával — ami azóta amúgy is
        EZT a pirosat mutatja (index.css: --bs-danger → --app-red). */
     tone?: "accent" | "red";

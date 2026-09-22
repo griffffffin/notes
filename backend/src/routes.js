@@ -6,8 +6,7 @@ const auth = require("./middleware/auth");
 const {validateObjectId, validateOrderOnly} = require("./middleware/validators");
 const {serializePerUser} = require("./userLock");
 const {validateTodoBody, validateCategoryFilter, validateColorFilter} = require("./middleware/validateTodo");
-const {validateQuoteBody, validateAuthorFilter, validateSearchTerm,
-    validateAuthorPrefix} = require("./middleware/validateQuote");
+const {validateQuoteBody} = require("./middleware/validateQuote");
 const validateCredentials = require("./middleware/validateCredentials");
 const validateClientError = require("./middleware/validateClientError");
 const rateLimit = require("./middleware/rateLimit");
@@ -44,12 +43,7 @@ const todosReorder = require("./controllers/Todos/reorder");
 
 const quotesCreate = require("./controllers/Quotes/create");
 const quotesReadLastOrder = require("./controllers/Quotes/readLastOrder");
-const quotesReadAuthors = require("./controllers/Quotes/readAuthors");
-const quotesReadSearchMode = require("./controllers/Quotes/readSearchMode");
-const quotesReadSearch = require("./controllers/Quotes/readSearch");
 const quotesRead = require("./controllers/Quotes/read");
-const quotesReadByAuthor = require("./controllers/Quotes/readByAuthor");
-const quotesReadById = require("./controllers/Quotes/readById");
 const quotesReadForEdit = require("./controllers/Quotes/readForEdit");
 const quotesUpdate = require("./controllers/Quotes/update");
 const quotesDelete = require("./controllers/Quotes/delete");
@@ -119,29 +113,15 @@ router.use("/login",
     }),
     usersLogin);
 
-/* Egy idézet PUBLIKUSAN olvasható az azonosítója alapján (a megosztott link egy
-   konkrét idézetre mutat) — ezért ül ez az EGYETLEN idézet-végpont az auth
-   ELŐTT. A lista és minden írás-művelet auth mögött van.
-
-   KORLÁTOZVA, mert PUBLIKUS és DB-t olvas. A többi publikus végpont (login,
-   regisztráció, /client-error) mind korlátozott; ez maradt ki. Az azonosító nem
-   kitalálható (24 hexa, felsorolás nem reális), de a végpont korlát nélkül
-   végtelen CPU/DB-terhelés a Pi-n — ezt zárjuk le, nem az adatszivárgást. A keret
-   BŐSÉGES: egy megosztott idézetet sokan nyitnak meg, de KÜLÖNBÖZŐ IP-kről,
-   egyenként; egy emberre percenként 60 kérés bőven elég, egy IP-ről ID-ket pörgető
-   scrapert viszont megfog. A rate limit a validáció ELŐTT áll, tehát a rossz alakú
-   kérés is fogyaszt a keretből (mint a loginnál). */
-router.use("/quotes/id",
-    rateLimit({
-        windowMs: 60 * 1000,
-        max: 60,
-        message: "Túl sok kérés.",
-    }),
-    validateObjectId, quotesReadById);
+/* (A korábbi PUBLIKUS /quotes/id — a megosztott idézet-link — az E2EE-átállással
+   MEGSZŰNT: egy névtelen látogatónak nincs mesterkulcsa a boríték visszafejtéséhez.
+   A publikus megosztás a KÜLÖN menetben épül újra, a Shared táblára + fragment-
+   kulcsra, l. e2ee-sharing-design. Ez volt az egyetlen idézet-végpont az auth ELŐTT;
+   így most MINDEN idézet-művelet az auth MÖGÖTT van.) */
 
 /* A kliens szerződés-hibáinak fogadása (l. controllers/clientError.js). Az auth
-   ELŐTT, mert a publikus idézet-nézet is sémán ellenőrzött választ kap: a
-   kijelentkezett úton elromlott szerződésről is tudni akarunk.
+   ELŐTT, mert a szerződés a KIJELENTKEZETT felületen (bejelentkező-/lock-képernyő)
+   is elromolhat: a kijelentkezett úton elromlott szerződésről is tudni akarunk.
 
    KORLÁTOZVA, mert publikus és NAPLÓBA ÍR — korlát nélkül a naplót (és a lemezt)
    tele lehetne írni. Az érték bőséges a valódi használathoz: a kliens
@@ -277,24 +257,18 @@ todosRouter.use(todosRead);
 
 router.use("/to-dos", todosRouter);
 
-/* Az idézetek névtere. Az egy-idézet-olvasás (/quotes/id) fentebb, az auth ELŐTT
-   van; itt a saját lista, a szerző-szűrés és az írás-műveletek, mind auth mögött.
-   Szimmetrikus a /to-dos-val, csak vékonyabb (nincs szín, sorszám-lekérdezés). */
+/* Az idézetek névtere — a saját lista, a szerkesztő-betöltés és az írás-műveletek,
+   MIND az auth mögött (az E2EE után nincs publikus idézet-végpont). Szimmetrikus a
+   /to-dos-val, csak vékonyabb. A szerver-oldali szerző-szűrés és keresés
+   (/author, /authors, /search, /search-mode) MEGSZŰNT: a tartalom titkosított,
+   a szerver nem tud rá szűrni — a kliens-oldali keresés/szűrés F3-ban jön. */
 const quotesRouter = require("express").Router();
 
 quotesRouter.use("/create", writeRateLimit, validateObjectId, enforceItemQuota(Quotes), validateQuoteBody, serializePerUser, quotesCreate);
 quotesRouter.use("/last/order", quotesReadLastOrder);
-quotesRouter.use("/authors", validateAuthorPrefix, quotesReadAuthors);
-quotesRouter.use("/author", validateAuthorFilter, quotesReadByAuthor);
 /* A szerkesztő idézet-betöltése — auth MÖGÖTT, tulajdonos-ellenőrzéssel (l.
-   readForEdit.js). A publikus /quotes/id (auth ELŐTT, fent) csak a megjelenítő
-   mezőket adja; a sorszámot a szerkesztő ezen a hitelesített végponton kapja. */
+   readForEdit.js): a titkosított borítékot ÉS a sorszámot adja, a kliens fejti. */
 quotesRouter.use("/edit", validateObjectId, requireOwnership(Quotes), quotesReadForEdit);
-/* A keresés két végpontja. A /search-mode a beküldéskori MÓD-döntés (olcsó,
-   lét-kérdések), a /search a szöveg-mód TÖMB-találata (a húzáshoz). A statikus
-   nevek nem ütköznek egymással, sem a /author-ral. */
-quotesRouter.use("/search-mode", validateSearchTerm, quotesReadSearchMode);
-quotesRouter.use("/search", validateSearchTerm, quotesReadSearch);
 
 quotesRouter.use("/update", writeRateLimit, validateObjectId, serializePerUser, requireOwnership(Quotes), validateQuoteBody, quotesUpdate);
 quotesRouter.use("/delete", writeRateLimit, validateObjectId, serializePerUser, requireOwnership(Quotes), quotesDelete);

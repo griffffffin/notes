@@ -3,9 +3,15 @@ const Schema = mongoose.Schema;
 const {publicJsonTransform} = require("../publicJson");
 
 /* Az idézetek külön collectionben élnek, nem a to-dók közé keverve (a projekt
-   adatmodell-elve: szekciónként külön tábla). A séma a to-do VÉKONYABB mása:
-   nincs szín, százalék, listaelem — egy idézetnek szövege és (opcionálisan)
-   szerzője van. */
+   adatmodell-elve: szekciónként külön tábla).
+
+   VÉGPONTOK KÖZÖTTI TITKOSÍTÁS (E2EE). A tartalmi mezők — az idézet szövege, a
+   szerző, a betűméret és a létrehozás ideje — MÁR NEM nyílt oszlopok: a kliens egy
+   AES-256-GCM borítékba (frontend/src/e2ee/content.ts) sorosítja őket, és az a
+   `ciphertext` mező érkezik. A szerver a nyílt szöveget SOHA nem látja (E2EE.md 3–4.
+   szakasz). Nyílt marad, ami a szervernek funkcionálisan kell: a tulajdonos (`user`),
+   a sorrend (`order`), és az időbélyegek (a napi export delta-döntése). A `createdAt`
+   a BLOBBA költözött (a kliens állítja), tehát itt nincs többé oszlopa. */
 const quoteSchema = new Schema({
     /* A tulajdonos azonosítója SZÖVEGKÉNT, nem ObjectId-ref-ként — ugyanabból az
        okból, mint a to-dónál: a tulajdonos-ellenőrzés a tokenből jövő szöveggel
@@ -16,16 +22,15 @@ const quoteSchema = new Schema({
         type: String,
         required: true
     },
-    // Maga az idézet szövege. Kötelező — szöveg nélkül az idézet értelmetlen.
-    quote: {
+    /* A TITKOSÍTOTT TARTALMI BORÍTÉK — az idézet szövege, a szerző, a betűméret és a
+       createdAt egyetlen AES-256-GCM borítékba sorosítva (formátum: "e2ee1", az IV
+       benne; l. frontend/src/e2ee/aead.ts). A szerver ezt a szöveget csak TÁROLJA és
+       VISSZAADJA, sosem értelmezi. Kötelező: tartalom nélkül az idézet értelmetlen.
+       A boríték a HELYÉHEZ van kötve (AAD = section|_id|user), tehát a szerver két
+       elem borítékát nem cserélheti ki (swap-támadás) — a GCM-decrypt a kliensen dob. */
+    ciphertext: {
         type: String,
         required: true
-    },
-    /* A szerző a to-do "kategória" szerepében: erre szűrünk (/quotes/:author), és
-       ezt egészíti ki majd az autocomplete. OPCIONÁLIS: névtelen vagy ismeretlen
-       szerzőjű idézet is menthető. */
-    author: {
-        type: String
     },
     order: {
         type: Number,
@@ -33,25 +38,11 @@ const quoteSchema = new Schema({
         // Mint a to-dónál: a sorszám 1-től indul, második védvonal a middleware mögött.
         min: 1
     },
-    /* Per-idézet betűméret SZÁZALÉKBAN (a body font-méretéhez képest): a szerkesztő
-       "Betűméret" steppere állítja, és minden nézet — lista, publikus, szerkesztő —
-       ezzel a mérettel rajzolja az idézetet. Alap 155% (a Szerző-mező mérete), így a
-       mező nélküli régi idézetek is a szerzővel egyező, olvasható méretben jelennek
-       meg. A tartományt a middleware (validateQuote) is őrzi; itt a séma védvonala. */
-    fontSize: {
-        type: Number,
-        default: 155,
-        min: 100,
-        max: 200
-    },
-    createdAt: {
-        type: Date,
-        default: Date.now,
-        required: true
-    },
     /* KÖTELEZŐ, mint a to-dónál (models/todos.js): a napi export ebből dönti el,
        volt-e aznap módosítás — üresen maradó updatedAt egy egész napot kihagyatna
-       a mentésből, némán. */
+       a mentésből, némán. NYÍLT marad (a delta-szinkron ezen áll, l. E2EE.md 4.). A
+       `createdAt` ezzel szemben a titkosított blobba került (csak megjelenítés kell
+       hozzá, elrejtése ingyen). */
     updatedAt: {
         type: Date,
         default: Date.now,
@@ -59,20 +50,20 @@ const quoteSchema = new Schema({
     }
 });
 
-/* Indexek — mint a to-dónál. A {user, order} a lista rendezését ÉS a sorszám-
-   eltolást szolgálja ki (updateMany user + order tartományra); a {user, author}
-   a szerző-szűrést és a szerző-autocomplete-et (distinct author, legfrissebb
-   createdAt). A tervezett elemszámnál (akár ~10 000) enélkül minden oldal-
-   betöltés a teljes collection átfésülése lenne. */
+/* Index — a {user, order} a lista rendezését ÉS a sorszám-eltolást szolgálja ki
+   (updateMany user + order tartományra). A korábbi {user, author} index MEGSZŰNT: a
+   szerző a titkosított blobba került, szerver-oldali szerző-szűrés/-autocomplete
+   nincs többé (F3 hozza vissza kliens-oldalon). A tervezett elemszámnál (akár
+   ~10 000) az order-index nélkül minden oldalbetöltés a teljes collection
+   átfésülése lenne. */
 quoteSchema.index({user: 1, order: 1});
-quoteSchema.index({user: 1, author: 1});
 
 /* A HÁLÓZATRA SZÁNT MEZŐK whitelistje (l. publicJson.js). A `user`, a `__v` és az
-   időbélyegek SZÁNDÉKOSAN kimaradnak: a frontend nem használja őket, és nem is
-   tartoznak a kliensre. A lista- és szerkesztő-végpontok innen kapják a szűkítést;
-   a párja a frontend quoteSchema-ja (types/api.ts). A publikus /quotes/id még
-   ennél is szűkebb (kézi whitelist a readById.js-ben, order nélkül). */
-quoteSchema.set("toJSON", publicJsonTransform(["_id", "quote", "author", "order", "fontSize"]));
+   `updatedAt` SZÁNDÉKOSAN kimaradnak: a frontend nem használja őket, és nem is
+   tartoznak a kliensre. A lista- és a szerkesztő-végpont innen kapja a szűkítést; a
+   párja a frontend quoteSchema-ja (types/api.ts). A titkosított `ciphertext` viszont
+   KIMEGY — azt fejti vissza a kliens a mesterkulccsal. */
+quoteSchema.set("toJSON", publicJsonTransform(["_id", "ciphertext", "order"]));
 
 const Quotes = mongoose.model("Quotes", quoteSchema);
 

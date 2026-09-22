@@ -7,9 +7,7 @@ import Entry from "./User/entry";
 import Save from "./Todos/save";
 import Read from "./Todos/read";
 import QuoteRead from "./Quotes/read";
-import QuoteSearchResults from "./Quotes/searchResults";
 import QuoteSave from "./Quotes/save";
-import QuotePublic from "./Quotes/public";
 import {lastSectionPath} from "./Navbar/sections";
 import {useAuth} from "../contexts/auth-context";
 import {ENDPOINTS} from "../endpoints";
@@ -134,14 +132,9 @@ function TodosSaveRoute({isUpdate}: {isUpdate: boolean}) {
                  categories={p.categories} handleCategoryChange={p.handleCategoryChange}/>;
 }
 
-function QuotesReadRoute({url}: {url: Endpoint}) {
+function QuotesReadRoute() {
     const p = useRoutesProps();
-    return <QuoteRead url={url} handleLinkClicked={p.handleLinkClicked}/>;
-}
-
-function QuotesSearchRoute() {
-    const p = useRoutesProps();
-    return <QuoteSearchResults handleLinkClicked={p.handleLinkClicked}/>;
+    return <QuoteRead handleLinkClicked={p.handleLinkClicked}/>;
 }
 
 function QuotesSaveRoute({isUpdate}: {isUpdate: boolean}) {
@@ -259,23 +252,16 @@ const loggedInRoutes = createRoutesFromElements(
         <Route path={PATHS.todoCategory.pattern} element={<TodosReadRoute url={ENDPOINTS.todosByCategory}/>}/>
         <Route path={PATHS.todoColor.pattern} element={<TodosReadRoute url={ENDPOINTS.todosByColor}/>}/>
         <Route path={PATHS.todoUpdate.pattern} element={<TodosSaveRoute key="update" isUpdate={true}/>}/>
-        {/* Idézetek. A lista és a szerző-szűrt nézet ugyanaz a QuoteRead (a url-prop
-            dönti, szűr-e); a create és az update ugyanaz a QuoteSave, külön key-vel.
-            A statikus /quotes/create és /quotes/update rangban megelőzi a dinamikus
-            /quotes/:author-t, így nem ütköznek. */}
-        <Route path={PATHS.quotes} element={<QuotesReadRoute url={ENDPOINTS.quotes}/>}/>
+        {/* Idézetek. VÉGPONTOK KÖZÖTTI TITKOSÍTÁS (E2EE) UTÁN egyetlen lista van (a
+            szerver-oldali szerző-szűrés és keresés megszűnt — a kliens-oldali F3-ban jön),
+            és nincs publikus megosztott nézet (az a külön menetben, a Shared táblára épül).
+            A create és az update ugyanaz a QuoteSave, külön key-vel; a statikus /quotes/create
+            és /quotes/update így nem ütközik semmivel. */}
+        <Route path={PATHS.quotes} element={<QuotesReadRoute/>}/>
         <Route path={PATHS.quoteCreate} element={<CreateEntry section="quotes" build={PATHS.quoteCreateItem}/>}/>
         <Route path={PATHS.quoteCreateItem.pattern}
                element={<QuotesSaveRoute key="quote-create" isUpdate={false}/>}/>
         <Route path={PATHS.quoteUpdate.pattern} element={<QuotesSaveRoute key="quote-update" isUpdate={true}/>}/>
-        {/* A keresés szöveg-módú találata. A statikus "search" szegmens rangban
-            megelőzi a dinamikus /quotes/:author-t ÉS a /quotes/:author/:id-t (a
-            react-router a statikus szegmenst többre értékeli), ezért nem ütköznek. */}
-        <Route path={PATHS.quoteSearch.pattern} element={<QuotesSearchRoute/>}/>
-        <Route path={PATHS.quotesByAuthor.pattern} element={<QuotesReadRoute url={ENDPOINTS.quotesByAuthor}/>}/>
-        {/* Egy megosztott idézet publikus nézete. A bejelentkezett is megnyithatja
-            (olvasásra); a kijelentkezett ágban ugyanez a route szerepel. */}
-        <Route path={PATHS.publicQuote.pattern} element={<QuotePublic/>}/>
         {/* Ismeretlen út → az UTOLSÓ megnyitott szekcióra, ugyanoda, ahova a gyökér.
             Eddig bedrótozottan a to-do listára vitt: aki az idézetek közt dolgozott
             és elrontott egy címet, az átesett a másik szekcióba. A "*" a react-router
@@ -289,20 +275,13 @@ const loggedOutRoutes = createRoutesFromElements(
         {/* Külön key, mint a Save-nél: a két nézetet ugyanaz az Entry rendereli,
             enélkül a beírt adatok meg a hibaüzenet átjönnének a másik űrlapra. */}
         <Route path={PATHS.signup} element={<Entry key="signup" isLogin={false}/>}/>
-        {/* A szerkesztő-URL (/quotes/update/:id) kijelentkezve NEM publikus nézet:
-            enélkül a statikus "update" szegmenst a lenti /quotes/:author/:id az
-            author-nak venné, és megmutatná az idézetet. A szerkesztéshez belépés
-            kell, ezért a bejelentkezőt adjuk; a statikus route megelőzi a dinamikusat. */}
+        {/* Az idézet-szerkesztő (/quotes/update/:id) belépést kíván: kijelentkezve a
+            bejelentkezőt adjuk. Az E2EE-átállás után NINCS publikus idézet-nézet, tehát
+            a lenti "*"-jokerrel semmi nem ütközik — de az explicit route így is beszédesebb
+            (a szerkesztő-URL nem véletlenül esik a loginra). */}
         <Route path={PATHS.quoteUpdate.pattern} element={<Entry key="login" isLogin={true}/>}/>
-        {/* A keresés is bejelentkezést kíván: kijelentkezve a /quotes/search/:term a
-            bejelentkezőre essen (mint az /update), NE a lenti /quotes/:author/:id
-            publikus nézetre — az a "search"-öt szerzőnek, a kifejezést idézet-id-nek
-            venné, és "Nem létező idézet"-et mutatna. A statikus "search" szegmens
-            rangban megelőzi a dinamikus :author-t. */}
-        <Route path={PATHS.quoteSearch.pattern} element={<Entry key="login" isLogin={true}/>}/>
-        {/* Publikus idézet-nézet bejelentkezés nélkül is — a megosztott link ettől
-            működik kijelentkezve. Minden más ismeretlen út a bejelentkezőre esik. */}
-        <Route path={PATHS.publicQuote.pattern} element={<QuotePublic/>}/>
+        {/* Minden más ismeretlen út (a megszűnt publikus/kereső nézetekkel együtt) a
+            bejelentkezőre esik. */}
         <Route path="*" element={<Entry key="login" isLogin={true}/>}/>
     </Route>
 );

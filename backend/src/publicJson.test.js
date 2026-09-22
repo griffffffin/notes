@@ -29,18 +29,19 @@ const ID = new mongoose.Types.ObjectId();
 const USER = "507f1f77bcf86cd799439011";
 
 test("a Quotes toJSON KIZÁRÓLAG a hálózatra szánt mezőket adja", () => {
+    /* E2EE UTÁN a tartalom egyetlen titkosított boríték (`ciphertext`); a nyílt
+       mezők a szerkezetiek (_id, order). A user, a __v és az időbélyegek nem mehetnek ki. */
     const json = Quotes.hydrate({
-        _id: ID, user: USER, quote: "Idézet", author: "Szerző", order: 3, fontSize: 155,
-        __v: 7, createdAt: new Date(), updatedAt: new Date(),
+        _id: ID, user: USER, ciphertext: "e2ee1.iv.ct", order: 3,
+        __v: 7, updatedAt: new Date(),
     }).toJSON();
 
     assert.deepStrictEqual(Object.keys(json).sort(),
-        ["_id", "author", "fontSize", "order", "quote"],
+        ["_id", "ciphertext", "order"],
         "a Quotes válasza más mezőt is kiadott, mint a whitelist");
     assert.strictEqual(json.user, undefined, "a tulajdonos azonosítója nem mehet ki");
     assert.strictEqual(json.__v, undefined, "a séma-verzió nem mehet ki");
-    assert.strictEqual(json.createdAt, undefined, "az időbélyeg nem mehet ki");
-    assert.strictEqual(json.updatedAt, undefined);
+    assert.strictEqual(json.updatedAt, undefined, "az időbélyeg nem mehet ki");
 });
 
 test("a Todos toJSON KIZÁRÓLAG a hálózatra szánt mezőket adja", () => {
@@ -68,12 +69,10 @@ test("a Todos toJSON KIZÁRÓLAG a hálózatra szánt mezőket adja", () => {
    kontrollja, hogy nem egy mindent-eldobó transzformációt mérünk. */
 test("a whitelistelt mezők ÉRTÉKE átjut (nem mindent dobunk el)", () => {
     const json = Quotes.hydrate({
-        _id: ID, user: USER, quote: "Idézet", author: "Szerző", order: 3, fontSize: 155,
+        _id: ID, user: USER, ciphertext: "e2ee1.iv.ct", order: 3,
     }).toJSON();
-    assert.strictEqual(json.quote, "Idézet");
-    assert.strictEqual(json.author, "Szerző");
+    assert.strictEqual(json.ciphertext, "e2ee1.iv.ct");
     assert.strictEqual(json.order, 3);
-    assert.strictEqual(json.fontSize, 155);
     assert.strictEqual(String(json._id), String(ID));
 });
 

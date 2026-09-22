@@ -1,6 +1,10 @@
-/* Az idézetek tulajdon-szabályai. KÜLÖNBSÉG a to-dóhoz képest: egy idézetet
-   BÁRKI elolvashat az azonosítójával (a megosztott link ezért működik token
-   nélkül), DE módosítani/törölni/átsorolni csak a sajátodat lehet.
+/* Az idézetek tulajdon-szabályai: a szerkesztő-betöltést, a módosítást, a törlést
+   és az átsorolást csak a SAJÁT elemeden végezheted (idegennél/nem létezőnél 403).
+
+   VÉGPONTOK KÖZÖTTI TITKOSÍTÁS (E2EE) UTÁN nincs publikus idézet-végpont: a korábbi
+   „bárki olvashatja az azonosítóval" megosztott nézet megszűnt (a publikus megosztás
+   a külön menetben, a Shared táblára épül). A tartalom titkosított boríték
+   (`ciphertext`), amit a szerkesztő-betöltés a sorszámmal együtt ad ki, a kliens fejt.
 
    A Mongoose-modellt memóriabeli mockra cseréljük — adatbázis nem kell. */
 const test = require("node:test");
@@ -18,7 +22,8 @@ const newId = () => new mongoose.Types.ObjectId().toString();
 const OWNER = newId();
 const STRANGER = newId();
 const MISSING_ID = newId();
-const OWNER_QUOTE = {_id: newId(), user: OWNER, quote: "Anna idézete", author: "Anna", order: 1, fontSize: 160};
+// A tartalom titkosított boríték; a szerver csak tárolja/visszaadja.
+const OWNER_QUOTE = {_id: newId(), user: OWNER, ciphertext: "e2ee1.iv.anna", order: 1};
 
 require.cache[modelPath] = {
     id: modelPath, filename: modelPath, loaded: true,
@@ -37,7 +42,6 @@ require.cache[userModelPath] = {
 const auth = require("../../middleware/auth");
 const requireOwnership = require("../../middleware/requireOwnership");
 const Quotes = require("../../models/quotes");
-const readById = require("./readById");
 const readForEdit = require("./readForEdit");
 const update = require("./update");
 const deleteQuote = require("./delete");
@@ -45,10 +49,6 @@ const reorder = require("./reorder");
 
 const app = express();
 app.use(express.json());
-// A readById az auth ELŐTT: publikus (megosztott link). app.use (nem app.post):
-// a controller egy Router, amit mountolni kell, hogy a belső "/" illeszkedjen.
-// PUBLIKUS: NINCS requireOwnership (bárki olvashatja az idézetet az id-jával).
-app.use("/id", readById);
 app.use(auth);
 /* A tulajdon-ellenőrzés a route-lánc requireOwnership middleware-ébe költözött (a
    controllerek a request.item-ből dolgoznak) — a teszt a valódi láncot tükrözi. A
@@ -59,41 +59,15 @@ app.use("/update", requireOwnership(Quotes), update);
 app.use("/delete", requireOwnership(Quotes), deleteQuote);
 app.use("/reorder", requireOwnership(Quotes), reorder);
 
-const editBody = {id: OWNER_QUOTE._id, quote: "Módosítva", author: "Anna", order: 1};
+const editBody = {id: OWNER_QUOTE._id, ciphertext: "e2ee1.iv.upd", order: 1};
 
-test("egy idézet BEJELENTKEZÉS NÉLKÜL is olvasható az azonosítójával", async () => {
-    const response = await request(app).post("/id").send({id: OWNER_QUOTE._id});
-    assert.strictEqual(response.status, 200);
-    assert.strictEqual(response.body.quote, "Anna idézete");
-});
-
-test("nem létező idézetnél 404 (nincs mit rejteni, publikus)", async () => {
-    const response = await request(app).post("/id").send({id: MISSING_ID});
-    assert.strictEqual(response.status, 404);
-});
-
-test("a publikus válasz csak a whitelistelt mezőket adja — user-id, belső azonosító ÉS sorszám NEM szivárog", async () => {
-    const response = await request(app).post("/id").send({id: OWNER_QUOTE._id});
-    assert.strictEqual(response.status, 200);
-    assert.strictEqual(response.body.quote, "Anna idézete");
-    assert.strictEqual(response.body.author, "Anna");
-    // A betűméret a MEGJELENÍTÉSHEZ kell (a megosztott idézet a saját méretével) — jelen van.
-    assert.strictEqual(response.body.fontSize, 160);
-    // A sorszám (listabeli pozíció) egy névtelen látogatóra nem tartozik — NINCS a publikus válaszban.
-    assert.strictEqual(response.body.order, undefined);
-    // A tulajdonos azonosítója egy publikus végponton nem jelenhet meg.
-    assert.strictEqual(response.body.user, undefined);
-    // A belső Mongo-azonosító sem szivárog (nincs rá szükség).
-    assert.strictEqual(response.body._id, undefined);
-});
-
-test("a szerkesztő-betöltés (/edit) a tulajdonosnak kiadja a sorszámot is", async () => {
+test("a szerkesztő-betöltés (/edit) a tulajdonosnak kiadja a borítékot ÉS a sorszámot", async () => {
     const response = await request(app).post("/edit").set("Cookie", sessionCookieFor(OWNER)).send({id: OWNER_QUOTE._id});
     assert.strictEqual(response.status, 200);
-    assert.strictEqual(response.body.quote, "Anna idézete");
-    // A szerkesztőnek a sorszám (a sorszám-választó kezdőértéke) és a betűméret is kell.
+    // A titkosított boríték — ezt fejti a kliens a mesterkulccsal.
+    assert.strictEqual(response.body.ciphertext, "e2ee1.iv.anna");
+    // A szerkesztőnek a sorszám (a sorszám-választó kezdőértéke) is kell.
     assert.strictEqual(response.body.order, 1);
-    assert.strictEqual(response.body.fontSize, 160);
     // A user-id itt SEM szivárog (whitelist).
     assert.strictEqual(response.body.user, undefined);
 });

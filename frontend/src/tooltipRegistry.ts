@@ -33,10 +33,9 @@ const subscribe = (listener: () => void) => {
 };
 
 /* Melyik tooltip van nyitva (vagy null). A komponensek a lenti hookot használják;
-   ez az exportált alak a useSyncExternalStore-nak és a teszteknek kell — utóbbiak
-   így a NYITOTTSÁGOT tudják ellenőrizni anélkül, hogy a react-tooltip DOM-beli
-   megjelenítésére kellene hagyatkozniuk (az jsdomban nem hű). */
-export const getOpenTooltipId = (): string | null => openId;
+   ez a getter a useSyncExternalStore snapshot-forrása. (Korábban exportált is volt a
+   navbar-kereső tesztjeinek — az a kereső az E2EE-vel megszűnt, így már csak belül kell.) */
+const getOpenTooltipId = (): string | null => openId;
 
 /* Egy tooltip nyitása/zárása. Nyitáskor a korábban nyitott MAGÁTÓL becsukódik
    (az érték csak egy azonosítót tud tárolni). Záráskor csak akkor nullázunk, ha

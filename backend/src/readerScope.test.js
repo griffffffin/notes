@@ -2,16 +2,14 @@
 
    A projekt legfontosabb szabálya, hogy egy lista csak a kérő elemeit adja ki
    (l. ownership.js). A LISTA-végpontok ezt a `findOwnedList`-en át teszik, és azt
-   az ownershipBoundary.test.js viselkedésből őrzi. De két olvasó-végpont KÉZZEL
-   szűr, nem a helperen át:
+   az ownershipBoundary.test.js viselkedésből őrzi. A KÉZZEL szűrő olvasó-végpontok
+   (pl. a to-do szűrt nézetei) a `user`-t közvetlenül a lekérdezésbe teszik — egy
+   közös helper nem mindig tudja kiszolgálni őket, tehát a `user`-szűrő kézzel van
+   bennük. Egy JÖVŐBELI keresés- vagy aggregáció-végpont, ami elfelejti a `user`-t,
+   nem egy elemet, hanem MINDENKI adatát adná ki — némán, mert semmi nem hibázik.
 
-     - Quotes/readSearchMode.js — `findOne({user: request.userId, …})` + `exists(…)`,
-     - Quotes/readAuthors.js    — `aggregate([{$match: {user: request.userId}}, …])`.
-
-   Ezeket egy közös helper nem tudja kiszolgálni (az egyik lét-kérdés, a másik
-   csoportosít), tehát a `user`-szűrő KÉZZEL van bennük. Egy JÖVŐBELI keresés- vagy
-   aggregáció-végpont, ami elfelejti a `user`-t, nem egy elemet, hanem MINDENKI
-   adatát adná ki — némán, mert semmi nem hibázik. A viselkedés-teszt (adott
+   (A korábban itt névvel példázott idézet-kereső/aggregáló végpontok az
+   E2EE-átállással megszűntek; a kliens-oldali keresés F3-ban jön.) A viselkedés-teszt (adott
    bemenetre adott válasz) ezt nem fogja meg: a hiányzó szűrő csak akkor derülne
    ki, ha egy MÁSIK felhasználó adata is a DB-ben van, és épp illeszkedik.
 
@@ -62,10 +60,8 @@ const OWNERSHIP_HELPER =
    csak tudatosan, indokkal (mint az authBoundary PUBLIC_ROUTES-a). A kulcs a
    controllers/-hez relatív, POSIX-elválasztóval. */
 const ALLOWED_WITHOUT_SCOPE = {
-    "Quotes/readById.js":
-        "PUBLIKUS megosztott idézet: bárki olvashatja az azonosítóval, tulajdon-" +
-        "ellenőrzés NÉLKÜL (auth ELŐTT ül, l. routes.js + authBoundary.test.js). " +
-        "A válasz whitelist, user-id nem szivárog.",
+    /* A korábbi publikus megosztott idézet-végpont az E2EE-átállással MEGSZŰNT — a
+       publikus megosztás a külön menetben, a Shared táblára épül. */
     "Users/login.js":
         "PRE-AUTH: a fiókot NÉV szerint keresi a hitelesítéshez — még nincs kérő, " +
         "akire szűrni lehetne (a request.userId-t épp ez a végpont alapozza meg).",
@@ -108,13 +104,16 @@ describe("olvasó-query scope: minden controller a kérőre szűr (forrás-szken
     });
 
     /* KONTROLL a néma üres-találat ellen: ha a felismerő regex vagy a bejárás
-       elromlik, a sweep üresen futna, és zölden jelentene semmit. A két
-       allowlistelt (readById, login) MINDIG nyers-olvasó (publikus/pre-auth, nincs
-       mit helperre váltani), plusz a scope-olt readAuthors (aggregate) — kettőnél
-       kevesebb már azt jelenti, hogy a felismerő nem talál semmit. */
+       elromlik, a sweep üresen futna, és zölden jelentene semmit. Ma az EGYETLEN
+       nyers-olvasó a `Users/login.js` (pre-auth, allowlistelt): minden más olvasás a
+       findOwnedList/findOwned/lastOrder helpereken megy (a `.` nélküli hívás nem
+       számít nyers query-nek). Az E2EE-átállás előtt a scope-olt idézet-kereső/
+       -aggregáló végpontok is idekerültek — azok megszűntek, ezért csökkent a szám 1-re.
+       A küszöb így >= 1: egy üres sweep (elromlott regex) továbbra is BUKTAT. Az
+       osztályozó tényleges DISZKRIMINÁLÁSÁT a lenti mutáció-próba állítja, kontrollal. */
     it("a szken talál olvasó-query-t hívó fájlokat (különben a kapu üresen zöldülne)", () => {
         const withReader = scanned.filter((file) => file.hasReaderQuery);
-        assert.ok(withReader.length >= 2,
+        assert.ok(withReader.length >= 1,
             `csak ${withReader.length} olvasó-query-t hívó controllert találtam — a felismerő elromlott?`);
     });
 
@@ -158,7 +157,7 @@ describe("olvasó-query scope: az osztályozó diszkriminál (kontroll)", () => 
             false);
     });
     it("allowlistelt, scope nélküli olvasó → NEM vétség", () => {
-        assert.strictEqual(readerScopeVerdict("Quotes/readById.js", "Model.findById(id)").violation, false);
+        assert.strictEqual(readerScopeVerdict("Users/login.js", "Model.findOne({name})").violation, false);
     });
     it("olvasó-query NÉLKÜLI fájl → NEM vétség (akkor sem, ha nincs request.userId)", () => {
         assert.strictEqual(readerScopeVerdict("Fake/util.js", "response.json(request.item)").violation, false);

@@ -17,8 +17,9 @@ const newId = () => new mongoose.Types.ObjectId().toString();
 const OWNER = newId();
 // A kliens adta azonosító: a létrehozás ezt küldi, a szerver ezzel szúr be.
 const NEW_ID = newId();
-// A vizsgált idézet az 5. sorszámon áll — a mozgatásokat ehhez viszonyítjuk.
-const QUOTE = {_id: newId(), user: OWNER, quote: "Idézet", author: "Szerző", order: 5};
+// A vizsgált idézet az 5. sorszámon áll — a mozgatásokat ehhez viszonyítjuk. A
+// tartalom titkosított boríték (E2EE); az ordering-tesztet a tartalma nem érinti.
+const QUOTE = {_id: newId(), user: OWNER, ciphertext: "e2ee1.iv.ct", order: 5};
 
 const updateManyCalls = [];
 
@@ -103,7 +104,7 @@ test("átsorolás: ha a sorszám írása bukik el, a végpont VISSZATOLJA a szom
    controllers/createOnce.js), az új dokumentum pedig maga is a `>= order`
    tartományban áll — kihagyás nélkül magát tolná el. */
 test("create: a beszúrási helytől fölfelé mindenkit eggyel lejjebb tol, az újat kihagyva", async () => {
-    await post("/create", {id: NEW_ID, order: 2, quote: "Új", author: "Sz"});
+    await post("/create", {id: NEW_ID, order: 2, ciphertext: "e2ee1.iv.new"});
     assert.strictEqual(updateManyCalls.length, 1);
     assert.deepStrictEqual(updateManyCalls[0].filter,
         {user: OWNER, order: {$gte: 2}, _id: {$ne: NEW_ID}});
@@ -137,13 +138,13 @@ test("reorder azonos sorszámra: senkit nem tol el (nincs fölösleges írás)",
 });
 
 test("update sorszám-változással (5 -> 2): a reorderrel azonos eltolást végzi", async () => {
-    await post("/update", {id: QUOTE._id, order: 2, quote: "Sz", author: "A"});
+    await post("/update", {id: QUOTE._id, order: 2, ciphertext: "e2ee1.iv.upd"});
     assert.strictEqual(updateManyCalls.length, 1);
     assert.deepStrictEqual(updateManyCalls[0].filter, {user: OWNER, order: {$gte: 2, $lt: 5}});
     assert.strictEqual(updateManyCalls[0].update.$inc.order, 1);
 });
 
 test("update változatlan sorszámmal: csak a tartalmat írja, senkit nem tol el", async () => {
-    await post("/update", {id: QUOTE._id, order: 5, quote: "Sz", author: "A"});
+    await post("/update", {id: QUOTE._id, order: 5, ciphertext: "e2ee1.iv.upd"});
     assert.strictEqual(updateManyCalls.length, 0);
 });

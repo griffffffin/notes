@@ -29,7 +29,6 @@ const test = require("node:test");
 const assert = require("node:assert");
 const fs = require("node:fs");
 const path = require("node:path");
-const Quotes = require("./models/quotes");
 
 const REPO_ROOT = path.join(__dirname, "../..");
 
@@ -151,29 +150,12 @@ test("a piszkozat-kulcs hossza egyezik a két oldalon", () => {
         "Elcsúszva a kliens MINDEN kulcsot elutasít, és a szerkesztő nem nyílik meg.");
 });
 
-test("a betűméret tartománya egyezik a szerkesztő stepperével", () => {
-    /* A backend oldalán a SÉMÁT olvassuk, nem a middleware-t — a kettő egyezését a
-       middleware/fontSizeRange.test.js már őrzi. Így a lánc teljes:
-       séma ↔ middleware (ott), séma ↔ frontend (itt). */
-    const {min, max} = Quotes.schema.path("fontSize").options;
-    const source = resolveSource("frontend/src/components/Quotes/save");
-    const stepper = fs.readFileSync(source, "utf8").match(/max=\{(\d+)\}\s*min=\{(\d+)\}/);
-    assert.ok(stepper, "Nem találtam a betűméret-stepper tartományát a szerkesztőben " +
-        "(max={…} min={…}). Ha az alakja változott, ezt a tesztet is vezesd át.");
-
-    assert.strictEqual(Number(stepper[2]), min, "A stepper alsó határa eltér a séma minimumától.");
-    assert.strictEqual(Number(stepper[1]), max, "A stepper felső határa eltér a séma maximumától.");
-});
-
-test("a betűméret alapértéke egyezik a séma alapértékével", () => {
-    const schemaDefault = Quotes.schema.path("fontSize").options.default;
-    const frontendDefault = declared("frontend/src/components/Quotes/save",
-        /DEFAULT_FONT_SIZE\s*=\s*(\d+)/, "a betűméret alapértéke");
-
-    assert.strictEqual(Number(frontendDefault), schemaDefault,
-        "Az új idézet a szerkesztőben más méretet kap, mint amit a séma a mező nélküli régiekre ad — " +
-        "a szöveg mérete ugrana a lista és a szerkesztő között.");
-});
+/* A BETŰMÉRET KÖTÉSEI MEGSZŰNTEK. Az E2EE-átállás után a `fontSize` a titkosított
+   tartalmi blobba került (frontend/src/e2ee/content.ts), tehát a szervernek NINCS
+   róla sémája — a tartomány és az alapérték immár TISZTÁN kliens-oldali konstans
+   (Quotes/save.tsx), nincs mihez kötni. (A korábbi séma↔stepper és séma↔alapérték
+   szerződés-tesztek, valamint a betűméret-tartomány külön middleware-tesztje
+   tárgytalanná váltak.) */
 
 /* AZ ÚJ ELEM AZONOSÍTÓJÁNAK HOSSZA — a legfrissebb csomaghatár-kötés.
 

@@ -15,22 +15,20 @@
 
    AZ ÉRTÉKEK JELENTÉSE. `feature=()` = SENKI nem használhatja (üres allowlist);
    `feature=(self)` = csak az azonos origin. A lenti lista MÉRT: a felsorolt
-   képességeket az app kódja sehol nem használja (kamera, geolokáció, USB…), egyet
-   kivéve.
+   képességeket az app kódja sehol nem használja (kamera, geolokáció, USB, vágólap…),
+   ezért MIND üres allowlistet kap.
 
-   ⚠ A VÁGÓLAP KIVÉTEL — és miért nem tiltjuk teljesen. MÉRVE: a frontend
-   clipboard.ts a `navigator.clipboard.writeText`-tel másol (az idézet-megosztás
-   gombja, Quotes/shareButton.tsx). Ha a `clipboard-write`-ot tiltanánk, a megosztás
-   NÉMÁN elromlana (a böngésző nem dob feltűnő hibát, csak nem másol). Ezért
-   `clipboard-write=(self)` — az azonos origin írhat a vágólapra —, viszont
-   `clipboard-read=()` teljesen tiltva: OLVASNI a vágólapról soha nem akarunk, azt
-   egy támadó használná (a felhasználó máshonnan másolt titkainak kiolvasására).
+   A VÁGÓLAP TELJESEN TILTVA. Korábban `clipboard-write=(self)` volt engedélyezve az
+   idézet-megosztás link-másoló gombjához — de az a megosztás a végpontok közötti
+   titkosítás (E2EE) átállásával kikerült (a publikus megosztás a külön menetbe, a
+   Shared táblára épül), és a frontenden ma SEMMI nem ír a vágólapra. A legkisebb
+   jogosultság elve szerint tehát `clipboard-write=()` is: amire nincs használó,
+   azt letiltjuk. (Ha a megosztás-menet visszahozza a link-másolást, ITT kell újra
+   `(self)`-re nyitni — és élesítés előtt kézzel kipróbálni.) Az OLVASÁS eleve tiltva
+   volt (`clipboard-read=()`): a vágólap olvasását egy támadó használná. */
 
-   ⚠ ÉLESÍTÉS ELŐTT: a megosztás gombot kézzel is ki kell próbálni — a
-   `clipboard-write=(self)` hibás elgépelése épp azt törné el, amit védeni akarunk. */
-
-/* A fejléc értéke egy helyen, felsorolva — hogy látszódjon, mit tiltunk és mit
-   engedünk. A sorrend nem számít; a `clipboard-*` a végén, mert az a kivétel. */
+/* A fejléc értéke egy helyen, felsorolva — hogy látszódjon, mit tiltunk. A sorrend
+   nem számít. */
 const POLICY = [
     "accelerometer=()",
     "camera=()",
@@ -43,7 +41,7 @@ const POLICY = [
     "midi=()",
     "display-capture=()",
     "clipboard-read=()",
-    "clipboard-write=(self)",
+    "clipboard-write=()",
 ].join(", ");
 
 function permissionsPolicy(request, response, next) {

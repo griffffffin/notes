@@ -3,8 +3,9 @@ import {Link} from "react-router-dom";
 import {useTheme, type BootstrapColor} from "../../contexts/theme-context";
 
 /* Egy SZŰRT NÉZETRE mutató hivatkozás — a szekciók közös váza. Ma a to-do
-   kategóriája (/to-dos/category/:name) és az idézet szerzője (/quotes/:author)
-   használja; a következő szekció (film: műfaj) ugyanezt kapja.
+   kategóriája (/to-dos/category/:name) használja; a következő szekció (film: műfaj)
+   ugyanezt kapja. (Az idézet szerző-szűrt nézete korábban szintén ezt használta, de
+   az E2EE-vel megszűnt — a kliens-oldali szűrés F3-ban jön.)
 
    Miért VALÓDI link, és nem kattintás-kezelős doboz? Mert a böngésző így ismeri
    fel célpontnak: látszik a cím az állapotsorban, működik a középső gombos "új
@@ -36,14 +37,14 @@ import {useTheme, type BootstrapColor} from "../../contexts/theme-context";
    (useSortableCards): a felengedéskor érkező kattintást elnyeli, ha közben húzás
    történt, így a lista átrendezése nem navigál el. A navbarban ez nem fenyeget,
    mert ott nincs húzás. */
-/* Exportált, mert a rá épülő szekció-linkek (LinkAuthor, LinkCategory) a saját
-   propjaikat EBBŐL származtatják: ők csak a `to`-t és a `value`-t töltik ki, a
-   többit változatlanul adják tovább. Így ha a váz egyszer új propot kap, nem kell
-   három fájlban átvezetni — és nem is csúszhatnak el egymástól. */
+/* Exportált, mert a rá épülő szekció-link (LinkCategory) a saját propjait EBBŐL
+   származtatja: csak a `buildPath`-t és a `value`-t tölti ki, a többit változatlanul
+   adja tovább. Így ha a váz egyszer új propot kap, nem kell több fájlban átvezetni —
+   és nem is csúszhatnak el egymástól. */
 export type FilterLinkProps = {
-    /* A szűrt nézet ÚTVONAL-BUILDERE a paths.ts-ből (PATHS.todoCategory,
-       PATHS.quotesByAuthor) — nem a kész cím és nem is egy előtag. A komponens
-       ezt hívja meg a `value`-val; a kódolás és az útvonal alakja a builderé. */
+    /* A szűrt nézet ÚTVONAL-BUILDERE a paths.ts-ből (PATHS.todoCategory) — nem a
+       kész cím és nem is egy előtag. A komponens ezt hívja meg a `value`-val; a
+       kódolás és az útvonal alakja a builderé. */
     buildPath: (value: string) => string;
     /* A szűrés értéke — egyben a link látható szövege ÉS a címbe kerülő szegmens:
        a kategória, illetve a szerző neve. */
