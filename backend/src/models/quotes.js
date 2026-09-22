@@ -26,7 +26,7 @@ const quoteSchema = new Schema({
        createdAt egyetlen AES-256-GCM borítékba sorosítva (formátum: "e2ee1", az IV
        benne; l. frontend/src/e2ee/aead.ts). A szerver ezt a szöveget csak TÁROLJA és
        VISSZAADJA, sosem értelmezi. Kötelező: tartalom nélkül az idézet értelmetlen.
-       A boríték a HELYÉHEZ van kötve (AAD = section|_id|user), tehát a szerver két
+       A boríték a HELYÉHEZ van kötve (AAD = section|_id), tehát a szerver két
        elem borítékát nem cserélheti ki (swap-támadás) — a GCM-decrypt a kliensen dob. */
     ciphertext: {
         type: String,

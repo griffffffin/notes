@@ -6,7 +6,7 @@
 
    MIÉRT KÜLÖN A PISZKOZAT-TITKOSÍTÁSTÓL (draftCrypto.ts). Kettő a különbség. (1) Ott
    NINCS AAD: a piszkozat a saját lemezén ül, nincs mihez kötni. Itt viszont a
-   ciphertextet a HELYÉHEZ kötjük (l. content.ts: AAD = szekció|_id|user), hogy az
+   ciphertextet a HELYÉHEZ kötjük (l. content.ts: AAD = szekció|_id), hogy az
    ellenséges szerver ne cserélhessen ki két elemet swap-támadással. (2) Más a
    formátum-jelölő ("e2ee1" vs "aesgcm1"), mert a két adathalmaz külön migrál. A két
    modul szándékosan nem hivatkozik egymásra; a base64-segédek duplikációja tudatos
