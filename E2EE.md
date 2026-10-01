@@ -5,9 +5,10 @@ A tartalom (jegyzet, idézet, film, to-do…) úgy tárolódjon a szerveren, hog
 pozicionálásának belépője (l. a `product-positioning` memória). Ez a dokumentum a
 megvalósítás terve; a fázisok külön menetekben, teszttel és mutáció-próbával mennek.
 
-> **Állapot:** TERVEZÉS. A kriptó-mag megépítése jöhet most; az **élesítés a HTTPS-en
-> múlik** (l. lent), de a HTTPS ingyenes, nem a fizetős domainen. Semmi nincs még
-> implementálva ebből.
+> **Állapot:** F1 (kriptó-mag, beiratkozás/feloldás, quotes-boríték) és F2 (offline
+> mentés-visszafejtő + beiratkozás-mentés) KÉSZ és commitolva, NEM élesítve. F3 (6.
+> szakasz) tervezés alatt. Az **élesítés a HTTPS-en múlik** (l. lent), de a HTTPS
+> ingyenes, nem a fizetős domainen.
 
 ## 1. Fenyegetésmodell — mit ad hozzá, mit NEM
 
@@ -147,11 +148,11 @@ után az MK eltűnik a memóriából, és **nem pótolható a szerverről** → 
 Ez egy új állapotot hoz: a süti szerint „belépve", de a tartalom „zárolt" (nincs MK) →
 kell egy **lock-képernyő**. Ez az E2EE inherens ára a jelenlegi modellben.
 
-- **Ajánlott alapérték: re-prompt** a jelszóra reloadkor (Standard Notes-minta, a
-  legbiztonságosabb).
-- **Gyengébb-de-simább alternatíva:** az MK a `sessionStorage`-ban (tab-élettartamig él,
-  tab-zárásnál törlődik). Kevésbé biztonságos, de reloadnál nem kérdez.
-- ⬜ **Nyitott UX-kérdés** — a két opció közti választás.
+**Eldöntve és kész** (`feat(frontend): lock the app after reload and adopt the key across
+tabs`): reloadkor **re-prompt** a lock-képernyőn, DE ha egy másik lap már fel van oldva, az új
+lap a `BroadcastChannel`-en jelszó nélkül átveszi a kulcsot — a kulcs végig csak memóriában
+utazik, és minden lap bezárása után újra jelszó kell. A `sessionStorage`-ba tett MK elvetve
+(laponként külön él, és a tartós tárolás elvét is lazítaná).
 
 ## 6. Keresés és szűrés → kliens-oldal (F3, KÜLÖN menet, de ELŐFELTÉTEL)
 
@@ -211,7 +212,6 @@ válik, nem kell megcsinálni.
 
 ## 11. Nyitott / mérendő kérdések
 
-- ⬜ Reload-UX: re-prompt vs. `sessionStorage`-MK (5. szakasz).
 - ⬜ Argon2id-paraméterek a KLIENSEN (memória/iteráció) — a szerveroldalitól eltér, mert a
   leggyengébb kliens-eszközön (régi telefon) is elviselhető kell legyen; MÉRENDŐ.
 - ⬜ Bundle-hatás: `hash-wasm` mérete (a valibot/@noble mérés-mintája szerint).
