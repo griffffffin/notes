@@ -157,6 +157,18 @@ elmaradt átvezetés.
   szerverek NEM futnak állandóan, kézzel indítandók.
 - Online (interneten át) elérhetőség részletei egy későbbi, külön téma.
 
+## Célkészülék (megjelenítés és teljesítmény)
+
+- **A MEGJELENÍTÉST elsősorban a user telefonjára tervezzük** (Android, Chrome; ~424×942
+  CSS-pixeles nézet — a pontos típus a `CLAUDE.local.md`-ben), **de MÁS eszközön is jól
+  kell működnie.** (A user elve, 2026-10-01.)
+- A user telefonja felső kategóriás: a rajta mért szám FELSŐ KORLÁT, nem cél. A
+  teljesítmény-kereteket (indítás, renderelés, index-építés, feloldás) gyengébb eszközre is
+  ellenőrizni kell — ehhez **valódi gyengébb telefon nem kell, elég az utánzás**: Chrome
+  CPU-fojtás (4× ≈ középkategória; a mérési minta: `E2EE.md` 6.2).
+- Egy mérés bemutatásakor ki kell mondani, melyik eszközön (vagy milyen fojtással) készült,
+  és mi következik belőle a gyengébb eszközökre.
+
 ## Stílus / munkamódszer
 
 - A kommunikáció magyarul megy.

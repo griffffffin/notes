@@ -288,7 +288,7 @@ Visszafejtés nélkül (előre visszafejtett szöveggel) a festés ~20–40%-kal
 tervezzük (Android, Chrome; 424×942 CSS-pixeles nézet), de MÁS eszközön is jól kell működnie — a
 teljesítmény-kereteket ezért a gyengébb eszközökön is ellenőrizzük — valódi gyengébb
 telefon NEM kell, elég az utánzás (Chrome CPU-fojtás; a 4× ≈ középkategória). A célkészülék
-mérése tehát felső korlát, nem cél.
+mérése tehát felső korlát, nem cél. (Az elv a CLAUDE.md „Célkészülék" szakaszában is áll.)
 
 **F) Valódi telefon (M0c, alapkör) — a célkészülék (felső kategóriás Android), Chrome 153**
 
